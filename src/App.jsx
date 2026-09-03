@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import './App.css'
+import AdminPanel from './AdminPanel'
 
 const NAV_LINKS = [
   { href: '#trang-chu', label: 'Trang chủ' },
@@ -12,6 +13,7 @@ const NAV_LINKS = [
 
 const PHOTO_PLACEHOLDER_COUNT = 6
 const SECRET_CODE = 'A4-NHH-MaiDinh'
+const [showAdminPanel, setShowAdminPanel] = useState(false)
 
 /* ---------- Trang trí đại dương ---------- */
 function IslandScene() {
