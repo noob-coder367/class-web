@@ -94,10 +94,13 @@ h1, h2, h3, h4 {
   color: var(--accent-deep);
 }
 
-/* ---------------- OCEAN ZONES ---------------- */
-/* Nền tiếp nối liên tục từ mặt đất (sáng) xuống đáy biển (tối):
-   hero -> shallow -> mid -> deep -> abyss -> floor */
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
+/* ---------------- OCEAN ZONES ---------------- */
 .hero {
   --zone-heading: var(--primary);
   --zone-body: var(--ink-soft);
@@ -302,8 +305,7 @@ h1, h2, h3, h4 {
   justify-items: center;
 }
 
-/* ---------------- SEA CREATURES (nền trang trí) ---------------- */
-
+/* ---------------- SEA CREATURES ---------------- */
 .decor-svg {
   position: absolute;
   z-index: 1;
@@ -403,7 +405,6 @@ h1, h2, h3, h4 {
 }
 
 /* ---------------- ANNOUNCEMENTS ---------------- */
-
 .announcement-form {
   margin-top: 28px;
   background: var(--paper-raised);
@@ -543,8 +544,9 @@ h1, h2, h3, h4 {
     transition: none !important;
   }
 }
+
 /* ---------------------------------------------------------------- */
-/* NÚT XÁC MINH THÀNH VIÊN (TRÊN NAV) */
+/* NÚT XÁC MINH / ĐĂNG XUẤT (TRÊN NAV) */
 .btn-verify {
   background-color: var(--accent);
   color: #fff;
@@ -561,6 +563,25 @@ h1, h2, h3, h4 {
 
 .btn-verify:hover {
   background-color: var(--accent-deep);
+  transform: translateY(-2px);
+}
+
+/* NÚT "VÔ LỚP 10A4" — chỉ hiện với tài khoản là thành viên */
+.btn-class {
+  background-color: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.2s;
+}
+
+.btn-class:hover {
+  background-color: #0d2335;
   transform: translateY(-2px);
 }
 
@@ -587,7 +608,7 @@ h1, h2, h3, h4 {
   justify-content: center;
 }
 
-/* NÚT QUAY LẠI (DẤU BÉ HƠN) */
+/* NÚT QUAY LẠI */
 .btn-back {
   position: absolute;
   top: 30px;
@@ -627,6 +648,13 @@ h1, h2, h3, h4 {
   color: var(--primary);
   font-size: 28px;
   margin-bottom: 24px;
+}
+
+.setup-hint {
+  margin: -12px 0 20px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  line-height: 1.5;
 }
 
 /* CÂU HỎI THÀNH VIÊN */
@@ -706,6 +734,10 @@ h1, h2, h3, h4 {
 .btn-submit:hover {
   background: #0d2335;
 }
+.btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 /* CHỮ HOẶC (DIVIDER) */
 .divider {
@@ -747,7 +779,7 @@ h1, h2, h3, h4 {
   background: #f1f5f9;
 }
 
-/* NÚT TOGGLE KHÔNG NỀN (CHUYỂN ĐĂNG KÝ / ĐĂNG NHẬP) */
+/* NÚT TOGGLE KHÔNG NỀN */
 .btn-toggle-mode {
   margin-top: 24px;
   background: transparent;
@@ -764,7 +796,7 @@ h1, h2, h3, h4 {
   color: var(--primary);
 }
 
-/* HIỆU ỨNG ANIMATION MƯỢT MÀ */
+/* HIỆU ỨNG ANIMATION */
 .fade-in {
   animation: fadeIn 0.3s ease-in-out forwards;
 }
@@ -787,4 +819,3 @@ h1, h2, h3, h4 {
   from { transform: translateY(-15px); opacity: 0; height: 0; padding: 0; }
   to { transform: translateY(0); opacity: 1; height: auto; }
 }
-
