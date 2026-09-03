@@ -134,7 +134,7 @@ export default function App() {
         <p className="eyebrow">Giới thiệu</p>
         <h2>Về lớp chúng mình</h2>
         <p className="section-desc">
-          Đây là trang thông tin chung của lớp 10A4, trường THPT Nguyễn Hữu Huân —
+          Đây là trang thông tin chung của lớp 10A67, trường THPT Nguyễn Hữu Huân —
           nơi cả lớp cùng lưu giữ hình ảnh, theo dõi thông báo và tìm hiểu về giáo
           viên chủ nhiệm. Nội dung ở đây sẽ được cập nhật theo từng học kỳ.
         </p>
