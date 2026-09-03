@@ -13,7 +13,6 @@ const NAV_LINKS = [
 
 const PHOTO_PLACEHOLDER_COUNT = 6
 const SECRET_CODE = 'A4-NHH-MaiDinh'
-const [showAdminPanel, setShowAdminPanel] = useState(false)
 
 /* ---------- Trang trí đại dương ---------- */
 function IslandScene() {
@@ -110,14 +109,16 @@ export default function App() {
   const [sender, setSender] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // ----- State quản lý popup Admin -----
+  const [showAdminPanel, setShowAdminPanel] = useState(false)
+
   // ----- Phiên đăng nhập & hồ sơ (profiles) -----
   const [session, setSession] = useState(null)
-  const [profile, setProfile] = useState(null) // { id, username, is_member }
+  const [profile, setProfile] = useState(null) // { id, username, is_member, role }
   const [authLoading, setAuthLoading] = useState(false)
 
   // ----- Overlay đăng nhập / đăng ký / hoàn tất hồ sơ -----
   const [showAuth, setShowAuth] = useState(false)
-  // authStep: 'login' | 'register' | 'setup' (setup = cần đặt username sau khi đăng nhập Google lần đầu)
   const [authStep, setAuthStep] = useState('login')
   const [isMember, setIsMember] = useState(null)
   const [email, setEmail] = useState('')
@@ -128,13 +129,11 @@ export default function App() {
   useEffect(() => {
     fetchAnnouncements()
 
-    // Lấy phiên hiện có (nếu có) khi tải trang / sau khi quay lại từ Google
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       if (session?.user) loadProfile(session.user)
     })
 
-    // Theo dõi thay đổi đăng nhập/đăng xuất
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       if (session?.user) {
@@ -163,12 +162,11 @@ export default function App() {
     if (error) console.error('Lỗi lấy dữ liệu:', error)
   }
 
-  // Kiểm tra xem user đã có hồ sơ (bảng "profiles") chưa.
-  // Nếu chưa có (vd: vừa đăng nhập Google lần đầu) -> bắt buộc đặt username trước khi dùng tiếp.
+  // Đã bổ sung lấy thêm cột 'role' từ database
   const loadProfile = async (user) => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, is_member')
+      .select('id, username, is_member, role')
       .eq('id', user.id)
       .maybeSingle()
 
@@ -181,7 +179,6 @@ export default function App() {
       setProfile(data)
       setShowAuth(false)
     } else {
-      // Chưa có hồ sơ -> yêu cầu đặt username để hoàn tất đăng ký
       setProfile(null)
       setIsMember(null)
       setUsername('')
@@ -211,7 +208,6 @@ export default function App() {
     }
   }
 
-  // Đăng ký tài khoản mới bằng email + mật khẩu (kèm username + hỏi có phải thành viên 10A4)
   const handleRegisterSubmit = async (e) => {
     e.preventDefault()
 
@@ -246,7 +242,6 @@ export default function App() {
     setShowAuth(false)
   }
 
-  // Đăng nhập bằng email + mật khẩu (tài khoản đã có sẵn)
   const handleLoginSubmit = async (e) => {
     e.preventDefault()
     setAuthLoading(true)
@@ -259,7 +254,6 @@ export default function App() {
     }
   }
 
-  // Hoàn tất hồ sơ sau khi đăng nhập Google lần đầu (chưa có username)
   const handleCompleteProfileSubmit = async (e) => {
     e.preventDefault()
     if (!username.trim()) return alert('Vui lòng đặt tên hiển thị (username)!')
@@ -311,7 +305,7 @@ export default function App() {
   return (
     <div className={`page ${showAuth ? 'no-scroll' : ''}`}>
 
-      {/* Khung Auth Overlay (Lớp phủ mờ trên cùng) */}
+      {/* Khung Auth Overlay */}
       {showAuth && (
         <div className="auth-overlay fade-in">
           {authStep !== 'setup' && (
@@ -449,6 +443,14 @@ export default function App() {
                 Vô Lớp 10A4
               </a>
             )}
+
+            {/* 👇 NÚT ADMIN MỚI CHÈN VÀO ĐÂY 👇 */}
+            {profile?.role === 'admin' && (
+              <button className="btn-class" style={{ background: '#e0a640' }} onClick={() => setShowAdminPanel(true)}>
+                Quản lý Admin 🤓
+              </button>
+            )}
+
             {session ? (
               <button className="btn-verify" onClick={handleSignOut}>Đăng xuất</button>
             ) : (
@@ -593,6 +595,10 @@ export default function App() {
         <Glow count={4} />
         <p>Lớp 10A4 · Trường THPT Nguyễn Hữu Huân</p>
       </footer>
+
+      {/* 👇 HIỂN THỊ POPUP ADMIN Ở ĐÂY 👇 */}
+      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} />}
+
     </div>
   )
 }
