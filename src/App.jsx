@@ -1555,142 +1555,159 @@ export default function App() {
             ========================================= */}
 
             {authStep === 'register' && (
-              <form
-                onSubmit={handleRegisterSubmit}
-                className="auth-form"
-              >
+              <>
+                <form
+                  onSubmit={handleRegisterSubmit}
+                  className="auth-form"
+                >
 
-                <input
-                  type="text"
-                  placeholder="Username"
-                  value={username}
-                  onChange={(e) =>
-                    setUsername(
-                      e.target.value
-                    )
-                  }
-                  autoComplete="username"
-                  required
-                />
-
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={email}
-                  onChange={(e) =>
-                    setEmail(
-                      e.target.value
-                    )
-                  }
-                  autoComplete="email"
-                  required
-                />
-
-                <input
-                  type="password"
-                  placeholder="Mật khẩu (ít nhất 8 ký tự)"
-                  value={password}
-                  onChange={(e) =>
-                    setPassword(
-                      e.target.value
-                    )
-                  }
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                />
-
-                <input
-                  type="password"
-                  placeholder="Xác nhận mật khẩu"
-                  value={confirmPassword}
-                  onChange={(e) =>
-                    setConfirmPassword(
-                      e.target.value
-                    )
-                  }
-                  autoComplete="new-password"
-                  required
-                />
-
-                <div className="member-question">
-
-                  <p>
-                    Bạn có phải là thành viên
-                    của 10A4 không?
-                  </p>
-
-                  <div className="radio-group">
-
-                    <label
-                      className={
-                        isMember === true
-                          ? 'active'
-                          : ''
-                      }
-                    >
-                      <input
-                        type="radio"
-                        name="isMember"
-                        checked={
-                          isMember === true
-                        }
-                        onChange={() =>
-                          setIsMember(true)
-                        }
-                      />
-                      Có
-                    </label>
-
-                    <label
-                      className={
-                        isMember === false
-                          ? 'active'
-                          : ''
-                      }
-                    >
-                      <input
-                        type="radio"
-                        name="isMember"
-                        checked={
-                          isMember === false
-                        }
-                        onChange={() =>
-                          setIsMember(false)
-                        }
-                      />
-                      Không
-                    </label>
-
-                  </div>
-
-                </div>
-
-                {isMember === true && (
                   <input
                     type="text"
-                    placeholder="Mã thành viên 10A4"
-                    value={secretCode}
+                    placeholder="Username"
+                    value={username}
                     onChange={(e) =>
-                      setSecretCode(
+                      setUsername(
                         e.target.value
                       )
                     }
+                    autoComplete="username"
                     required
                   />
-                )}
+
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) =>
+                      setEmail(
+                        e.target.value
+                      )
+                    }
+                    autoComplete="email"
+                    required
+                  />
+
+                  <input
+                    type="password"
+                    placeholder="Mật khẩu (ít nhất 8 ký tự)"
+                    value={password}
+                    onChange={(e) =>
+                      setPassword(
+                        e.target.value
+                      )
+                    }
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+
+                  <input
+                    type="password"
+                    placeholder="Xác nhận mật khẩu"
+                    value={confirmPassword}
+                    onChange={(e) =>
+                      setConfirmPassword(
+                        e.target.value
+                      )
+                    }
+                    autoComplete="new-password"
+                    required
+                  />
+
+                  <div className="member-question">
+
+                    <p>
+                      Bạn có phải là thành viên
+                      của 10A4 không?
+                    </p>
+
+                    <div className="radio-group">
+
+                      <label
+                        className={
+                          isMember === true
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <input
+                          type="radio"
+                          name="isMember"
+                          checked={
+                            isMember === true
+                          }
+                          onChange={() =>
+                            setIsMember(true)
+                          }
+                        />
+                        Có
+                      </label>
+
+                      <label
+                        className={
+                          isMember === false
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <input
+                          type="radio"
+                          name="isMember"
+                          checked={
+                            isMember === false
+                          }
+                          onChange={() =>
+                            setIsMember(false)
+                          }
+                        />
+                        Không
+                      </label>
+
+                    </div>
+
+                  </div>
+
+                  {isMember === true && (
+                    <input
+                      type="text"
+                      placeholder="Mã thành viên 10A4"
+                      value={secretCode}
+                      onChange={(e) =>
+                        setSecretCode(
+                          e.target.value
+                        )
+                      }
+                      required
+                    />
+                  )}
+
+                  <button
+                    type="submit"
+                    className="btn-submit"
+                    disabled={authLoading}
+                  >
+                    {authLoading
+                      ? 'Đang tạo tài khoản...'
+                      : 'Đăng ký'}
+                  </button>
+
+                </form>
 
                 <button
-                  type="submit"
-                  className="btn-submit"
-                  disabled={authLoading}
-                >
-                  {authLoading
-                    ? 'Đang tạo tài khoản...'
-                    : 'Đăng ký'}
-                </button>
+                  type="button"
+                  className="btn-toggle-mode"
+                  onClick={() => {
+                    if (authLoading) return
 
-              </form>
+                    resetAuthForm()
+                    setAuthStep('login')
+                  }}
+                >
+                  Đã có tài khoản?
+                  <br />
+                  Đăng nhập ngay
+                </button>
+              </>
             )}
 
             {/* =========================================
