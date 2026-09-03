@@ -10,19 +10,14 @@ const NAV_LINKS = [
   { href: '#giao-vien', label: 'Giáo viên' },
 ]
 
-// Số lượng ô ảnh trống hiển thị trong mục "Ảnh lớp".
-// Khi có ảnh thật, thay mỗi div.photo-frame bằng <img src="..." alt="..." />
 const PHOTO_PLACEHOLDER_COUNT = 6
 
-/* ---------- Trang trí đại dương (SVG tự vẽ, chỉ để làm nền) ---------- */
-
+/* ---------- Trang trí đại dương ---------- */
 function IslandScene() {
   return (
     <svg className="decor-svg island-scene" viewBox="0 0 1200 260" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
-      {/* gò đất / đảo */}
       <path d="M0,180 Q200,90 460,130 Q650,160 820,110 Q1000,70 1200,140 L1200,260 L0,260 Z" fill="#5c8a4a" />
       <path d="M0,200 Q220,150 480,175 Q680,195 860,160 Q1040,130 1200,175 L1200,260 L0,260 Z" fill="#4a7440" />
-      {/* cây dừa */}
       <g transform="translate(180,55)">
         <rect x="-4" y="0" width="8" height="80" fill="#7a5230" />
         <g fill="#3f7d3a">
@@ -33,12 +28,10 @@ function IslandScene() {
           <ellipse cx="20" cy="-24" rx="26" ry="9" transform="rotate(45 20 -24)" />
         </g>
       </g>
-      {/* chim */}
       <g stroke="#2c3e50" strokeWidth="3" fill="none" strokeLinecap="round">
         <path d="M950,40 q12,-14 24,0 q12,-14 24,0" />
         <path d="M1020,70 q10,-11 20,0 q10,-11 20,0" />
       </g>
-      {/* con vật trên đất (chó nhỏ) */}
       <g transform="translate(620,168)">
         <ellipse cx="0" cy="0" rx="26" ry="14" fill="#8a5a34" />
         <circle cx="24" cy="-8" r="11" fill="#8a5a34" />
@@ -52,13 +45,7 @@ function IslandScene() {
 
 function Fish({ style, flip }) {
   return (
-    <svg
-      className="decor-svg fish"
-      style={style}
-      viewBox="0 0 60 30"
-      aria-hidden="true"
-      transform={flip ? 'scale(-1,1)' : undefined}
-    >
+    <svg className="decor-svg fish" style={style} viewBox="0 0 60 30" aria-hidden="true" transform={flip ? 'scale(-1,1)' : undefined}>
       <path d="M4,15 Q18,0 40,8 L34,15 L40,22 Q18,30 4,15 Z" fill="currentColor" />
       <path d="M0,15 L10,9 L10,21 Z" fill="currentColor" />
       <circle cx="30" cy="12" r="1.6" fill="#0a2c3d" />
@@ -120,18 +107,22 @@ export default function App() {
   const [sender, setSender] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // State cho phần Xác minh (Auth)
+  const [showAuth, setShowAuth] = useState(false)
+  const [authMode, setAuthMode] = useState('login') // 'login' hoặc 'register'
+  const [isMember, setIsMember] = useState(null)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [secretCode, setSecretCode] = useState('')
+
   useEffect(() => {
     fetchAnnouncements()
 
     const channel = supabase
       .channel('realtime-announcements')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'announcements' },
-        (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'announcements' }, (payload) => {
           setAnnouncements((prev) => [payload.new, ...prev])
-        }
-      )
+      })
       .subscribe()
 
     return () => {
@@ -140,11 +131,7 @@ export default function App() {
   }, [])
 
   const fetchAnnouncements = async () => {
-    const { data, error } = await supabase
-      .from('announcements')
-      .select('*')
-      .order('created_at', { ascending: false })
-
+    const { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false })
     if (data) setAnnouncements(data)
     if (error) console.error('Lỗi lấy dữ liệu:', error)
   }
@@ -152,13 +139,9 @@ export default function App() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!title || !content) return alert('Vui lòng nhập đủ tiêu đề và nội dung!')
-
     setSubmitting(true)
-    const { error } = await supabase
-      .from('announcements')
-      .insert([{ title, content, sender: sender || 'Ẩn danh' }])
+    const { error } = await supabase.from('announcements').insert([{ title, content, sender: sender || 'Ẩn danh' }])
     setSubmitting(false)
-
     if (error) {
       alert('Lỗi đăng thông báo: ' + error.message)
     } else {
@@ -168,8 +151,110 @@ export default function App() {
     }
   }
 
+  // Xử lý nút Form Đăng nhập / Đăng ký
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault()
+    
+    // Kiểm tra Secret Code nếu là Đăng ký và chọn "Có"
+    if (authMode === 'register' && isMember === true && secretCode !== 'A4-NHH-MaiDinh') {
+      return alert('Mã bí mật không chính xác. Vui lòng thử lại!')
+    }
+
+    if (authMode === 'register') {
+      // Gọi hàm đăng ký Supabase
+      const { error } = await supabase.auth.signUp({ email, password })
+      if (error) alert(error.message)
+      else alert('Đăng ký thành công! Vui lòng kiểm tra email.')
+    } else {
+      // Gọi hàm đăng nhập Supabase
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) alert('Sai tài khoản hoặc mật khẩu!')
+      else {
+        alert('Đăng nhập thành công!')
+        setShowAuth(false)
+      }
+    }
+  }
+
+  // Xử lý Google Auth
+  const handleGoogleLogin = async () => {
+    await supabase.auth.signInWithOAuth({ provider: 'google' })
+  }
+
   return (
-    <div className="page">
+    <div className={`page ${showAuth ? 'no-scroll' : ''}`}>
+      
+      {/* Khung Auth Overlay (Lớp phủ mờ trên cùng) */}
+      {showAuth && (
+        <div className="auth-overlay fade-in">
+          <button className="btn-back" onClick={() => setShowAuth(false)}>
+            <span>&lt;</span> Quay lại
+          </button>
+          
+          <div className="auth-card slide-up">
+            <h2>{authMode === 'login' ? 'Đăng Nhập' : 'Đăng Ký'}</h2>
+            
+            <div className="member-question">
+              <p>Bạn có phải là thành viên của 10A4 không?</p>
+              <div className="radio-group">
+                <label className={isMember === true ? 'active' : ''}>
+                  <input type="radio" name="isMember" checked={isMember === true} onChange={() => setIsMember(true)} />
+                  Có
+                </label>
+                <label className={isMember === false ? 'active' : ''}>
+                  <input type="radio" name="isMember" checked={isMember === false} onChange={() => setIsMember(false)} />
+                  Không
+                </label>
+              </div>
+            </div>
+
+            <form onSubmit={handleAuthSubmit} className="auth-form">
+              <input 
+                type="text" 
+                placeholder="Username (Email)" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                required 
+              />
+              <input 
+                type="password" 
+                placeholder="Password" 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
+                required 
+              />
+              
+              {/* Chỉ hiện Secret Code khi Đăng ký và chọn Có */}
+              {authMode === 'register' && isMember === true && (
+                <input 
+                  type="text" 
+                  placeholder="Mã bí mật (Secret Code)" 
+                  value={secretCode} 
+                  onChange={(e) => setSecretCode(e.target.value)}
+                  className="secret-input slide-down"
+                  required
+                />
+              )}
+              
+              <button type="submit" className="btn-submit">
+                {authMode === 'login' ? 'Đăng nhập ngay' : 'Tạo tài khoản'}
+              </button>
+            </form>
+
+            <div className="divider">hoặc</div>
+
+            <button type="button" className="btn-google" onClick={handleGoogleLogin}>
+              <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              Đăng nhập với Google
+            </button>
+
+            <button type="button" className="btn-toggle-mode" onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}>
+              {authMode === 'login' ? 'Chưa có tài khoản? Đăng ký ngay' : 'Bạn đã có tài khoản? Đăng nhập nào'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* NAV */}
       <header className="nav">
         <div className="nav-inner">
@@ -184,10 +269,14 @@ export default function App() {
               </a>
             ))}
           </nav>
+          {/* Nút Xác minh thành viên */}
+          <button className="btn-verify" onClick={() => setShowAuth(true)}>
+            Xác minh thành viên
+          </button>
         </div>
       </header>
 
-      {/* HERO — mặt đất / hòn đảo, đầu nguồn của đại dương */}
+      {/* HERO */}
       <section id="trang-chu" className="hero">
         <IslandScene />
         <div className="hero-inner">
@@ -224,7 +313,7 @@ export default function App() {
         </div>
       </section>
 
-      {/* GIỚI THIỆU — vùng nước nông ngay dưới mặt biển */}
+      {/* GIỚI THIỆU */}
       <section id="gioi-thieu" className="zone zone--shallow">
         <Bubbles count={5} />
         <Fish style={{ top: '20%', left: '8%', width: 46, opacity: 0.5 }} />
@@ -240,7 +329,7 @@ export default function App() {
         </div>
       </section>
 
-      {/* GIÁO VIÊN — nước biển vừa, ánh sáng còn chiếu tới */}
+      {/* GIÁO VIÊN */}
       <section id="giao-vien" className="zone zone--mid">
         <Bubbles count={4} className="bubbles--right" />
         <Fish style={{ top: '75%', left: '15%', width: 40, opacity: 0.4 }} />
@@ -260,7 +349,7 @@ export default function App() {
         </div>
       </section>
 
-      {/* ẢNH LỚP — vùng nước sâu hơn, ánh sáng nhạt dần */}
+      {/* ẢNH LỚP */}
       <section id="anh-lop" className="zone zone--deep">
         <Fish style={{ top: '12%', left: '6%', width: 36, opacity: 0.35 }} />
         <Fish style={{ top: '18%', left: '14%', width: 24, opacity: 0.3 }} />
@@ -281,7 +370,7 @@ export default function App() {
         </div>
       </section>
 
-      {/* THÔNG BÁO — vùng biển sâu, tối, có sinh vật phát sáng */}
+      {/* THÔNG BÁO */}
       <section id="thong-bao" className="zone zone--abyss">
         <Glow count={7} />
         <Jellyfish style={{ top: '8%', right: '12%', width: 44, opacity: 0.55 }} />
@@ -291,27 +380,10 @@ export default function App() {
           <h2>Thông báo</h2>
 
           <form onSubmit={handleSubmit} className="announcement-form">
-            <input
-              type="text"
-              placeholder="Tên người đăng (vd: Lớp trưởng, cô Út...)"
-              value={sender}
-              onChange={(e) => setSender(e.target.value)}
-            />
-            <input
-              type="text"
-              placeholder="Tiêu đề thông báo..."
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-            <textarea
-              placeholder="Nội dung thông báo chi tiết..."
-              rows="4"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-            />
-            <button type="submit" disabled={submitting}>
-              {submitting ? 'Đang đăng...' : 'Đăng thông báo'}
-            </button>
+            <input type="text" placeholder="Tên người đăng (vd: Lớp trưởng, cô Út...)" value={sender} onChange={(e) => setSender(e.target.value)} />
+            <input type="text" placeholder="Tiêu đề thông báo..." value={title} onChange={(e) => setTitle(e.target.value)} />
+            <textarea placeholder="Nội dung thông báo chi tiết..." rows="4" value={content} onChange={(e) => setContent(e.target.value)} />
+            <button type="submit" disabled={submitting}>{submitting ? 'Đang đăng...' : 'Đăng thông báo'}</button>
           </form>
 
           <div className="announcement-list">
@@ -334,7 +406,7 @@ export default function App() {
         </div>
       </section>
 
-      {/* ĐÁY BIỂN — tối nhất */}
+      {/* ĐÁY BIỂN */}
       <footer className="zone zone--floor footer">
         <Glow count={4} />
         <p>Lớp 10A4 · Trường THPT Nguyễn Hữu Huân</p>
