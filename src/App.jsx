@@ -14,10 +14,6 @@ const NAV_LINKS = [
 const PHOTO_PLACEHOLDER_COUNT = 6
 const SECRET_CODE = 'A4-NHH-MaiDinh'
 
-/* =========================================================
-   TRANG TRÍ ĐẠI DƯƠNG
-========================================================= */
-
 function IslandScene() {
   return (
     <svg
@@ -47,7 +43,6 @@ function IslandScene() {
             ry="10"
             transform="rotate(-25 -28 -6)"
           />
-
           <ellipse
             cx="28"
             cy="-6"
@@ -55,9 +50,7 @@ function IslandScene() {
             ry="10"
             transform="rotate(25 28 -6)"
           />
-
           <ellipse cx="0" cy="-16" rx="14" ry="30" />
-
           <ellipse
             cx="-20"
             cy="-24"
@@ -65,7 +58,6 @@ function IslandScene() {
             ry="9"
             transform="rotate(-45 -20 -24)"
           />
-
           <ellipse
             cx="20"
             cy="-24"
@@ -90,7 +82,6 @@ function IslandScene() {
         <ellipse cx="0" cy="0" rx="26" ry="14" fill="#8a5a34" />
         <circle cx="24" cy="-8" r="11" fill="#8a5a34" />
         <path d="M30,-16 l6,-10 l2,10 Z" fill="#8a5a34" />
-
         <rect x="-20" y="10" width="6" height="14" fill="#8a5a34" />
         <rect x="8" y="10" width="6" height="14" fill="#8a5a34" />
       </g>
@@ -111,18 +102,11 @@ function Fish({ style, flip }) {
         d="M4,15 Q18,0 40,8 L34,15 L40,22 Q18,30 4,15 Z"
         fill="currentColor"
       />
-
       <path
         d="M0,15 L10,9 L10,21 Z"
         fill="currentColor"
       />
-
-      <circle
-        cx="30"
-        cy="12"
-        r="1.6"
-        fill="#0a2c3d"
-      />
+      <circle cx="30" cy="12" r="1.6" fill="#0a2c3d" />
     </svg>
   )
 }
@@ -181,19 +165,8 @@ function Anglerfish({ style }) {
         fill="none"
       />
 
-      <circle
-        cx="33"
-        cy="-11"
-        r="4.5"
-        className="lure"
-      />
-
-      <circle
-        cx="66"
-        cy="27"
-        r="2"
-        fill="#0a1620"
-      />
+      <circle cx="33" cy="-11" r="4.5" className="lure" />
+      <circle cx="66" cy="27" r="2" fill="#0a1620" />
     </svg>
   )
 }
@@ -232,14 +205,10 @@ function Glow({ count = 5, className = '' }) {
   )
 }
 
-/* =========================================================
-   APP
-========================================================= */
-
 export default function App() {
-  /* -------------------------------------------------------
+  /* =====================================================
      ANNOUNCEMENTS
-  ------------------------------------------------------- */
+  ===================================================== */
 
   const [announcements, setAnnouncements] = useState([])
   const [title, setTitle] = useState('')
@@ -247,82 +216,86 @@ export default function App() {
   const [sender, setSender] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  /* -------------------------------------------------------
+  /* =====================================================
      ADMIN
-  ------------------------------------------------------- */
+  ===================================================== */
 
   const [showAdminPanel, setShowAdminPanel] = useState(false)
 
-  /* -------------------------------------------------------
+  /* =====================================================
      AUTH
-
-     session:
-     Supabase authentication session
-
-     profile:
-     dữ liệu trong bảng profiles
-  ------------------------------------------------------- */
+  ===================================================== */
 
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
-
-  /*
-    authReady = false trong lúc app đang kiểm tra
-    session hiện tại của Supabase.
-
-    Nhờ vậy tránh tình trạng:
-    F5 -> hiện "Xác minh thành viên"
-    -> vài trăm ms sau mới đổi thành "Đăng xuất"
-  */
   const [authReady, setAuthReady] = useState(false)
-
   const [authLoading, setAuthLoading] = useState(false)
-
-  /* -------------------------------------------------------
-     AUTH OVERLAY
-  ------------------------------------------------------- */
-
-  const [showAuth, setShowAuth] = useState(false)
 
   /*
     login
     register
-    setup
+    verify-register
+    forgot-password
+    verify-reset
+    reset-password
   */
   const [authStep, setAuthStep] = useState('login')
+  const [showAuth, setShowAuth] = useState(false)
 
-  const [isMember, setIsMember] = useState(null)
+  /* =====================================================
+     FORM DATA
+  ===================================================== */
+
+  const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [secretCode, setSecretCode] = useState('')
-  const [username, setUsername] = useState('')
+  const [isMember, setIsMember] = useState(null)
 
-  /* =========================================================
-     INIT AUTH + ANNOUNCEMENTS + REALTIME
-  ========================================================= */
+  /* =====================================================
+     OTP
+  ===================================================== */
+
+  const [otp, setOtp] = useState('')
+  const [otpEmail, setOtpEmail] = useState('')
+  const [otpCooldown, setOtpCooldown] = useState(0)
+
+  /*
+    register / reset
+  */
+  const [otpPurpose, setOtpPurpose] = useState(null)
+
+  /* =====================================================
+     OTP COUNTDOWN
+  ===================================================== */
+
+  useEffect(() => {
+    if (otpCooldown <= 0) return
+
+    const timer = setInterval(() => {
+      setOtpCooldown((prev) =>
+        prev > 0 ? prev - 1 : 0
+      )
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [otpCooldown])
+
+  /* =====================================================
+     INITIAL AUTH
+  ===================================================== */
 
   useEffect(() => {
     let mounted = true
 
-    /* ---------------- ANNOUNCEMENTS ---------------- */
-
     fetchAnnouncements()
-
-    /* ---------------- AUTH ---------------- */
 
     const initAuth = async () => {
       try {
         const {
           data: { session: currentSession },
-          error,
         } = await supabase.auth.getSession()
-
-        if (error) {
-          console.error(
-            'Lỗi lấy session:',
-            error
-          )
-        }
 
         if (!mounted) return
 
@@ -347,18 +320,11 @@ export default function App() {
 
     initAuth()
 
-    /* ---------------- AUTH LISTENER ---------------- */
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      async (_event, newSession) => {
         if (!mounted) return
-
-        console.log(
-          'Supabase Auth Event:',
-          event
-        )
 
         setSession(newSession)
 
@@ -366,7 +332,6 @@ export default function App() {
           await loadProfile(newSession.user)
         } else {
           setProfile(null)
-          setShowAuth(false)
         }
 
         if (mounted) {
@@ -374,8 +339,6 @@ export default function App() {
         }
       }
     )
-
-    /* ---------------- REALTIME ANNOUNCEMENTS ---------------- */
 
     const channel = supabase
       .channel('realtime-announcements')
@@ -397,20 +360,16 @@ export default function App() {
       )
       .subscribe()
 
-    /* ---------------- CLEANUP ---------------- */
-
     return () => {
       mounted = false
-
       subscription.unsubscribe()
-
       supabase.removeChannel(channel)
     }
   }, [])
 
-  /* =========================================================
+  /* =====================================================
      FETCH ANNOUNCEMENTS
-  ========================================================= */
+  ===================================================== */
 
   const fetchAnnouncements = async () => {
     const {
@@ -435,25 +394,12 @@ export default function App() {
     }
   }
 
-  /* =========================================================
+  /* =====================================================
      LOAD PROFILE
-
-     Đây là phần rất quan trọng.
-
-     Có session:
-       -> tìm profile
-
-     Có profile:
-       -> đăng nhập hoàn chỉnh
-
-     Có session nhưng chưa có profile:
-       -> mở setup
-  ========================================================= */
+  ===================================================== */
 
   const loadProfile = async (user) => {
-    if (!user?.id) {
-      return null
-    }
+    if (!user?.id) return null
 
     const {
       data,
@@ -461,21 +407,19 @@ export default function App() {
     } = await supabase
       .from('profiles')
       .select(
-        'id, username, is_member, role'
+        'id, username, email, is_member, role'
       )
       .eq('id', user.id)
       .maybeSingle()
 
     if (error) {
       console.error(
-        'Lỗi lấy hồ sơ:',
+        'Lỗi lấy profile:',
         error
       )
 
       return null
     }
-
-    /* ---------------- PROFILE EXISTS ---------------- */
 
     if (data) {
       setProfile(data)
@@ -484,23 +428,56 @@ export default function App() {
       return data
     }
 
-    /* ---------------- NO PROFILE ---------------- */
+    /*
+      Nếu Auth có user nhưng profiles
+      chưa có dữ liệu thì yêu cầu hoàn tất.
+    */
 
     setProfile(null)
 
-    setIsMember(null)
+    setAuthStep('register')
+
     setUsername('')
     setSecretCode('')
+    setIsMember(null)
 
-    setAuthStep('setup')
     setShowAuth(true)
 
     return null
   }
 
-  /* =========================================================
+  /* =====================================================
+     RESET AUTH FORM
+  ===================================================== */
+
+  const resetAuthForm = () => {
+    setUsername('')
+    setEmail('')
+    setPassword('')
+    setConfirmPassword('')
+    setSecretCode('')
+    setIsMember(null)
+
+    setOtp('')
+    setOtpEmail('')
+    setOtpPurpose(null)
+    setOtpCooldown(0)
+  }
+
+  /* =====================================================
+     OPEN AUTH
+  ===================================================== */
+
+  const openAuth = (step = 'login') => {
+    resetAuthForm()
+
+    setAuthStep(step)
+    setShowAuth(true)
+  }
+
+  /* =====================================================
      CHECK USERNAME
-  ========================================================= */
+  ===================================================== */
 
   const isUsernameTaken = async (name) => {
     const {
@@ -524,9 +501,788 @@ export default function App() {
     return !!data
   }
 
-  /* =========================================================
-     POST ANNOUNCEMENT
-  ========================================================= */
+  /* =====================================================
+     FIND EMAIL FROM USERNAME
+
+     IMPORTANT:
+     profiles cần có cột email.
+  ===================================================== */
+
+  const getEmailFromUsername = async (name) => {
+    const {
+      data,
+      error,
+    } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('username', name.trim())
+      .maybeSingle()
+
+    if (error) {
+      console.error(
+        'Lỗi tìm email:',
+        error
+      )
+
+      return null
+    }
+
+    return data?.email || null
+  }
+
+  /* =====================================================
+     REGISTER STEP 1
+
+     Nhập:
+     username
+     email
+     password
+     confirm password
+     member
+     secret code
+
+     Sau đó gửi OTP.
+  ===================================================== */
+
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault()
+
+    const cleanUsername =
+      username.trim()
+
+    const cleanEmail =
+      email.trim().toLowerCase()
+
+    if (!cleanUsername) {
+      return alert(
+        'Vui lòng nhập username!'
+      )
+    }
+
+    if (!cleanEmail) {
+      return alert(
+        'Vui lòng nhập email!'
+      )
+    }
+
+    if (password.length < 8) {
+      return alert(
+        'Mật khẩu phải có ít nhất 8 ký tự!'
+      )
+    }
+
+    if (password !== confirmPassword) {
+      return alert(
+        'Mật khẩu xác nhận không khớp!'
+      )
+    }
+
+    if (isMember === null) {
+      return alert(
+        'Vui lòng chọn bạn có phải thành viên 10A4 hay không!'
+      )
+    }
+
+    if (
+      isMember === true &&
+      secretCode !== SECRET_CODE
+    ) {
+      return alert(
+        'Mã thành viên không chính xác!'
+      )
+    }
+
+    setAuthLoading(true)
+
+    try {
+      if (
+        await isUsernameTaken(
+          cleanUsername
+        )
+      ) {
+        alert(
+          'Username này đã được sử dụng!'
+        )
+
+        return
+      }
+
+      /*
+        signUp tạo Auth user.
+
+        Email confirmation được dùng để
+        xác nhận email.
+      */
+
+      const {
+        data,
+        error,
+      } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+      })
+
+      if (error) {
+        console.error(
+          'Register error:',
+          error
+        )
+
+        alert(error.message)
+
+        return
+      }
+
+      const user = data?.user
+
+      if (!user) {
+        alert(
+          'Không thể tạo tài khoản!'
+        )
+
+        return
+      }
+
+      /*
+        Lưu profile.
+
+        email được lưu cùng username để
+        sau này username có thể tìm email.
+      */
+
+      const {
+        error: profileError,
+      } = await supabase
+        .from('profiles')
+        .insert([
+          {
+            id: user.id,
+            username: cleanUsername,
+            email: cleanEmail,
+            is_member: isMember === true,
+          },
+        ])
+
+      if (profileError) {
+        console.error(
+          'Profile error:',
+          profileError
+        )
+
+        /*
+          Nếu profile lỗi nhưng Auth user
+          đã được tạo thì báo rõ.
+        */
+
+        alert(
+          'Tài khoản Auth đã được tạo nhưng profile bị lỗi: ' +
+          profileError.message
+        )
+
+        return
+      }
+
+      /*
+        Gửi OTP 6 số.
+      */
+
+      const {
+        error: otpError,
+      } = await supabase.auth.signInWithOtp({
+        email: cleanEmail,
+        options: {
+          shouldCreateUser: false,
+        },
+      })
+
+      if (otpError) {
+        console.error(
+          'OTP error:',
+          otpError
+        )
+
+        alert(
+          'Không thể gửi mã xác nhận: ' +
+          otpError.message
+        )
+
+        return
+      }
+
+      setOtpEmail(cleanEmail)
+      setOtpPurpose('register')
+      setOtp('')
+      setOtpCooldown(60)
+
+      /*
+        QUAN TRỌNG:
+        Không setShowAuth(false).
+
+        Người dùng vẫn đứng ở màn hình OTP.
+      */
+
+      setAuthStep('verify-register')
+
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  /* =====================================================
+     VERIFY REGISTER OTP
+  ===================================================== */
+
+  const handleVerifyRegister = async (e) => {
+    e.preventDefault()
+
+    if (otp.length !== 6) {
+      return alert(
+        'Vui lòng nhập đủ 6 số!'
+      )
+    }
+
+    setAuthLoading(true)
+
+    try {
+      const {
+        data,
+        error,
+      } = await supabase.auth.verifyOtp({
+        email: otpEmail,
+        token: otp,
+        type: 'email',
+      })
+
+      if (error) {
+        console.error(
+          'Verify register OTP error:',
+          error
+        )
+
+        alert(
+          'Mã xác nhận không đúng hoặc đã hết hạn!'
+        )
+
+        return
+      }
+
+      if (!data?.user) {
+        alert(
+          'Xác nhận email thất bại!'
+        )
+
+        return
+      }
+
+      /*
+        Đảm bảo profile được load.
+      */
+
+      const loadedProfile =
+        await loadProfile(data.user)
+
+      if (loadedProfile) {
+        alert(
+          'Đăng ký thành công!'
+        )
+
+        /*
+          Chỉ lúc này mới đóng màn hình.
+        */
+
+        setShowAuth(false)
+      } else {
+        alert(
+          'Email đã xác nhận nhưng profile chưa hoàn tất.'
+        )
+      }
+
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  /* =====================================================
+     RESEND REGISTER OTP
+  ===================================================== */
+
+  const resendRegisterOtp = async () => {
+    if (
+      otpCooldown > 0 ||
+      !otpEmail ||
+      authLoading
+    ) {
+      return
+    }
+
+    setAuthLoading(true)
+
+    try {
+      const {
+        error,
+      } = await supabase.auth.signInWithOtp({
+        email: otpEmail,
+        options: {
+          shouldCreateUser: false,
+        },
+      })
+
+      if (error) {
+        alert(
+          'Không thể gửi lại mã: ' +
+          error.message
+        )
+
+        return
+      }
+
+      setOtpCooldown(60)
+
+      alert(
+        'Mã mới đã được gửi tới email!'
+      )
+
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  /* =====================================================
+     LOGIN
+
+     USERNAME + PASSWORD
+
+     username
+       ↓
+     email
+       ↓
+     signInWithPassword()
+  ===================================================== */
+
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault()
+
+    const cleanUsername =
+      username.trim()
+
+    if (!cleanUsername) {
+      return alert(
+        'Vui lòng nhập username!'
+      )
+    }
+
+    if (!password) {
+      return alert(
+        'Vui lòng nhập mật khẩu!'
+      )
+    }
+
+    setAuthLoading(true)
+
+    try {
+      const userEmail =
+        await getEmailFromUsername(
+          cleanUsername
+        )
+
+      if (!userEmail) {
+        alert(
+          'Username hoặc mật khẩu không chính xác!'
+        )
+
+        return
+      }
+
+      const {
+        data,
+        error,
+      } = await supabase.auth.signInWithPassword({
+        email: userEmail,
+        password,
+      })
+
+      if (error) {
+        console.error(
+          'Login error:',
+          error
+        )
+
+        alert(
+          'Username hoặc mật khẩu không chính xác!'
+        )
+
+        return
+      }
+
+      if (!data?.user) {
+        alert(
+          'Đăng nhập thất bại!'
+        )
+
+        return
+      }
+
+      setSession(data.session)
+
+      const loadedProfile =
+        await loadProfile(data.user)
+
+      if (loadedProfile) {
+        /*
+          Chỉ đăng nhập thành công
+          mới về sảnh.
+        */
+
+        setShowAuth(false)
+      }
+
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  /* =====================================================
+     FORGOT PASSWORD STEP 1
+
+     Nhập username.
+
+     username
+       ↓
+     tìm email
+       ↓
+     gửi OTP
+  ===================================================== */
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault()
+
+    const cleanUsername =
+      username.trim()
+
+    if (!cleanUsername) {
+      return alert(
+        'Vui lòng nhập username!'
+      )
+    }
+
+    setAuthLoading(true)
+
+    try {
+      const userEmail =
+        await getEmailFromUsername(
+          cleanUsername
+        )
+
+      if (!userEmail) {
+        alert(
+          'Không tìm thấy tài khoản!'
+        )
+
+        return
+      }
+
+      const {
+        error,
+      } = await supabase.auth.signInWithOtp({
+        email: userEmail,
+        options: {
+          shouldCreateUser: false,
+        },
+      })
+
+      if (error) {
+        console.error(
+          'Reset OTP error:',
+          error
+        )
+
+        alert(
+          'Không thể gửi mã: ' +
+          error.message
+        )
+
+        return
+      }
+
+      setOtpEmail(userEmail)
+      setOtp('')
+      setOtpPurpose('reset')
+      setOtpCooldown(60)
+
+      /*
+        KHÔNG về sảnh.
+      */
+
+      setAuthStep('verify-reset')
+
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  /* =====================================================
+     VERIFY RESET OTP
+  ===================================================== */
+
+  const handleVerifyReset = async (e) => {
+    e.preventDefault()
+
+    if (otp.length !== 6) {
+      return alert(
+        'Vui lòng nhập đủ 6 số!'
+      )
+    }
+
+    setAuthLoading(true)
+
+    try {
+      const {
+        data,
+        error,
+      } = await supabase.auth.verifyOtp({
+        email: otpEmail,
+        token: otp,
+        type: 'email',
+      })
+
+      if (error) {
+        console.error(
+          'Verify reset error:',
+          error
+        )
+
+        alert(
+          'Mã xác nhận không đúng hoặc đã hết hạn!'
+        )
+
+        return
+      }
+
+      if (!data?.session) {
+        alert(
+          'Không thể xác thực mã!'
+        )
+
+        return
+      }
+
+      /*
+        OTP đúng.
+
+        Bây giờ người dùng được phép
+        đặt mật khẩu mới.
+      */
+
+      setAuthStep('reset-password')
+
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  /* =====================================================
+     RESEND RESET OTP
+  ===================================================== */
+
+  const resendResetOtp = async () => {
+    if (
+      otpCooldown > 0 ||
+      !otpEmail ||
+      authLoading
+    ) {
+      return
+    }
+
+    setAuthLoading(true)
+
+    try {
+      const {
+        error,
+      } = await supabase.auth.signInWithOtp({
+        email: otpEmail,
+        options: {
+          shouldCreateUser: false,
+        },
+      })
+
+      if (error) {
+        alert(
+          'Không thể gửi lại mã: ' +
+          error.message
+        )
+
+        return
+      }
+
+      setOtpCooldown(60)
+
+      alert(
+        'Mã mới đã được gửi!'
+      )
+
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  /* =====================================================
+     RESET PASSWORD
+  ===================================================== */
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault()
+
+    if (password.length < 8) {
+      return alert(
+        'Mật khẩu mới phải có ít nhất 8 ký tự!'
+      )
+    }
+
+    if (password !== confirmPassword) {
+      return alert(
+        'Mật khẩu xác nhận không khớp!'
+      )
+    }
+
+    setAuthLoading(true)
+
+    try {
+      const {
+        data,
+        error,
+      } = await supabase.auth.updateUser({
+        password,
+      })
+
+      if (error) {
+        console.error(
+          'Reset password error:',
+          error
+        )
+
+        alert(
+          'Không thể đổi mật khẩu: ' +
+          error.message
+        )
+
+        return
+      }
+
+      if (!data?.user) {
+        alert(
+          'Không thể cập nhật mật khẩu!'
+        )
+
+        return
+      }
+
+      alert(
+        'Đổi mật khẩu thành công!'
+      )
+
+      /*
+        Không giữ session reset.
+
+        Đăng xuất rồi đưa người dùng
+        về màn hình đăng nhập.
+      */
+
+      await supabase.auth.signOut()
+
+      setSession(null)
+      setProfile(null)
+
+      setPassword('')
+      setConfirmPassword('')
+      setOtp('')
+
+      setAuthStep('login')
+
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  /* =====================================================
+     GOOGLE LOGIN
+
+     Google vẫn có thể giữ lại.
+  ===================================================== */
+
+  const handleGoogleLogin = async () => {
+    if (authLoading) return
+
+    setAuthLoading(true)
+
+    try {
+      const {
+        error,
+      } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo:
+            window.location.origin,
+        },
+      })
+
+      if (error) {
+        console.error(
+          'Google login error:',
+          error
+        )
+
+        alert(
+          'Không thể đăng nhập Google: ' +
+          error.message
+        )
+
+        setAuthLoading(false)
+      }
+    } catch (error) {
+      console.error(error)
+
+      alert(
+        'Có lỗi xảy ra khi đăng nhập Google!'
+      )
+
+      setAuthLoading(false)
+    }
+  }
+
+  /* =====================================================
+     LOGOUT
+  ===================================================== */
+
+  const handleSignOut = async () => {
+    if (authLoading) return
+
+    setAuthLoading(true)
+
+    try {
+      const {
+        error,
+      } = await supabase.auth.signOut()
+
+      if (error) {
+        alert(
+          'Không thể đăng xuất!'
+        )
+
+        return
+      }
+
+      setSession(null)
+      setProfile(null)
+      setShowAuth(false)
+
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  /* =====================================================
+     ANNOUNCEMENT SUBMIT
+  ===================================================== */
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -567,528 +1323,82 @@ export default function App() {
     setSender('')
   }
 
-  /* =========================================================
-     REGISTER
-  ========================================================= */
+  /* =====================================================
+     BACK BUTTON
+  ===================================================== */
 
-  const handleRegisterSubmit = async (e) => {
-    e.preventDefault()
+  const handleAuthBack = () => {
+    if (authLoading) return
 
-    /* ---------------- VALIDATION ---------------- */
-
-    if (!username.trim()) {
-      return alert(
-        'Vui lòng đặt tên hiển thị (username)!'
-      )
-    }
-
-    if (!email.trim()) {
-      return alert(
-        'Vui lòng nhập email!'
-      )
-    }
-
-    if (password.length < 8) {
-      return alert(
-        'Mật khẩu phải có ít nhất 8 ký tự!'
-      )
-    }
-
-    if (isMember === null) {
-      return alert(
-        'Vui lòng chọn bạn có phải thành viên 10A4 hay không!'
-      )
+    if (
+      authStep === 'verify-register'
+    ) {
+      setOtp('')
+      setAuthStep('register')
+      return
     }
 
     if (
-      isMember === true &&
-      secretCode !== SECRET_CODE
+      authStep === 'verify-reset'
     ) {
-      return alert(
-        'Mã bí mật không chính xác. Vui lòng thử lại!'
-      )
+      setOtp('')
+      setAuthStep('forgot-password')
+      return
     }
 
-    setAuthLoading(true)
-
-    const cleanUsername =
-      username.trim()
-
-    const cleanEmail =
-      email.trim().toLowerCase()
-
-    try {
-      /* ---------------- USERNAME ---------------- */
-
-      if (
-        await isUsernameTaken(
-          cleanUsername
-        )
-      ) {
-        alert(
-          'Tên hiển thị này đã có người dùng, vui lòng chọn tên khác!'
-        )
-
-        return
-      }
-
-      /* ---------------- SUPABASE SIGN UP ---------------- */
-
-      const {
-        data,
-        error,
-      } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password,
-      })
-
-      if (error) {
-        console.error(
-          'Register error:',
-          error
-        )
-
-        alert(error.message)
-
-        return
-      }
-
-      const user = data?.user
-      const newSession = data?.session
-
-      if (!user) {
-        alert(
-          'Không thể tạo tài khoản. Vui lòng thử lại!'
-        )
-
-        return
-      }
-
-      /* ===================================================
-         TRƯỜNG HỢP 1:
-
-         Supabase trả session ngay.
-
-         => Tài khoản đăng nhập ngay.
-      =================================================== */
-
-      if (newSession) {
-        setSession(newSession)
-
-        const {
-          data: newProfile,
-          error: profileError,
-        } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              id: user.id,
-              username: cleanUsername,
-              is_member: isMember === true,
-            },
-          ])
-          .select(
-            'id, username, is_member, role'
-          )
-          .single()
-
-        if (profileError) {
-          console.error(
-            'Lỗi lưu hồ sơ:',
-            profileError
-          )
-
-          alert(
-            'Tài khoản đã tạo nhưng không thể lưu hồ sơ: ' +
-            profileError.message
-          )
-
-          return
-        }
-
-        setProfile(newProfile)
-
-        setShowAuth(false)
-
-        alert(
-          'Đăng ký thành công!'
-        )
-
-        return
-      }
-
-      /* ===================================================
-         TRƯỜNG HỢP 2:
-
-         Supabase yêu cầu xác nhận email.
-
-         Khi đó chưa có session.
-      =================================================== */
-
-      alert(
-        'Đăng ký thành công! Hãy kiểm tra email để xác nhận tài khoản trước khi đăng nhập.'
-      )
-
-      setShowAuth(false)
-
-      setAuthStep('login')
-
-      setEmail(cleanEmail)
+    if (
+      authStep === 'reset-password'
+    ) {
+      setOtp('')
       setPassword('')
-
-    } finally {
-      setAuthLoading(false)
-    }
-  }
-
-  /* =========================================================
-     LOGIN THƯỜNG
-
-     QUAN TRỌNG:
-     Không setShowAuth(false) ngay lập tức.
-
-     Phải đợi:
-       signIn
-       ↓
-       session
-       ↓
-       profile
-       ↓
-       đóng popup
-  ========================================================= */
-
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault()
-
-    if (!email.trim()) {
-      return alert(
-        'Vui lòng nhập email!'
-      )
-    }
-
-    if (!password) {
-      return alert(
-        'Vui lòng nhập mật khẩu!'
-      )
-    }
-
-    setAuthLoading(true)
-
-    try {
-      const {
-        data,
-        error,
-      } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
-      })
-
-      if (error) {
-        console.error(
-          'Login error:',
-          error
-        )
-
-        if (
-          error.message
-            .toLowerCase()
-            .includes(
-              'email not confirmed'
-            )
-        ) {
-          alert(
-            'Email của bạn chưa được xác nhận. Hãy kiểm tra hộp thư.'
-          )
-        } else {
-          alert(
-            'Sai tài khoản hoặc mật khẩu!'
-          )
-        }
-
-        return
-      }
-
-      /* ---------------- SESSION ---------------- */
-
-      if (!data?.session?.user) {
-        alert(
-          'Đăng nhập chưa hoàn tất. Vui lòng thử lại!'
-        )
-
-        return
-      }
-
-      const loggedInSession =
-        data.session
-
-      setSession(loggedInSession)
-
-      /* ---------------- PROFILE ---------------- */
-
-      const loadedProfile =
-        await loadProfile(
-          loggedInSession.user
-        )
-
-      /*
-        Nếu profile tồn tại:
-        loadProfile() đã tự đóng popup.
-
-        Nếu profile không tồn tại:
-        loadProfile() sẽ mở setup.
-      */
-
-      if (loadedProfile) {
-        setShowAuth(false)
-      }
-
-    } finally {
-      setAuthLoading(false)
-    }
-  }
-
-  /* =========================================================
-     GOOGLE LOGIN
-  ========================================================= */
-
-  const handleGoogleLogin = async () => {
-    if (authLoading) return
-
-    setAuthLoading(true)
-
-    try {
-      const {
-        error,
-      } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo:
-            window.location.origin,
-        },
-      })
-
-      if (error) {
-        console.error(
-          'Google login error:',
-          error
-        )
-
-        alert(
-          'Không thể đăng nhập với Google: ' +
-          error.message
-        )
-
-        setAuthLoading(false)
-      }
-
-      /*
-        Không setShowAuth(false) ở đây.
-
-        OAuth sẽ redirect khỏi trang.
-        Khi quay lại:
-          getSession()
-          +
-          onAuthStateChange()
-        sẽ xử lý session.
-      */
-    } catch (error) {
-      console.error(
-        'Google login exception:',
-        error
-      )
-
-      alert(
-        'Có lỗi xảy ra khi đăng nhập Google.'
-      )
-
-      setAuthLoading(false)
-    }
-  }
-
-  /* =========================================================
-     COMPLETE GOOGLE PROFILE
-  ========================================================= */
-
-  const handleCompleteProfileSubmit = async (e) => {
-    e.preventDefault()
-
-    if (!username.trim()) {
-      return alert(
-        'Vui lòng đặt tên hiển thị (username)!'
-      )
-    }
-
-    if (isMember === null) {
-      return alert(
-        'Vui lòng chọn bạn có phải thành viên 10A4 hay không!'
-      )
+      setConfirmPassword('')
+      setAuthStep('forgot-password')
+      return
     }
 
     if (
-      isMember === true &&
-      secretCode !== SECRET_CODE
+      authStep === 'forgot-password'
     ) {
-      return alert(
-        'Mã bí mật không chính xác. Vui lòng thử lại!'
-      )
+      setUsername('')
+      setAuthStep('login')
+      return
     }
 
-    setAuthLoading(true)
+    setShowAuth(false)
+  }
 
-    try {
-      const cleanUsername =
-        username.trim()
+  /* =====================================================
+     AUTH TITLE
+  ===================================================== */
 
-      /* ---------------- USERNAME ---------------- */
+  const getAuthTitle = () => {
+    switch (authStep) {
+      case 'login':
+        return 'Đăng nhập'
 
-      if (
-        await isUsernameTaken(
-          cleanUsername
-        )
-      ) {
-        alert(
-          'Tên hiển thị này đã có người dùng, vui lòng chọn tên khác!'
-        )
+      case 'register':
+        return 'Đăng ký'
 
-        return
-      }
+      case 'verify-register':
+        return 'Xác nhận email'
 
-      /* ---------------- CURRENT USER ---------------- */
+      case 'forgot-password':
+        return 'Quên mật khẩu'
 
-      const {
-        data: userData,
-        error: userError,
-      } = await supabase.auth.getUser()
+      case 'verify-reset':
+        return 'Xác nhận mã'
 
-      if (userError) {
-        alert(
-          'Không thể lấy thông tin tài khoản: ' +
-          userError.message
-        )
+      case 'reset-password':
+        return 'Đặt mật khẩu mới'
 
-        return
-      }
-
-      const userId =
-        userData.user?.id
-
-      if (!userId) {
-        alert(
-          'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
-        )
-
-        await supabase.auth.signOut()
-
-        return
-      }
-
-      /* ---------------- INSERT PROFILE ---------------- */
-
-      const {
-        data: inserted,
-        error,
-      } = await supabase
-        .from('profiles')
-        .insert([
-          {
-            id: userId,
-            username: cleanUsername,
-            is_member: isMember === true,
-          },
-        ])
-        .select(
-          'id, username, is_member, role'
-        )
-        .single()
-
-      if (error) {
-        console.error(
-          'Profile insert error:',
-          error
-        )
-
-        alert(
-          'Lỗi lưu hồ sơ: ' +
-          error.message
-        )
-
-        return
-      }
-
-      /* ---------------- SUCCESS ---------------- */
-
-      setProfile(inserted)
-      setShowAuth(false)
-
-      alert(
-        'Hoàn tất hồ sơ thành công!'
-      )
-
-    } finally {
-      setAuthLoading(false)
+      default:
+        return 'Tài khoản'
     }
   }
 
-  /* =========================================================
-     LOGOUT
-  ========================================================= */
-
-  const handleSignOut = async () => {
-    if (authLoading) return
-
-    setAuthLoading(true)
-
-    try {
-      const {
-        error,
-      } = await supabase.auth.signOut()
-
-      if (error) {
-        console.error(
-          'Logout error:',
-          error
-        )
-
-        alert(
-          'Không thể đăng xuất. Vui lòng thử lại!'
-        )
-
-        return
-      }
-
-      /*
-        onAuthStateChange cũng sẽ xử lý,
-        nhưng set ngay ở đây giúp UI phản hồi nhanh.
-      */
-
-      setSession(null)
-      setProfile(null)
-      setShowAuth(false)
-
-    } finally {
-      setAuthLoading(false)
-    }
-  }
-
-  /* =========================================================
-     OPEN AUTH
-  ========================================================= */
-
-  const openAuth = (step) => {
-    setAuthStep(step)
-
-    setEmail('')
-    setPassword('')
-    setUsername('')
-    setSecretCode('')
-    setIsMember(null)
-
-    setShowAuth(true)
-  }
-
-  /* =========================================================
+  /* =====================================================
      RENDER
-  ========================================================= */
+  ===================================================== */
 
   return (
     <div
@@ -1097,216 +1407,97 @@ export default function App() {
       }`}
     >
 
-      {/* =====================================================
+      {/* =================================================
           AUTH OVERLAY
-      ===================================================== */}
+      ================================================= */}
 
       {showAuth && (
         <div className="auth-overlay fade-in">
 
-          {/* BACK BUTTON */}
+          {/* BACK */}
 
-          {authStep !== 'setup' && (
-            <button
-              className="btn-back"
-              onClick={() => {
-                if (!authLoading) {
-                  setShowAuth(false)
-                }
-              }}
-            >
-              <span>&lt;</span>
-              Quay lại
-            </button>
-          )}
+          <button
+            className="btn-back"
+            onClick={handleAuthBack}
+            disabled={authLoading}
+          >
+            <span>&lt;</span>
+            Quay lại
+          </button>
 
-          {/* AUTH CARD */}
+          {/* CARD */}
 
           <div className="auth-card slide-up">
 
             <h2>
-              {authStep === 'login' &&
-                'Đăng Nhập'}
-
-              {authStep === 'register' &&
-                'Đăng Ký'}
-
-              {authStep === 'setup' &&
-                'Hoàn tất hồ sơ'}
+              {getAuthTitle()}
             </h2>
 
-            {/* SETUP GOOGLE */}
+            {/* =========================================
+                LOGIN
+            ========================================= */}
 
-            {authStep === 'setup' && (
-              <p className="setup-hint">
-                Bạn vừa đăng nhập bằng Google.
-                Hãy đặt một tên hiển thị
-                (username) để hoàn tất đăng ký.
-              </p>
-            )}
+            {authStep === 'login' && (
+              <>
+                <form
+                  onSubmit={handleLoginSubmit}
+                  className="auth-form"
+                >
 
-            {/* MEMBER QUESTION */}
-
-            {(authStep === 'register' ||
-              authStep === 'setup') && (
-              <div className="member-question">
-
-                <p>
-                  Bạn có phải là thành viên
-                  của 10A4 không?
-                </p>
-
-                <div className="radio-group">
-
-                  <label
-                    className={
-                      isMember === true
-                        ? 'active'
-                        : ''
-                    }
-                  >
-                    <input
-                      type="radio"
-                      name="isMember"
-                      checked={
-                        isMember === true
-                      }
-                      onChange={() =>
-                        setIsMember(true)
-                      }
-                    />
-
-                    Có
-                  </label>
-
-                  <label
-                    className={
-                      isMember === false
-                        ? 'active'
-                        : ''
-                    }
-                  >
-                    <input
-                      type="radio"
-                      name="isMember"
-                      checked={
-                        isMember === false
-                      }
-                      onChange={() =>
-                        setIsMember(false)
-                      }
-                    />
-
-                    Không
-                  </label>
-
-                </div>
-              </div>
-            )}
-
-            {/* FORM */}
-
-            <form
-              onSubmit={
-                authStep === 'login'
-                  ? handleLoginSubmit
-                  : authStep === 'register'
-                    ? handleRegisterSubmit
-                    : handleCompleteProfileSubmit
-              }
-              className="auth-form"
-            >
-
-              {/* USERNAME */}
-
-              {(authStep === 'register' ||
-                authStep === 'setup') && (
-                <input
-                  type="text"
-                  placeholder="Tên hiển thị (username)"
-                  value={username}
-                  onChange={(e) =>
-                    setUsername(e.target.value)
-                  }
-                  required
-                />
-              )}
-
-              {/* EMAIL */}
-
-              {authStep !== 'setup' && (
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
-                  required
-                />
-              )}
-
-              {/* PASSWORD */}
-
-              {authStep !== 'setup' && (
-                <input
-                  type="password"
-                  placeholder="Mật khẩu (tối thiểu 8 ký tự)"
-                  value={password}
-                  onChange={(e) =>
-                    setPassword(e.target.value)
-                  }
-                  minLength={8}
-                  required
-                />
-              )}
-
-              {/* SECRET CODE */}
-
-              {(authStep === 'register' ||
-                authStep === 'setup') &&
-                isMember === true && (
                   <input
                     type="text"
-                    placeholder="Mã bí mật (Secret Code)"
-                    value={secretCode}
+                    placeholder="Username"
+                    value={username}
                     onChange={(e) =>
-                      setSecretCode(
+                      setUsername(
                         e.target.value
                       )
                     }
-                    className="secret-input slide-down"
+                    autoComplete="username"
                     required
                   />
-                )}
 
-              {/* SUBMIT */}
+                  <input
+                    type="password"
+                    placeholder="Mật khẩu"
+                    value={password}
+                    onChange={(e) =>
+                      setPassword(
+                        e.target.value
+                      )
+                    }
+                    autoComplete="current-password"
+                    required
+                  />
 
-              <button
-                type="submit"
-                className="btn-submit"
-                disabled={authLoading}
-              >
-                {authLoading
-                  ? 'Đang xử lý...'
-                  : authStep === 'login'
-                    ? 'Đăng nhập ngay'
-                    : authStep === 'register'
-                      ? 'Tạo tài khoản'
-                      : 'Lưu và tiếp tục'}
-              </button>
+                  <button
+                    type="submit"
+                    className="btn-submit"
+                    disabled={authLoading}
+                  >
+                    {authLoading
+                      ? 'Đang đăng nhập...'
+                      : 'Đăng nhập'}
+                  </button>
 
-            </form>
+                </form>
 
-            {/* LOGIN / REGISTER / GOOGLE */}
+                <button
+                  type="button"
+                  className="btn-toggle-mode"
+                  onClick={() => {
+                    if (authLoading) return
 
-            {authStep !== 'setup' && (
-              <>
+                    resetAuthForm()
+                    setAuthStep('forgot-password')
+                  }}
+                >
+                  Quên mật khẩu?
+                </button>
+
                 <div className="divider">
                   hoặc
                 </div>
-
-                {/* GOOGLE */}
 
                 <button
                   type="button"
@@ -1344,31 +1535,438 @@ export default function App() {
                   Đăng nhập với Google
                 </button>
 
-                {/* TOGGLE */}
-
                 <button
                   type="button"
                   className="btn-toggle-mode"
                   onClick={() => {
-                    if (authLoading) return
-
-                    setAuthStep(
-                      authStep === 'login'
-                        ? 'register'
-                        : 'login'
-                    )
-
-                    setEmail('')
-                    setPassword('')
-                    setUsername('')
-                    setSecretCode('')
-                    setIsMember(null)
+                    resetAuthForm()
+                    setAuthStep('register')
                   }}
                 >
-                  {authStep === 'login'
-                    ? 'Chưa có tài khoản? Đăng ký ngay'
-                    : 'Bạn đã có tài khoản? Đăng nhập nào'}
+                  Chưa có tài khoản?
+                  <br />
+                  Đăng ký ngay
                 </button>
+              </>
+            )}
+
+            {/* =========================================
+                REGISTER
+            ========================================= */}
+
+            {authStep === 'register' && (
+              <form
+                onSubmit={handleRegisterSubmit}
+                className="auth-form"
+              >
+
+                <input
+                  type="text"
+                  placeholder="Username"
+                  value={username}
+                  onChange={(e) =>
+                    setUsername(
+                      e.target.value
+                    )
+                  }
+                  autoComplete="username"
+                  required
+                />
+
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e) =>
+                    setEmail(
+                      e.target.value
+                    )
+                  }
+                  autoComplete="email"
+                  required
+                />
+
+                <input
+                  type="password"
+                  placeholder="Mật khẩu (ít nhất 8 ký tự)"
+                  value={password}
+                  onChange={(e) =>
+                    setPassword(
+                      e.target.value
+                    )
+                  }
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+
+                <input
+                  type="password"
+                  placeholder="Xác nhận mật khẩu"
+                  value={confirmPassword}
+                  onChange={(e) =>
+                    setConfirmPassword(
+                      e.target.value
+                    )
+                  }
+                  autoComplete="new-password"
+                  required
+                />
+
+                <div className="member-question">
+
+                  <p>
+                    Bạn có phải là thành viên
+                    của 10A4 không?
+                  </p>
+
+                  <div className="radio-group">
+
+                    <label
+                      className={
+                        isMember === true
+                          ? 'active'
+                          : ''
+                      }
+                    >
+                      <input
+                        type="radio"
+                        name="isMember"
+                        checked={
+                          isMember === true
+                        }
+                        onChange={() =>
+                          setIsMember(true)
+                        }
+                      />
+                      Có
+                    </label>
+
+                    <label
+                      className={
+                        isMember === false
+                          ? 'active'
+                          : ''
+                      }
+                    >
+                      <input
+                        type="radio"
+                        name="isMember"
+                        checked={
+                          isMember === false
+                        }
+                        onChange={() =>
+                          setIsMember(false)
+                        }
+                      />
+                      Không
+                    </label>
+
+                  </div>
+
+                </div>
+
+                {isMember === true && (
+                  <input
+                    type="text"
+                    placeholder="Mã thành viên 10A4"
+                    value={secretCode}
+                    onChange={(e) =>
+                      setSecretCode(
+                        e.target.value
+                      )
+                    }
+                    required
+                  />
+                )}
+
+                <button
+                  type="submit"
+                  className="btn-submit"
+                  disabled={authLoading}
+                >
+                  {authLoading
+                    ? 'Đang tạo tài khoản...'
+                    : 'Đăng ký'}
+                </button>
+
+              </form>
+            )}
+
+            {/* =========================================
+                REGISTER OTP
+            ========================================= */}
+
+            {authStep === 'verify-register' && (
+              <>
+
+                <p className="setup-hint">
+                  Một mã xác nhận gồm 6 chữ số
+                  đã được gửi tới:
+                </p>
+
+                <p
+                  style={{
+                    fontWeight: '700',
+                    textAlign: 'center',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {otpEmail}
+                </p>
+
+                <form
+                  onSubmit={handleVerifyRegister}
+                  className="auth-form"
+                >
+
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    placeholder="Nhập mã 6 số"
+                    value={otp}
+                    onChange={(e) =>
+                      setOtp(
+                        e.target.value
+                          .replace(/\D/g, '')
+                          .slice(0, 6)
+                      )
+                    }
+                    autoComplete="one-time-code"
+                    className="otp-input"
+                    required
+                  />
+
+                  <button
+                    type="submit"
+                    className="btn-submit"
+                    disabled={
+                      authLoading ||
+                      otp.length !== 6
+                    }
+                  >
+                    {authLoading
+                      ? 'Đang xác nhận...'
+                      : 'Xác nhận'}
+                  </button>
+
+                </form>
+
+                <button
+                  type="button"
+                  className="btn-toggle-mode"
+                  onClick={
+                    resendRegisterOtp
+                  }
+                  disabled={
+                    authLoading ||
+                    otpCooldown > 0
+                  }
+                >
+                  {otpCooldown > 0
+                    ? `Gửi lại mã sau ${otpCooldown}s`
+                    : 'Gửi lại mã'}
+                </button>
+
+                <p className="setup-hint">
+                  Bạn có thể mở Gmail để xem
+                  mã. Màn hình này sẽ không
+                  tự chuyển về sảnh.
+                </p>
+
+              </>
+            )}
+
+            {/* =========================================
+                FORGOT PASSWORD
+            ========================================= */}
+
+            {authStep === 'forgot-password' && (
+              <>
+
+                <p className="setup-hint">
+                  Nhập username của bạn.
+                  Chúng tôi sẽ gửi mã 6 số
+                  tới email đã đăng ký.
+                </p>
+
+                <form
+                  onSubmit={
+                    handleForgotPassword
+                  }
+                  className="auth-form"
+                >
+
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={username}
+                    onChange={(e) =>
+                      setUsername(
+                        e.target.value
+                      )
+                    }
+                    autoComplete="username"
+                    required
+                  />
+
+                  <button
+                    type="submit"
+                    className="btn-submit"
+                    disabled={authLoading}
+                  >
+                    {authLoading
+                      ? 'Đang gửi mã...'
+                      : 'Gửi mã xác nhận'}
+                  </button>
+
+                </form>
+
+              </>
+            )}
+
+            {/* =========================================
+                RESET OTP
+            ========================================= */}
+
+            {authStep === 'verify-reset' && (
+              <>
+
+                <p className="setup-hint">
+                  Mã 6 số đã được gửi tới
+                  email bảo mật của tài khoản.
+                </p>
+
+                <p
+                  style={{
+                    fontWeight: '700',
+                    textAlign: 'center',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {otpEmail}
+                </p>
+
+                <form
+                  onSubmit={handleVerifyReset}
+                  className="auth-form"
+                >
+
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    placeholder="Nhập mã 6 số"
+                    value={otp}
+                    onChange={(e) =>
+                      setOtp(
+                        e.target.value
+                          .replace(/\D/g, '')
+                          .slice(0, 6)
+                      )
+                    }
+                    autoComplete="one-time-code"
+                    className="otp-input"
+                    required
+                  />
+
+                  <button
+                    type="submit"
+                    className="btn-submit"
+                    disabled={
+                      authLoading ||
+                      otp.length !== 6
+                    }
+                  >
+                    {authLoading
+                      ? 'Đang xác nhận...'
+                      : 'Xác nhận mã'}
+                  </button>
+
+                </form>
+
+                <button
+                  type="button"
+                  className="btn-toggle-mode"
+                  onClick={resendResetOtp}
+                  disabled={
+                    authLoading ||
+                    otpCooldown > 0
+                  }
+                >
+                  {otpCooldown > 0
+                    ? `Gửi lại mã sau ${otpCooldown}s`
+                    : 'Gửi lại mã'}
+                </button>
+
+                <p className="setup-hint">
+                  Hãy giữ màn hình này mở
+                  trong khi kiểm tra email.
+                </p>
+
+              </>
+            )}
+
+            {/* =========================================
+                NEW PASSWORD
+            ========================================= */}
+
+            {authStep === 'reset-password' && (
+              <>
+
+                <p className="setup-hint">
+                  Mã xác nhận chính xác.
+                  Hãy đặt mật khẩu mới cho
+                  tài khoản của bạn.
+                </p>
+
+                <form
+                  onSubmit={handleResetPassword}
+                  className="auth-form"
+                >
+
+                  <input
+                    type="password"
+                    placeholder="Mật khẩu mới"
+                    value={password}
+                    onChange={(e) =>
+                      setPassword(
+                        e.target.value
+                      )
+                    }
+                    minLength={8}
+                    autoComplete="new-password"
+                    required
+                  />
+
+                  <input
+                    type="password"
+                    placeholder="Xác nhận mật khẩu mới"
+                    value={confirmPassword}
+                    onChange={(e) =>
+                      setConfirmPassword(
+                        e.target.value
+                      )
+                    }
+                    autoComplete="new-password"
+                    required
+                  />
+
+                  <button
+                    type="submit"
+                    className="btn-submit"
+                    disabled={authLoading}
+                  >
+                    {authLoading
+                      ? 'Đang đổi mật khẩu...'
+                      : 'Đổi mật khẩu'}
+                  </button>
+
+                </form>
+
               </>
             )}
 
@@ -1377,14 +1975,12 @@ export default function App() {
       )}
 
       {/* =====================================================
-          NAV
+          NAVIGATION
       ===================================================== */}
 
       <header className="nav">
 
         <div className="nav-inner">
-
-          {/* BRAND */}
 
           <a
             className="brand"
@@ -1399,8 +1995,6 @@ export default function App() {
             </span>
           </a>
 
-          {/* NAV LINKS */}
-
           <nav className="nav-links">
             {NAV_LINKS.map((link) => (
               <a
@@ -1412,11 +2006,7 @@ export default function App() {
             ))}
           </nav>
 
-          {/* NAV ACTIONS */}
-
           <div className="nav-actions">
-
-            {/* MEMBER BUTTON */}
 
             {profile?.is_member && (
               <a
@@ -1434,8 +2024,6 @@ export default function App() {
               </a>
             )}
 
-            {/* ADMIN BUTTON */}
-
             {profile?.role === 'admin' && (
               <button
                 className="btn-class"
@@ -1449,8 +2037,6 @@ export default function App() {
                 Quản lý Admin 🤓
               </button>
             )}
-
-            {/* AUTH BUTTON */}
 
             {!authReady ? (
               <button
@@ -1476,7 +2062,7 @@ export default function App() {
                   openAuth('login')
                 }
               >
-                Xác minh thành viên
+                Đăng nhập
               </button>
             )}
 
@@ -1672,9 +2258,7 @@ export default function App() {
               nhiệm của lớp 10A4, đồng hành
               cùng lớp trong các hoạt động
               học tập và phong trào của trường
-              THPT Nguyễn Hữu Huân. Phần
-              giới thiệu chi tiết hơn sẽ được
-              bổ sung sau.
+              THPT Nguyễn Hữu Huân.
             </p>
 
           </div>
@@ -1801,8 +2385,6 @@ export default function App() {
             Thông báo
           </h2>
 
-          {/* ANNOUNCEMENT FORM */}
-
           <form
             onSubmit={handleSubmit}
             className="announcement-form"
@@ -1810,7 +2392,7 @@ export default function App() {
 
             <input
               type="text"
-              placeholder="Tên người đăng (vd: Lớp trưởng, cô Út...)"
+              placeholder="Tên người đăng..."
               value={sender}
               onChange={(e) =>
                 setSender(e.target.value)
@@ -1827,7 +2409,7 @@ export default function App() {
             />
 
             <textarea
-              placeholder="Nội dung thông báo chi tiết..."
+              placeholder="Nội dung thông báo..."
               rows="4"
               value={content}
               onChange={(e) =>
@@ -1846,8 +2428,6 @@ export default function App() {
 
           </form>
 
-          {/* ANNOUNCEMENT LIST */}
-
           <div className="announcement-list">
 
             <h3>
@@ -1861,9 +2441,7 @@ export default function App() {
                 Chưa có thông báo nào.
               </p>
             ) : (
-
               announcements.map((item) => (
-
                 <article
                   className="announcement-card"
                   key={item.id}
@@ -1897,9 +2475,7 @@ export default function App() {
                   </div>
 
                 </article>
-
               ))
-
             )}
 
           </div>
@@ -1924,7 +2500,7 @@ export default function App() {
       </footer>
 
       {/* =====================================================
-          ADMIN PANEL
+          ADMIN
       ===================================================== */}
 
       {showAdminPanel && (
