@@ -819,3 +819,9 @@ h1, h2, h3, h4 {
   from { transform: translateY(-15px); opacity: 0; height: 0; padding: 0; }
   to { transform: translateY(0); opacity: 1; height: auto; }
 }
+.btn-verify:disabled,
+.btn-google:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
