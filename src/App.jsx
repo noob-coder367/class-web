@@ -6,11 +6,11 @@ import EventsSection from './EventsSection'
 
 const NAV_LINKS = [
   { href: '#trang-chu', label: 'Trang chủ' },
+  { href: '#su-kien', label: 'Sự kiện' },
   { href: '#gioi-thieu', label: 'Giới thiệu' },
-  { href: '#su-kien', label: 'Sự kiện' }, // 👈 THÊM DÒNG NÀY
+  { href: '#giao-vien', label: 'Giáo viên' },
   { href: '#anh-lop', label: 'Ảnh lớp' },
   { href: '#thong-bao', label: 'Thông báo' },
-  { href: '#giao-vien', label: 'Giáo viên' },
 ]
 
 const PHOTO_PLACEHOLDER_COUNT = 6
@@ -104,11 +104,18 @@ function Fish({ style, flip }) {
         d="M4,15 Q18,0 40,8 L34,15 L40,22 Q18,30 4,15 Z"
         fill="currentColor"
       />
+
       <path
         d="M0,15 L10,9 L10,21 Z"
         fill="currentColor"
       />
-      <circle cx="30" cy="12" r="1.6" fill="#0a2c3d" />
+
+      <circle
+        cx="30"
+        cy="12"
+        r="1.6"
+        fill="#0a2c3d"
+      />
     </svg>
   )
 }
@@ -167,8 +174,19 @@ function Anglerfish({ style }) {
         fill="none"
       />
 
-      <circle cx="33" cy="-11" r="4.5" className="lure" />
-      <circle cx="66" cy="27" r="2" fill="#0a1620" />
+      <circle
+        cx="33"
+        cy="-11"
+        r="4.5"
+        className="lure"
+      />
+
+      <circle
+        cx="66"
+        cy="27"
+        r="2"
+        fill="#0a1620"
+      />
     </svg>
   )
 }
@@ -233,14 +251,6 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false)
   const [authLoading, setAuthLoading] = useState(false)
 
-  /*
-    login
-    register
-    verify-register
-    forgot-password
-    verify-reset
-    reset-password
-  */
   const [authStep, setAuthStep] = useState('login')
   const [showAuth, setShowAuth] = useState(false)
 
@@ -263,9 +273,6 @@ export default function App() {
   const [otpEmail, setOtpEmail] = useState('')
   const [otpCooldown, setOtpCooldown] = useState(0)
 
-  /*
-    register / reset
-  */
   const [otpPurpose, setOtpPurpose] = useState(null)
 
   /* =====================================================
@@ -430,11 +437,6 @@ export default function App() {
       return data
     }
 
-    /*
-      Nếu Auth có user nhưng profiles
-      chưa có dữ liệu thì yêu cầu hoàn tất.
-    */
-
     setProfile(null)
 
     setAuthStep('register')
@@ -505,9 +507,6 @@ export default function App() {
 
   /* =====================================================
      FIND EMAIL FROM USERNAME
-
-     IMPORTANT:
-     profiles cần có cột email.
   ===================================================== */
 
   const getEmailFromUsername = async (name) => {
@@ -534,16 +533,6 @@ export default function App() {
 
   /* =====================================================
      REGISTER STEP 1
-
-     Nhập:
-     username
-     email
-     password
-     confirm password
-     member
-     secret code
-
-     Sau đó gửi OTP.
   ===================================================== */
 
   const handleRegisterSubmit = async (e) => {
@@ -609,13 +598,6 @@ export default function App() {
         return
       }
 
-      /*
-        signUp tạo Auth user.
-
-        Email confirmation được dùng để
-        xác nhận email.
-      */
-
       const {
         data,
         error,
@@ -645,13 +627,6 @@ export default function App() {
         return
       }
 
-      /*
-        Lưu profile.
-
-        email được lưu cùng username để
-        sau này username có thể tìm email.
-      */
-
       const {
         error: profileError,
       } = await supabase
@@ -671,11 +646,6 @@ export default function App() {
           profileError
         )
 
-        /*
-          Nếu profile lỗi nhưng Auth user
-          đã được tạo thì báo rõ.
-        */
-
         alert(
           'Tài khoản Auth đã được tạo nhưng profile bị lỗi: ' +
           profileError.message
@@ -683,10 +653,6 @@ export default function App() {
 
         return
       }
-
-      /*
-        Gửi OTP 6 số.
-      */
 
       const {
         error: otpError,
@@ -715,13 +681,6 @@ export default function App() {
       setOtpPurpose('register')
       setOtp('')
       setOtpCooldown(60)
-
-      /*
-        QUAN TRỌNG:
-        Không setShowAuth(false).
-
-        Người dùng vẫn đứng ở màn hình OTP.
-      */
 
       setAuthStep('verify-register')
 
@@ -776,10 +735,6 @@ export default function App() {
         return
       }
 
-      /*
-        Đảm bảo profile được load.
-      */
-
       const loadedProfile =
         await loadProfile(data.user)
 
@@ -787,10 +742,6 @@ export default function App() {
         alert(
           'Đăng ký thành công!'
         )
-
-        /*
-          Chỉ lúc này mới đóng màn hình.
-        */
 
         setShowAuth(false)
       } else {
@@ -851,14 +802,6 @@ export default function App() {
 
   /* =====================================================
      LOGIN
-
-     USERNAME + PASSWORD
-
-     username
-       ↓
-     email
-       ↓
-     signInWithPassword()
   ===================================================== */
 
   const handleLoginSubmit = async (e) => {
@@ -930,11 +873,6 @@ export default function App() {
         await loadProfile(data.user)
 
       if (loadedProfile) {
-        /*
-          Chỉ đăng nhập thành công
-          mới về sảnh.
-        */
-
         setShowAuth(false)
       }
 
@@ -945,14 +883,6 @@ export default function App() {
 
   /* =====================================================
      FORGOT PASSWORD STEP 1
-
-     Nhập username.
-
-     username
-       ↓
-     tìm email
-       ↓
-     gửi OTP
   ===================================================== */
 
   const handleForgotPassword = async (e) => {
@@ -1011,10 +941,6 @@ export default function App() {
       setOtpPurpose('reset')
       setOtpCooldown(60)
 
-      /*
-        KHÔNG về sảnh.
-      */
-
       setAuthStep('verify-reset')
 
     } finally {
@@ -1067,13 +993,6 @@ export default function App() {
 
         return
       }
-
-      /*
-        OTP đúng.
-
-        Bây giờ người dùng được phép
-        đặt mật khẩu mới.
-      */
 
       setAuthStep('reset-password')
 
@@ -1182,13 +1101,6 @@ export default function App() {
         'Đổi mật khẩu thành công!'
       )
 
-      /*
-        Không giữ session reset.
-
-        Đăng xuất rồi đưa người dùng
-        về màn hình đăng nhập.
-      */
-
       await supabase.auth.signOut()
 
       setSession(null)
@@ -1207,8 +1119,6 @@ export default function App() {
 
   /* =====================================================
      GOOGLE LOGIN
-
-     Google vẫn có thể giữ lại.
   ===================================================== */
 
   const handleGoogleLogin = async () => {
@@ -1416,8 +1326,6 @@ export default function App() {
       {showAuth && (
         <div className="auth-overlay fade-in">
 
-          {/* BACK */}
-
           <button
             className="btn-back"
             onClick={handleAuthBack}
@@ -1426,8 +1334,6 @@ export default function App() {
             <span>&lt;</span>
             Quay lại
           </button>
-
-          {/* CARD */}
 
           <div className="auth-card slide-up">
 
@@ -2074,7 +1980,7 @@ export default function App() {
                   ? 'Đang xử lý...'
                   : 'Đăng xuất'}
               </button>
-                        ) : (
+            ) : (
               <>
                 <button
                   className="btn-verify"
@@ -2193,20 +2099,11 @@ export default function App() {
         </div>
       </section>
 
-      {/* ẢNH LỚP */}
-      <section id="anh-lop" className="zone zone--deep">
-        {/* ... giữ nguyên code cũ của phần ảnh lớp ... */}
-      </section>
+      {/* =====================================================
+          SỰ KIỆN
+      ===================================================== */}
 
-      {/* ========================================================= */}
-      {/* 🎯 CHÈN SỰ KIỆN VÀO ĐÂY */}
-      {/* ========================================================= */}
       <EventsSection profile={profile} />
-
-      {/* THÔNG BÁO */}
-      <section id="thong-bao" className="zone zone--abyss">
-        {/* ... giữ nguyên code cũ của phần thông báo ... */}
-      </section>
 
       {/* =====================================================
           GIỚI THIỆU
