@@ -2072,15 +2072,32 @@ export default function App() {
                   ? 'Đang xử lý...'
                   : 'Đăng xuất'}
               </button>
-            ) : (
-              <button
-                className="btn-verify"
-                onClick={() =>
-                  openAuth('login')
-                }
-              >t
-                Đăng nhập
-              </button>
+                        ) : (
+              <>
+                <button
+                  className="btn-verify"
+                  onClick={() =>
+                    openAuth('login')
+                  }
+                >
+                  Đăng nhập
+                </button>
+
+                <button
+                  className="btn-verify"
+                  style={{
+                    background: 'transparent',
+                    color: 'var(--primary)',
+                    border: '1px solid var(--primary)',
+                    boxShadow: 'none',
+                  }}
+                  onClick={() =>
+                    openAuth('register')
+                  }
+                >
+                  Đăng ký
+                </button>
+              </>
             )}
 
           </div>
