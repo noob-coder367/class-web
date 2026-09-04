@@ -1,11 +1,13 @@
  @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap');
 
-/* ---------------- GLOBAL & SMOOTH SCROLL ---------------- */
+/* =====================================================
+   1. GLOBAL & SMOOTH SCROLL
+===================================================== */
 html {
   scroll-behavior: smooth;
 }
 
-/* Tự động tạo khoảng cách lùi để thanh Nav không che mất tiêu đề khi bấm Menu */
+/* Khoảng lùi để thanh Nav không che tiêu đề khi bấm Menu */
 section, article, [id] {
   scroll-margin-top: 100px;
 }
@@ -52,7 +54,9 @@ h1, h2, h3, h4 {
   color: var(--zone-heading, var(--primary));
 }
 
-/* ---------------- NAVIGATION ---------------- */
+/* =====================================================
+   2. NAVIGATION (NAVBAR)
+===================================================== */
 .nav {
   position: sticky;
   top: 0;
@@ -110,7 +114,9 @@ h1, h2, h3, h4 {
   gap: 10px;
 }
 
-/* ---------------- OCEAN ZONES ---------------- */
+/* =====================================================
+   3. OCEAN ZONES & LAYOUT
+===================================================== */
 .hero {
   --zone-heading: var(--primary);
   --zone-body: var(--ink-soft);
@@ -162,11 +168,13 @@ h1, h2, h3, h4 {
   font-weight: 600;
   font-size: 14px;
   margin: 0 0 8px;
+  text-align: center;
 }
 
 .section-inner h2 {
   font-size: 34px;
   margin-bottom: 14px;
+  text-align: center;
 }
 
 .section-desc {
@@ -174,6 +182,8 @@ h1, h2, h3, h4 {
   font-size: 16px;
   line-height: 1.7;
   max-width: 62ch;
+  margin: 0 auto;
+  text-align: center;
 }
 
 /* HERO CONTENT */
@@ -304,7 +314,126 @@ h1, h2, h3, h4 {
   justify-items: center;
 }
 
-/* ---------------- EVENTS SECTION (SỰ KIỆN) ---------------- */
+/* =====================================================
+   4. PHẦN THÔNG BÁO / BẢNG TIN (ĐÃ SỬA LỖI VỠ LAYOUT)
+===================================================== */
+.announcement-form, 
+.notification-form,
+.notice-form {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  width: 100% !important;
+  max-width: 520px !important;
+  margin: 28px auto !important;
+  padding: 24px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 14px !important;
+  box-shadow: var(--shadow) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.announcement-form input,
+.announcement-form textarea,
+.notification-form input,
+.notification-form textarea,
+.notice-form input,
+.notice-form textarea {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 12px 14px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--line) !important;
+  background: #ffffff !important;
+  color: var(--ink) !important;
+  font-family: inherit !important;
+  font-size: 14px !important;
+}
+
+.announcement-form textarea,
+.notification-form textarea,
+.notice-form textarea {
+  min-height: 90px !important;
+  resize: vertical !important;
+}
+
+.announcement-form button,
+.notification-form button,
+.notice-form button {
+  width: 100% !important;
+  padding: 12px !important;
+  border: none !important;
+  border-radius: 8px !important;
+  background: var(--accent) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 15px !important;
+  cursor: pointer !important;
+  transition: background 0.2s !important;
+}
+
+.announcement-form button:hover,
+.notification-form button:hover,
+.notice-form button:hover {
+  background: var(--accent-deep) !important;
+}
+
+/* Danh sách thông báo & Màu chữ dễ đọc */
+.announcement-list,
+.notification-list {
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.announcement-card,
+.notification-card,
+.notice-card {
+  width: 100%;
+  max-width: 520px;
+  background: rgba(255, 255, 255, 0.08);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  color: #ffffff !important;
+  text-align: left;
+}
+
+.announcement-card h3,
+.announcement-card h4,
+.notification-card h3,
+.notice-card h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  color: #ffffff !important;
+}
+
+.announcement-card p,
+.notification-card p,
+.notice-card p {
+  margin: 0 0 12px;
+  color: #d6ecf5 !important;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.announcement-meta,
+.notification-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #9fc3d6 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 8px;
+}
+
+/* =====================================================
+   5. EVENTS SECTION (SỰ KIỆN)
+===================================================== */
 .events-section {
   position: relative;
   overflow: hidden;
@@ -656,7 +785,9 @@ h1, h2, h3, h4 {
   background: #0d2335;
 }
 
-/* ---------------- BUTTONS & AUTH ---------------- */
+/* =====================================================
+   6. AUTH MODAL & BUTTONS
+===================================================== */
 .btn-verify {
   background-color: var(--accent);
   color: #fff;
@@ -796,7 +927,9 @@ h1, h2, h3, h4 {
   background: #0d2335;
 }
 
-/* ---------------- ANIMATIONS ---------------- */
+/* =====================================================
+   7. ANIMATIONS
+===================================================== */
 .fade-in {
   animation: fadeIn 0.3s ease-in-out forwards;
 }
@@ -815,7 +948,9 @@ h1, h2, h3, h4 {
   to { transform: translateY(0); opacity: 1; }
 }
 
-/* ---------------- RESPONSIVE (ĐIỆN THOẠI) ---------------- */
+/* =====================================================
+   8. RESPONSIVE (ĐIỆN THOẠI & TABLET)
+===================================================== */
 @media (max-width: 860px) {
   .hero-inner, .teacher {
     grid-template-columns: 1fr;
@@ -826,7 +961,7 @@ h1, h2, h3, h4 {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  /* 🎯 HIỂN THỊ LẠI VÀ SẮP XẾP MENU TRÊN ĐIỆN THOẠI GỌN GÀNG */
+  /* TỰ ĐỘNG CĂN CHỈNH MENU TRÊN MOBILE KHÔNG BỊ CẮT */
   .nav-inner {
     flex-wrap: wrap;
     justify-content: space-between;
@@ -835,14 +970,14 @@ h1, h2, h3, h4 {
   }
 
   .nav-links {
-    display: flex; /* Bật hiển thị menu */
+    display: flex !important; /* Đảm bảo menu luôn hiển thị */
     width: 100%;
-    order: 3; /* Đưa các mục menu xuống dòng dưới */
+    order: 3;
     justify-content: space-around;
     padding-top: 8px;
     border-top: 1px dashed var(--line);
     font-size: 13px;
-    gap: 8px;
+    gap: 6px;
   }
 
   .event-composer-body {
