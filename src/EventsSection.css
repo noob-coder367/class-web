@@ -1,0 +1,454 @@
+/* ====================================================
+   EVENTS SECTION - Sự kiện lớp 10A4
+   (dùng chung biến màu --primary, --accent, --line...
+   đã khai báo ở :root trong App.css)
+==================================================== */
+
+.events-section {
+  position: relative;
+  padding: 72px 24px;
+  background: linear-gradient(
+    180deg,
+    #eaf6fb 0%,
+    #dbeaf3 100%
+  );
+}
+
+.event-list {
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.event-card {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.event-card--hot {
+  border-left-color: #f97316;
+}
+
+.event-card--urgent {
+  border-left-color: #ef4444;
+}
+
+.event-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.event-images {
+  display: grid;
+  gap: 8px;
+  flex: 1 1 260px;
+  max-width: 360px;
+  align-self: flex-start;
+}
+
+.event-image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--primary-soft);
+}
+
+.event-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.event-content {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.event-content p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.event-meta {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.notify-badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.notify-badge--normal {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.notify-badge--hot {
+  background: rgba(249, 115, 22, 0.15);
+  color: #c2410c;
+}
+
+.notify-badge--urgent {
+  background: rgba(239, 68, 68, 0.15);
+  color: #b91c1c;
+}
+
+.btn-delete-event {
+  background: transparent;
+  border: 1px solid #ef4444;
+  color: #ef4444;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-delete-event:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+/* ----------------------------------------------------
+   FAB - nút thêm sự kiện (chỉ admin thấy)
+---------------------------------------------------- */
+
+.event-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 30px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(224, 166, 64, 0.5);
+  z-index: 80;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.event-fab:hover {
+  background: var(--accent-deep);
+  transform: scale(1.06);
+}
+
+/* ----------------------------------------------------
+   COMPOSER MODAL
+---------------------------------------------------- */
+
+.event-composer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 22, 32, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+
+.event-composer-modal {
+  background: var(--paper-raised);
+  width: 100%;
+  max-width: 860px;
+  max-height: 92vh;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+}
+
+.event-composer-header {
+  padding: 18px 22px;
+  background: var(--primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.event-composer-header h2 {
+  color: #fff;
+  font-size: 18px;
+}
+
+.event-composer-header .btn-close {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 6px;
+  opacity: 0.85;
+}
+
+.event-composer-header .btn-close:hover {
+  opacity: 1;
+}
+
+.event-composer-header .btn-close:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.event-composer-body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.composer-left {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.upload-box {
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: var(--primary-soft);
+  transition: border-color 0.2s;
+  padding: 12px;
+}
+
+.upload-box:hover {
+  border-color: var(--accent);
+}
+
+.upload-placeholder {
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+.upload-icon {
+  font-size: 32px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.upload-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.upload-preview-item {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.upload-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.btn-remove-preview {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-add-more {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.composer-right {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.composer-textarea {
+  flex: 1;
+  min-height: 160px;
+  resize: vertical;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.composer-textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.composer-extra-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.notify-dropdown {
+  position: relative;
+}
+
+.btn-notify-toggle {
+  background: var(--primary-soft);
+  border: 1px solid var(--line);
+  color: var(--primary);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.notify-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  z-index: 10;
+  min-width: 150px;
+}
+
+.notify-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 10px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.notify-menu-item:hover {
+  background: var(--primary-soft);
+}
+
+.notify-menu-item.active {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.expire-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.expire-picker input {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.event-composer-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.btn-post-event {
+  width: 100%;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 14px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-post-event:hover {
+  background: #0d2335;
+}
+
+.btn-post-event:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .event-composer-body {
+    flex-direction: column;
+  }
+
+  .event-meta {
+    justify-content: flex-start;
+  }
+}
