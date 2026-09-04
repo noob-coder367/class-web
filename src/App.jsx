@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import './App.css'
 import AdminPanel from './AdminPanel'
+import EventsSection from './EventsSection'
 
 const NAV_LINKS = [
   { href: '#trang-chu', label: 'Trang chủ' },
   { href: '#gioi-thieu', label: 'Giới thiệu' },
+  { href: '#su-kien', label: 'Sự kiện' }, // 👈 THÊM DÒNG NÀY
   { href: '#anh-lop', label: 'Ảnh lớp' },
   { href: '#thong-bao', label: 'Thông báo' },
   { href: '#giao-vien', label: 'Giáo viên' },
@@ -2189,6 +2191,21 @@ export default function App() {
           </div>
 
         </div>
+      </section>
+
+      {/* ẢNH LỚP */}
+      <section id="anh-lop" className="zone zone--deep">
+        {/* ... giữ nguyên code cũ của phần ảnh lớp ... */}
+      </section>
+
+      {/* ========================================================= */}
+      {/* 🎯 CHÈN SỰ KIỆN VÀO ĐÂY */}
+      {/* ========================================================= */}
+      <EventsSection profile={profile} />
+
+      {/* THÔNG BÁO */}
+      <section id="thong-bao" className="zone zone--abyss">
+        {/* ... giữ nguyên code cũ của phần thông báo ... */}
       </section>
 
       {/* =====================================================
