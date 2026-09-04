@@ -236,6 +236,13 @@ export default function EventsSection({ profile }) {
       )
     }
 
+// Kiểm tra nếu thời gian tự xóa nhỏ hơn thời gian hiện tại
+if (expiresAt && new Date(expiresAt) <= new Date()) {
+  alert("Thời gian tự xóa phải lớn hơn thời gian hiện tại!");
+  return;
+}
+
+
     setPosting(true)
 
     try {
