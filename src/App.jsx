@@ -2078,7 +2078,7 @@ export default function App() {
                 onClick={() =>
                   openAuth('login')
                 }
-              >
+              >t
                 Đăng nhập
               </button>
             )}
