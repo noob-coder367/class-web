@@ -1000,3 +1000,8 @@ h1, h2, h3, h4 {
     font-size: 12px;
   }
 }
+
+.nav-links a.active {
+  color: var(--accent-deep);
+  font-weight: 800;
+}
