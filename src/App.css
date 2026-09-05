@@ -431,6 +431,12 @@ h1, h2, h3, h4 {
   padding-top: 8px;
 }
 
+.announcement-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
 /* =====================================================
    5. EVENTS SECTION (SỰ KIỆN)
 ===================================================== */
