@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { supabase } from './supabaseClient'
+import { supabase } from '../lib/supabaseClient.js'
 import './EventsSection.css'
 
 const NOTIFY_OPTIONS = ['normal', 'hot', 'urgent']

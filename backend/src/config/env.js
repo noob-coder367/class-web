@@ -1,0 +1,24 @@
+import 'dotenv/config'
+
+function required(name) {
+  const value = process.env[name]
+  if (!value) {
+    throw new Error(
+      `[ENV] Thiếu biến môi trường bắt buộc: ${name}. Kiểm tra file .env (xem .env.example).`
+    )
+  }
+  return value
+}
+
+export const env = {
+  PORT: process.env.PORT || 4000,
+  NODE_ENV: process.env.NODE_ENV || 'development',
+  FRONTEND_ORIGIN: process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
+
+  SUPABASE_URL: required('SUPABASE_URL'),
+  SUPABASE_SERVICE_ROLE_KEY: required('SUPABASE_SERVICE_ROLE_KEY'),
+
+  // Mã bí mật để đăng ký làm "Thành viên 10A4".
+  // KHÔNG BAO GIỜ đặt giá trị này ở phía frontend.
+  SECRET_CODE: required('SECRET_CODE'),
+}
