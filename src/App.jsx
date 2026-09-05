@@ -1235,7 +1235,27 @@ export default function App() {
     setSender('')
   }
 
-  /* =====================================================
+  /*
+
+/* =====================================================
+     ANNOUNCEMENT DELETE
+  ===================================================== */
+
+  const handleDeleteAnnouncement = async (id) => {
+    if (!window.confirm('Bạn có chắc muốn xóa thông báo này?')) return
+
+    const { error } = await supabase
+      .from('announcements')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      alert('Xóa thông báo thất bại: ' + error.message)
+      return
+    }
+
+    setAnnouncements((prev) => prev.filter((a) => a.id !== id))
+  } =====================================================
      BACK BUTTON
   ===================================================== */
 
@@ -2390,15 +2410,27 @@ export default function App() {
               </p>
             ) : (
               announcements.map((item) => (
-                <article
-                  className="announcement-card"
-                  key={item.id}
-                >
+  <article
+    className="announcement-card"
+    key={item.id}
+  >
 
-                  <h4>
-                    {item.title}
-                  </h4>
+    <div className="announcement-card-header">
+      <h4>
+        {item.title}
+      </h4>
 
+      {profile?.role === 'admin' && (
+        <button
+          className="btn-delete-event"
+          onClick={() =>
+            handleDeleteAnnouncement(item.id)
+          }
+        >
+          Xóa
+        </button>
+      )}
+    </div>
                   <p>
                     {item.content}
                   </p>
