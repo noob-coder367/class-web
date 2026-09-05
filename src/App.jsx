@@ -274,6 +274,7 @@ export default function App() {
   const [otpCooldown, setOtpCooldown] = useState(0)
 
   const [otpPurpose, setOtpPurpose] = useState(null)
+  const [activeSection, setActiveSection] = useState('trang-chu')
 
   /* =====================================================
      OTP COUNTDOWN
@@ -290,6 +291,31 @@ export default function App() {
 
     return () => clearInterval(timer)
   }, [otpCooldown])
+  
+  useEffect(() => {
+  const sectionIds = NAV_LINKS.map((link) => link.href.replace('#', ''))
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          setActiveSection(entry.target.id)
+        }
+      })
+    },
+    {
+      rootMargin: '-40% 0px -55% 0px',
+      threshold: 0,
+    }
+  )
+
+  sectionIds.forEach((id) => {
+    const el = document.getElementById(id)
+    if (el) observer.observe(el)
+  })
+
+  return () => observer.disconnect()
+}, [])
 
   /* =====================================================
      INITIAL AUTH
@@ -1942,15 +1968,20 @@ export default function App() {
           </a>
 
           <nav className="nav-links">
-            {NAV_LINKS.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-              >
-                {link.label}
-              </a>
-            ))}
-          </nav>
+  {NAV_LINKS.map((link) => (
+    <a
+      key={link.href}
+      href={link.href}
+      className={
+        activeSection === link.href.replace('#', '')
+          ? 'active'
+          : ''
+      }
+    >
+      {link.label}
+    </a>
+  ))}
+</nav>
 
           <div className="nav-actions">
 
