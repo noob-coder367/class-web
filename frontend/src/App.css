@@ -944,14 +944,18 @@ h1, h2, h3, h4 {
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
-  text-decoration: underline;
+  
+  /* Thêm !important để ghi đè dòng reset a { text-decoration: none; } ở trên */
+  text-decoration: underline !important;
   text-underline-offset: 3px;
 }
 
 .btn-toggle-mode:hover,
 .btn-google:hover {
   text-decoration-thickness: 2px;
+  color: var(--accent-deep); /* Thêm đổi màu nhẹ khi rê chuột vào */
 }
+
 /* =====================================================
    8. RESPONSIVE (ĐIỆN THOẠI & TABLET)
 ===================================================== */
