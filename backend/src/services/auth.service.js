@@ -246,10 +246,54 @@ export async function resetPassword({ email, otp, newPassword }) {
 // Current user (dùng bởi middleware auth)
 // ---------------------------------------------------------------------------
 
+/**
+ * Đăng ký bằng username/password (registerUser) là nơi DUY NHẤT từng tạo
+ * dòng trong bảng `profiles`. Đăng nhập Google (OAuth) chỉ tạo user bên
+ * auth.users, KHÔNG tạo profile tương ứng -> mọi user Google lần đầu sẽ
+ * không có profile -> bị coi là "Phiên đăng nhập không hợp lệ" ở mọi API
+ * cần đăng nhập (không riêng admin).
+ *
+ * Sửa: nếu access_token hợp lệ (user có thật trong auth.users) nhưng
+ * chưa có profile, tự tạo 1 profile mặc định (role thường, chưa là
+ * thành viên 10A4) thay vì từ chối thẳng.
+ */
+async function ensureProfile(user) {
+  const email = user.email || ''
+  const fallbackUsername =
+    (email.split('@')[0] || `user_${user.id.slice(0, 8)}`).trim() ||
+    `user_${user.id.slice(0, 8)}`
+
+  const { data: created, error } = await supabaseAdmin
+    .from('profiles')
+    .insert([
+      {
+        id: user.id,
+        username: fallbackUsername,
+        email,
+        is_member: false,
+      },
+    ])
+    .select('id, username, email, is_member, role')
+    .maybeSingle()
+
+  if (error) {
+    // Có thể do đụng username trùng, hoặc race condition (2 request cùng
+    // lúc cùng tạo). Thử đọc lại profile trước khi báo lỗi hẳn.
+    const existing = await findProfileById(user.id)
+    if (existing) return existing
+    throw new AppError('Không thể khởi tạo hồ sơ người dùng: ' + error.message, 500)
+  }
+
+  return created
+}
+
 export async function getUserFromAccessToken(accessToken) {
   const { data, error } = await supabaseAdmin.auth.getUser(accessToken)
   if (error || !data?.user) return null
 
-  const profile = await findProfileById(data.user.id)
+  let profile = await findProfileById(data.user.id)
+  if (!profile) {
+    profile = await ensureProfile(data.user)
+  }
   return { user: data.user, profile }
 }
