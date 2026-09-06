@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
 import * as authService from '../services/authService.js'
-import { getAccessToken, saveAccessToken } from '../services/apiClient.js'
+import { saveAccessToken } from '../services/apiClient.js'
 
 const AuthContext = createContext(null)
 
@@ -11,25 +11,20 @@ export function AuthProvider({ children }) {
   const [authReady, setAuthReady] = useState(false)
 
   /**
-   * Đăng nhập bằng username/password hoặc OTP sẽ tự lưu access_token
-   * qua applySession() trong authService. Nhưng đăng nhập Google (OAuth)
-   * đi thẳng qua supabase.auth.signInWithOAuth và KHÔNG chạy qua
-   * applySession(), nên access_token dùng để gọi backend
-   * (localStorage 'class-web:access_token') không bao giờ được set.
-   * => loadProfile() luôn thấy "chưa có token" và bỏ qua gọi /api/auth/me,
-   * khiến profile luôn null và mất quyền admin dù DB đúng.
-   *
-   * Sửa: mỗi khi có session Supabase hợp lệ, luôn đồng bộ access_token
-   * của session đó vào localStorage trước khi gọi backend, bất kể
-   * người dùng đăng nhập bằng cách nào.
+   * apiClient tự lấy access_token mới nhất từ supabase.auth.getSession()
+   * trước mỗi request (xem apiClient.js::getFreshAccessToken), nên ở đây
+   * chỉ cần biết có user đang đăng nhập hay không rồi gọi backend.
    */
   const loadProfile = useCallback(async (currentSession) => {
-    const sbToken = currentSession?.access_token
-    if (sbToken && sbToken !== getAccessToken()) {
-      saveAccessToken(sbToken)
+    let activeSession = currentSession
+    if (activeSession === undefined) {
+      const {
+        data: { session: latest },
+      } = await supabase.auth.getSession()
+      activeSession = latest
     }
 
-    if (!getAccessToken()) {
+    if (!activeSession?.user) {
       setProfile(null)
       return null
     }
