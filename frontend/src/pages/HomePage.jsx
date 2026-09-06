@@ -5,7 +5,6 @@ import AuthPage from './AuthPage.jsx'
 import EventsSection from '../components/EventsSection.jsx'
 import AdminPanel from '../components/AdminPanel.jsx'
 import {
-  IslandScene,
   Fish,
   Jellyfish,
   Anglerfish,
@@ -271,8 +270,6 @@ export default function HomePage() {
         id="trang-chu"
         className="hero"
       >
-
-        <IslandScene />
 
         <div className="hero-inner">
 
