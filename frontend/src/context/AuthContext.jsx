@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
 import * as authService from '../services/authService.js'
-import { getAccessToken } from '../services/apiClient.js'
+import { getAccessToken, saveAccessToken } from '../services/apiClient.js'
 
 const AuthContext = createContext(null)
 
@@ -10,7 +10,25 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null)
   const [authReady, setAuthReady] = useState(false)
 
-  const loadProfile = useCallback(async () => {
+  /**
+   * Đăng nhập bằng username/password hoặc OTP sẽ tự lưu access_token
+   * qua applySession() trong authService. Nhưng đăng nhập Google (OAuth)
+   * đi thẳng qua supabase.auth.signInWithOAuth và KHÔNG chạy qua
+   * applySession(), nên access_token dùng để gọi backend
+   * (localStorage 'class-web:access_token') không bao giờ được set.
+   * => loadProfile() luôn thấy "chưa có token" và bỏ qua gọi /api/auth/me,
+   * khiến profile luôn null và mất quyền admin dù DB đúng.
+   *
+   * Sửa: mỗi khi có session Supabase hợp lệ, luôn đồng bộ access_token
+   * của session đó vào localStorage trước khi gọi backend, bất kể
+   * người dùng đăng nhập bằng cách nào.
+   */
+  const loadProfile = useCallback(async (currentSession) => {
+    const sbToken = currentSession?.access_token
+    if (sbToken && sbToken !== getAccessToken()) {
+      saveAccessToken(sbToken)
+    }
+
     if (!getAccessToken()) {
       setProfile(null)
       return null
@@ -38,7 +56,7 @@ export function AuthProvider({ children }) {
       setSession(currentSession)
 
       if (currentSession?.user) {
-        await loadProfile()
+        await loadProfile(currentSession)
       }
       setAuthReady(true)
     }
@@ -51,8 +69,9 @@ export function AuthProvider({ children }) {
       if (!mounted) return
       setSession(newSession)
       if (newSession?.user) {
-        await loadProfile()
+        await loadProfile(newSession)
       } else {
+        saveAccessToken(null)
         setProfile(null)
       }
     })
