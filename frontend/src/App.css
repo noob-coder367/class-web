@@ -933,6 +933,45 @@ h1, h2, h3, h4 {
   background: #0d2335;
 }
 
+/* Các nút phụ trong form đăng nhập */
+.btn-toggle-mode {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 4px 0;
+  color: var(--primary);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-toggle-mode:hover {
+  text-decoration: underline;
+}
+
+/* Nút đăng nhập Google */
+.btn-google {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 4px 0;
+  color: var(--primary);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-google:hover {
+  text-decoration: underline;
+}
+
 /* =====================================================
    7. ANIMATIONS
 ===================================================== */
