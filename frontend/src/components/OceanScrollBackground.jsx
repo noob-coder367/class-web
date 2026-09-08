@@ -3,6 +3,7 @@ import "./OceanScrollBackground.css";
 
 const VIEW_W = 1200;
 const VIEW_H = 800;
+const WORLD_H = 2600; // Tổng chiều cao thế giới đại dương (từ bầu trời đến đáy biển)
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 
@@ -33,389 +34,370 @@ export default function OceanScrollBackground() {
     };
   }, []);
 
-  /*
-    ==================================================================
-    LOGIC "LAN XUONG BIEN"
-    Cuon xuong = cang lan sau.
-      - Mat troi, may, nui, thuyen, song... troi NGUOC LEN va mo dan,
-        nhu dang bi bo lai phia tren mat nuoc.
-      - Nuoc dam mau dan, toi dan theo do sau.
-      - Ca & sinh vat bien xuat hien nhieu hon, sau hon thi co them
-        sinh vat bien sau (sua, ca nho...).
-    Cuon len = nguoc lai hoan toan (troi len mat nuoc), vi moi gia tri
-    deu la ham lien tuc cua scrollProgress (0 -> 1), khong co trang
-    thai roi rac nen luon dao chieu muot.
-    ==================================================================
-  */
+  // Vị trí Camera Y trượt từ 0 (Mặt nước) xuống 1800 (Đáy biển)
+  const maxCameraY = WORLD_H - VIEW_H;
+  const cameraY = scrollProgress * maxCameraY;
 
-  // Be mat: cang cuon xuong cang troi len & roi khoi khung hinh
-  const skyScrollY = scrollProgress * -170;
-  const farMountainX = scrollProgress * -14;
-  const farMountainY = scrollProgress * -150;
-  const mountainX = scrollProgress * -30;
-  const mountainY = scrollProgress * -240;
-  const boatScrollY = scrollProgress * -360;
-  const waveOneY = scrollProgress * -95;
-  const waveTwoY = scrollProgress * -55;
+  // Parallax nhẹ cho bầu trời và núi phía xa
+  const skyParallaxY = cameraY * 0.4;
+  const mountainParallaxY = cameraY * 0.25;
 
-  // Do sau & mau nuoc
-  const seaDepth = clamp(scrollProgress * 1.35);
-  const underwaterOpacity = clamp((scrollProgress - 0.12) * 1.3);
-  const deepSeaOpacity = clamp((scrollProgress - 0.45) * 1.8);
-  const abyssOpacity = clamp((scrollProgress - 0.78) * 4.2);
-
-  // Sinh vat bien
-  const fishOpacity = clamp((scrollProgress - 0.08) * 1.6);
-  const deepFishOpacity = clamp((scrollProgress - 0.42) * 1.7);
-
-  // Anh sang be mat
-  const sunOpacity = clamp(1 - scrollProgress * 1.4);
-  const skyOpacity = clamp(1 - scrollProgress * 1.05);
-
-  const sceneStyle = {
-    "--scroll": scrollProgress,
-    "--sea-depth": seaDepth,
-    "--underwater-opacity": underwaterOpacity,
-    "--deep-sea-opacity": deepSeaOpacity,
-  };
+  // Độ mờ đục theo độ sâu
+  const sunOpacity = clamp(1 - scrollProgress * 2.2);
+  const skyOpacity = clamp(1 - scrollProgress * 1.8);
+  const bubblesOpacity = clamp((scrollProgress - 0.1) * 2);
 
   return (
-    <div className="ocean-background" style={sceneStyle} aria-hidden="true">
-      {/* NEN DU PHONG - luon phu kin khung hinh, khong phu thuoc viewBox */}
-      <div className="ocean-base" />
+    <div className="ocean-background" aria-hidden="true">
+      {/* Nền đệm màu chuyển mượt theo độ sâu */}
+      <div
+        className="ocean-base-gradient"
+        style={{
+          opacity: 1,
+          background: `linear-gradient(to bottom, 
+            #83ccef 0%, 
+            #38b7d3 20%, 
+            #1d85b8 45%, 
+            #0d4e8a 70%, 
+            #031638 100%)`,
+        }}
+      />
 
-      {/* =====================================================
-          SKY
-      ===================================================== */}
       <svg
-        className="ocean-layer ocean-sky-layer"
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        className="ocean-svg-canvas"
+        viewBox={`0 ${cameraY} ${VIEW_W} ${VIEW_H}`}
         preserveAspectRatio="xMidYMid slice"
       >
         <defs>
-          <linearGradient id="skyGradientOcean" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#83ccef" />
-            <stop offset="55%" stopColor="#b7e0ec" />
+          {/* Gradients */}
+          <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#7ac2ed" />
+            <stop offset="60%" stopColor="#b5e2fa" />
             <stop offset="100%" stopColor="#e0f1ef" />
           </linearGradient>
-          <radialGradient id="sunGlowOcean">
+
+          <linearGradient id="oceanWaterGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#38b7d3" stopOpacity="0.85" />
+            <stop offset="15%" stopColor="#1d85b8" stopOpacity="0.9" />
+            <stop offset="45%" stopColor="#0d4e8a" stopOpacity="0.95" />
+            <stop offset="75%" stopColor="#052352" stopOpacity="0.98" />
+            <stop offset="100%" stopColor="#020a1f" stopOpacity="1" />
+          </linearGradient>
+
+          <radialGradient id="sunGlow">
             <stop offset="0%" stopColor="#fffbd2" stopOpacity="1" />
-            <stop offset="35%" stopColor="#ffe68b" stopOpacity="0.8" />
+            <stop offset="40%" stopColor="#ffe68b" stopOpacity="0.8" />
             <stop offset="100%" stopColor="#ffe68b" stopOpacity="0" />
           </radialGradient>
-        </defs>
 
-        <g
-          style={{ opacity: skyOpacity }}
-          transform={`translate(0, ${skyScrollY})`}
-        >
-          <rect width={VIEW_W} height={VIEW_H} fill="url(#skyGradientOcean)" />
-
-          {/* SUN */}
-          <g className="ocean-sun-group">
-            <circle cx="190" cy="145" r="125" fill="url(#sunGlowOcean)" />
-            <circle
-              className="ocean-sun"
-              cx="190"
-              cy="145"
-              r="52"
-              fill="#fff3a6"
-              style={{ opacity: sunOpacity }}
-            />
-            <g
-              className="ocean-sun-rays"
-              stroke="#fff6bc"
-              strokeWidth="8"
-              strokeLinecap="round"
-            >
-              <line x1="190" y1="65" x2="190" y2="25" />
-              <line x1="250" y1="85" x2="280" y2="55" />
-              <line x1="275" y1="145" x2="320" y2="145" />
-              <line x1="250" y1="205" x2="280" y2="235" />
-              <line x1="130" y1="85" x2="100" y2="55" />
-              <line x1="105" y1="145" x2="60" y2="145" />
-            </g>
-          </g>
-
-          {/* CLOUD 1 */}
-          <g className="ocean-cloud ocean-cloud-one">
-            <ellipse cx="520" cy="130" rx="105" ry="30" fill="#ffffff" opacity="0.75" />
-            <ellipse cx="455" cy="125" rx="65" ry="27" fill="#ffffff" opacity="0.88" />
-            <ellipse cx="540" cy="105" rx="65" ry="38" fill="#ffffff" />
-            <ellipse cx="615" cy="125" rx="58" ry="27" fill="#ffffff" opacity="0.9" />
-          </g>
-
-          {/* CLOUD 2 */}
-          <g className="ocean-cloud ocean-cloud-two">
-            <ellipse cx="1000" cy="205" rx="115" ry="32" fill="#ffffff" opacity="0.65" />
-            <ellipse cx="940" cy="195" rx="65" ry="30" fill="#ffffff" opacity="0.75" />
-            <ellipse cx="1035" cy="175" rx="70" ry="40" fill="#ffffff" opacity="0.85" />
-          </g>
-
-          {/* BIRDS */}
-          <g className="ocean-birds" fill="none" stroke="#3f5668" strokeWidth="3" strokeLinecap="round">
-            <path d="M700 105 Q712 92 724 105 Q736 92 748 105" />
-            <path d="M760 145 Q770 134 780 145 Q790 134 800 145" />
-            <path d="M850 100 Q860 90 870 100 Q880 90 890 100" />
-          </g>
-        </g>
-      </svg>
-
-      {/* NEN NUOC BIEN (doi mau theo do sau) */}
-      <div className="ocean-water-base" />
-
-      {/* =====================================================
-          WATER LIGHT RAYS
-      ===================================================== */}
-      <svg
-        className="ocean-layer ocean-light-rays-layer"
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid slice"
-      >
-        <g className="ocean-water-rays" opacity={underwaterOpacity}>
-          <polygon points="180,310 270,310 480,800 390,800" fill="#bff8ff" opacity="0.1" />
-          <polygon points="500,300 580,300 720,800 640,800" fill="#c9fbff" opacity="0.09" />
-          <polygon points="820,300 900,300 980,800 900,800" fill="#b9f6ff" opacity="0.08" />
-        </g>
-      </svg>
-
-      {/* =====================================================
-          MOUNTAINS (troi len & mo dan khi lan xuong)
-      ===================================================== */}
-      <svg
-        className="ocean-layer ocean-mountain-layer"
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid slice"
-      >
-        <defs>
-          <linearGradient id="farMountain" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#d9d0b4" />
-            <stop offset="100%" stopColor="#9b8d72" />
+          <linearGradient id="farMountain" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#b3c4d4" />
+            <stop offset="100%" stopColor="#70889e" />
           </linearGradient>
-          <linearGradient id="frontMountain" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#c3aa7c" />
-            <stop offset="100%" stopColor="#685540" />
+
+          <linearGradient id="seabedGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#1c2d42" />
+            <stop offset="30%" stopColor="#142132" />
+            <stop offset="100%" stopColor="#080e17" />
+          </linearGradient>
+
+          <linearGradient id="sandGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#c2a675" />
+            <stop offset="100%" stopColor="#6e5732" />
           </linearGradient>
         </defs>
 
-        {/* FAR MOUNTAIN */}
-        <g
-          style={{ opacity: skyOpacity }}
-          transform={`translate(${farMountainX}, ${farMountainY})`}
-        >
-          <polygon
-            points="720,410 820,155 930,290 1040,185 1200,340 1200,800 720,800"
-            fill="url(#farMountain)"
-            opacity="0.85"
+        {/* =========================================================
+            1. BẦU TRỜI & NÚI (Có Parallax)
+        ========================================================= */}
+        <g transform={`translate(0, ${skyParallaxY})`}>
+          {/* Bầu trời */}
+          <rect x="0" y="0" width={VIEW_W} height="520" fill="url(#skyGrad)" opacity={skyOpacity} />
+
+          {/* Mặt trời */}
+          <g opacity={sunOpacity}>
+            <circle cx="300" cy="160" r="110" fill="url(#sunGlow)" />
+            <circle cx="300" cy="160" r="48" fill="#fff5b3" className="ocean-sun" />
+          </g>
+
+          {/* Mây */}
+          <g className="ocean-cloud ocean-cloud-one" opacity={skyOpacity * 0.85}>
+            <ellipse cx="500" cy="130" rx="90" ry="28" fill="#ffffff" />
+            <ellipse cx="440" cy="125" rx="50" ry="22" fill="#ffffff" />
+            <ellipse cx="550" cy="120" rx="55" ry="32" fill="#ffffff" />
+          </g>
+          <g className="ocean-cloud ocean-cloud-two" opacity={skyOpacity * 0.75}>
+            <ellipse cx="880" cy="180" rx="100" ry="30" fill="#ffffff" />
+            <ellipse cx="830" cy="175" rx="55" ry="25" fill="#ffffff" />
+          </g>
+
+          {/* Chim hải âu */}
+          <g className="ocean-birds" stroke="#3f5668" strokeWidth="3" fill="none" opacity={skyOpacity}>
+            <path d="M680 110 Q690 100 700 110 Q710 100 720 110" />
+            <path d="M740 140 Q748 132 756 140 Q764 132 772 140" />
+          </g>
+        </g>
+
+        <g transform={`translate(0, ${mountainParallaxY})`} opacity={skyOpacity}>
+          {/* Núi xa */}
+          <polygon points="600,520 750,220 900,380 1050,190 1200,520" fill="url(#farMountain)" opacity="0.7" />
+          {/* Núi gần */}
+          <polygon points="780,520 900,280 980,360 1100,230 1200,520" fill="#4d647a" />
+        </g>
+
+        {/* =========================================================
+            2. KHỐI NƯỚC BIỂN LIÊN TỤC (TỪ MẶT NƯỚC XUỐNG ĐÁY)
+        ========================================================= */}
+        <rect x="0" y="500" width={VIEW_W} height={WORLD_H - 500} fill="url(#oceanWaterGrad)" />
+
+        {/* Vệt sáng chiếu xuống nước */}
+        <g className="ocean-light-rays" opacity={clamp(1 - scrollProgress * 1.5)}>
+          <polygon points="250,500 380,500 580,1300 420,1300" fill="#c3f5ff" opacity="0.12" />
+          <polygon points="550,500 650,500 820,1300 700,1300" fill="#c3f5ff" opacity="0.09" />
+        </g>
+
+        {/* =========================================================
+            3. MẶT NƯỚC, SÓNG & THUYỀN (Sóng 1 -> Thuyền -> Sóng 2)
+        ========================================================= */}
+        {/* Sóng sau */}
+        <g className="wave-motion-back">
+          <path
+            d="M-100 510 Q150 470 400 510 T900 500 T1400 515 L1400 700 L-100 700 Z"
+            fill="#29a3c4"
+            opacity="0.7"
           />
-          <polygon points="820,155 865,265 830,235 790,310" fill="#f8f0df" opacity="0.75" />
         </g>
 
-        {/* FRONT MOUNTAIN */}
-        <g
-          style={{ opacity: skyOpacity }}
-          transform={`translate(${mountainX}, ${mountainY})`}
-        >
-          <polygon
-            points="840,800 930,300 1010,385 1120,250 1200,390 1200,800"
-            fill="url(#frontMountain)"
+        {/* Con thuyền */}
+        <g transform="translate(520, 360)" opacity={skyOpacity} className="ocean-boat-motion">
+          <ellipse cx="80" cy="155" rx="120" ry="14" fill="#0d3b52" opacity="0.25" />
+          {/* Cánh buồm */}
+          <path d="M70 -130 L-50 120 L70 120 Z" fill="#fff8eb" />
+          <path d="M90 -110 L190 120 L90 120 Z" fill="#ffffff" />
+          {/* Cột buồm & Cờ */}
+          <rect x="75" y="-150" width="10" height="280" fill="#5c3a21" />
+          <path d="M85 -150 L140 -132 L85 -115 Z" fill="#e63946" />
+          {/* Thân thuyền */}
+          <path d="M-60 120 L220 120 L190 160 L-30 160 Z" fill="#d62828" />
+          <path d="M-45 138 L205 138 L185 160 L-30 160 Z" fill="#003049" opacity="0.3" />
+          {/* Cửa sổ thuyền */}
+          <circle cx="20" cy="142" r="7" fill="#fdf0d5" />
+          <circle cx="60" cy="142" r="7" fill="#fdf0d5" />
+          <circle cx="100" cy="142" r="7" fill="#fdf0d5" />
+          <circle cx="140" cy="142" r="7" fill="#fdf0d5" />
+        </g>
+
+        {/* Sóng trước (che chân thuyền) */}
+        <g className="wave-motion-front">
+          <path
+            d="M-100 525 Q200 490 500 530 T1100 515 T1400 530 L1400 700 L-100 700 Z"
+            fill="#38b7d3"
+            opacity="0.9"
           />
-          <polygon points="930,300 970,380 945,360 900,460" fill="#efe3c9" opacity="0.5" />
+        </g>
+
+        {/* =========================================================
+            4. SINH VẬT TẦNG NÔNG (Y: 650 - 1100)
+        ========================================================= */}
+        {/* Rùa biển */}
+        <g transform="translate(380, 780)" className="sea-turtle-anim">
+          <ellipse cx="0" cy="0" rx="35" ry="25" fill="#2a9d8f" />
+          <ellipse cx="0" cy="0" rx="28" ry="20" fill="#e9c46a" opacity="0.8" />
+          <circle cx="38" cy="-5" r="9" fill="#2a9d8f" />
+          {/* Vây rùa */}
+          <path d="M15 -20 Q40 -45 5 -10" fill="#264653" />
+          <path d="M15 20 Q40 45 5 10" fill="#264653" />
+        </g>
+
+        {/* Đàn cá hề & cá nhỏ */}
+        <g transform="translate(720, 850)" className="fish-swim-right">
+          <ellipse cx="0" cy="0" rx="22" ry="12" fill="#f4a261" />
+          <path d="M-18 0 L-32 -10 L-32 10 Z" fill="#e76f51" />
+          <rect x="-5" y="-11" width="6" height="22" fill="#ffffff" />
+          <circle cx="12" cy="-3" r="2.5" fill="#000000" />
+        </g>
+        <g transform="translate(780, 890)" className="fish-swim-right-slow">
+          <ellipse cx="0" cy="0" rx="16" ry="9" fill="#f4a261" />
+          <path d="M-12 0 L-22 -7 L-22 7 Z" fill="#e76f51" />
+          <rect x="-3" y="-8" width="4" height="16" fill="#ffffff" />
+        </g>
+
+        {/* Cá heo */}
+        <g transform="translate(260, 1050)" className="dolphin-anim">
+          <path d="M-50 0 Q0 -30 60 -5 Q30 20 -50 0 Z" fill="#4ea8de" />
+          <path d="M60 -5 Q75 -8 85 -2 Q70 10 60 -5 Z" fill="#4ea8de" />
+          <path d="M0 -18 L12 -38 L22 -14 Z" fill="#4895ef" />
+          <circle cx="62" cy="-6" r="2" fill="#03045e" />
+        </g>
+
+        {/* =========================================================
+            5. SINH VẬT TẦNG TRUNG & SÂU (Y: 1200 - 1800)
+        ========================================================= */}
+        {/* Cá đuối Manta */}
+        <g transform="translate(680, 1320)" className="manta-anim">
+          <path d="M0 -10 Q-90 -40 -120 10 Q-40 20 0 40 Q40 20 120 10 Q90 -40 0 -10 Z" fill="#1d3557" />
+          <path d="M0 40 Q-5 90 -2 120" stroke="#1d3557" strokeWidth="4" fill="none" />
+        </g>
+
+        {/* Đàn sứa phát quang */}
+        <g transform="translate(320, 1450)" className="jelly-float">
+          <path d="M-25 0 Q-25 -30 0 -30 Q25 -30 25 0 Q12 8 0 3 Q-12 8 -25 0 Z" fill="#b8c0ff" opacity="0.75" />
+          <path d="M-12 5 Q-15 30 -8 50" stroke="#e7c6ff" strokeWidth="2" fill="none" />
+          <path d="M0 5 Q0 35 3 55" stroke="#e7c6ff" strokeWidth="2" fill="none" />
+          <path d="M12 5 Q15 30 8 50" stroke="#e7c6ff" strokeWidth="2" fill="none" />
+        </g>
+        <g transform="translate(400, 1520)" className="jelly-float-delayed">
+          <path d="M-18 0 Q-18 -22 0 -22 Q18 -22 18 0 Q9 6 0 2 Q-9 6 -18 0 Z" fill="#c8b6ff" opacity="0.7" />
+          <path d="M-8 4 Q-10 25 -5 40" stroke="#e7c6ff" strokeWidth="1.5" fill="none" />
+          <path d="M8 4 Q10 25 5 40" stroke="#e7c6ff" strokeWidth="1.5" fill="none" />
+        </g>
+
+        {/* Cá lồng đèn (Anglerfish) tầng tối */}
+        <g transform="translate(780, 1820)" className="angler-anim">
+          <path d="M-35 0 Q-35 -25 0 -20 Q30 -15 35 10 Q10 30 -35 0 Z" fill="#111d27" />
+          {/* Cần phát sáng */}
+          <path d="M15 -18 Q35 -40 45 -25" stroke="#4cc9f0" strokeWidth="2" fill="none" />
+          <circle cx="46" cy="-23" r="6" fill="#72efdd" className="angler-light" />
+          {/* Mắt & Mồm răng nhọn */}
+          <circle cx="20" cy="-8" r="3" fill="#ff0054" />
+          <path d="M10 8 L15 0 L20 8 L25 0 L30 8" stroke="#ffffff" strokeWidth="1.5" fill="none" />
+        </g>
+
+        {/* =========================================================
+            6. ĐÁY BIỂN, RONG RÊU, SAN HÔ & KHO BÁU (Y: 2000 - 2600)
+        ========================================================= */}
+        {/* Nền đất đáy biển */}
+        <path
+          d="M0 2250 Q250 2180 500 2220 T1000 2190 Q1120 2210 1200 2230 L1200 2600 L0 2600 Z"
+          fill="url(#seabedGrad)"
+        />
+        <path
+          d="M0 2320 Q350 2270 700 2330 T1200 2300 L1200 2600 L0 2600 Z"
+          fill="url(#sandGrad)"
+        />
+
+        {/* Rạn san hô (Corals) */}
+        <g transform="translate(180, 2260)">
+          {/* San hô sừng hươu */}
+          <path d="M0 60 L-10 20 L-25 0 L-12 15 L0 30 L15 5 L10 25 L25 0 L15 35 Z" fill="#f72585" />
+          <path d="M40 70 L30 30 L15 10 L28 25 L40 40 L55 15 L50 35 L65 10 L55 45 Z" fill="#7209b7" />
+          {/* San hô quạt */}
+          <path d="M100 80 Q130 10 160 80 Z" fill="#4cc9f0" opacity="0.8" />
+        </g>
+
+        <g transform="translate(920, 2250)">
+          <path d="M0 80 Q30 20 60 80 Z" fill="#ff9e00" opacity="0.85" />
+          <path d="M40 90 L25 40 L10 15 L25 30 L40 50 L55 20 L50 45 Z" fill="#f72585" />
+        </g>
+
+        {/* Rừng rong rêu đung đưa (Kelp Forest) */}
+        <g className="kelp-group">
+          {/* Dải rong rêu 1 */}
+          <path
+            d="M 120 2380 Q 140 2280 110 2180 T 130 1980"
+            stroke="#2d6a4f"
+            strokeWidth="18"
+            fill="none"
+            strokeLinecap="round"
+            className="kelp-sway-1"
+          />
+          <path
+            d="M 120 2380 Q 140 2280 110 2180 T 130 1980"
+            stroke="#52b788"
+            strokeWidth="8"
+            fill="none"
+            strokeLinecap="round"
+            className="kelp-sway-1"
+          />
+
+          {/* Dải rong rêu 2 */}
+          <path
+            d="M 260 2400 Q 230 2300 270 2180 T 240 2020"
+            stroke="#1b4332"
+            strokeWidth="22"
+            fill="none"
+            strokeLinecap="round"
+            className="kelp-sway-2"
+          />
+
+          {/* Dải rong rêu 3 */}
+          <path
+            d="M 850 2390 Q 880 2280 840 2150 T 870 1990"
+            stroke="#2d6a4f"
+            strokeWidth="20"
+            fill="none"
+            strokeLinecap="round"
+            className="kelp-sway-3"
+          />
+
+          {/* Dải rong rêu 4 */}
+          <path
+            d="M 1020 2380 Q 990 2260 1030 2140 T 1000 2000"
+            stroke="#40916c"
+            strokeWidth="16"
+            fill="none"
+            strokeLinecap="round"
+            className="kelp-sway-2"
+          />
+        </g>
+
+        {/* Mỏ neo cổ & Rương kho báu */}
+        <g transform="translate(680, 2330)">
+          {/* Mỏ neo chìm */}
+          <path
+            d="M0 0 L0 60 M-25 45 Q0 65 25 45 M-10 0 L10 0"
+            stroke="#4a5568"
+            strokeWidth="7"
+            fill="none"
+            strokeLinecap="round"
+          />
+          {/* Rương kho báu */}
+          <rect x="40" y="25" width="50" height="35" rx="4" fill="#7f4f24" />
+          <path d="M40 25 Q65 10 90 25 Z" fill="#936639" />
+          <rect x="61" y="37" width="8" height="10" fill="#e9c46a" />
+          {/* Vàng phát sáng xung quanh */}
+          <circle cx="35" cy="55" r="4" fill="#e9c46a" />
+          <circle cx="45" cy="58" r="3" fill="#f4a261" />
+          <circle cx="95" cy="56" r="3.5" fill="#e9c46a" />
+        </g>
+
+        {/* Cua đỏ & Sao biển trên cát */}
+        <g transform="translate(460, 2370)">
+          {/* Cua */}
+          <ellipse cx="0" cy="0" rx="14" ry="9" fill="#e63946" />
+          <circle cx="-5" cy="-10" r="2" fill="#000" />
+          <circle cx="5" cy="-10" r="2" fill="#000" />
+          {/* Càng cua */}
+          <path d="M-10 -4 Q-20 -15 -12 -20 Q-5 -12 -8 -4" fill="#e63946" />
+          <path d="M10 -4 Q20 -15 12 -20 Q5 -12 8 -4" fill="#e63946" />
+        </g>
+
+        {/* Sao biển */}
+        <g transform="translate(580, 2385)" fill="#ff70a6">
+          <path d="M0 -12 L3 -4 L11 -4 L5 1 L7 9 L0 4 L-7 9 L-5 1 L-11 -4 L-3 -4 Z" />
         </g>
       </svg>
 
-      {/* =====================================================
-          WAVE 1 (phia sau thuyen)
-      ===================================================== */}
-      <svg
-        className="ocean-layer ocean-wave-one-layer"
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid slice"
+      {/* Bong bóng khí nổi lên liên tục */}
+      <div
+        className="ocean-bubbles-container"
+        style={{ opacity: bubblesOpacity }}
       >
-        <g transform={`translate(0, ${waveOneY})`}>
-          <g className="wave-one-motion">
-            <path
-              d="M-100 470 Q0 410 100 465 T300 455 T500 445 T700 465 T900 440 T1100 460 T1300 445 L1300 800 L-100 800 Z"
-              fill="#278eb8"
-              opacity="0.8"
-            />
-            <path
-              d="M-100 475 Q0 425 100 470 T300 460 T500 450 T700 470 T900 445 T1100 465 T1300 450"
-              fill="none"
-              stroke="#9be8f2"
-              strokeWidth="10"
-              opacity="0.3"
-            />
-          </g>
-        </g>
-      </svg>
-
-      {/* =====================================================
-          BOAT (giua wave 1 va wave 2, troi len khi lan xuong)
-      ===================================================== */}
-      <svg
-        className="ocean-layer ocean-boat-layer"
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid slice"
-      >
-        <g
-          style={{ opacity: skyOpacity }}
-          transform={`translate(390, ${310 + boatScrollY})`}
-        >
-          <g className="ocean-boat-motion">
-            {/* SHADOW */}
-            <ellipse cx="0" cy="215" rx="155" ry="17" fill="#164b67" opacity="0.22" />
-
-            {/* SAILS */}
-            <path d="M-12 -250 L-180 95 L-12 95 Z" fill="#fff7e5" />
-            <path d="M-12 -245 L-145 95 L-95 95 Z" fill="#f0c5ce" opacity="0.8" />
-            <path d="M15 -220 L155 95 L15 95 Z" fill="#fffdf3" />
-            <path d="M15 -220 L70 95 L15 95 Z" fill="#e8e2d2" opacity="0.7" />
-
-            {/* MAST */}
-            <rect x="-9" y="-270" width="18" height="385" rx="4" fill="#6c472c" />
-            <rect x="-5" y="-265" width="5" height="375" fill="#8c6542" opacity="0.8" />
-
-            {/* FLAG */}
-            <path d="M8 -270 L85 -245 L8 -220 Z" fill="#dc5246" />
-
-            {/* HULL */}
-            <path d="M-175 100 L180 100 L160 128 L-155 128 Z" fill="#c94339" />
-            <path d="M-165 125 L165 125 L115 205 L-110 205 Z" fill="#9f2f2b" />
-            <path d="M-145 128 L145 128 L115 155 L-125 155 Z" fill="#d34d42" />
-
-            {/* WINDOWS */}
-            <circle cx="-80" cy="155" r="11" fill="#203f4f" />
-            <circle cx="-30" cy="155" r="11" fill="#203f4f" />
-            <circle cx="20" cy="155" r="11" fill="#203f4f" />
-            <circle cx="70" cy="155" r="11" fill="#203f4f" />
-          </g>
-        </g>
-      </svg>
-
-      {/* =====================================================
-          WAVE 2 (phia truoc, che mot phan day thuyen)
-      ===================================================== */}
-      <svg
-        className="ocean-layer ocean-wave-two-layer"
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid slice"
-      >
-        <g transform={`translate(0, ${waveTwoY})`}>
-          <g className="wave-two-motion">
-            <path
-              d="M-100 500 Q0 465 100 505 T300 495 T500 510 T700 485 T900 505 T1100 490 T1300 510 L1300 800 L-100 800 Z"
-              fill="#38b7d3"
-              opacity="0.93"
-            />
-            <path
-              d="M-100 500 Q0 465 100 505 T300 495 T500 510 T700 485 T900 505 T1100 490 T1300 510"
-              fill="none"
-              stroke="#c8f8ff"
-              strokeWidth="13"
-              opacity="0.52"
-            />
-          </g>
-        </g>
-      </svg>
-
-      {/* =====================================================
-          FISH - lop ca gan mat nuoc, xuat hien dan khi lan xuong
-      ===================================================== */}
-      <svg
-        className="ocean-layer ocean-fish-layer"
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid slice"
-        style={{ opacity: fishOpacity }}
-      >
-        {/* FISH A */}
-        <g transform="translate(260, 590)" className="fish fish-a">
-          <g className="fish-swim fish-swim-a">
-            <ellipse cx="0" cy="0" rx="48" ry="21" fill="#176f95" />
-            <path d="M-40 0 L-78 -28 L-78 28 Z" fill="#125b7c" />
-            <path d="M-5 5 Q10 28 25 20 Q12 4 -5 5 Z" fill="#155f81" />
-            <circle cx="28" cy="-6" r="4" fill="#0b2635" />
-          </g>
-        </g>
-
-        {/* FISH B */}
-        <g transform="translate(620, 670)" className="fish fish-b">
-          <g className="fish-swim fish-swim-b">
-            <ellipse cx="0" cy="0" rx="38" ry="17" fill="#3c95b4" />
-            <path d="M-32 0 L-62 -22 L-62 22 Z" fill="#287894" />
-            <path d="M-5 5 Q10 24 20 17 Q10 3 -5 5 Z" fill="#277993" />
-            <circle cx="22" cy="-5" r="3.5" fill="#092737" />
-          </g>
-        </g>
-
-        {/* FISH C */}
-        <g transform="translate(980, 610)" className="fish fish-c">
-          <g className="fish-swim fish-swim-c">
-            <ellipse cx="0" cy="0" rx="27" ry="13" fill="#2b7e9e" />
-            <path d="M-23 0 L-48 -17 L-48 17 Z" fill="#1e617c" />
-            <circle cx="16" cy="-4" r="3" fill="#0a2634" />
-          </g>
-        </g>
-      </svg>
-
-      {/* =====================================================
-          DEEP SEA CREATURES - chi xuat hien khi lan du sau
-      ===================================================== */}
-      <svg
-        className="ocean-layer ocean-deep-fish-layer"
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid slice"
-        style={{ opacity: deepFishOpacity }}
-      >
-        {/* JELLYFISH */}
-        <g transform="translate(340, 700)" className="jellyfish jellyfish-a">
-          <g className="jelly-float jelly-float-a">
-            <path
-              d="M-30 0 Q-30 -32 0 -32 Q30 -32 30 0 Q15 10 0 4 Q-15 10 -30 0 Z"
-              fill="#e6b6ff"
-              opacity="0.75"
-            />
-            <path d="M-18 4 Q-18 30 -22 55" fill="none" stroke="#e6b6ff" strokeWidth="3" opacity="0.6" />
-            <path d="M0 6 Q0 34 -3 60" fill="none" stroke="#e6b6ff" strokeWidth="3" opacity="0.6" />
-            <path d="M18 4 Q18 30 22 55" fill="none" stroke="#e6b6ff" strokeWidth="3" opacity="0.6" />
-          </g>
-        </g>
-
-        {/* SMALL DEEP-SEA SCHOOL */}
-        <g transform="translate(860, 730)" className="deep-school">
-          <g className="fish-swim fish-swim-a">
-            <ellipse cx="0" cy="0" rx="16" ry="8" fill="#5f4b8c" />
-            <path d="M-14 0 L-26 -9 L-26 9 Z" fill="#443269" />
-          </g>
-          <g className="fish-swim fish-swim-b" transform="translate(50, 20)">
-            <ellipse cx="0" cy="0" rx="12" ry="6" fill="#6e5a9c" />
-            <path d="M-10 0 L-20 -7 L-20 7 Z" fill="#4c3a78" />
-          </g>
-          <g className="fish-swim fish-swim-c" transform="translate(-40, 30)">
-            <ellipse cx="0" cy="0" rx="10" ry="5" fill="#7a659f" />
-            <path d="M-9 0 L-17 -6 L-17 6 Z" fill="#584684" />
-          </g>
-        </g>
-      </svg>
-
-      {/* BUBBLES */}
-      <div className="ocean-bubbles" style={{ opacity: underwaterOpacity }}>
-        <span className="ocean-bubble bubble-1" />
-        <span className="ocean-bubble bubble-2" />
-        <span className="ocean-bubble bubble-3" />
-        <span className="ocean-bubble bubble-4" />
-        <span className="ocean-bubble bubble-5" />
-        <span className="ocean-bubble bubble-6" />
+        <span className="bubble b1" />
+        <span className="bubble b2" />
+        <span className="bubble b3" />
+        <span className="bubble b4" />
+        <span className="bubble b5" />
+        <span className="bubble b6" />
+        <span className="bubble b7" />
+        <span className="bubble b8" />
       </div>
 
-      {/* DEEP SEA DARKNESS */}
-      <div className="ocean-deep-overlay" style={{ opacity: deepSeaOpacity }} />
-
-      {/* ABYSS - lop toi gan nhu den khi lan cuc sau */}
-      <div className="ocean-abyss-overlay" style={{ opacity: abyssOpacity }} />
-
-      {/* WATER SHIMMER */}
-      <div className="ocean-shimmer" />
+      {/* Lớp bóng tối mờ ảo tầng cực sâu */}
+      <div
+        className="ocean-abyss-darkness"
+        style={{ opacity: clamp((scrollProgress - 0.65) * 2.5) }}
+      />
     </div>
   );
 }
