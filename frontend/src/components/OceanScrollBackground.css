@@ -1,3 +1,6 @@
+/* ============================================================
+   CONTAINER CHÍNH FIX CỐ ĐỊNH PHỦ TOÀN MÀN HÌNH
+============================================================ */
 .ocean-background {
   position: fixed;
   inset: 0;
@@ -11,105 +14,248 @@
   isolation: isolate;
 }
 
-.ocean-content-wrapper {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
+/* Nền đệm Gradient */
 .ocean-base-gradient {
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: linear-gradient(
-    180deg,
-    #7ad0f5 0%,
-    #31a2c9 25%,
-    #156592 50%,
-    #0a3d62 75%,
-    #020b14 100%
-  );
-  background-size: 100% 300%;
-  background-position: 0% calc(var(--sea-depth, 0) * 100%);
-  transition: background-position 0.1s ease-out;
+  transition: opacity 0.2s linear;
 }
 
-.ocean-layer {
+/* SVG Canvas phủ toàn bộ khung nhìn */
+.ocean-svg-canvas {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   display: block;
-  pointer-events: none;
-  will-change: transform, opacity;
-  transform: translateZ(0);
+  z-index: 1;
 }
 
-/* Rong rêu lắc mượt bằng GPU */
-.seaweed-group {
-  will-change: transform;
-  transform-box: fill-box;
+/* ============================================================
+   KEYFRAMES HOẠT HỌA CHUYỂN ĐỘNG
+============================================================ */
+
+/* Mặt trời phát sáng */
+.ocean-sun {
+  transform-origin: 300px 160px;
+  animation: sunGlowPulse 3.5s ease-in-out infinite alternate;
 }
 
-.sway-1 { animation: smoothSway1 5s ease-in-out infinite alternate; }
-.sway-2 { animation: smoothSway2 6s ease-in-out infinite alternate 0.5s; }
-
-@keyframes smoothSway1 {
-  0% { transform: rotate(-4deg); }
-  100% { transform: rotate(5deg); }
+@keyframes sunGlowPulse {
+  0% {
+    transform: scale(0.96);
+    filter: drop-shadow(0 0 15px rgba(255, 245, 179, 0.6));
+  }
+  100% {
+    transform: scale(1.04);
+    filter: drop-shadow(0 0 35px rgba(255, 245, 179, 0.95));
+  }
 }
 
-@keyframes smoothSway2 {
-  0% { transform: rotate(5deg); }
-  100% { transform: rotate(-4deg); }
+/* Mây trôi */
+.ocean-cloud-one {
+  animation: cloudFloatOne 28s ease-in-out infinite alternate;
+}
+.ocean-cloud-two {
+  animation: cloudFloatTwo 36s ease-in-out infinite alternate;
 }
 
+@keyframes cloudFloatOne {
+  0% { transform: translateX(-30px); }
+  100% { transform: translateX(60px); }
+}
+@keyframes cloudFloatTwo {
+  0% { transform: translateX(40px); }
+  100% { transform: translateX(-50px); }
+}
+
+/* Sóng biển nhấp nhô */
+.wave-motion-back {
+  animation: waveMoveBack 7s ease-in-out infinite alternate;
+}
+.wave-motion-front {
+  animation: waveMoveFront 5s ease-in-out infinite alternate;
+}
+
+@keyframes waveMoveBack {
+  0% { transform: translateX(-15px) translateY(0); }
+  100% { transform: translateX(20px) translateY(-6px); }
+}
+@keyframes waveMoveFront {
+  0% { transform: translateX(15px) translateY(0); }
+  100% { transform: translateX(-20px) translateY(-8px); }
+}
+
+/* Thuyền bập bềnh */
 .ocean-boat-motion {
+  transform-box: fill-box;
   transform-origin: center bottom;
-  animation: boatFloat 3.5s ease-in-out infinite alternate;
+  animation: boatRocking 4.5s ease-in-out infinite;
 }
 
-@keyframes boatFloat {
-  0% { transform: rotate(-1deg) translateY(0); }
-  100% { transform: rotate(1.5deg) translateY(4px); }
+@keyframes boatRocking {
+  0%, 100% { transform: translateY(0) rotate(-1.2deg); }
+  50% { transform: translateY(6px) rotate(1.5deg); }
 }
 
-.turtle-swim { animation: turtleMove 9s ease-in-out infinite alternate; }
-@keyframes turtleMove {
-  0% { transform: translate(360px, 380px); }
-  100% { transform: translate(410px, 360px); }
+/* Rùa biển bơi */
+.sea-turtle-anim {
+  animation: turtleSwim 12s ease-in-out infinite alternate;
+}
+@keyframes turtleSwim {
+  0% { transform: translate(380px, 780px) rotate(-3deg); }
+  100% { transform: translate(450px, 760px) rotate(4deg); }
 }
 
-.octopus-float { animation: octopusMove 4.5s ease-in-out infinite alternate; }
-@keyframes octopusMove {
-  0% { transform: translate(780px, 420px) translateY(0); }
-  100% { transform: translate(780px, 420px) translateY(-15px); }
+/* Cá bơi */
+.fish-swim-right {
+  animation: fishSwimR 8s ease-in-out infinite alternate;
+}
+.fish-swim-right-slow {
+  animation: fishSwimR 11s ease-in-out 1s infinite alternate;
 }
 
+@keyframes fishSwimR {
+  0% { transform: translate(720px, 850px) translateX(-20px); }
+  100% { transform: translate(720px, 850px) translateX(40px); }
+}
+
+/* Cá heo bơi lượn */
+.dolphin-anim {
+  animation: dolphinDiving 9s ease-in-out infinite alternate;
+}
+@keyframes dolphinDiving {
+  0% { transform: translate(260px, 1050px) rotate(-5deg); }
+  100% { transform: translate(340px, 1020px) rotate(8deg); }
+}
+
+/* Cá đuối Manta */
+.manta-anim {
+  animation: mantaGlide 14s ease-in-out infinite alternate;
+}
+@keyframes mantaGlide {
+  0% { transform: translate(680px, 1320px) scale(0.95) translateY(0); }
+  100% { transform: translate(600px, 1290px) scale(1.05) translateY(-20px); }
+}
+
+/* Sứa nổi nhấp nhô */
+.jelly-float {
+  animation: jellyPulse 5s ease-in-out infinite;
+}
+.jelly-float-delayed {
+  animation: jellyPulse 6s ease-in-out 2s infinite;
+}
+
+@keyframes jellyPulse {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(-18px) scaleY(1.08); }
+}
+
+/* Đèn cá lồng đèn nhấp nháy */
+.angler-light {
+  animation: anglerGlow 2s ease-in-out infinite alternate;
+}
+@keyframes anglerGlow {
+  0% { fill: #72efdd; filter: drop-shadow(0 0 2px #72efdd); }
+  100% { fill: #ffffff; filter: drop-shadow(0 0 12px #4cc9f0); }
+}
+
+/* Rong rêu đung đưa (Kelp Swaying) */
+.kelp-sway-1 {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: kelpSwayLeft 5s ease-in-out infinite alternate;
+}
+.kelp-sway-2 {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: kelpSwayRight 6.5s ease-in-out infinite alternate;
+}
+.kelp-sway-3 {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: kelpSwayLeft 4.5s ease-in-out 1s infinite alternate;
+}
+
+@keyframes kelpSwayLeft {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-8deg); }
+}
+@keyframes kelpSwayRight {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(9deg); }
+}
+
+/* ============================================================
+   BONG BÓNG KHÍ
+============================================================ */
 .ocean-bubbles-container {
   position: absolute;
   inset: 0;
-  z-index: 5;
+  z-index: 2;
   pointer-events: none;
+  transition: opacity 0.5s ease;
 }
 
 .bubble {
   position: absolute;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  animation: bubbleUp 9s linear infinite;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: inset -2px -2px 4px rgba(255, 255, 255, 0.6);
+  animation: bubbleRiseUp 10s linear infinite;
 }
 
-.b1 { width: 12px; height: 12px; left: 18%; bottom: -20px; animation-duration: 8s; }
-.b2 { width: 8px; height: 8px; left: 42%; bottom: -20px; animation-duration: 11s; animation-delay: 2s; }
-.b3 { width: 15px; height: 15px; left: 68%; bottom: -20px; animation-duration: 13s; animation-delay: 1s; }
-.b4 { width: 6px; height: 6px; left: 85%; bottom: -20px; animation-duration: 9s; animation-delay: 3s; }
+.b1 { width: 14px; height: 14px; left: 15%; bottom: -20px; animation-duration: 9s; }
+.b2 { width: 8px; height: 8px; left: 28%; bottom: -20px; animation-duration: 12s; animation-delay: 2s; }
+.b3 { width: 18px; height: 18px; left: 45%; bottom: -20px; animation-duration: 14s; animation-delay: 1s; }
+.b4 { width: 10px; height: 10px; left: 62%; bottom: -20px; animation-duration: 8s; animation-delay: 4s; }
+.b5 { width: 16px; height: 16px; left: 78%; bottom: -20px; animation-duration: 11s; animation-delay: 3s; }
+.b6 { width: 6px; height: 6px; left: 88%; bottom: -20px; animation-duration: 7s; animation-delay: 5s; }
 
-@keyframes bubbleUp {
-  0% { transform: translateY(0); opacity: 0; }
-  20% { opacity: 0.7; }
-  80% { opacity: 0.7; }
-  100% { transform: translateY(-105vh); opacity: 0; }
+@keyframes bubbleRiseUp {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  10% { opacity: 0.7; }
+  90% { opacity: 0.4; }
+  100% {
+    transform: translateY(-105vh) translateX(30px);
+    opacity: 0;
+  }
+}
+
+/* Lớp phủ tối đáy biển */
+.ocean-abyss-darkness {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 30%, rgba(1, 6, 17, 0.6) 90%);
+  transition: opacity 0.3s linear;
+}
+
+/* ============================================================
+   GIẢM CHUYỂN ĐỘNG CHO NGUỜI DÙNG BẬT REDUCED MOTION
+============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .ocean-sun,
+  .ocean-cloud-one,
+  .ocean-cloud-two,
+  .wave-motion-back,
+  .wave-motion-front,
+  .ocean-boat-motion,
+  .sea-turtle-anim,
+  .fish-swim-right,
+  .dolphin-anim,
+  .manta-anim,
+  .jelly-float,
+  .kelp-sway-1,
+  .kelp-sway-2,
+  .kelp-sway-3,
+  .bubble {
+    animation: none !important;
+  }
 }
