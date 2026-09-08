@@ -1,8 +1,5 @@
 /* ============================================================
-   ROOT
-   position: fixed + inset: 0 + 100dvw/100dvh đảm bảo nền luôn
-   phủ đúng khung nhìn trên mọi thiết bị (desktop, mobile,
-   xoay ngang/dọc) mà không cần biết kích thước màn hình trước.
+   CONTAINER CHÍNH FIX CỐ ĐỊNH PHỦ TOÀN MÀN HÌNH
 ============================================================ */
 .ocean-background {
   position: fixed;
@@ -15,437 +12,250 @@
   pointer-events: none;
   z-index: -1;
   isolation: isolate;
-  --scroll: 0;
-  --sea-depth: 0;
-  --underwater-opacity: 0;
-  --deep-sea-opacity: 0;
 }
 
-/* ============================================================
-   BASE BACKGROUND
-   Lớp gradient dự phòng phía sau tất cả SVG.
-   Vì các SVG dùng preserveAspectRatio="xMidYMid meet" (không
-   bao giờ kéo méo hình), nếu tỉ lệ màn hình khác tỉ lệ khung
-   vẽ (1200x800) thì sẽ có khoảng trống hai bên hoặc trên/dưới.
-   Lớp base này lấp đầy khoảng trống đó bằng đúng dải màu biển,
-   nên trên điện thoại màn hình dài vẫn liền mạch, không hở trắng.
-============================================================ */
-.ocean-base {
+/* Nền đệm Gradient */
+.ocean-base-gradient {
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: linear-gradient(
-    180deg,
-    #83ccef 0%,
-    #a7d9ea 25%,
-    #4ab8d2 48%,
-    #227fae 68%,
-    #0f4178 85%,
-    #071a43 100%
-  );
-  transition: background 0.3s linear;
+  transition: opacity 0.2s linear;
 }
 
-/* ============================================================
-   SVG LAYERS
-   Tất cả các layer đều rộng/cao 100% khung cha, và bản thân
-   SVG tự co giãn đúng tỉ lệ theo viewBox (không dùng object-fit,
-   không set width/height cố định bằng px) -> không bao giờ méo
-   dù xem trên máy tính hay điện thoại, dọc hay ngang.
-============================================================ */
-.ocean-layer {
+/* SVG Canvas phủ toàn bộ khung nhìn */
+.ocean-svg-canvas {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   display: block;
-  pointer-events: none;
-  overflow: visible;
-  transform-origin: center;
-  will-change: transform, opacity;
+  z-index: 1;
 }
 
 /* ============================================================
-   LAYER ORDER (từ mặt biển xuống đáy sâu)
+   KEYFRAMES HOẠT HỌA CHUYỂN ĐỘNG
 ============================================================ */
-.ocean-sky-layer { z-index: 1; }
-.ocean-light-rays-layer { z-index: 2; }
-.ocean-mountain-layer { z-index: 3; }
-.ocean-wave-one-layer { z-index: 4; }
-.ocean-boat-layer { z-index: 5; }
-.ocean-wave-two-layer { z-index: 6; }
 
-/* CÁ TẦNG NÔNG HƠN */
-.ocean-fish-layer {
-  z-index: 7;
-  transition: opacity 0.4s ease;
-}
-
-/* SINH VẬT TẦNG SÂU (chỉ hiện khi lặn khá sâu) */
-.ocean-deep-creature-layer {
-  z-index: 8;
-  transition: opacity 0.5s ease;
-}
-
-/* BUBBLES */
-.ocean-bubbles {
-  position: absolute;
-  inset: 0;
-  z-index: 9;
-  pointer-events: none;
-  transition: opacity 0.5s ease;
-}
-
-/* DEEP SEA DARKNESS OVERLAY */
-.ocean-deep-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    rgba(4, 47, 92, 0.02) 40%,
-    rgba(3, 35, 78, 0.2) 70%,
-    rgba(0, 10, 42, 0.58) 100%
-  );
-  transition: opacity 0.3s linear;
-}
-
-/* SHIMMER */
-.ocean-shimmer {
-  position: absolute;
-  inset: 0;
-  z-index: 11;
-  pointer-events: none;
-  opacity: 0.18;
-  background: repeating-linear-gradient(
-    165deg,
-    transparent 0,
-    transparent 55px,
-    rgba(255, 255, 255, 0.16) 57px,
-    transparent 59px,
-    transparent 100px
-  );
-  animation: shimmerMove 16s linear infinite;
-}
-
-/* ============================================================
-   WATER COLOR
-   Màu biển thay đổi theo scroll bằng lớp overlay CSS, chuyển
-   mượt, không giật, tách biệt hoàn toàn với transform của SVG.
-============================================================ */
-.ocean-water-base {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 47%;
-  bottom: 0;
-  z-index: 2;
-  background: linear-gradient(
-    to bottom,
-    rgba(59, 190, 213, 0.9) 0%,
-    rgba(25, 136, 185, 0.92) 38%,
-    rgba(12, 79, 144, 0.95) 72%,
-    rgba(4, 31, 83, 0.98) 100%
-  );
-  overflow: hidden;
-}
-
-.ocean-water-base::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 35, 90, 0.05),
-    rgba(0, 25, 80, 0.72)
-  );
-  opacity: var(--sea-depth);
-  transition: opacity 0.25s linear;
-}
-
-/* ============================================================
-   SUN / MOUNTAINS / BOAT
-   transform + opacity của các nhóm này được set bằng inline
-   style (điều khiển bởi scrollProgress trong JSX). Thêm
-   transition ngắn ở đây để chuyển động mượt hơn giữa các frame
-   scroll mà không bị giật khi cuộn nhanh.
-============================================================ */
-.ocean-sun-group,
-.ocean-mountain-layer > g,
-.ocean-boat-layer > g,
-.ocean-wave-one-layer .wave-one-motion,
-.ocean-wave-two-layer .wave-two-motion {
-  transition: transform 0.15s linear, opacity 0.25s linear;
-}
-
+/* Mặt trời phát sáng */
 .ocean-sun {
-  transform-origin: center;
-  animation: sunPulse 4s ease-in-out infinite;
+  transform-origin: 300px 160px;
+  animation: sunGlowPulse 3.5s ease-in-out infinite alternate;
 }
 
-.ocean-sun-rays {
-  transform-origin: 220px 150px;
-  animation: sunRayPulse 4s ease-in-out infinite;
+@keyframes sunGlowPulse {
+  0% {
+    transform: scale(0.96);
+    filter: drop-shadow(0 0 15px rgba(255, 245, 179, 0.6));
+  }
+  100% {
+    transform: scale(1.04);
+    filter: drop-shadow(0 0 35px rgba(255, 245, 179, 0.95));
+  }
 }
 
-/* ============================================================
-   CLOUDS
-============================================================ */
-.ocean-cloud {
-  transform-box: fill-box;
-  transform-origin: center;
-  will-change: transform;
-}
-
+/* Mây trôi */
 .ocean-cloud-one {
-  animation: cloudMoveOne 32s ease-in-out infinite alternate;
+  animation: cloudFloatOne 28s ease-in-out infinite alternate;
 }
-
 .ocean-cloud-two {
-  animation: cloudMoveTwo 45s ease-in-out infinite alternate;
+  animation: cloudFloatTwo 36s ease-in-out infinite alternate;
 }
 
-/* ============================================================
-   BIRDS
-============================================================ */
-.ocean-birds {
-  animation: birdsFloat 7s ease-in-out infinite;
+@keyframes cloudFloatOne {
+  0% { transform: translateX(-30px); }
+  100% { transform: translateX(60px); }
+}
+@keyframes cloudFloatTwo {
+  0% { transform: translateX(40px); }
+  100% { transform: translateX(-50px); }
 }
 
-/* ============================================================
-   WAVES
-   Chỉ animate group bên trong SVG, không animate cả thẻ SVG
-   ngoài, để không xung đột với transform responsive.
-============================================================ */
-.wave-one-motion {
-  transform-origin: center;
-  animation: waveOneMove 8s ease-in-out infinite;
+/* Sóng biển nhấp nhô */
+.wave-motion-back {
+  animation: waveMoveBack 7s ease-in-out infinite alternate;
+}
+.wave-motion-front {
+  animation: waveMoveFront 5s ease-in-out infinite alternate;
 }
 
-.wave-two-motion {
-  transform-origin: center;
-  animation: waveTwoMove 5.5s ease-in-out infinite;
+@keyframes waveMoveBack {
+  0% { transform: translateX(-15px) translateY(0); }
+  100% { transform: translateX(20px) translateY(-6px); }
+}
+@keyframes waveMoveFront {
+  0% { transform: translateX(15px) translateY(0); }
+  100% { transform: translateX(-20px) translateY(-8px); }
 }
 
-/* ============================================================
-   BOAT
-   Nhấp nhô nhẹ tại chỗ (biên độ nhỏ, không gây cảm giác trôi lung tung).
-============================================================ */
+/* Thuyền bập bềnh */
 .ocean-boat-motion {
   transform-box: fill-box;
   transform-origin: center bottom;
-  animation: boatFloat 4s ease-in-out infinite;
+  animation: boatRocking 4.5s ease-in-out infinite;
+}
+
+@keyframes boatRocking {
+  0%, 100% { transform: translateY(0) rotate(-1.2deg); }
+  50% { transform: translateY(6px) rotate(1.5deg); }
+}
+
+/* Rùa biển bơi */
+.sea-turtle-anim {
+  animation: turtleSwim 12s ease-in-out infinite alternate;
+}
+@keyframes turtleSwim {
+  0% { transform: translate(380px, 780px) rotate(-3deg); }
+  100% { transform: translate(450px, 760px) rotate(4deg); }
+}
+
+/* Cá bơi */
+.fish-swim-right {
+  animation: fishSwimR 8s ease-in-out infinite alternate;
+}
+.fish-swim-right-slow {
+  animation: fishSwimR 11s ease-in-out 1s infinite alternate;
+}
+
+@keyframes fishSwimR {
+  0% { transform: translate(720px, 850px) translateX(-20px); }
+  100% { transform: translate(720px, 850px) translateX(40px); }
+}
+
+/* Cá heo bơi lượn */
+.dolphin-anim {
+  animation: dolphinDiving 9s ease-in-out infinite alternate;
+}
+@keyframes dolphinDiving {
+  0% { transform: translate(260px, 1050px) rotate(-5deg); }
+  100% { transform: translate(340px, 1020px) rotate(8deg); }
+}
+
+/* Cá đuối Manta */
+.manta-anim {
+  animation: mantaGlide 14s ease-in-out infinite alternate;
+}
+@keyframes mantaGlide {
+  0% { transform: translate(680px, 1320px) scale(0.95) translateY(0); }
+  100% { transform: translate(600px, 1290px) scale(1.05) translateY(-20px); }
+}
+
+/* Sứa nổi nhấp nhô */
+.jelly-float {
+  animation: jellyPulse 5s ease-in-out infinite;
+}
+.jelly-float-delayed {
+  animation: jellyPulse 6s ease-in-out 2s infinite;
+}
+
+@keyframes jellyPulse {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(-18px) scaleY(1.08); }
+}
+
+/* Đèn cá lồng đèn nhấp nháy */
+.angler-light {
+  animation: anglerGlow 2s ease-in-out infinite alternate;
+}
+@keyframes anglerGlow {
+  0% { fill: #72efdd; filter: drop-shadow(0 0 2px #72efdd); }
+  100% { fill: #ffffff; filter: drop-shadow(0 0 12px #4cc9f0); }
+}
+
+/* Rong rêu đung đưa (Kelp Swaying) */
+.kelp-sway-1 {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: kelpSwayLeft 5s ease-in-out infinite alternate;
+}
+.kelp-sway-2 {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: kelpSwayRight 6.5s ease-in-out infinite alternate;
+}
+.kelp-sway-3 {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: kelpSwayLeft 4.5s ease-in-out 1s infinite alternate;
+}
+
+@keyframes kelpSwayLeft {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-8deg); }
+}
+@keyframes kelpSwayRight {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(9deg); }
 }
 
 /* ============================================================
-   FISH
-   Cá chỉ bơi ngang, dao động dọc rất nhỏ.
+   BONG BÓNG KHÍ
 ============================================================ */
-.fish-swim {
-  transform-box: fill-box;
-  transform-origin: center;
-  will-change: transform;
-}
-
-.fish-swim-a { animation: fishSwimA 12s ease-in-out infinite; }
-.fish-swim-b { animation: fishSwimB 16s ease-in-out infinite; }
-.fish-swim-c { animation: fishSwimC 10s ease-in-out infinite; }
-.fish-swim-d { animation: fishSwimD 14s ease-in-out infinite; }
-
-/* ============================================================
-   DEEP SEA CREATURES
-============================================================ */
-.jelly-drift {
-  transform-box: fill-box;
-  transform-origin: center;
-  will-change: transform;
-}
-
-.jelly-drift-a { animation: jellyDrift 6s ease-in-out infinite; }
-.jelly-drift-b { animation: jellyDrift 7.5s ease-in-out infinite reverse; }
-
-.deep-fish-swim {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: deepFishSwim 18s ease-in-out infinite;
-}
-
-/* ============================================================
-   BUBBLES
-============================================================ */
-.ocean-bubble {
+.ocean-bubbles-container {
   position: absolute;
-  display: block;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+.bubble {
+  position: absolute;
   border-radius: 50%;
-  border: 1px solid rgba(215, 250, 255, 0.5);
-  background: rgba(190, 244, 255, 0.08);
-  box-shadow: inset 2px 2px 4px rgba(255, 255, 255, 0.22);
-  animation: bubbleRise 9s linear infinite;
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: inset -2px -2px 4px rgba(255, 255, 255, 0.6);
+  animation: bubbleRiseUp 10s linear infinite;
 }
 
-.bubble-1 { width: 12px; height: 12px; left: 12%; bottom: 8%; animation-duration: 11s; }
-.bubble-2 { width: 7px; height: 7px; left: 22%; bottom: 15%; animation-duration: 8s; animation-delay: -3s; }
-.bubble-3 { width: 18px; height: 18px; left: 48%; bottom: 5%; animation-duration: 14s; animation-delay: -7s; }
-.bubble-4 { width: 9px; height: 9px; left: 67%; bottom: 20%; animation-duration: 10s; animation-delay: -4s; }
-.bubble-5 { width: 14px; height: 14px; left: 83%; bottom: 8%; animation-duration: 13s; animation-delay: -6s; }
-.bubble-6 { width: 6px; height: 6px; left: 92%; bottom: 15%; animation-duration: 9s; animation-delay: -2s; }
+.b1 { width: 14px; height: 14px; left: 15%; bottom: -20px; animation-duration: 9s; }
+.b2 { width: 8px; height: 8px; left: 28%; bottom: -20px; animation-duration: 12s; animation-delay: 2s; }
+.b3 { width: 18px; height: 18px; left: 45%; bottom: -20px; animation-duration: 14s; animation-delay: 1s; }
+.b4 { width: 10px; height: 10px; left: 62%; bottom: -20px; animation-duration: 8s; animation-delay: 4s; }
+.b5 { width: 16px; height: 16px; left: 78%; bottom: -20px; animation-duration: 11s; animation-delay: 3s; }
+.b6 { width: 6px; height: 6px; left: 88%; bottom: -20px; animation-duration: 7s; animation-delay: 5s; }
 
-/* ============================================================
-   KEYFRAMES
-============================================================ */
-@keyframes sunPulse {
-  0%, 100% {
-    filter: drop-shadow(0 0 18px rgba(255, 229, 115, 0.55));
-    transform: scale(1);
+@keyframes bubbleRiseUp {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
   }
-  50% {
-    filter: drop-shadow(0 0 42px rgba(255, 229, 115, 0.9));
-    transform: scale(1.025);
-  }
-}
-
-@keyframes sunRayPulse {
-  0%, 100% { opacity: 0.55; transform: rotate(0deg); }
-  50% { opacity: 1; transform: rotate(2deg); }
-}
-
-@keyframes cloudMoveOne {
-  0% { transform: translateX(-20px); }
-  100% { transform: translateX(55px); }
-}
-
-@keyframes cloudMoveTwo {
-  0% { transform: translateX(35px); }
-  100% { transform: translateX(-40px); }
-}
-
-@keyframes birdsFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
-}
-
-@keyframes waveOneMove {
-  0%, 100% { transform: translateX(-12px) translateY(0); }
-  25% { transform: translateX(8px) translateY(-4px); }
-  50% { transform: translateX(18px) translateY(1px); }
-  75% { transform: translateX(-4px) translateY(-3px); }
-}
-
-@keyframes waveTwoMove {
-  0%, 100% { transform: translateX(15px) translateY(0); }
-  25% { transform: translateX(-10px) translateY(-5px); }
-  50% { transform: translateX(-18px) translateY(2px); }
-  75% { transform: translateX(8px) translateY(-4px); }
-}
-
-@keyframes boatFloat {
-  0%, 100% { transform: translateY(0) rotate(-0.5deg); }
-  50% { transform: translateY(4px) rotate(0.7deg); }
-}
-
-@keyframes fishSwimA {
-  0%, 100% { transform: translateX(-28px) translateY(0); }
-  50% { transform: translateX(45px) translateY(-2px); }
-}
-
-@keyframes fishSwimB {
-  0%, 100% { transform: translateX(35px) translateY(0); }
-  50% { transform: translateX(-45px) translateY(2px); }
-}
-
-@keyframes fishSwimC {
-  0%, 100% { transform: translateX(-15px) translateY(0); }
-  50% { transform: translateX(35px) translateY(-2px); }
-}
-
-@keyframes fishSwimD {
-  0%, 100% { transform: translateX(20px) translateY(0); }
-  50% { transform: translateX(-30px) translateY(3px); }
-}
-
-@keyframes jellyDrift {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-16px) scale(1.04); }
-}
-
-@keyframes deepFishSwim {
-  0%, 100% { transform: translateX(-40px) translateY(0); }
-  50% { transform: translateX(40px) translateY(-4px); }
-}
-
-@keyframes bubbleRise {
-  0% { transform: translateY(0) translateX(0) scale(0.8); opacity: 0; }
-  10% { opacity: 0.65; }
-  50% { transform: translateY(-35vh) translateX(12px) scale(1); }
+  10% { opacity: 0.7; }
   90% { opacity: 0.4; }
-  100% { transform: translateY(-75vh) translateX(-10px) scale(1.1); opacity: 0; }
-}
-
-@keyframes shimmerMove {
-  0% { background-position: 0 0; }
-  100% { background-position: 180px 120px; }
-}
-
-/* ============================================================
-   RESPONSIVE
-   SVG luôn tự co giãn đúng tỉ lệ nhờ viewBox + preserveAspectRatio,
-   nên các media query dưới đây CHỈ chỉnh độ tinh tế của hiệu ứng
-   phụ (shimmer, bubble...) chứ không đụng vào layout/tỉ lệ khung.
-============================================================ */
-
-/* Điện thoại nhỏ, màn hình dọc dài (méo tỉ lệ nhiều nhất) */
-@media (max-width: 480px) {
-  .ocean-background {
-    min-width: 100vw;
-  }
-  .ocean-shimmer {
-    opacity: 0.12;
-  }
-  .ocean-bubble {
-    /* bong bóng nhỏ lại một chút để không choán khung hẹp */
-    transform: scale(0.85);
+  100% {
+    transform: translateY(-105vh) translateX(30px);
+    opacity: 0;
   }
 }
 
-/* Điện thoại xoay ngang, màn hình thấp */
-@media (orientation: landscape) and (max-height: 600px) {
-  .ocean-background {
-    height: 100dvh;
-  }
-}
-
-/* Tablet trở lên */
-@media (min-width: 768px) {
-  .ocean-shimmer {
-    opacity: 0.22;
-  }
-}
-
-/* Màn hình rất lớn / ultra-wide: giữ nguyên tỉ lệ, không phóng to quá mức */
-@media (min-width: 1600px) {
-  .ocean-shimmer {
-    opacity: 0.16;
-  }
+/* Lớp phủ tối đáy biển */
+.ocean-abyss-darkness {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 30%, rgba(1, 6, 17, 0.6) 90%);
+  transition: opacity 0.3s linear;
 }
 
 /* ============================================================
-   REDUCED MOTION
+   GIẢM CHUYỂN ĐỘNG CHO NGUỜI DÙNG BẬT REDUCED MOTION
 ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   .ocean-sun,
-  .ocean-sun-rays,
-  .ocean-cloud,
-  .ocean-birds,
-  .wave-one-motion,
-  .wave-two-motion,
+  .ocean-cloud-one,
+  .ocean-cloud-two,
+  .wave-motion-back,
+  .wave-motion-front,
   .ocean-boat-motion,
-  .fish-swim,
-  .jelly-drift,
-  .deep-fish-swim,
-  .ocean-bubble,
-  .ocean-shimmer {
+  .sea-turtle-anim,
+  .fish-swim-right,
+  .dolphin-anim,
+  .manta-anim,
+  .jelly-float,
+  .kelp-sway-1,
+  .kelp-sway-2,
+  .kelp-sway-3,
+  .bubble {
     animation: none !important;
   }
 }
