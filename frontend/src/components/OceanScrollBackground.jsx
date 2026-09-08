@@ -1,205 +1,404 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./OceanScrollBackground.css";
 
-const VIEW_W = 1000;
-const VIEW_H = 700;
+const VIEW_W = 1200;
+const VIEW_H = 800;
+
+const clamp = (value, min = 0, max = 1) =>
+  Math.min(max, Math.max(min, value));
 
 export default function OceanScrollBackground() {
-  const [scroll, setScroll] = useState(0);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const animationFrame = useRef(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      const max =
-        document.documentElement.scrollHeight -
-        window.innerHeight;
+    const updateScroll = () => {
+      if (animationFrame.current) return;
 
-      const progress =
-        max > 0 ? window.scrollY / max : 0;
+      animationFrame.current = requestAnimationFrame(() => {
+        const documentHeight =
+          document.documentElement.scrollHeight;
 
-      setScroll(Math.min(1, Math.max(0, progress)));
+        const viewportHeight =
+          window.innerHeight;
+
+        const maxScroll =
+          Math.max(1, documentHeight - viewportHeight);
+
+        const progress =
+          clamp(window.scrollY / maxScroll);
+
+        setScrollProgress(progress);
+
+        animationFrame.current = null;
+      });
     };
 
-    window.addEventListener("scroll", handleScroll, {
-      passive: true,
-    });
+    updateScroll();
 
-    handleScroll();
+    window.addEventListener(
+      "scroll",
+      updateScroll,
+      { passive: true }
+    );
 
-    return () =>
-      window.removeEventListener("scroll", handleScroll);
+    window.addEventListener(
+      "resize",
+      updateScroll
+    );
+
+    return () => {
+      window.removeEventListener(
+        "scroll",
+        updateScroll
+      );
+
+      window.removeEventListener(
+        "resize",
+        updateScroll
+      );
+
+      if (animationFrame.current) {
+        cancelAnimationFrame(
+          animationFrame.current
+        );
+      }
+    };
   }, []);
 
+  /*
+    ==================================================
+
+    SCROLL VALUES
+
+    Tất cả animation scroll được tính riêng,
+    tránh việc transform CSS đè lên animation CSS.
+
+    ==================================================
+  */
+
+  const mountainX =
+    scrollProgress * -45;
+
+  const mountainY =
+    scrollProgress * 35;
+
+  const farMountainX =
+    scrollProgress * -20;
+
+  const boatScrollY =
+    scrollProgress * 18;
+
+  /*
+    Màu biển chuyển dần khi scroll.
+
+    Đầu trang:
+      xanh ngọc sáng
+
+    Giữa:
+      xanh biển
+
+    Cuối:
+      xanh navy / biển sâu
+  */
+
+  const seaDepth =
+    clamp(scrollProgress * 1.35);
+
+  const underwaterOpacity =
+    clamp(
+      (scrollProgress - 0.15) * 1.25
+    );
+
+  const deepSeaOpacity =
+    clamp(
+      (scrollProgress - 0.5) * 2
+    );
+
+  const fishOpacity =
+    clamp(
+      (scrollProgress - 0.1) * 1.5
+    );
+
+  const sunOpacity =
+    clamp(
+      1 - scrollProgress * 1.25
+    );
+
+  const skyOpacity =
+    clamp(
+      1 - scrollProgress * 0.9
+    );
+
+  const sceneStyle = {
+    "--scroll": scrollProgress,
+    "--sea-depth": seaDepth,
+    "--underwater-opacity": underwaterOpacity,
+    "--deep-sea-opacity": deepSeaOpacity,
+  };
+
   return (
-    <div className="osb-root" aria-hidden="true">
+    <div
+      className="ocean-background"
+      style={sceneStyle}
+      aria-hidden="true"
+    >
+      {/* =====================================================
+          BASE SKY / SEA COLOR
+      ===================================================== */}
+
+      <div className="ocean-base" />
 
       {/* =====================================================
-          LAYER 0 — SKY + SUN
+          SKY
       ===================================================== */}
 
       <svg
-        className="osb-layer osb-sky"
+        className="ocean-layer ocean-sky-layer"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
           <linearGradient
-            id="skyGradient"
+            id="skyGradientOcean"
             x1="0"
             y1="0"
             x2="0"
             y2="1"
           >
-            <stop offset="0%" stopColor="#7bc8f6" />
-            <stop offset="45%" stopColor="#a9d9ef" />
-            <stop offset="100%" stopColor="#d9f1f5" />
-          </linearGradient>
+            <stop
+              offset="0%"
+              stopColor="#83ccef"
+            />
 
-          <radialGradient id="sunGlow">
-            <stop offset="0%" stopColor="#fffbd7" />
-            <stop offset="35%" stopColor="#ffe992" />
+            <stop
+              offset="55%"
+              stopColor="#b7e0ec"
+            />
+
             <stop
               offset="100%"
-              stopColor="#ffd057"
+              stopColor="#e0f1ef"
+            />
+          </linearGradient>
+
+          <radialGradient
+            id="sunGlowOcean"
+          >
+            <stop
+              offset="0%"
+              stopColor="#fffbd2"
+              stopOpacity="1"
+            />
+
+            <stop
+              offset="35%"
+              stopColor="#ffe68b"
+              stopOpacity="0.8"
+            />
+
+            <stop
+              offset="100%"
+              stopColor="#ffe68b"
               stopOpacity="0"
             />
           </radialGradient>
         </defs>
 
-        {/* SKY */}
-
-        <rect
-          width={VIEW_W}
-          height={VIEW_H}
-          fill="url(#skyGradient)"
-        />
-
-        {/* SUN GLOW */}
-
-        <circle
-          cx="145"
-          cy="130"
-          r="135"
-          fill="url(#sunGlow)"
-          opacity="0.9"
-        />
-
-        {/* SUN */}
-
-        <circle
-          className="osb-sun"
-          cx="145"
-          cy="130"
-          r="48"
-          fill="#fff4b0"
-        />
-
-        {/* SUN RAYS */}
-
-        <g className="osb-sun-rays">
-
-          <line
-            x1="145"
-            y1="45"
-            x2="145"
-            y2="5"
-          />
-
-          <line
-            x1="215"
-            y1="60"
-            x2="245"
-            y2="25"
-          />
-
-          <line
-            x1="225"
-            y1="130"
-            x2="275"
-            y2="130"
-          />
-
-          <line
-            x1="75"
-            y1="60"
-            x2="45"
-            y2="25"
-          />
-
-          <line
-            x1="65"
-            y1="130"
-            x2="15"
-            y2="130"
-          />
-
-        </g>
-
-        {/* CLOUDS */}
-
-        <g className="osb-cloud osb-cloud-1">
-
-          <ellipse
-            cx="390"
-            cy="120"
-            rx="85"
-            ry="25"
-            fill="white"
-            opacity="0.9"
-          />
-
-          <ellipse
-            cx="450"
-            cy="105"
-            rx="55"
-            ry="28"
-            fill="white"
-          />
-
-          <ellipse
-            cx="330"
-            cy="110"
-            rx="50"
-            ry="22"
-            fill="#f5fcff"
-          />
-
-        </g>
-
-        <g className="osb-cloud osb-cloud-2">
-
-          <ellipse
-            cx="760"
-            cy="185"
-            rx="100"
-            ry="30"
-            fill="white"
-            opacity="0.75"
-          />
-
-          <ellipse
-            cx="825"
-            cy="170"
-            rx="55"
-            ry="25"
-            fill="white"
-            opacity="0.8"
-          />
-
-        </g>
-
-        {/* SMALL BIRDS */}
-
         <g
-          fill="none"
-          stroke="#34495e"
-          strokeWidth="3"
-          strokeLinecap="round"
+          style={{
+            opacity: skyOpacity,
+          }}
         >
-          <path d="M250 90 Q260 80 270 90 Q280 80 290 90" />
+          {/* SKY */}
 
-          <path d="M310 125 Q320 115 330 125 Q340 115 350 125" />
+          <rect
+            width={VIEW_W}
+            height={VIEW_H}
+            fill="url(#skyGradientOcean)"
+          />
 
-          <path d="M680 80 Q690 70 700 80 Q710 70 720 80" />
+          {/* =================================================
+              SUN
+          ================================================= */}
+
+          <g className="ocean-sun-group">
+
+            {/* SUN GLOW */}
+
+            <circle
+              cx="190"
+              cy="145"
+              r="125"
+              fill="url(#sunGlowOcean)"
+            />
+
+            {/* SUN */}
+
+            <circle
+              className="ocean-sun"
+              cx="190"
+              cy="145"
+              r="52"
+              fill="#fff3a6"
+              style={{
+                opacity: sunOpacity,
+              }}
+            />
+
+            {/* SUN RAYS */}
+
+            <g
+              className="ocean-sun-rays"
+              stroke="#fff6bc"
+              strokeWidth="8"
+              strokeLinecap="round"
+            >
+              <line
+                x1="190"
+                y1="65"
+                x2="190"
+                y2="25"
+              />
+
+              <line
+                x1="250"
+                y1="85"
+                x2="280"
+                y2="55"
+              />
+
+              <line
+                x1="275"
+                y1="145"
+                x2="320"
+                y2="145"
+              />
+
+              <line
+                x1="250"
+                y1="205"
+                x2="280"
+                y2="235"
+              />
+
+              <line
+                x1="130"
+                y1="85"
+                x2="100"
+                y2="55"
+              />
+
+              <line
+                x1="105"
+                y1="145"
+                x2="60"
+                y2="145"
+              />
+
+            </g>
+
+          </g>
+
+
+          {/* =================================================
+              CLOUD 1
+          ================================================= */}
+
+          <g className="ocean-cloud ocean-cloud-one">
+
+            <ellipse
+              cx="520"
+              cy="130"
+              rx="105"
+              ry="30"
+              fill="#ffffff"
+              opacity="0.75"
+            />
+
+            <ellipse
+              cx="455"
+              cy="125"
+              rx="65"
+              ry="27"
+              fill="#ffffff"
+              opacity="0.88"
+            />
+
+            <ellipse
+              cx="540"
+              cy="105"
+              rx="65"
+              ry="38"
+              fill="#ffffff"
+            />
+
+            <ellipse
+              cx="615"
+              cy="125"
+              rx="58"
+              ry="27"
+              fill="#ffffff"
+              opacity="0.9"
+            />
+
+          </g>
+
+
+          {/* =================================================
+              CLOUD 2
+          ================================================= */}
+
+          <g className="ocean-cloud ocean-cloud-two">
+
+            <ellipse
+              cx="1000"
+              cy="205"
+              rx="115"
+              ry="32"
+              fill="#ffffff"
+              opacity="0.65"
+            />
+
+            <ellipse
+              cx="940"
+              cy="195"
+              rx="65"
+              ry="30"
+              fill="#ffffff"
+              opacity="0.75"
+            />
+
+            <ellipse
+              cx="1035"
+              cy="175"
+              rx="70"
+              ry="40"
+              fill="#ffffff"
+              opacity="0.85"
+            />
+
+          </g>
+
+
+          {/* =================================================
+              BIRDS
+          ================================================= */}
+
+          <g
+            className="ocean-birds"
+            fill="none"
+            stroke="#3f5668"
+            strokeWidth="3"
+            strokeLinecap="round"
+          >
+            <path d="M700 105 Q712 92 724 105 Q736 92 748 105" />
+
+            <path d="M760 145 Q770 134 780 145 Q790 134 800 145" />
+
+            <path d="M850 100 Q860 90 870 100 Q880 90 890 100" />
+          </g>
+
         </g>
 
       </svg>
@@ -209,195 +408,53 @@ export default function OceanScrollBackground() {
           WATER BASE
       ===================================================== */}
 
-      <div
-        className="osb-water-base"
-        style={{
-          opacity: 1,
-        }}
-      />
+      <div className="ocean-water-base" />
 
 
       {/* =====================================================
-          LAYER 1 — WAVE 1 (BEHIND BOAT)
+          WATER LIGHT RAYS
       ===================================================== */}
 
       <svg
-        className="osb-layer osb-wave-one"
+        className="ocean-layer ocean-light-rays-layer"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         preserveAspectRatio="xMidYMid meet"
       >
-
-        <path
-          d="
-            M0 360
-            L60 320
-            L120 370
-            L190 300
-            L260 360
-            L330 310
-            L400 375
-            L470 295
-            L540 355
-            L610 310
-            L680 365
-            L750 300
-            L820 360
-            L890 310
-            L1000 360
-            L1000 700
-            L0 700
-            Z
-          "
-          fill="#218ab8"
-          opacity="0.82"
-        />
-
-      </svg>
-
-
-      {/* =====================================================
-          LAYER 2 — BOAT
-      ===================================================== */}
-
-      <svg
-        className="osb-layer osb-boat-layer"
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid meet"
-        style={{
-          transform: `translateY(${scroll * 40}px)`,
-        }}
-      >
-
         <g
-          className="osb-boat"
-          transform="translate(330 330)"
+          className="ocean-water-rays"
+          opacity={underwaterOpacity}
         >
-
-          {/* Shadow */}
-
-          <ellipse
-            cx="0"
-            cy="150"
-            rx="145"
-            ry="20"
-            fill="#123f5a"
-            opacity="0.25"
-          />
-
-
-          {/* BOAT BODY */}
-
-          <path
-            d="
-              M-155 80
-              L160 80
-              L115 155
-              L-105 155
-              Z
+          <polygon
+            points="
+              180,310
+              270,310
+              480,800
+              390,800
             "
-            fill="#a92e2a"
+            fill="#bff8ff"
+            opacity="0.1"
           />
 
-          <path
-            d="
-              M-155 80
-              L160 80
-              L145 105
-              L-140 105
-              Z
+          <polygon
+            points="
+              500,300
+              580,300
+              720,800
+              640,800
             "
-            fill="#d34b40"
+            fill="#c9fbff"
+            opacity="0.09"
           />
 
-
-          {/* Mast */}
-
-          <rect
-            x="-8"
-            y="-270"
-            width="16"
-            height="350"
-            fill="#704628"
-          />
-
-
-          {/* LEFT SAIL */}
-
-          <path
-            d="
-              M-12 -250
-              L-170 55
-              L-12 55
-              Z
+          <polygon
+            points="
+              820,300
+              900,300
+              980,800
+              900,800
             "
-            fill="#fff6df"
-          />
-
-          <path
-            d="
-              M-12 -230
-              L-135 55
-            "
-            stroke="#e7a0b2"
-            strokeWidth="12"
-            opacity="0.8"
-          />
-
-
-          {/* RIGHT SAIL */}
-
-          <path
-            d="
-              M15 -210
-              L145 55
-              L15 55
-              Z
-            "
-            fill="#fffaf0"
-          />
-
-
-          {/* FLAG */}
-
-          <path
-            d="
-              M8 -270
-              L80 -245
-              L8 -220
-              Z
-            "
-            fill="#e74c3c"
-          />
-
-
-          {/* WINDOWS */}
-
-          <circle
-            cx="-70"
-            cy="110"
-            r="12"
-            fill="#243d4b"
-          />
-
-          <circle
-            cx="-25"
-            cy="110"
-            r="12"
-            fill="#243d4b"
-          />
-
-          <circle
-            cx="20"
-            cy="110"
-            r="12"
-            fill="#243d4b"
-          />
-
-          <circle
-            cx="65"
-            cy="110"
-            r="12"
-            fill="#243d4b"
+            fill="#b9f6ff"
+            opacity="0.08"
           />
 
         </g>
@@ -406,83 +463,26 @@ export default function OceanScrollBackground() {
 
 
       {/* =====================================================
-          LAYER 3 — WAVE 2 (IN FRONT OF BOAT)
+          MOUNTAINS
+          
+          Nằm sau:
+          wave 1
+          boat
+          wave 2
+
+          Parallax theo scroll.
+
       ===================================================== */}
 
       <svg
-        className="osb-layer osb-wave-two"
+        className="ocean-layer ocean-mountain-layer"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         preserveAspectRatio="xMidYMid meet"
       >
-
-        <path
-          d="
-            M0 430
-            L50 380
-            L110 455
-            L175 370
-            L245 440
-            L320 385
-            L385 460
-            L455 375
-            L530 445
-            L600 385
-            L675 455
-            L745 370
-            L820 450
-            L895 385
-            L1000 440
-            L1000 700
-            L0 700
-            Z
-          "
-          fill="#39b6d5"
-          opacity="0.92"
-        />
-
-        {/* FOAM */}
-
-        <path
-          d="
-            M0 430
-            L50 380
-            L110 455
-            L175 370
-            L245 440
-            L320 385
-            L385 460
-            L455 375
-            L530 445
-            L600 385
-            L675 455
-            L745 370
-            L820 450
-            L895 385
-            L1000 440
-          "
-          fill="none"
-          stroke="#c9f7ff"
-          strokeWidth="18"
-          opacity="0.55"
-        />
-
-      </svg>
-
-
-      {/* =====================================================
-          LAYER 4 — MOUNTAINS (FOREGROUND)
-      ===================================================== */}
-
-      <svg
-        className="osb-layer osb-mountain-layer"
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid meet"
-      >
-
         <defs>
 
           <linearGradient
-            id="mountainA"
+            id="farMountain"
             x1="0"
             y1="0"
             x2="1"
@@ -490,17 +490,17 @@ export default function OceanScrollBackground() {
           >
             <stop
               offset="0%"
-              stopColor="#d5c19b"
+              stopColor="#d9d0b4"
             />
 
             <stop
               offset="100%"
-              stopColor="#8c7658"
+              stopColor="#9b8d72"
             />
           </linearGradient>
 
           <linearGradient
-            id="mountainB"
+            id="frontMountain"
             x1="0"
             y1="0"
             x2="1"
@@ -508,133 +508,148 @@ export default function OceanScrollBackground() {
           >
             <stop
               offset="0%"
-              stopColor="#c0a87d"
+              stopColor="#c3aa7c"
             />
 
             <stop
               offset="100%"
-              stopColor="#6d5943"
+              stopColor="#685540"
             />
           </linearGradient>
 
         </defs>
 
 
-        {/* RIGHT MOUNTAIN */}
+        {/* FAR MOUNTAIN */}
 
-        <polygon
-          points="
-            700,390
-            780,120
-            900,250
-            970,180
-            1000,250
-            1000,700
-            700,700
-          "
-          fill="url(#mountainA)"
-        />
+        <g
+          transform={`
+            translate(
+              ${farMountainX}
+              ${scrollProgress * 15}
+            )
+          `}
+        >
+
+          <polygon
+            points="
+              720,410
+              820,155
+              930,290
+              1040,185
+              1200,340
+              1200,800
+              720,800
+            "
+            fill="url(#farMountain)"
+            opacity="0.85"
+          />
+
+          {/* SNOW */}
+
+          <polygon
+            points="
+              820,155
+              865,265
+              830,235
+              790,310
+            "
+            fill="#f8f0df"
+            opacity="0.75"
+          />
+
+        </g>
 
 
         {/* FRONT MOUNTAIN */}
 
-        <polygon
-          points="
-            760,700
-            860,270
-            940,350
-            1000,240
-            1000,700
-          "
-          fill="url(#mountainB)"
-        />
+        <g
+          transform={`
+            translate(
+              ${mountainX}
+              ${mountainY}
+            )
+          `}
+        >
 
+          <polygon
+            points="
+              840,800
+              930,300
+              1010,385
+              1120,250
+              1200,390
+              1200,800
+            "
+            fill="url(#frontMountain)"
+          />
 
-        {/* SNOW / LIGHT */}
+          <polygon
+            points="
+              930,300
+              970,380
+              945,360
+              900,460
+            "
+            fill="#efe3c9"
+            opacity="0.5"
+          />
 
-        <polygon
-          points="
-            780,120
-            830,220
-            800,190
-            760,300
-          "
-          fill="#f5ecd8"
-          opacity="0.55"
-        />
+        </g>
 
       </svg>
 
 
       {/* =====================================================
-          UNDERWATER / FISH
+          WAVE 1
+          
+          SÓNG PHÍA SAU THUYỀN
       ===================================================== */}
 
       <svg
-        className="osb-layer osb-fish-layer"
+        className="ocean-layer ocean-wave-one-layer"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         preserveAspectRatio="xMidYMid meet"
-        style={{
-          opacity:
-            Math.min(1, Math.max(0, scroll * 2)),
-        }}
       >
 
-        {/* FISH 1 */}
+        <g className="wave-one-motion">
 
-        <g
-          className="osb-fish osb-fish-a"
-          transform="translate(250 520)"
-        >
+          <path
+            d="
+              M-100 470
 
-          <ellipse
-            cx="0"
-            cy="0"
-            rx="42"
-            ry="18"
-            fill="#1d6c94"
+              Q0 410 100 465
+              T300 455
+              T500 445
+              T700 465
+              T900 440
+              T1100 460
+              T1300 445
+
+              L1300 800
+              L-100 800
+              Z
+            "
+            fill="#278eb8"
+            opacity="0.8"
           />
 
-          <polygon
-            points="-38,0 -75,-25 -75,25"
-            fill="#175675"
-          />
+          <path
+            d="
+              M-100 475
 
-          <circle
-            cx="25"
-            cy="-5"
-            r="4"
-            fill="#111"
-          />
-
-        </g>
-
-
-        {/* FISH 2 */}
-
-        <g
-          className="osb-fish osb-fish-b"
-          transform="translate(560 550)"
-        >
-
-          <ellipse
-            cx="0"
-            cy="0"
-            rx="32"
-            ry="14"
-            fill="#3b8eaf"
-          />
-
-          <polygon
-            points="-28,0 -55,-18 -55,18"
-            fill="#286b86"
-          />
-
-          <circle
-            cx="20"
-            cy="-4"
-            r="3"
-            fill="#111"
+              Q0 425 100 470
+              T300 460
+              T500 450
+              T700 470
+              T900 445
+              T1100 465
+              T1300 450
+            "
+            fill="none"
+            stroke="#9be8f2"
+            strokeWidth="10"
+            opacity="0.3"
           />
 
         </g>
@@ -643,15 +658,509 @@ export default function OceanScrollBackground() {
 
 
       {/* =====================================================
-          DEEP WATER OVERLAY
+          BOAT
+          
+          Thuyền nằm giữa Wave 1 và Wave 2.
+
+          Wave 2 chỉ che phần đáy thân.
+
+      ===================================================== */}
+
+      <svg
+        className="ocean-layer ocean-boat-layer"
+        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        preserveAspectRatio="xMidYMid meet"
+      >
+
+        <g
+          transform={`
+            translate(
+              390
+              ${310 + boatScrollY}
+            )
+          `}
+        >
+
+          <g className="ocean-boat-motion">
+
+            {/* SHADOW */}
+
+            <ellipse
+              cx="0"
+              cy="215"
+              rx="155"
+              ry="17"
+              fill="#164b67"
+              opacity="0.22"
+            />
+
+
+            {/* =================================================
+                SAIL
+            ================================================= */}
+
+            {/* LEFT SAIL */}
+
+            <path
+              d="
+                M-12 -250
+                L-180 95
+                L-12 95
+                Z
+              "
+              fill="#fff7e5"
+            />
+
+            {/* LEFT SAIL SHADE */}
+
+            <path
+              d="
+                M-12 -245
+                L-145 95
+                L-95 95
+                Z
+              "
+              fill="#f0c5ce"
+              opacity="0.8"
+            />
+
+
+            {/* RIGHT SAIL */}
+
+            <path
+              d="
+                M15 -220
+                L155 95
+                L15 95
+                Z
+              "
+              fill="#fffdf3"
+            />
+
+            {/* RIGHT SAIL SHADOW */}
+
+            <path
+              d="
+                M15 -220
+                L70 95
+                L15 95
+                Z
+              "
+              fill="#e8e2d2"
+              opacity="0.7"
+            />
+
+
+            {/* =================================================
+                MAST
+            ================================================= */}
+
+            <rect
+              x="-9"
+              y="-270"
+              width="18"
+              height="385"
+              rx="4"
+              fill="#6c472c"
+            />
+
+            {/* MAST LIGHT */}
+
+            <rect
+              x="-5"
+              y="-265"
+              width="5"
+              height="375"
+              fill="#8c6542"
+              opacity="0.8"
+            />
+
+
+            {/* FLAG */}
+
+            <path
+              d="
+                M8 -270
+                L85 -245
+                L8 -220
+                Z
+              "
+              fill="#dc5246"
+            />
+
+
+            {/* =================================================
+                BOAT BODY
+            ================================================= */}
+
+            {/* TOP */}
+
+            <path
+              d="
+                M-175 100
+                L180 100
+                L160 128
+                L-155 128
+                Z
+              "
+              fill="#c94339"
+            />
+
+            {/* MAIN BODY */}
+
+            <path
+              d="
+                M-165 125
+                L165 125
+                L115 205
+                L-110 205
+                Z
+              "
+              fill="#9f2f2b"
+            />
+
+            {/* BODY LIGHT */}
+
+            <path
+              d="
+                M-145 128
+                L145 128
+                L115 155
+                L-125 155
+                Z
+              "
+              fill="#d34d42"
+            />
+
+
+            {/* WINDOWS */}
+
+            <circle
+              cx="-80"
+              cy="155"
+              r="11"
+              fill="#203f4f"
+            />
+
+            <circle
+              cx="-30"
+              cy="155"
+              r="11"
+              fill="#203f4f"
+            />
+
+            <circle
+              cx="20"
+              cy="155"
+              r="11"
+              fill="#203f4f"
+            />
+
+            <circle
+              cx="70"
+              cy="155"
+              r="11"
+              fill="#203f4f"
+            />
+
+          </g>
+
+        </g>
+
+      </svg>
+
+
+      {/* =====================================================
+          WAVE 2
+          
+          SÓNG PHÍA TRƯỚC.
+
+          Bắt đầu thấp hơn thân thuyền.
+
+          Chỉ che khoảng:
+          15–20% phần đáy.
+
+      ===================================================== */}
+
+      <svg
+        className="ocean-layer ocean-wave-two-layer"
+        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        preserveAspectRatio="xMidYMid meet"
+      >
+
+        <g className="wave-two-motion">
+
+          <path
+            d="
+              M-100 500
+
+              Q0 465 100 505
+              T300 495
+              T500 510
+              T700 485
+              T900 505
+              T1100 490
+              T1300 510
+
+              L1300 800
+              L-100 800
+              Z
+            "
+            fill="#38b7d3"
+            opacity="0.93"
+          />
+
+          {/* FOAM */}
+
+          <path
+            d="
+              M-100 500
+
+              Q0 465 100 505
+              T300 495
+              T500 510
+              T700 485
+              T900 505
+              T1100 490
+              T1300 510
+            "
+            fill="none"
+            stroke="#c8f8ff"
+            strokeWidth="13"
+            opacity="0.52"
+          />
+
+        </g>
+
+      </svg>
+
+
+      {/* =====================================================
+          FISH UNDER WATER
+
+          Cá nằm dưới wave 2.
+
+          Không nằm trên cùng layer nữa.
+
+      ===================================================== */}
+
+      <svg
+        className="ocean-layer ocean-fish-layer"
+        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        preserveAspectRatio="xMidYMid meet"
+        style={{
+          opacity: fishOpacity,
+        }}
+      >
+
+        {/* =================================================
+            FISH A
+        ================================================= */}
+
+        <g
+          transform="
+            translate(
+              260
+              590
+            )
+          "
+          className="fish fish-a"
+        >
+
+          <g className="fish-swim fish-swim-a">
+
+            {/* BODY */}
+
+            <ellipse
+              cx="0"
+              cy="0"
+              rx="48"
+              ry="21"
+              fill="#176f95"
+            />
+
+            {/* TAIL */}
+
+            <path
+              d="
+                M-40 0
+                L-78 -28
+                L-78 28
+                Z
+              "
+              fill="#125b7c"
+            />
+
+            {/* FIN */}
+
+            <path
+              d="
+                M-5 5
+                Q10 28
+                Q25 20
+                Q12 4
+                Z
+              "
+              fill="#155f81"
+            />
+
+            {/* EYE */}
+
+            <circle
+              cx="28"
+              cy="-6"
+              r="4"
+              fill="#0b2635"
+            />
+
+          </g>
+
+        </g>
+
+
+        {/* =================================================
+            FISH B
+        ================================================= */}
+
+        <g
+          transform="
+            translate(
+              620
+              670
+            )
+          "
+          className="fish fish-b"
+        >
+
+          <g className="fish-swim fish-swim-b">
+
+            <ellipse
+              cx="0"
+              cy="0"
+              rx="38"
+              ry="17"
+              fill="#3c95b4"
+            />
+
+            <path
+              d="
+                M-32 0
+                L-62 -22
+                L-62 22
+                Z
+              "
+              fill="#287894"
+            />
+
+            <path
+              d="
+                M-5 5
+                Q10 24
+                Q20 17
+                Q10 3
+                Z
+              "
+              fill="#277993"
+            />
+
+            <circle
+              cx="22"
+              cy="-5"
+              r="3.5"
+              fill="#092737"
+            />
+
+          </g>
+
+        </g>
+
+
+        {/* =================================================
+            FISH C
+        ================================================= */}
+
+        <g
+          transform="
+            translate(
+              980
+              610
+            )
+          "
+          className="fish fish-c"
+        >
+
+          <g className="fish-swim fish-swim-c">
+
+            <ellipse
+              cx="0"
+              cy="0"
+              rx="27"
+              ry="13"
+              fill="#2b7e9e"
+            />
+
+            <path
+              d="
+                M-23 0
+                L-48 -17
+                L-48 17
+                Z
+              "
+              fill="#1e617c"
+            />
+
+            <circle
+              cx="16"
+              cy="-4"
+              r="3"
+              fill="#0a2634"
+            />
+
+          </g>
+
+        </g>
+
+      </svg>
+
+
+      {/* =====================================================
+          BUBBLES
       ===================================================== */}
 
       <div
-        className="osb-deep-overlay"
+        className="ocean-bubbles"
         style={{
-          opacity: scroll * 0.45,
+          opacity: underwaterOpacity,
+        }}
+      >
+
+        <span className="ocean-bubble bubble-1" />
+        <span className="ocean-bubble bubble-2" />
+        <span className="ocean-bubble bubble-3" />
+        <span className="ocean-bubble bubble-4" />
+        <span className="ocean-bubble bubble-5" />
+        <span className="ocean-bubble bubble-6" />
+
+      </div>
+
+
+      {/* =====================================================
+          DEEP SEA DARKNESS
+      ===================================================== */}
+
+      <div
+        className="ocean-deep-overlay"
+        style={{
+          opacity: deepSeaOpacity,
         }}
       />
+
+
+      {/* =====================================================
+          WATER SHIMMER
+      ===================================================== */}
+
+      <div className="ocean-shimmer" />
 
     </div>
   );
