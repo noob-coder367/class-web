@@ -5,12 +5,6 @@ import "./OceanScrollBackground.css";
  * OceanScrollBackground
  * A fixed, full-viewport decorative background that transitions
  * from bright sky/surface to deep-sea colors as the user scrolls.
- * Drop it once near the top of your app (e.g. in App.jsx), it stays
- * fixed behind all page content.
- *
- * Usage:
- *   <OceanScrollBackground />
- *   <div className="page-content"> ...rest of your site... </div>
  */
 
 const WAVE_A =
@@ -39,9 +33,48 @@ function WaveStrip({ className, fill, d, foam }) {
   );
 }
 
+/**
+ * Keeps a CSS custom property (--osb-vh) in sync with the *real* usable
+ * viewport height. Plain `vh` units are unreliable on mobile: they jump
+ * whenever the browser chrome (address bar / toolbar) shows or hides,
+ * and they never update on rotation unless something forces a reflow.
+ * That's what was causing layers (sky / mountain / lighthouse / boat)
+ * to drift out of sync with each other when switching devices or
+ * rotating the screen. We recompute on resize, orientation change and
+ * on the visualViewport's resize event (iOS Safari toolbar).
+ */
+function useViewportUnit() {
+  useEffect(() => {
+    let raf = null;
+    const setVH = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        document.documentElement.style.setProperty("--osb-vh", `${h * 0.01}px`);
+      });
+    };
+    setVH();
+    window.addEventListener("resize", setVH);
+    window.addEventListener("orientationchange", setVH);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", setVH);
+    }
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener("resize", setVH);
+      window.removeEventListener("orientationchange", setVH);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", setVH);
+      }
+    };
+  }, []);
+}
+
 export default function OceanScrollBackground() {
   const [progress, setProgress] = useState(0); // 0 = surface, 1 = deep abyss
   const ticking = useRef(false);
+
+  useViewportUnit();
 
   useEffect(() => {
     const onScroll = () => {
@@ -72,6 +105,11 @@ export default function OceanScrollBackground() {
   const bubbleOpacity = Math.min(1, progress * 1.6);
   const deepGlowOpacity = Math.min(0.9, Math.max(0, (progress - 0.6) * 2.5));
   const skyFade = Math.max(0, 1 - progress * 2);
+
+  // New deep-sea life
+  const whaleOpacity = Math.min(1, Math.max(0, (progress - 0.5) * 2.6));
+  const sharkOpacity = Math.min(1, Math.max(0, (progress - 0.68) * 3.2));
+  const seabedOpacity = Math.min(1, Math.max(0, (progress - 0.55) * 2.6));
 
   return (
     <div className="osb-root" aria-hidden="true">
@@ -259,6 +297,51 @@ export default function OceanScrollBackground() {
                 </g>
               )
             )}
+            </g>
+          </g>
+        </svg>
+
+        {/* Deep-sea life: whale, shark, starfish and seaweed on the seabed */}
+        <svg className="osb-deep-layer" viewBox="0 0 400 300" preserveAspectRatio="xMidYMax slice">
+          <g className="osb-whale" style={{ opacity: whaleOpacity }} transform="translate(60,60)">
+            <path
+              d="M0 10 C14 -6 46 -8 74 0 C92 5 104 10 118 8 C108 16 88 19 72 15 C46 27 14 25 0 12 C-6 8 -6 2 0 10 Z"
+              fill="#3f6a8a"
+            />
+            <path d="M112 6 L134 -8 L134 20 Z" fill="#345a78" />
+            <ellipse cx="18" cy="6" rx="34" ry="9" fill="#4d7fa1" opacity="0.55" />
+            <circle cx="20" cy="6" r="1.8" fill="#0e2230" />
+            <path className="osb-whale-spout" d="M22 -6 Q22 -18 16 -26 M22 -6 Q22 -18 28 -26" stroke="#dff3ff" strokeWidth="2.4" strokeLinecap="round" fill="none" opacity="0.7" />
+          </g>
+
+          <g className="osb-shark" style={{ opacity: sharkOpacity }} transform="translate(260,150) scale(0.8)">
+            <path d="M0 6 C22 -6 62 -6 92 4 C64 12 22 14 0 6 Z" fill="#8493a1" />
+            <path d="M34 -4 L44 -22 L54 -4 Z" fill="#8493a1" />
+            <path d="M86 2 L104 -12 L104 16 Z" fill="#71828f" />
+            <circle cx="12" cy="4" r="1.4" fill="#1c2530" />
+          </g>
+
+          <g className="osb-seabed" style={{ opacity: seabedOpacity }}>
+            <g className="osb-seaweed osb-seaweed--1" transform="translate(40,300)">
+              <path d="M0 0 Q10 -22 0 -44 Q-10 -66 2 -90" stroke="#2f8f5b" strokeWidth="5" fill="none" strokeLinecap="round" />
+              <path d="M14 0 Q22 -18 12 -36 Q4 -54 14 -72" stroke="#3aa868" strokeWidth="4" fill="none" strokeLinecap="round" />
+            </g>
+            <g className="osb-seaweed osb-seaweed--2" transform="translate(330,300)">
+              <path d="M0 0 Q-10 -24 0 -48 Q10 -72 -2 -96" stroke="#2a7f4f" strokeWidth="5" fill="none" strokeLinecap="round" />
+              <path d="M-16 0 Q-24 -20 -14 -40 Q-6 -60 -16 -80" stroke="#3aa868" strokeWidth="4" fill="none" strokeLinecap="round" />
+            </g>
+            <g className="osb-seaweed osb-seaweed--3" transform="translate(200,300) scale(0.8)">
+              <path d="M0 0 Q8 -20 0 -40 Q-8 -60 4 -84" stroke="#2f8f5b" strokeWidth="5" fill="none" strokeLinecap="round" />
+            </g>
+
+            <g className="osb-starfish osb-starfish--1" transform="translate(96,286) scale(1.1)">
+              <path d="M12 0 L15.5 8 L24 8.5 L17 13.5 L19.5 22 L12 17 L4.5 22 L7 13.5 L0 8.5 L8.5 8 Z" fill="#ff8a5c" />
+            </g>
+            <g className="osb-starfish osb-starfish--2" transform="translate(268,292) scale(0.85)">
+              <path d="M12 0 L15.5 8 L24 8.5 L17 13.5 L19.5 22 L12 17 L4.5 22 L7 13.5 L0 8.5 L8.5 8 Z" fill="#ff5f7e" />
+            </g>
+            <g className="osb-starfish osb-starfish--3" transform="translate(180,290) scale(0.7)">
+              <path d="M12 0 L15.5 8 L24 8.5 L17 13.5 L19.5 22 L12 17 L4.5 22 L7 13.5 L0 8.5 L8.5 8 Z" fill="#ffb04a" />
             </g>
           </g>
         </svg>
