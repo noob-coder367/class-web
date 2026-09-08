@@ -14,7 +14,7 @@
   isolation: isolate;
 }
 
-/* Nền đệm Gradient */
+/* Nền đệm Gradient - giữ nguyên */
 .ocean-base-gradient {
   position: absolute;
   inset: 0;
@@ -33,15 +33,13 @@
 }
 
 /* ============================================================
-   KEYFRAMES HOẠT HỌA CHUYỂN ĐỘNG
+   KEYFRAMES HOẠT HỌA CHUYỂN ĐỘNG (GỮNG NGUYÊN)
 ============================================================ */
-
 /* Mặt trời phát sáng */
 .ocean-sun {
   transform-origin: 300px 160px;
   animation: sunGlowPulse 3.5s ease-in-out infinite alternate;
 }
-
 @keyframes sunGlowPulse {
   0% {
     transform: scale(0.96);
@@ -60,7 +58,6 @@
 .ocean-cloud-two {
   animation: cloudFloatTwo 36s ease-in-out infinite alternate;
 }
-
 @keyframes cloudFloatOne {
   0% { transform: translateX(-30px); }
   100% { transform: translateX(60px); }
@@ -77,7 +74,6 @@
 .wave-motion-front {
   animation: waveMoveFront 5s ease-in-out infinite alternate;
 }
-
 @keyframes waveMoveBack {
   0% { transform: translateX(-15px) translateY(0); }
   100% { transform: translateX(20px) translateY(-6px); }
@@ -93,7 +89,6 @@
   transform-origin: center bottom;
   animation: boatRocking 4.5s ease-in-out infinite;
 }
-
 @keyframes boatRocking {
   0%, 100% { transform: translateY(0) rotate(-1.2deg); }
   50% { transform: translateY(6px) rotate(1.5deg); }
@@ -115,7 +110,6 @@
 .fish-swim-right-slow {
   animation: fishSwimR 11s ease-in-out 1s infinite alternate;
 }
-
 @keyframes fishSwimR {
   0% { transform: translate(720px, 850px) translateX(-20px); }
   100% { transform: translate(720px, 850px) translateX(40px); }
@@ -146,7 +140,6 @@
 .jelly-float-delayed {
   animation: jellyPulse 6s ease-in-out 2s infinite;
 }
-
 @keyframes jellyPulse {
   0%, 100% { transform: translateY(0) scaleY(1); }
   50% { transform: translateY(-18px) scaleY(1.08); }
@@ -177,7 +170,6 @@
   transform-origin: bottom center;
   animation: kelpSwayLeft 4.5s ease-in-out 1s infinite alternate;
 }
-
 @keyframes kelpSwayLeft {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(-8deg); }
@@ -197,7 +189,6 @@
   pointer-events: none;
   transition: opacity 0.5s ease;
 }
-
 .bubble {
   position: absolute;
   border-radius: 50%;
@@ -206,13 +197,16 @@
   box-shadow: inset -2px -2px 4px rgba(255, 255, 255, 0.6);
   animation: bubbleRiseUp 10s linear infinite;
 }
-
 .b1 { width: 14px; height: 14px; left: 15%; bottom: -20px; animation-duration: 9s; }
 .b2 { width: 8px; height: 8px; left: 28%; bottom: -20px; animation-duration: 12s; animation-delay: 2s; }
 .b3 { width: 18px; height: 18px; left: 45%; bottom: -20px; animation-duration: 14s; animation-delay: 1s; }
 .b4 { width: 10px; height: 10px; left: 62%; bottom: -20px; animation-duration: 8s; animation-delay: 4s; }
 .b5 { width: 16px; height: 16px; left: 78%; bottom: -20px; animation-duration: 11s; animation-delay: 3s; }
 .b6 { width: 6px; height: 6px; left: 88%; bottom: -20px; animation-duration: 7s; animation-delay: 5s; }
+
+/* Thêm b7 và b8 cho đầy đủ hơn */
+.b7 { width: 12px; height: 12px; left: 35%; bottom: -20px; animation-duration: 13s; animation-delay: 0.5s; }
+.b8 { width: 20px; height: 20px; left: 72%; bottom: -20px; animation-duration: 15s; animation-delay: 2.5s; }
 
 @keyframes bubbleRiseUp {
   0% {
@@ -257,5 +251,46 @@
   .kelp-sway-3,
   .bubble {
     animation: none !important;
+  }
+}
+
+/* ============================================================
+   FIX LỒN XỘN KHI RESIZE MÀN HÌNH (NEW)
+============================================================ */
+/* Thuyền + sóng + biển + nền tự động cover full screen mọi kích thước */
+.ocean-boat-motion,
+.wave-motion-back,
+.wave-motion-front,
+.ocean-base-gradient {
+  width: 100vw;
+  height: 100dvh;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Không để svg bị cắt mép */
+.ocean-svg-canvas {
+  width: 100vw;
+  height: 100dvh;
+}
+
+/* Tối ưu cho mobile + notch + safe area */
+@media (max-width: 768px) {
+  .ocean-background {
+    height: 100dvh;
+  }
+  .ocean-boat-motion,
+  .wave-motion-back,
+  .wave-motion-front,
+  .ocean-base-gradient {
+    height: 100dvh;
+  }
+}
+
+/* Fix đặc biệt cho iPhone notch / dynamic island */
+@media (max-width: 420px) and (orientation: portrait) {
+  .ocean-background {
+    height: 100dvh;
   }
 }
