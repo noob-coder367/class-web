@@ -114,15 +114,15 @@
 
 .osb-boat-layer {
   position: absolute;
-  top: -38vh;
+  top: clamp(-260px, calc(var(--osb-vh) * -38), -120px);
   left: 0;
   width: 100%;
-  height: 55vh;
-  /* Always above the wave stack (z-index:2), fixing the "sail hidden by
-     waves" bug for good, independent of opacity/progress. */
-  z-index: 3;
-  transition: transform 0.05s linear, opacity 0.15s linear;
+  height: clamp(280px, calc(var(--osb-vh) * 55), 560px);
+
+  z-index: 5;
   overflow: visible;
+
+  transition: transform 0.05s linear, opacity 0.15s linear;
 }
 
 .osb-boat-bob {
