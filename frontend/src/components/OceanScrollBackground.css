@@ -1,6 +1,3 @@
-/* ============================================================
-   KHUNG NỀN & BAO BỌC KHÔNG BI MÉO
-============================================================ */
 .ocean-background {
   position: fixed;
   inset: 0;
@@ -19,14 +16,8 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-/* ============================================================
-   GRADIENT NỀN THEO ĐỘ SÂU
-============================================================ */
 .ocean-base-gradient {
   position: absolute;
   inset: 0;
@@ -41,12 +32,9 @@
   );
   background-size: 100% 300%;
   background-position: 0% calc(var(--sea-depth, 0) * 100%);
-  transition: background-position 0.15s ease-out;
+  transition: background-position 0.1s ease-out;
 }
 
-/* ============================================================
-   TỐI ƯU HÓA GPU CHO SVG LAYERS
-============================================================ */
 .ocean-layer {
   position: absolute;
   inset: 0;
@@ -56,135 +44,49 @@
   pointer-events: none;
   will-change: transform, opacity;
   transform: translateZ(0);
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
 }
 
-/* ============================================================
-   ANIMATION RONG RÊU - MƯỢT MÀ KHÔNG GIẬT
-============================================================ */
+/* Rong rêu lắc mượt bằng GPU */
 .seaweed-group {
   will-change: transform;
   transform-box: fill-box;
 }
 
-.sway-1 {
-  animation: smoothSway1 5s ease-in-out infinite alternate;
-}
-
-.sway-2 {
-  animation: smoothSway2 6s ease-in-out infinite alternate 0.5s;
-}
-
-.sway-3 {
-  animation: smoothSway1 7s ease-in-out infinite alternate 1s;
-}
+.sway-1 { animation: smoothSway1 5s ease-in-out infinite alternate; }
+.sway-2 { animation: smoothSway2 6s ease-in-out infinite alternate 0.5s; }
 
 @keyframes smoothSway1 {
-  0% {
-    transform: rotate(-5deg);
-  }
-  100% {
-    transform: rotate(6deg);
-  }
+  0% { transform: rotate(-4deg); }
+  100% { transform: rotate(5deg); }
 }
 
 @keyframes smoothSway2 {
-  0% {
-    transform: rotate(6deg);
-  }
-  100% {
-    transform: rotate(-4deg);
-  }
+  0% { transform: rotate(5deg); }
+  100% { transform: rotate(-4deg); }
 }
 
-/* ============================================================
-   ANIMATION CÁC SINH VẬT VÀ THUYỀN
-============================================================ */
 .ocean-boat-motion {
   transform-origin: center bottom;
   animation: boatFloat 3.5s ease-in-out infinite alternate;
 }
 
 @keyframes boatFloat {
-  0% {
-    transform: rotate(-1.5deg) translateY(0);
-  }
-  100% {
-    transform: rotate(2deg) translateY(5px);
-  }
+  0% { transform: rotate(-1deg) translateY(0); }
+  100% { transform: rotate(1.5deg) translateY(4px); }
 }
 
-.turtle-swim {
-  animation: turtleMove 9s ease-in-out infinite alternate;
-}
-
+.turtle-swim { animation: turtleMove 9s ease-in-out infinite alternate; }
 @keyframes turtleMove {
-  0% {
-    transform: translate(360px, 320px) rotate(-2deg);
-  }
-  100% {
-    transform: translate(420px, 290px) rotate(3deg);
-  }
+  0% { transform: translate(360px, 380px); }
+  100% { transform: translate(410px, 360px); }
 }
 
-.octopus-float {
-  animation: octopusMove 4.5s ease-in-out infinite alternate;
-}
-
+.octopus-float { animation: octopusMove 4.5s ease-in-out infinite alternate; }
 @keyframes octopusMove {
-  0% {
-    transform: translate(760px, 440px) translateY(0);
-  }
-  100% {
-    transform: translate(760px, 440px) translateY(-16px);
-  }
+  0% { transform: translate(780px, 420px) translateY(0); }
+  100% { transform: translate(780px, 420px) translateY(-15px); }
 }
 
-.manta-glide {
-  animation: mantaGlide 8s ease-in-out infinite alternate;
-}
-
-@keyframes mantaGlide {
-  0% {
-    transform: translate(500px, 280px) scale(0.98);
-  }
-  100% {
-    transform: translate(540px, 260px) scale(1.02);
-  }
-}
-
-.fish-school {
-  animation: fishSwim 12s linear infinite;
-}
-
-@keyframes fishSwim {
-  0% {
-    transform: translateX(-100px);
-  }
-  100% {
-    transform: translateX(1100px);
-  }
-}
-
-.angler-light {
-  animation: pulseLight 2s ease-in-out infinite alternate;
-}
-
-@keyframes pulseLight {
-  0% {
-    fill: #f39c12;
-    filter: drop-shadow(0 0 2px #f1c40f);
-  }
-  100% {
-    fill: #ffffff;
-    filter: drop-shadow(0 0 10px #f1c40f);
-  }
-}
-
-/* ============================================================
-   BONG BÓNG KHÍ NỔI
-============================================================ */
 .ocean-bubbles-container {
   position: absolute;
   inset: 0;
@@ -197,42 +99,17 @@
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.25);
   border: 1px solid rgba(255, 255, 255, 0.45);
-  animation: bubbleUp 10s linear infinite;
-  will-change: transform;
+  animation: bubbleUp 9s linear infinite;
 }
 
 .b1 { width: 12px; height: 12px; left: 18%; bottom: -20px; animation-duration: 8s; }
 .b2 { width: 8px; height: 8px; left: 42%; bottom: -20px; animation-duration: 11s; animation-delay: 2s; }
 .b3 { width: 15px; height: 15px; left: 68%; bottom: -20px; animation-duration: 13s; animation-delay: 1s; }
 .b4 { width: 6px; height: 6px; left: 85%; bottom: -20px; animation-duration: 9s; animation-delay: 3s; }
-.b5 { width: 10px; height: 10px; left: 30%; bottom: -20px; animation-duration: 10s; animation-delay: 4s; }
 
 @keyframes bubbleUp {
-  0% {
-    transform: translateY(0);
-    opacity: 0;
-  }
-  15% {
-    opacity: 0.7;
-  }
-  85% {
-    opacity: 0.7;
-  }
-  100% {
-    transform: translateY(-105vh);
-    opacity: 0;
-  }
-}
-
-/* Chế độ hỗ trợ thiết bị giảm chuyển động */
-@media (prefers-reduced-motion: reduce) {
-  .seaweed-group,
-  .ocean-boat-motion,
-  .turtle-swim,
-  .octopus-float,
-  .manta-glide,
-  .fish-school,
-  .bubble {
-    animation: none !important;
-  }
+  0% { transform: translateY(0); opacity: 0; }
+  20% { opacity: 0.7; }
+  80% { opacity: 0.7; }
+  100% { transform: translateY(-105vh); opacity: 0; }
 }
