@@ -1,5 +1,10 @@
+/* =========================================
+   ROOT
+========================================= */
+
 .osb-root {
   position: fixed;
+
   inset: 0;
 
   width: 100vw;
@@ -8,840 +13,274 @@
   width: 100dvw;
   height: 100dvh;
 
-  z-index: -1;
-
   overflow: hidden;
+
   pointer-events: none;
 
-  --osb-vh: 1vh;
-  --osb-vw: 1vw;
+  z-index: -1;
+
+  background: #8fc8e5;
 }
 
 
-/* ========================================
-   SKY / MOUNTAIN / LIGHTHOUSE
-======================================== */
+/* =========================================
+   QUAN TRỌNG NHẤT
 
-.osb-sky-layer,
-.osb-mountain-layer,
-.osb-lighthouse-layer {
+   TẤT CẢ SVG CÙNG:
+
+   - viewBox: 1000 x 700
+   - width: 100%
+   - height: 100%
+
+   preserveAspectRatio="meet"
+
+   => KHÔNG MÉO
+   => KHÔNG CROP
+   => TỰ THU NHỎ TOÀN BỘ CẢNH
+========================================= */
+
+.osb-layer {
   position: absolute;
 
-  top: 0;
-  left: 0;
+  inset: 0;
 
   width: 100%;
-  height: clamp(
-    320px,
-    calc(var(--osb-vh) * 58),
-    720px
-  );
+  height: 100%;
 
   display: block;
 
-  transition:
-    transform 0.08s linear,
-    opacity 0.15s linear;
+  pointer-events: none;
+
+  transform-origin: center;
 
   will-change: transform;
 }
 
 
-.osb-sky-layer {
-  z-index: 0;
-}
+/* =========================================
+   LAYER ORDER
+========================================= */
 
+/* Sky + Sun */
 
-.osb-mountain-layer {
+.osb-sky {
   z-index: 1;
 }
 
 
-.osb-lighthouse-layer {
-  z-index: 3;
-}
+/* Water background */
 
-
-/* ========================================
-   WATER
-======================================== */
-
-.osb-water {
+.osb-water-base {
   position: absolute;
-
-  top: clamp(
-    220px,
-    calc(var(--osb-vh) * 40),
-    480px
-  );
 
   left: 0;
   right: 0;
+
+  top: 43%;
+
   bottom: 0;
 
-  width: 100%;
-
-  height: auto;
-  min-height: 60%;
-
-  overflow: hidden;
-
   z-index: 2;
-
-  transition:
-    background 0.15s linear;
-}
-
-
-/* ========================================
-   WATER LIGHT
-======================================== */
-
-.osb-caustics {
-  position: absolute;
-  inset: 0;
-
-  z-index: 0;
 
   background:
-    radial-gradient(
-      ellipse 40% 18% at 20% 8%,
-      rgba(255, 255, 255, 0.28),
-      transparent 70%
-    ),
-
-    radial-gradient(
-      ellipse 50% 22% at 70% 12%,
-      rgba(180, 240, 255, 0.22),
-      transparent 72%
-    ),
-
-    repeating-linear-gradient(
-      -18deg,
-      transparent 0 28px,
-      rgba(255, 255, 255, 0.05) 28px 30px
-    );
-
-  mix-blend-mode: screen;
-
-  animation:
-    osb-caustics 10s ease-in-out infinite;
-}
-
-
-/* ========================================
-   WAVES
-======================================== */
-
-.osb-wave-stack {
-  position: absolute;
-
-  top: clamp(
-    -120px,
-    calc(var(--osb-vh) * -10),
-    -45px
-  );
-
-  left: 0;
-
-  width: 100%;
-
-  height: clamp(
-    180px,
-    calc(var(--osb-vh) * 38),
-    420px
-  );
-
-  z-index: 2;
-
-  transition:
-    opacity 0.2s linear;
-}
-
-
-.osb-wave {
-  position: absolute;
-
-  left: 0;
-
-  width: 200%;
-
-  height: clamp(
-    120px,
-    calc(var(--osb-vh) * 22),
-    260px
-  );
-
-  overflow: visible;
-
-  will-change: transform;
-}
-
-
-.osb-wave--far {
-  top: 0;
-
-  opacity: 0.85;
-
-  animation:
-    osb-wave-drift
-    18s
-    linear
-    infinite;
-}
-
-
-.osb-wave--mid {
-  top: 32px;
-
-  animation:
-    osb-wave-drift
-    14s
-    linear
-    infinite
-    reverse;
-}
-
-
-.osb-wave--near {
-  top: 65px;
-
-  animation:
-    osb-wave-drift
-    11s
-    linear
-    infinite;
-}
-
-
-.osb-wave--foam {
-  top: 90px;
-
-  z-index: 4;
-
-  animation:
-    osb-wave-drift
-    8.5s
-    linear
-    infinite
-    reverse;
-
-  filter:
-    drop-shadow(
-      0 -2px 0
-      rgba(255, 255, 255, 0.25)
+    linear-gradient(
+      to bottom,
+      #3db8d3 0%,
+      #2387ba 35%,
+      #164d83 70%,
+      #071d46 100%
     );
 }
 
 
-/* ========================================
-   BOAT
+/*
+   THỨ TỰ MÀ MÀY MUỐN:
 
-   QUAN TRỌNG:
-   Boat không còn nằm trong .osb-water
-   => không bị overflow hidden cắt mất.
-======================================== */
+   SÓNG 1
+*/
+
+.osb-wave-one {
+  z-index: 3;
+}
+
+
+/*
+   THUYỀN
+*/
 
 .osb-boat-layer {
+  z-index: 4;
+
+  transition:
+    transform 0.1s linear;
+}
+
+
+/*
+   SÓNG 2
+
+   Sóng này nằm TRƯỚC thuyền
+   => tạo cảm giác thuyền đang
+   nổi trong nước.
+*/
+
+.osb-wave-two {
+  z-index: 5;
+}
+
+
+/*
+   NÚI
+
+   Đúng yêu cầu của mày:
+   sóng 1 → thuyền → sóng 2 → núi
+*/
+
+.osb-mountain-layer {
+  z-index: 6;
+}
+
+
+/* Fish */
+
+.osb-fish-layer {
+  z-index: 7;
+
+  transition:
+    opacity 0.4s ease;
+}
+
+
+/* Deep water */
+
+.osb-deep-overlay {
   position: absolute;
 
-  /*
-    Thuyền nằm độc lập với water.
+  inset: 0;
 
-    Dùng clamp thay vì top: -38vh.
-    Nhờ vậy điện thoại dài/ngắn không bị
-    nhảy vị trí quá nhiều.
-  */
-
-  top: clamp(
-    40px,
-    calc(var(--osb-vh) * 6),
-    150px
-  );
-
-  left: 0;
-
-  width: 100%;
-
-  height: clamp(
-    300px,
-    calc(var(--osb-vh) * 48),
-    600px
-  );
-
-  z-index: 10;
-
-  overflow: visible;
+  z-index: 8;
 
   pointer-events: none;
 
+  background:
+    linear-gradient(
+      to bottom,
+      transparent 20%,
+      rgba(6, 35, 75, 0.1) 55%,
+      rgba(1, 10, 35, 0.5) 100%
+    );
+
   transition:
-    transform 0.08s linear,
-    opacity 0.15s linear;
-
-  will-change:
-    transform,
-    opacity;
+    opacity 0.4s ease;
 }
 
 
-.osb-boat-bob {
-  transform-box: fill-box;
+/* =========================================
+   SUN
+========================================= */
 
-  transform-origin:
-    center bottom;
-
+.osb-sun {
   animation:
-    osb-boat-bob
-    3.4s
+    osb-sun-glow
+    4s
     ease-in-out
     infinite;
 }
 
 
-.osb-boat-wake {
-  animation:
-    osb-wake
-    3.4s
-    ease-in-out
-    infinite;
-}
+.osb-sun-rays line {
+  stroke: #fff4b0;
 
+  stroke-width: 8;
 
-.osb-sail--main,
-.osb-sail--jib {
-  transform-box: fill-box;
+  stroke-linecap: round;
 
-  transform-origin:
-    100% 80%;
-
-  animation:
-    osb-sail-flutter
-    4.2s
-    ease-in-out
-    infinite;
-}
-
-
-.osb-sail--jib {
-  transform-origin:
-    0 80%;
-
-  animation-duration:
-    3.6s;
-
-  animation-delay:
-    -0.6s;
-}
-
-
-/* ========================================
-   CLOUDS
-======================================== */
-
-.osb-clouds {
-  animation:
-    osb-cloud-drift
-    48s
-    linear
-    infinite;
-}
-
-
-.osb-clouds--fast {
-  animation-duration:
-    32s;
-
-  animation-delay:
-    -12s;
-}
-
-
-/* ========================================
-   SUN / BIRDS
-======================================== */
-
-.osb-sun-rays {
-  transform-origin:
-    78px 42px;
+  opacity: 0.8;
 
   animation:
     osb-ray-pulse
-    7s
+    4s
     ease-in-out
     infinite;
 }
 
 
-.osb-birds path {
+/* =========================================
+   CLOUDS
+========================================= */
+
+.osb-cloud {
   animation:
-    osb-bird
-    5.5s
+    osb-cloud-move
+    35s
+    ease-in-out
+    infinite alternate;
+}
+
+
+.osb-cloud-2 {
+  animation-duration: 50s;
+
+  animation-delay: -15s;
+}
+
+
+/* =========================================
+   BOAT
+========================================= */
+
+.osb-boat {
+  transform-origin: center bottom;
+
+  animation:
+    osb-boat-float
+    3.5s
     ease-in-out
     infinite;
 }
 
 
-.osb-birds path:nth-child(2) {
-  animation-duration:
-    6.4s;
-
-  animation-delay:
-    -1.4s;
-}
-
-
-.osb-birds path:nth-child(3) {
-  animation-duration:
-    7s;
-
-  animation-delay:
-    -2.2s;
-}
-
-
-/* ========================================
-   LIGHTHOUSE
-======================================== */
-
-.osb-lighthouse .osb-lamp {
-  animation:
-    osb-lamp
-    2.8s
-    ease-in-out
-    infinite;
-}
-
-
-.osb-beam {
-  transform-origin:
-    5px -6px;
-
-  animation:
-    osb-beam
-    8s
-    linear
-    infinite;
-}
-
-
-/* ========================================
+/* =========================================
    FISH
-======================================== */
+========================================= */
 
-.osb-fish-layer {
-  position: absolute;
-
-  inset: 0;
-
-  width: 100%;
-  height: 100%;
-
-  z-index: 4;
-
-  transition:
-    opacity 0.3s linear;
-}
-
-
-.osb-fish--a {
+.osb-fish {
   animation:
-    osb-swim
-    7s
-    ease-in-out
-    infinite;
-}
-
-
-.osb-fish--b {
-  animation:
-    osb-swim
-    9s
-    ease-in-out
-    infinite
-    reverse;
-}
-
-
-.osb-fish--c {
-  animation:
-    osb-swim
+    osb-fish-swim
     8s
     ease-in-out
     infinite;
-
-  animation-delay:
-    -2s;
 }
 
 
-.osb-school {
-  animation:
-    osb-school
-    14s
-    ease-in-out
-    infinite;
+.osb-fish-b {
+  animation-duration: 11s;
+
+  animation-delay: -4s;
 }
 
 
-.osb-minnow {
-  animation:
-    osb-minnow
-    2.4s
-    ease-in-out
-    infinite;
-}
-
-
-.osb-minnow--1 {
-  animation-delay: -0.2s;
-}
-
-.osb-minnow--2 {
-  animation-delay: -0.5s;
-}
-
-.osb-minnow--3 {
-  animation-delay: -0.8s;
-}
-
-.osb-minnow--4 {
-  animation-delay: -1.1s;
-}
-
-.osb-minnow--5 {
-  animation-delay: -0.3s;
-}
-
-.osb-minnow--6 {
-  animation-delay: -0.7s;
-}
-
-.osb-minnow--7 {
-  animation-delay: -1.4s;
-}
-
-
-/* ========================================
-   DEEP SEA
-======================================== */
-
-.osb-deep-layer {
-  position: absolute;
-
-  inset: 0;
-
-  width: 100%;
-  height: 100%;
-
-  z-index: 3;
-
-  pointer-events: none;
-}
-
-
-.osb-whale {
-  transition:
-    opacity 0.4s linear;
-
-  animation:
-    osb-whale-drift
-    22s
-    ease-in-out
-    infinite;
-}
-
-
-.osb-whale-spout {
-  animation:
-    osb-spout
-    3.2s
-    ease-in-out
-    infinite;
-}
-
-
-.osb-shark {
-  transition:
-    opacity 0.4s linear;
-
-  animation:
-    osb-shark-patrol
-    16s
-    ease-in-out
-    infinite;
-}
-
-
-.osb-seabed {
-  transition:
-    opacity 0.4s linear;
-}
-
-
-.osb-seaweed {
-  transform-box:
-    fill-box;
-
-  transform-origin:
-    center bottom;
-}
-
-
-.osb-seaweed--1 {
-  animation:
-    osb-seaweed-sway
-    4.4s
-    ease-in-out
-    infinite;
-}
-
-
-.osb-seaweed--2 {
-  animation:
-    osb-seaweed-sway
-    5.2s
-    ease-in-out
-    infinite
-    reverse;
-
-  animation-delay:
-    -1.2s;
-}
-
-
-.osb-seaweed--3 {
-  animation:
-    osb-seaweed-sway
-    3.8s
-    ease-in-out
-    infinite;
-
-  animation-delay:
-    -0.6s;
-}
-
-
-.osb-starfish {
-  transform-box:
-    fill-box;
-
-  transform-origin:
-    center;
-
-  animation:
-    osb-starfish-glow
-    3.6s
-    ease-in-out
-    infinite;
-}
-
-
-.osb-starfish--2 {
-  animation-delay:
-    -1.1s;
-}
-
-
-/* ========================================
-   BUBBLES
-======================================== */
-
-.osb-bubbles {
-  position: absolute;
-
-  bottom: 0;
-  left: 0;
-
-  width: 100%;
-
-  height: min(
-    60dvh,
-    600px
-  );
-
-  z-index: 6;
-
-  transition:
-    opacity 0.3s linear;
-}
-
-
-.osb-bubble {
-  animation:
-    osb-rise
-    6s
-    linear
-    infinite;
-}
-
-
-.osb-bubble:nth-child(1) {
-  animation-duration: 5.2s;
-}
-
-
-.osb-bubble:nth-child(2) {
-  animation-duration: 6.4s;
-  animation-delay: -1.2s;
-}
-
-
-.osb-bubble:nth-child(3) {
-  animation-duration: 7.1s;
-  animation-delay: -2.4s;
-}
-
-
-.osb-bubble:nth-child(4) {
-  animation-duration: 5.8s;
-  animation-delay: -0.8s;
-}
-
-
-.osb-bubble:nth-child(5) {
-  animation-duration: 6.8s;
-  animation-delay: -3.1s;
-}
-
-
-/* ========================================
-   ABYSS GLOW
-======================================== */
-
-.osb-abyss-glow {
-  position: absolute;
-
-  bottom: 0;
-  left: 0;
-
-  width: 100%;
-
-  height: min(
-    40dvh,
-    480px
-  );
-
-  background:
-    radial-gradient(
-      ellipse at 30% 100%,
-      rgba(80, 190, 255, 0.22),
-      transparent 65%
-    ),
-
-    radial-gradient(
-      ellipse at 75% 90%,
-      rgba(40, 120, 220, 0.18),
-      transparent 60%
-    );
-
-  transition:
-    opacity 0.3s linear;
-
-  z-index: 0;
-}
-
-
-/* ========================================
+/* =========================================
    ANIMATIONS
-======================================== */
+========================================= */
 
-@keyframes osb-wave-drift {
-  from {
-    transform:
-      translate3d(0, 0, 0);
+@keyframes osb-sun-glow {
+
+  0%,
+  100% {
+    filter:
+      drop-shadow(
+        0 0 20px
+        rgba(255, 220, 110, 0.5)
+      );
   }
 
   50% {
-    transform:
-      translate3d(-25%, 6px, 0);
-  }
-
-  to {
-    transform:
-      translate3d(-50%, 0, 0);
-  }
-}
-
-
-@keyframes osb-boat-bob {
-
-  0%,
-  100% {
-    transform:
-      translate(0, 0)
-      rotate(-2.4deg);
-  }
-
-  35% {
-    transform:
-      translate(4px, 7px)
-      rotate(2.8deg);
-  }
-
-  70% {
-    transform:
-      translate(-3px, 3px)
-      rotate(-1.2deg);
-  }
-
-}
-
-
-@keyframes osb-wake {
-
-  0%,
-  100% {
-    opacity: 0.22;
-
-    transform:
-      scaleX(1);
-  }
-
-  50% {
-    opacity: 0.38;
-
-    transform:
-      scaleX(1.18);
-  }
-
-}
-
-
-@keyframes osb-sail-flutter {
-
-  0%,
-  100% {
-    transform:
-      skewX(0deg)
-      scaleX(1);
-  }
-
-  40% {
-    transform:
-      skewX(-4deg)
-      scaleX(1.03);
-  }
-
-  70% {
-    transform:
-      skewX(3deg)
-      scaleX(0.97);
-  }
-
-}
-
-
-@keyframes osb-cloud-drift {
-
-  from {
-    transform:
-      translateX(0);
-  }
-
-  to {
-    transform:
-      translateX(70px);
+    filter:
+      drop-shadow(
+        0 0 45px
+        rgba(255, 220, 110, 0.9)
+      );
   }
 
 }
@@ -851,421 +290,132 @@
 
   0%,
   100% {
-    opacity: 0.7;
-
-    transform:
-      rotate(-4deg);
-  }
-
-  50% {
-    opacity: 1;
-
-    transform:
-      rotate(6deg);
-  }
-
-}
-
-
-@keyframes osb-bird {
-
-  0%,
-  100% {
-    transform:
-      translate(0, 0);
-  }
-
-  50% {
-    transform:
-      translate(18px, -8px);
-  }
-
-}
-
-
-@keyframes osb-lamp {
-
-  0%,
-  100% {
-    fill: #fff4c0;
-    opacity: 0.85;
-  }
-
-  50% {
-    fill: #fffbe8;
-    opacity: 1;
-  }
-
-}
-
-
-@keyframes osb-beam {
-
-  0% {
-    transform:
-      rotate(-12deg);
-
-    opacity: 0.12;
-  }
-
-  50% {
-    transform:
-      rotate(18deg);
-
-    opacity: 0.32;
-  }
-
-  100% {
-    transform:
-      rotate(-12deg);
-
-    opacity: 0.12;
-  }
-
-}
-
-
-@keyframes osb-caustics {
-
-  0%,
-  100% {
-    transform:
-      translate3d(0, 0, 0)
-      scale(1);
-
-    opacity: 0.85;
-  }
-
-  50% {
-    transform:
-      translate3d(-4%, 2%, 0)
-      scale(1.06);
-
-    opacity: 1;
-  }
-
-}
-
-
-@keyframes osb-swim {
-
-  0%,
-  100% {
-    transform:
-      translate(0, 0);
-  }
-
-  25% {
-    transform:
-      translate(22px, -8px);
-  }
-
-  50% {
-    transform:
-      translate(40px, 4px);
-  }
-
-  75% {
-    transform:
-      translate(16px, 10px);
-  }
-
-}
-
-
-@keyframes osb-school {
-
-  0%,
-  100% {
-    transform:
-      translate(0, 0);
-  }
-
-  50% {
-    transform:
-      translate(-70px, -12px);
-  }
-
-}
-
-
-@keyframes osb-minnow {
-
-  0%,
-  100% {
-    transform:
-      translate(0, 0)
-      rotate(0deg);
-  }
-
-  50% {
-    transform:
-      translate(6px, -4px)
-      rotate(-8deg);
-  }
-
-}
-
-
-@keyframes osb-rise {
-
-  0% {
-    transform:
-      translate(0, 0);
-
     opacity: 0.55;
   }
 
-  40% {
-    opacity: 0.4;
-  }
-
-  100% {
-    transform:
-      translate(10px, -280px);
-
-    opacity: 0;
-  }
-
-}
-
-
-@keyframes osb-whale-drift {
-
-  0% {
-    transform:
-      translate(-30px, 0);
-  }
-
-  50% {
-    transform:
-      translate(60px, -18px);
-  }
-
-  100% {
-    transform:
-      translate(-30px, 0);
-  }
-
-}
-
-
-@keyframes osb-spout {
-
-  0%,
-  100% {
-    opacity: 0;
-
-    transform:
-      translateY(0);
-  }
-
-  15% {
-    opacity: 0.8;
-  }
-
-  40% {
-    opacity: 0;
-
-    transform:
-      translateY(-10px);
-  }
-
-}
-
-
-@keyframes osb-shark-patrol {
-
-  0% {
-    transform:
-      translate(40px, 0)
-      scaleX(0.8);
-  }
-
-  48% {
-    transform:
-      translate(-90px, 12px)
-      scaleX(0.8);
-  }
-
-  50% {
-    transform:
-      translate(-90px, 12px)
-      scaleX(-0.8);
-  }
-
-  98% {
-    transform:
-      translate(40px, -6px)
-      scaleX(-0.8);
-  }
-
-  100% {
-    transform:
-      translate(40px, 0)
-      scaleX(0.8);
-  }
-
-}
-
-
-@keyframes osb-seaweed-sway {
-
-  0%,
-  100% {
-    transform:
-      skewX(-6deg);
-  }
-
-  50% {
-    transform:
-      skewX(6deg);
-  }
-
-}
-
-
-@keyframes osb-starfish-glow {
-
-  0%,
-  100% {
-    opacity: 0.85;
-
-    transform:
-      scale(1);
-  }
-
   50% {
     opacity: 1;
-
-    transform:
-      scale(1.08);
   }
 
 }
 
 
-/* ========================================
-   MOBILE
-======================================== */
+@keyframes osb-cloud-move {
+
+  from {
+    transform:
+      translateX(-20px);
+  }
+
+  to {
+    transform:
+      translateX(45px);
+  }
+
+}
+
+
+@keyframes osb-boat-float {
+
+  0%,
+  100% {
+    transform:
+      translateY(0)
+      rotate(-1.5deg);
+  }
+
+  50% {
+    transform:
+      translateY(12px)
+      rotate(1.5deg);
+  }
+
+}
+
+
+@keyframes osb-fish-swim {
+
+  0% {
+    transform:
+      translateX(-20px);
+  }
+
+  50% {
+    transform:
+      translateX(40px)
+      translateY(-12px);
+  }
+
+  100% {
+    transform:
+      translateX(-20px);
+  }
+
+}
+
+
+/* =========================================
+   RESPONSIVE
+
+   Không cần thay đổi vị trí từng thiết bị.
+
+   Vì SVG dùng "meet":
+
+   - Màn nhỏ → toàn bộ cảnh thu nhỏ
+   - Màn rộng → cảnh phóng to
+   - Màn dài → cảnh vẫn giữ tỷ lệ
+   - Không crop
+   - Không méo
+========================================= */
+
+
+/* MOBILE DỌC */
 
 @media (max-width: 600px) {
 
-  .osb-sky-layer,
-  .osb-mountain-layer,
-  .osb-lighthouse-layer {
-    height: clamp(
-      300px,
-      calc(var(--osb-vh) * 55),
-      520px
-    );
-  }
-
-
-  .osb-water {
-    top: clamp(
-      200px,
-      calc(var(--osb-vh) * 38),
-      390px
-    );
-  }
-
-
-  .osb-boat-layer {
-
-    /*
-      Mobile:
-      Thuyền nhỏ hơn một chút
-      để không bị crop.
-    */
-
-    top: clamp(
-      30px,
-      calc(var(--osb-vh) * 5),
-      100px
-    );
-
-    height: clamp(
-      260px,
-      calc(var(--osb-vh) * 44),
-      500px
-    );
+  .osb-root {
+    background: #8fc8e5;
   }
 
 }
 
 
-/* ========================================
-   LANDSCAPE PHONE
-======================================== */
+/* TABLET */
 
-@media (max-height: 500px) {
+@media (min-width: 601px) and (max-width: 1024px) {
 
-  .osb-sky-layer,
-  .osb-mountain-layer,
-  .osb-lighthouse-layer {
-    height: 100%;
-  }
-
-
-  .osb-water {
-    top: 42%;
-  }
-
-
-  .osb-boat-layer {
-    top: -10px;
-
-    height: 110%;
+  .osb-root {
+    background: #8fc8e5;
   }
 
 }
 
 
-/* ========================================
+/* ĐIỆN THOẠI XOAY NGANG */
+
+@media (orientation: landscape)
+  and (max-height: 600px) {
+
+  /*
+     Không cần resize thủ công.
+
+     SVG tự scale theo viewport.
+  */
+
+}
+
+
+/* =========================================
    REDUCED MOTION
-======================================== */
+========================================= */
 
 @media (prefers-reduced-motion: reduce) {
 
-  .osb-wave,
-
-  .osb-boat-bob,
-  .osb-boat-wake,
-
-  .osb-sail--main,
-  .osb-sail--jib,
-
-  .osb-clouds,
-
-  .osb-sun-rays,
-
-  .osb-birds path,
-
-  .osb-lamp,
-  .osb-beam,
-
-  .osb-caustics,
-
-  .osb-fish--a,
-  .osb-fish--b,
-  .osb-fish--c,
-
-  .osb-school,
-  .osb-minnow,
-
-  .osb-bubble,
-
-  .osb-whale,
-  .osb-whale-spout,
-
-  .osb-shark,
-
-  .osb-seaweed--1,
-  .osb-seaweed--2,
-  .osb-seaweed--3,
-
-  .osb-starfish {
+  .osb-sun,
+  .osb-sun-rays line,
+  .osb-cloud,
+  .osb-boat,
+  .osb-fish {
     animation: none !important;
   }
 
