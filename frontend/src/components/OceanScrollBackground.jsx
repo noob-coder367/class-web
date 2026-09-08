@@ -3,7 +3,6 @@ import "./OceanScrollBackground.css";
 
 const VIEW_W = 1200;
 const VIEW_H = 800;
-const WORLD_H = 2600; // Tổng chiều cao thế giới đại dương (từ bầu trời đến đáy biển)
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 
@@ -34,370 +33,237 @@ export default function OceanScrollBackground() {
     };
   }, []);
 
-  // Vị trí Camera Y trượt từ 0 (Mặt nước) xuống 1800 (Đáy biển)
-  const maxCameraY = WORLD_H - VIEW_H;
-  const cameraY = scrollProgress * maxCameraY;
+  // Giới hạn biên độ di chuyển để thuyền không bị bay mất khỏi màn hình
+  const skyY = scrollProgress * -280;
+  const boatY = scrollProgress * -200;
+  const wavesY = scrollProgress * -180;
+  const seabedY = Math.max(0, (1 - scrollProgress) * 400);
 
-  // Parallax nhẹ cho bầu trời và núi phía xa
-  const skyParallaxY = cameraY * 0.4;
-  const mountainParallaxY = cameraY * 0.25;
-
-  // Độ mờ đục theo độ sâu
-  const sunOpacity = clamp(1 - scrollProgress * 2.2);
+  // Mức độ ẩn/hiện mượt mà theo từng độ sâu
   const skyOpacity = clamp(1 - scrollProgress * 1.8);
-  const bubblesOpacity = clamp((scrollProgress - 0.1) * 2);
+  const shallowOpacity = clamp(scrollProgress * 2) * clamp((0.7 - scrollProgress) * 3);
+  const deepOpacity = clamp((scrollProgress - 0.3) * 2);
+  const seabedOpacity = clamp((scrollProgress - 0.5) * 2);
 
   return (
-    <div className="ocean-background" aria-hidden="true">
-      {/* Nền đệm màu chuyển mượt theo độ sâu */}
-      <div
-        className="ocean-base-gradient"
-        style={{
-          opacity: 1,
-          background: `linear-gradient(to bottom, 
-            #83ccef 0%, 
-            #38b7d3 20%, 
-            #1d85b8 45%, 
-            #0d4e8a 70%, 
-            #031638 100%)`,
-        }}
-      />
+    <div className="ocean-background" style={{ "--sea-depth": scrollProgress }} aria-hidden="true">
+      {/* Nền gradient chuyển màu biển */}
+      <div className="ocean-base-gradient" />
 
-      <svg
-        className="ocean-svg-canvas"
-        viewBox={`0 ${cameraY} ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid slice"
-      >
-        <defs>
-          {/* Gradients */}
-          <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#7ac2ed" />
-            <stop offset="60%" stopColor="#b5e2fa" />
-            <stop offset="100%" stopColor="#e0f1ef" />
-          </linearGradient>
+      <div className="ocean-content-wrapper">
+        {/* =====================================================
+            1. BẦU TRỜI, MẶT TRỜI, NÚI
+        ===================================================== */}
+        <svg
+          className="ocean-layer"
+          viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+          preserveAspectRatio="xMidYMid meet"
+          style={{
+            transform: `translate3d(0, ${skyY}px, 0)`,
+            opacity: skyOpacity,
+          }}
+        >
+          <defs>
+            <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#7ad0f5" />
+              <stop offset="60%" stopColor="#b1e4f3" />
+              <stop offset="100%" stopColor="#e4f5f3" />
+            </linearGradient>
+            <radialGradient id="sunGlow">
+              <stop offset="0%" stopColor="#fffde0" stopOpacity="1" />
+              <stop offset="40%" stopColor="#ffd875" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#ffd875" stopOpacity="0" />
+            </radialGradient>
+          </defs>
 
-          <linearGradient id="oceanWaterGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#38b7d3" stopOpacity="0.85" />
-            <stop offset="15%" stopColor="#1d85b8" stopOpacity="0.9" />
-            <stop offset="45%" stopColor="#0d4e8a" stopOpacity="0.95" />
-            <stop offset="75%" stopColor="#052352" stopOpacity="0.98" />
-            <stop offset="100%" stopColor="#020a1f" stopOpacity="1" />
-          </linearGradient>
-
-          <radialGradient id="sunGlow">
-            <stop offset="0%" stopColor="#fffbd2" stopOpacity="1" />
-            <stop offset="40%" stopColor="#ffe68b" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#ffe68b" stopOpacity="0" />
-          </radialGradient>
-
-          <linearGradient id="farMountain" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#b3c4d4" />
-            <stop offset="100%" stopColor="#70889e" />
-          </linearGradient>
-
-          <linearGradient id="seabedGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1c2d42" />
-            <stop offset="30%" stopColor="#142132" />
-            <stop offset="100%" stopColor="#080e17" />
-          </linearGradient>
-
-          <linearGradient id="sandGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#c2a675" />
-            <stop offset="100%" stopColor="#6e5732" />
-          </linearGradient>
-        </defs>
-
-        {/* =========================================================
-            1. BẦU TRỜI & NÚI (Có Parallax)
-        ========================================================= */}
-        <g transform={`translate(0, ${skyParallaxY})`}>
-          {/* Bầu trời */}
-          <rect x="0" y="0" width={VIEW_W} height="520" fill="url(#skyGrad)" opacity={skyOpacity} />
-
-          {/* Mặt trời */}
-          <g opacity={sunOpacity}>
-            <circle cx="300" cy="160" r="110" fill="url(#sunGlow)" />
-            <circle cx="300" cy="160" r="48" fill="#fff5b3" className="ocean-sun" />
-          </g>
+          <rect x="0" y="0" width={VIEW_W} height={VIEW_H} fill="url(#skyGrad)" />
+          <circle cx="600" cy="140" r="110" fill="url(#sunGlow)" />
+          <circle cx="600" cy="140" r="48" fill="#fff5b3" />
 
           {/* Mây */}
-          <g className="ocean-cloud ocean-cloud-one" opacity={skyOpacity * 0.85}>
-            <ellipse cx="500" cy="130" rx="90" ry="28" fill="#ffffff" />
-            <ellipse cx="440" cy="125" rx="50" ry="22" fill="#ffffff" />
-            <ellipse cx="550" cy="120" rx="55" ry="32" fill="#ffffff" />
+          <g className="ocean-cloud cloud-1">
+            <ellipse cx="320" cy="120" rx="80" ry="24" fill="#ffffff" opacity="0.85" />
+            <ellipse cx="270" cy="115" rx="45" ry="18" fill="#ffffff" opacity="0.9" />
           </g>
-          <g className="ocean-cloud ocean-cloud-two" opacity={skyOpacity * 0.75}>
-            <ellipse cx="880" cy="180" rx="100" ry="30" fill="#ffffff" />
-            <ellipse cx="830" cy="175" rx="55" ry="25" fill="#ffffff" />
+          <g className="ocean-cloud cloud-2">
+            <ellipse cx="880" cy="150" rx="90" ry="26" fill="#ffffff" opacity="0.8" />
+            <ellipse cx="930" cy="145" rx="50" ry="20" fill="#ffffff" opacity="0.85" />
           </g>
 
-          {/* Chim hải âu */}
-          <g className="ocean-birds" stroke="#3f5668" strokeWidth="3" fill="none" opacity={skyOpacity}>
-            <path d="M680 110 Q690 100 700 110 Q710 100 720 110" />
-            <path d="M740 140 Q748 132 756 140 Q764 132 772 140" />
+          {/* Dãy núi */}
+          <polygon points="100,520 350,280 600,520" fill="#8cb3a2" opacity="0.7" />
+          <polygon points="450,520 750,230 1050,520" fill="#6d9987" opacity="0.85" />
+        </svg>
+
+        {/* =====================================================
+            2. THUYỀN VÀ SÓNG MẶT BIỂN
+        ===================================================== */}
+        <svg
+          className="ocean-layer"
+          viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+          preserveAspectRatio="xMidYMid meet"
+          style={{
+            transform: `translate3d(0, ${wavesY}px, 0)`,
+            opacity: skyOpacity,
+          }}
+        >
+          {/* Sóng tầng sau */}
+          <path
+            d="M0 450 Q300 420 600 445 T1200 450 L1200 800 L0 800 Z"
+            fill="#31a2c9"
+            opacity="0.8"
+          />
+
+          {/* THUYỀN: Khống chế tọa độ không cho bay vọt khỏi khung */}
+          <g transform={`translate(0, ${boatY - wavesY})`}>
+            <g transform="translate(600, 360)" className="ocean-boat-motion">
+              {/* Cánh buồm */}
+              <path d="M-8 -140 L-100 40 L-8 40 Z" fill="#ffffff" />
+              <path d="M8 -120 L80 40 L8 40 Z" fill="#ffe2e2" />
+              {/* Cột buồm */}
+              <rect x="-5" y="-155" width="10" height="200" rx="2" fill="#5c3a21" />
+              {/* Cờ */}
+              <path d="M5 -155 L45 -140 L5 -125 Z" fill="#ff4d4d" />
+              {/* Thân thuyền */}
+              <path d="M-100 40 L100 40 L75 95 L-75 95 Z" fill="#a8322a" />
+              <path d="M-85 60 L85 60 L70 90 L-70 90 Z" fill="#d6453d" />
+              {/* Ô cửa sổ con */}
+              <circle cx="-35" cy="72" r="6" fill="#1b3947" />
+              <circle cx="0" cy="72" r="6" fill="#1b3947" />
+              <circle cx="35" cy="72" r="6" fill="#1b3947" />
+            </g>
           </g>
-        </g>
 
-        <g transform={`translate(0, ${mountainParallaxY})`} opacity={skyOpacity}>
-          {/* Núi xa */}
-          <polygon points="600,520 750,220 900,380 1050,190 1200,520" fill="url(#farMountain)" opacity="0.7" />
-          {/* Núi gần */}
-          <polygon points="780,520 900,280 980,360 1100,230 1200,520" fill="#4d647a" />
-        </g>
-
-        {/* =========================================================
-            2. KHỐI NƯỚC BIỂN LIÊN TỤC (TỪ MẶT NƯỚC XUỐNG ĐÁY)
-        ========================================================= */}
-        <rect x="0" y="500" width={VIEW_W} height={WORLD_H - 500} fill="url(#oceanWaterGrad)" />
-
-        {/* Vệt sáng chiếu xuống nước */}
-        <g className="ocean-light-rays" opacity={clamp(1 - scrollProgress * 1.5)}>
-          <polygon points="250,500 380,500 580,1300 420,1300" fill="#c3f5ff" opacity="0.12" />
-          <polygon points="550,500 650,500 820,1300 700,1300" fill="#c3f5ff" opacity="0.09" />
-        </g>
-
-        {/* =========================================================
-            3. MẶT NƯỚC, SÓNG & THUYỀN (Sóng 1 -> Thuyền -> Sóng 2)
-        ========================================================= */}
-        {/* Sóng sau */}
-        <g className="wave-motion-back">
+          {/* Sóng tầng trước */}
           <path
-            d="M-100 510 Q150 470 400 510 T900 500 T1400 515 L1400 700 L-100 700 Z"
-            fill="#29a3c4"
-            opacity="0.7"
+            d="M0 480 Q300 450 600 480 T1200 475 L1200 800 L0 800 Z"
+            fill="#2382a6"
           />
-        </g>
+        </svg>
 
-        {/* Con thuyền */}
-        <g transform="translate(520, 360)" opacity={skyOpacity} className="ocean-boat-motion">
-          <ellipse cx="80" cy="155" rx="120" ry="14" fill="#0d3b52" opacity="0.25" />
-          {/* Cánh buồm */}
-          <path d="M70 -130 L-50 120 L70 120 Z" fill="#fff8eb" />
-          <path d="M90 -110 L190 120 L90 120 Z" fill="#ffffff" />
-          {/* Cột buồm & Cờ */}
-          <rect x="75" y="-150" width="10" height="280" fill="#5c3a21" />
-          <path d="M85 -150 L140 -132 L85 -115 Z" fill="#e63946" />
-          {/* Thân thuyền */}
-          <path d="M-60 120 L220 120 L190 160 L-30 160 Z" fill="#d62828" />
-          <path d="M-45 138 L205 138 L185 160 L-30 160 Z" fill="#003049" opacity="0.3" />
-          {/* Cửa sổ thuyền */}
-          <circle cx="20" cy="142" r="7" fill="#fdf0d5" />
-          <circle cx="60" cy="142" r="7" fill="#fdf0d5" />
-          <circle cx="100" cy="142" r="7" fill="#fdf0d5" />
-          <circle cx="140" cy="142" r="7" fill="#fdf0d5" />
-        </g>
+        {/* =====================================================
+            3. SINH VẬT NÔNG (RÙA, BẠCH TUỘC, ĐÀN CÁ)
+        ===================================================== */}
+        <svg
+          className="ocean-layer"
+          viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+          preserveAspectRatio="xMidYMid meet"
+        >
+          {/* Rùa biển */}
+          <g transform="translate(380, 320)" opacity={shallowOpacity} className="turtle-swim">
+            <ellipse cx="0" cy="0" rx="36" ry="25" fill="#2d7a53" />
+            <circle cx="32" cy="-8" r="10" fill="#2d7a53" />
+            <circle cx="35" cy="-10" r="2" fill="#ffffff" />
+            <path d="M10 -15 Q35 -45 55 -30 Q35 -8 8 -12" fill="#256644" />
+            <path d="M10 15 Q35 45 55 30 Q35 8 8 12" fill="#256644" />
+          </g>
 
-        {/* Sóng trước (che chân thuyền) */}
-        <g className="wave-motion-front">
-          <path
-            d="M-100 525 Q200 490 500 530 T1100 515 T1400 530 L1400 700 L-100 700 Z"
-            fill="#38b7d3"
-            opacity="0.9"
-          />
-        </g>
+          {/* Bạch tuộc */}
+          <g transform="translate(760, 440)" opacity={deepOpacity} className="octopus-float">
+            <path d="M-30 0 C-30 -40 30 -40 30 0 C30 15 15 22 0 22 C-15 22 -30 15 -30 0 Z" fill="#d9534f" />
+            <circle cx="-10" cy="-8" r="4" fill="#ffffff" />
+            <circle cx="10" cy="-8" r="4" fill="#ffffff" />
+            <circle cx="-10" cy="-8" r="2" fill="#000000" />
+            <circle cx="10" cy="-8" r="2" fill="#000000" />
+            <path d="M-20 20 Q-25 40 -15 55 M-10 22 Q-10 45 -5 58 M5 22 Q5 45 10 58 M20 20 Q25 40 15 55" stroke="#d9534f" strokeWidth="6" strokeLinecap="round" fill="none" />
+          </g>
 
-        {/* =========================================================
-            4. SINH VẬT TẦNG NÔNG (Y: 650 - 1100)
-        ========================================================= */}
-        {/* Rùa biển */}
-        <g transform="translate(380, 780)" className="sea-turtle-anim">
-          <ellipse cx="0" cy="0" rx="35" ry="25" fill="#2a9d8f" />
-          <ellipse cx="0" cy="0" rx="28" ry="20" fill="#e9c46a" opacity="0.8" />
-          <circle cx="38" cy="-5" r="9" fill="#2a9d8f" />
-          {/* Vây rùa */}
-          <path d="M15 -20 Q40 -45 5 -10" fill="#264653" />
-          <path d="M15 20 Q40 45 5 10" fill="#264653" />
-        </g>
+          {/* Đàn cá bơi */}
+          <g opacity={shallowOpacity} className="fish-school">
+            <path d="M 200 250 Q 215 242 230 250 Q 215 258 200 250 Z M 195 245 L 195 255 L 202 250 Z" fill="#ff9f43" />
+            <path d="M 240 280 Q 255 272 270 280 Q 255 288 240 280 Z M 235 275 L 235 285 L 242 280 Z" fill="#ff9f43" />
+            <path d="M 220 310 Q 235 302 250 310 Q 235 318 220 310 Z M 215 305 L 215 315 L 222 310 Z" fill="#ee5253" />
+          </g>
+        </svg>
 
-        {/* Đàn cá hề & cá nhỏ */}
-        <g transform="translate(720, 850)" className="fish-swim-right">
-          <ellipse cx="0" cy="0" rx="22" ry="12" fill="#f4a261" />
-          <path d="M-18 0 L-32 -10 L-32 10 Z" fill="#e76f51" />
-          <rect x="-5" y="-11" width="6" height="22" fill="#ffffff" />
-          <circle cx="12" cy="-3" r="2.5" fill="#000000" />
-        </g>
-        <g transform="translate(780, 890)" className="fish-swim-right-slow">
-          <ellipse cx="0" cy="0" rx="16" ry="9" fill="#f4a261" />
-          <path d="M-12 0 L-22 -7 L-22 7 Z" fill="#e76f51" />
-          <rect x="-3" y="-8" width="4" height="16" fill="#ffffff" />
-        </g>
+        {/* =====================================================
+            4. SINH VẬT SÂU (CÁ ĐỦOI, CÁ ĐÈN)
+        ===================================================== */}
+        <svg
+          className="ocean-layer"
+          viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+          preserveAspectRatio="xMidYMid meet"
+          style={{ opacity: deepOpacity }}
+        >
+          {/* Cá đuối Manta */}
+          <g transform="translate(520, 280)" className="manta-glide">
+            <path d="M0 -20 C80 -15 150 20 190 50 C120 40 50 50 0 80 C-50 50 -120 40 -190 50 C-150 20 -80 -15 0 -20 Z" fill="#1e2d42" opacity="0.75" />
+            <path d="M0 80 Q-5 140 0 180" stroke="#1e2d42" strokeWidth="3" fill="none" opacity="0.75" />
+          </g>
 
-        {/* Cá heo */}
-        <g transform="translate(260, 1050)" className="dolphin-anim">
-          <path d="M-50 0 Q0 -30 60 -5 Q30 20 -50 0 Z" fill="#4ea8de" />
-          <path d="M60 -5 Q75 -8 85 -2 Q70 10 60 -5 Z" fill="#4ea8de" />
-          <path d="M0 -18 L12 -38 L22 -14 Z" fill="#4895ef" />
-          <circle cx="62" cy="-6" r="2" fill="#03045e" />
-        </g>
+          {/* Cá đèn phát sáng */}
+          <g transform="translate(880, 360)" className="angler-fish">
+            <path d="M -30 -10 C -10 -25 20 -20 30 0 C 35 15 20 25 -10 25 C -25 25 -35 10 -30 -10 Z" fill="#2c3e50" />
+            <path d="M 30 0 L 45 -10 L 45 10 Z" fill="#2c3e50" />
+            <circle cx="-15" cy="-5" r="3" fill="#f1c40f" />
+            <path d="M -10 -20 Q 0 -40 -20 -40" stroke="#f1c40f" strokeWidth="2" fill="none" />
+            <circle cx="-20" cy="-40" r="5" fill="#f39c12" className="angler-light" />
+          </g>
+        </svg>
 
-        {/* =========================================================
-            5. SINH VẬT TẦNG TRUNG & SÂU (Y: 1200 - 1800)
-        ========================================================= */}
-        {/* Cá đuối Manta */}
-        <g transform="translate(680, 1320)" className="manta-anim">
-          <path d="M0 -10 Q-90 -40 -120 10 Q-40 20 0 40 Q40 20 120 10 Q90 -40 0 -10 Z" fill="#1d3557" />
-          <path d="M0 40 Q-5 90 -2 120" stroke="#1d3557" strokeWidth="4" fill="none" />
-        </g>
+        {/* =====================================================
+            5. ĐÁY BIỂN VÀ RONG RÊU (ĐÃ FIX GIẬT/LAG)
+        ===================================================== */}
+        <svg
+          className="ocean-layer"
+          viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+          preserveAspectRatio="xMidYMax meet"
+          style={{
+            transform: `translate3d(0, ${seabedY}px, 0)`,
+            opacity: seabedOpacity,
+          }}
+        >
+          <defs>
+            <linearGradient id="sandGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2c3e50" />
+              <stop offset="100%" stopColor="#0d1117" />
+            </linearGradient>
+          </defs>
 
-        {/* Đàn sứa phát quang */}
-        <g transform="translate(320, 1450)" className="jelly-float">
-          <path d="M-25 0 Q-25 -30 0 -30 Q25 -30 25 0 Q12 8 0 3 Q-12 8 -25 0 Z" fill="#b8c0ff" opacity="0.75" />
-          <path d="M-12 5 Q-15 30 -8 50" stroke="#e7c6ff" strokeWidth="2" fill="none" />
-          <path d="M0 5 Q0 35 3 55" stroke="#e7c6ff" strokeWidth="2" fill="none" />
-          <path d="M12 5 Q15 30 8 50" stroke="#e7c6ff" strokeWidth="2" fill="none" />
-        </g>
-        <g transform="translate(400, 1520)" className="jelly-float-delayed">
-          <path d="M-18 0 Q-18 -22 0 -22 Q18 -22 18 0 Q9 6 0 2 Q-9 6 -18 0 Z" fill="#c8b6ff" opacity="0.7" />
-          <path d="M-8 4 Q-10 25 -5 40" stroke="#e7c6ff" strokeWidth="1.5" fill="none" />
-          <path d="M8 4 Q10 25 5 40" stroke="#e7c6ff" strokeWidth="1.5" fill="none" />
-        </g>
+          {/* Cát đáy biển */}
+          <path d="M0 640 Q300 580 600 620 T1200 600 L1200 800 L0 800 Z" fill="url(#sandGrad)" />
 
-        {/* Cá lồng đèn (Anglerfish) tầng tối */}
-        <g transform="translate(780, 1820)" className="angler-anim">
-          <path d="M-35 0 Q-35 -25 0 -20 Q30 -15 35 10 Q10 30 -35 0 Z" fill="#111d27" />
-          {/* Cần phát sáng */}
-          <path d="M15 -18 Q35 -40 45 -25" stroke="#4cc9f0" strokeWidth="2" fill="none" />
-          <circle cx="46" cy="-23" r="6" fill="#72efdd" className="angler-light" />
-          {/* Mắt & Mồm răng nhọn */}
-          <circle cx="20" cy="-8" r="3" fill="#ff0054" />
-          <path d="M10 8 L15 0 L20 8 L25 0 L30 8" stroke="#ffffff" strokeWidth="1.5" fill="none" />
-        </g>
+          {/* Cụm San Hô */}
+          <g fill="#e74c3c" opacity="0.9">
+            <path d="M 280 650 Q 270 600 285 570 Q 290 560 300 575 Q 305 550 320 560 Q 325 580 315 650 Z" />
+            <path d="M 310 650 Q 330 590 345 580 Q 355 595 340 650 Z" fill="#c0392b" />
+          </g>
 
-        {/* =========================================================
-            6. ĐÁY BIỂN, RONG RÊU, SAN HÔ & KHO BÁU (Y: 2000 - 2600)
-        ========================================================= */}
-        {/* Nền đất đáy biển */}
-        <path
-          d="M0 2250 Q250 2180 500 2220 T1000 2190 Q1120 2210 1200 2230 L1200 2600 L0 2600 Z"
-          fill="url(#seabedGrad)"
-        />
-        <path
-          d="M0 2320 Q350 2270 700 2330 T1200 2300 L1200 2600 L0 2600 Z"
-          fill="url(#sandGrad)"
-        />
+          {/* RONG RÊU (Xoay bằng GPU transform, không đổi đường d để chống giật) */}
+          <g stroke="#10ac84" strokeWidth="10" strokeLinecap="round" fill="none">
+            {/* Cụm 1 */}
+            <g className="seaweed-group sway-1" style={{ transformOrigin: "150px 720px" }}>
+              <path d="M150 720 Q120 630 160 550 T140 450" />
+              <path d="M170 720 Q200 640 170 560 T190 470" stroke="#1dd1a1" strokeWidth="8" />
+            </g>
 
-        {/* Rạn san hô (Corals) */}
-        <g transform="translate(180, 2260)">
-          {/* San hô sừng hươu */}
-          <path d="M0 60 L-10 20 L-25 0 L-12 15 L0 30 L15 5 L10 25 L25 0 L15 35 Z" fill="#f72585" />
-          <path d="M40 70 L30 30 L15 10 L28 25 L40 40 L55 15 L50 35 L65 10 L55 45 Z" fill="#7209b7" />
-          {/* San hô quạt */}
-          <path d="M100 80 Q130 10 160 80 Z" fill="#4cc9f0" opacity="0.8" />
-        </g>
+            {/* Cụm 2 */}
+            <g className="seaweed-group sway-2" style={{ transformOrigin: "600px 730px" }}>
+              <path d="M600 730 Q630 650 600 570 T630 480" stroke="#1dd1a1" />
+              <path d="M620 730 Q590 660 625 580 T595 500" stroke="#10ac84" strokeWidth="8" />
+            </g>
 
-        <g transform="translate(920, 2250)">
-          <path d="M0 80 Q30 20 60 80 Z" fill="#ff9e00" opacity="0.85" />
-          <path d="M40 90 L25 40 L10 15 L25 30 L40 50 L55 20 L50 45 Z" fill="#f72585" />
-        </g>
+            {/* Cụm 3 */}
+            <g className="seaweed-group sway-3" style={{ transformOrigin: "1020px 710px" }}>
+              <path d="M1020 710 Q980 620 1030 530 T990 440" />
+              <path d="M1040 710 Q1070 630 1035 550 T1060 470" stroke="#1dd1a1" strokeWidth="7" />
+            </g>
+          </g>
 
-        {/* Rừng rong rêu đung đưa (Kelp Forest) */}
-        <g className="kelp-group">
-          {/* Dải rong rêu 1 */}
-          <path
-            d="M 120 2380 Q 140 2280 110 2180 T 130 1980"
-            stroke="#2d6a4f"
-            strokeWidth="18"
-            fill="none"
-            strokeLinecap="round"
-            className="kelp-sway-1"
-          />
-          <path
-            d="M 120 2380 Q 140 2280 110 2180 T 130 1980"
-            stroke="#52b788"
-            strokeWidth="8"
-            fill="none"
-            strokeLinecap="round"
-            className="kelp-sway-1"
-          />
+          {/* Sao biển */}
+          <path d="M420 680 L424 690 L435 690 L426 697 L429 708 L420 701 L411 708 L414 697 L405 690 L416 690 Z" fill="#ff9ff3" />
+          <path d="M820 670 L823 678 L832 678 L825 683 L827 691 L820 686 L813 691 L815 683 L808 678 L817 678 Z" fill="#fabca1" />
+        </svg>
+      </div>
 
-          {/* Dải rong rêu 2 */}
-          <path
-            d="M 260 2400 Q 230 2300 270 2180 T 240 2020"
-            stroke="#1b4332"
-            strokeWidth="22"
-            fill="none"
-            strokeLinecap="round"
-            className="kelp-sway-2"
-          />
-
-          {/* Dải rong rêu 3 */}
-          <path
-            d="M 850 2390 Q 880 2280 840 2150 T 870 1990"
-            stroke="#2d6a4f"
-            strokeWidth="20"
-            fill="none"
-            strokeLinecap="round"
-            className="kelp-sway-3"
-          />
-
-          {/* Dải rong rêu 4 */}
-          <path
-            d="M 1020 2380 Q 990 2260 1030 2140 T 1000 2000"
-            stroke="#40916c"
-            strokeWidth="16"
-            fill="none"
-            strokeLinecap="round"
-            className="kelp-sway-2"
-          />
-        </g>
-
-        {/* Mỏ neo cổ & Rương kho báu */}
-        <g transform="translate(680, 2330)">
-          {/* Mỏ neo chìm */}
-          <path
-            d="M0 0 L0 60 M-25 45 Q0 65 25 45 M-10 0 L10 0"
-            stroke="#4a5568"
-            strokeWidth="7"
-            fill="none"
-            strokeLinecap="round"
-          />
-          {/* Rương kho báu */}
-          <rect x="40" y="25" width="50" height="35" rx="4" fill="#7f4f24" />
-          <path d="M40 25 Q65 10 90 25 Z" fill="#936639" />
-          <rect x="61" y="37" width="8" height="10" fill="#e9c46a" />
-          {/* Vàng phát sáng xung quanh */}
-          <circle cx="35" cy="55" r="4" fill="#e9c46a" />
-          <circle cx="45" cy="58" r="3" fill="#f4a261" />
-          <circle cx="95" cy="56" r="3.5" fill="#e9c46a" />
-        </g>
-
-        {/* Cua đỏ & Sao biển trên cát */}
-        <g transform="translate(460, 2370)">
-          {/* Cua */}
-          <ellipse cx="0" cy="0" rx="14" ry="9" fill="#e63946" />
-          <circle cx="-5" cy="-10" r="2" fill="#000" />
-          <circle cx="5" cy="-10" r="2" fill="#000" />
-          {/* Càng cua */}
-          <path d="M-10 -4 Q-20 -15 -12 -20 Q-5 -12 -8 -4" fill="#e63946" />
-          <path d="M10 -4 Q20 -15 12 -20 Q5 -12 8 -4" fill="#e63946" />
-        </g>
-
-        {/* Sao biển */}
-        <g transform="translate(580, 2385)" fill="#ff70a6">
-          <path d="M0 -12 L3 -4 L11 -4 L5 1 L7 9 L0 4 L-7 9 L-5 1 L-11 -4 L-3 -4 Z" />
-        </g>
-      </svg>
-
-      {/* Bong bóng khí nổi lên liên tục */}
-      <div
-        className="ocean-bubbles-container"
-        style={{ opacity: bubblesOpacity }}
-      >
+      {/* Bong bóng khí nổi lên */}
+      <div className="ocean-bubbles-container">
         <span className="bubble b1" />
         <span className="bubble b2" />
         <span className="bubble b3" />
         <span className="bubble b4" />
         <span className="bubble b5" />
-        <span className="bubble b6" />
-        <span className="bubble b7" />
-        <span className="bubble b8" />
       </div>
-
-      {/* Lớp bóng tối mờ ảo tầng cực sâu */}
-      <div
-        className="ocean-abyss-darkness"
-        style={{ opacity: clamp((scrollProgress - 0.65) * 2.5) }}
-      />
     </div>
   );
 }
