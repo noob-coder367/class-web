@@ -1,23 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import "./OceanScrollBackground.css";
 
-/*
-  ==================================================
-  VIEWBOX
-  Toàn bộ cảnh được vẽ trong 1 khung 1200x800.
-  Nhờ preserveAspectRatio="xMidYMid meet",
-  SVG luôn giữ đúng tỉ lệ (không bao giờ méo)
-  trên mọi thiết bị (máy tính, tablet, điện thoại,
-  ngang lẫn dọc). Nếu tỉ lệ màn hình khác tỉ lệ
-  khung, phần dư sẽ được lấp bằng gradient nền
-  (.ocean-base) nên không bao giờ bị hở trắng.
-  ==================================================
-*/
 const VIEW_W = 1200;
 const VIEW_H = 800;
 
-const clamp = (value, min = 0, max = 1) =>
-  Math.min(max, Math.max(min, value));
+const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 
 export default function OceanScrollBackground() {
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -39,63 +26,51 @@ export default function OceanScrollBackground() {
     updateScroll();
     window.addEventListener("scroll", updateScroll, { passive: true });
     window.addEventListener("resize", updateScroll);
-
     return () => {
       window.removeEventListener("scroll", updateScroll);
       window.removeEventListener("resize", updateScroll);
-      if (animationFrame.current) {
-        cancelAnimationFrame(animationFrame.current);
-      }
+      if (animationFrame.current) cancelAnimationFrame(animationFrame.current);
     };
   }, []);
 
   /*
-    ==================================================
-    LOGIC LẶN TÀU NGẦM
-    scrollProgress: 0 = mặt biển, 1 = đáy biển sâu.
-
-    Khi cuộn XUỐNG (scrollProgress tăng dần):
-      - Người xem "lặn xuống" nên các vật thể ở
-        MẶT BIỂN (mặt trời, núi, thuyền, mây, chim)
-        phải trôi NGƯỢC LÊN TRÊN khung hình và mờ
-        dần đi (giống như đang rời xa mặt nước khi
-        nhìn lên từ dưới sâu).
-      - Màu nước đậm dần, ánh sáng xuyên nước mờ dần,
-        cá và sinh vật biển xuất hiện nhiều hơn.
-    Khi cuộn LÊN, mọi thứ tự động đảo ngược vì toàn
-    bộ animation chỉ phụ thuộc vào scrollProgress.
-    ==================================================
+    ==================================================================
+    LOGIC "LAN XUONG BIEN"
+    Cuon xuong = cang lan sau.
+      - Mat troi, may, nui, thuyen, song... troi NGUOC LEN va mo dan,
+        nhu dang bi bo lai phia tren mat nuoc.
+      - Nuoc dam mau dan, toi dan theo do sau.
+      - Ca & sinh vat bien xuat hien nhieu hon, sau hon thi co them
+        sinh vat bien sau (sua, ca nho...).
+    Cuon len = nguoc lai hoan toan (troi len mat nuoc), vi moi gia tri
+    deu la ham lien tuc cua scrollProgress (0 -> 1), khong co trang
+    thai roi rac nen luon dao chieu muot.
+    ==================================================================
   */
 
-  // Núi gần & núi xa: trôi lên trên (Y âm) + trôi ngang nhẹ, rồi mờ dần
-  const mountainX = scrollProgress * -45;
-  const mountainY = scrollProgress * -70;
-  const mountainOpacity = clamp(1 - scrollProgress * 1.1);
+  // Be mat: cang cuon xuong cang troi len & roi khoi khung hinh
+  const skyScrollY = scrollProgress * -170;
+  const farMountainX = scrollProgress * -14;
+  const farMountainY = scrollProgress * -150;
+  const mountainX = scrollProgress * -30;
+  const mountainY = scrollProgress * -240;
+  const boatScrollY = scrollProgress * -360;
+  const waveOneY = scrollProgress * -95;
+  const waveTwoY = scrollProgress * -55;
 
-  const farMountainX = scrollProgress * -20;
-  const farMountainY = scrollProgress * -40;
-  const farMountainOpacity = clamp(1 - scrollProgress * 1.0);
-
-  // Thuyền: trôi lên trên khi lặn xuống, mờ dần khi rời xa mặt nước
-  const boatScrollY = scrollProgress * -95;
-  const boatOpacity = clamp(1 - scrollProgress * 1.15);
-  const boatScale = 1 - scrollProgress * 0.12;
-
-  /*
-    Màu biển chuyển dần khi scroll.
-    Đầu trang: xanh ngọc sáng
-    Giữa: xanh biển
-    Cuối: xanh navy / biển sâu
-  */
+  // Do sau & mau nuoc
   const seaDepth = clamp(scrollProgress * 1.35);
-  const underwaterOpacity = clamp((scrollProgress - 0.15) * 1.25);
-  const deepSeaOpacity = clamp((scrollProgress - 0.5) * 2);
-  const fishOpacity = clamp((scrollProgress - 0.1) * 1.5);
-  // Sinh vật tầng sâu chỉ xuất hiện khi lặn khá sâu -> "nhiều sinh vật hơn"
-  const deepCreatureOpacity = clamp((scrollProgress - 0.55) * 1.8);
+  const underwaterOpacity = clamp((scrollProgress - 0.12) * 1.3);
+  const deepSeaOpacity = clamp((scrollProgress - 0.45) * 1.8);
+  const abyssOpacity = clamp((scrollProgress - 0.78) * 4.2);
 
-  const sunOpacity = clamp(1 - scrollProgress * 1.25);
-  const skyOpacity = clamp(1 - scrollProgress * 0.9);
+  // Sinh vat bien
+  const fishOpacity = clamp((scrollProgress - 0.08) * 1.6);
+  const deepFishOpacity = clamp((scrollProgress - 0.42) * 1.7);
+
+  // Anh sang be mat
+  const sunOpacity = clamp(1 - scrollProgress * 1.4);
+  const skyOpacity = clamp(1 - scrollProgress * 1.05);
 
   const sceneStyle = {
     "--scroll": scrollProgress,
@@ -106,14 +81,16 @@ export default function OceanScrollBackground() {
 
   return (
     <div className="ocean-background" style={sceneStyle} aria-hidden="true">
-      {/* BASE SKY / SEA COLOR (lấp khoảng trống nếu tỉ lệ màn hình lệch) */}
+      {/* NEN DU PHONG - luon phu kin khung hinh, khong phu thuoc viewBox */}
       <div className="ocean-base" />
 
-      {/* ===================== SKY ===================== */}
+      {/* =====================================================
+          SKY
+      ===================================================== */}
       <svg
         className="ocean-layer ocean-sky-layer"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio="xMidYMid slice"
       >
         <defs>
           <linearGradient id="skyGradientOcean" x1="0" y1="0" x2="0" y2="1">
@@ -128,31 +105,35 @@ export default function OceanScrollBackground() {
           </radialGradient>
         </defs>
 
-        <g style={{ opacity: skyOpacity }}>
+        <g
+          style={{ opacity: skyOpacity }}
+          transform={`translate(0, ${skyScrollY})`}
+        >
           <rect width={VIEW_W} height={VIEW_H} fill="url(#skyGradientOcean)" />
 
-          {/* SUN - trôi lên & mờ dần khi lặn xuống */}
-          <g
-            className="ocean-sun-group"
-            style={{
-              opacity: sunOpacity,
-              transform: `translateY(${scrollProgress * -60}px)`,
-            }}
-          >
-            <circle cx="220" cy="150" r="125" fill="url(#sunGlowOcean)" />
-            <circle className="ocean-sun" cx="220" cy="150" r="52" fill="#fff3a6" />
+          {/* SUN */}
+          <g className="ocean-sun-group">
+            <circle cx="190" cy="145" r="125" fill="url(#sunGlowOcean)" />
+            <circle
+              className="ocean-sun"
+              cx="190"
+              cy="145"
+              r="52"
+              fill="#fff3a6"
+              style={{ opacity: sunOpacity }}
+            />
             <g
               className="ocean-sun-rays"
               stroke="#fff6bc"
               strokeWidth="8"
               strokeLinecap="round"
             >
-              <line x1="220" y1="70" x2="220" y2="30" />
-              <line x1="280" y1="90" x2="310" y2="60" />
-              <line x1="305" y1="150" x2="350" y2="150" />
-              <line x1="280" y1="210" x2="310" y2="240" />
-              <line x1="160" y1="90" x2="130" y2="60" />
-              <line x1="135" y1="150" x2="90" y2="150" />
+              <line x1="190" y1="65" x2="190" y2="25" />
+              <line x1="250" y1="85" x2="280" y2="55" />
+              <line x1="275" y1="145" x2="320" y2="145" />
+              <line x1="250" y1="205" x2="280" y2="235" />
+              <line x1="130" y1="85" x2="100" y2="55" />
+              <line x1="105" y1="145" x2="60" y2="145" />
             </g>
           </g>
 
@@ -172,13 +153,7 @@ export default function OceanScrollBackground() {
           </g>
 
           {/* BIRDS */}
-          <g
-            className="ocean-birds"
-            fill="none"
-            stroke="#3f5668"
-            strokeWidth="3"
-            strokeLinecap="round"
-          >
+          <g className="ocean-birds" fill="none" stroke="#3f5668" strokeWidth="3" strokeLinecap="round">
             <path d="M700 105 Q712 92 724 105 Q736 92 748 105" />
             <path d="M760 145 Q770 134 780 145 Q790 134 800 145" />
             <path d="M850 100 Q860 90 870 100 Q880 90 890 100" />
@@ -186,14 +161,16 @@ export default function OceanScrollBackground() {
         </g>
       </svg>
 
-      {/* WATER BASE (màu nước theo chiều dọc) */}
+      {/* NEN NUOC BIEN (doi mau theo do sau) */}
       <div className="ocean-water-base" />
 
-      {/* ===================== LIGHT RAYS UNDERWATER ===================== */}
+      {/* =====================================================
+          WATER LIGHT RAYS
+      ===================================================== */}
       <svg
         className="ocean-layer ocean-light-rays-layer"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio="xMidYMid slice"
       >
         <g className="ocean-water-rays" opacity={underwaterOpacity}>
           <polygon points="180,310 270,310 480,800 390,800" fill="#bff8ff" opacity="0.1" />
@@ -202,11 +179,13 @@ export default function OceanScrollBackground() {
         </g>
       </svg>
 
-      {/* ===================== MOUNTAINS ===================== */}
+      {/* =====================================================
+          MOUNTAINS (troi len & mo dan khi lan xuong)
+      ===================================================== */}
       <svg
         className="ocean-layer ocean-mountain-layer"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio="xMidYMid slice"
       >
         <defs>
           <linearGradient id="farMountain" x1="0" y1="0" x2="1" y2="1">
@@ -219,12 +198,10 @@ export default function OceanScrollBackground() {
           </linearGradient>
         </defs>
 
-        {/* FAR MOUNTAIN - trôi lên & mờ dần */}
+        {/* FAR MOUNTAIN */}
         <g
-          style={{
-            transform: `translate(${farMountainX}px, ${farMountainY}px)`,
-            opacity: farMountainOpacity,
-          }}
+          style={{ opacity: skyOpacity }}
+          transform={`translate(${farMountainX}, ${farMountainY})`}
         >
           <polygon
             points="720,410 820,155 930,290 1040,185 1200,340 1200,800 720,800"
@@ -234,12 +211,10 @@ export default function OceanScrollBackground() {
           <polygon points="820,155 865,265 830,235 790,310" fill="#f8f0df" opacity="0.75" />
         </g>
 
-        {/* FRONT MOUNTAIN - trôi lên & mờ dần */}
+        {/* FRONT MOUNTAIN */}
         <g
-          style={{
-            transform: `translate(${mountainX}px, ${mountainY}px)`,
-            opacity: mountainOpacity,
-          }}
+          style={{ opacity: skyOpacity }}
+          transform={`translate(${mountainX}, ${mountainY})`}
         >
           <polygon
             points="840,800 930,300 1010,385 1120,250 1200,390 1200,800"
@@ -249,53 +224,51 @@ export default function OceanScrollBackground() {
         </g>
       </svg>
 
-      {/* ===================== WAVE 1 (phía sau thuyền) ===================== */}
+      {/* =====================================================
+          WAVE 1 (phia sau thuyen)
+      ===================================================== */}
       <svg
         className="ocean-layer ocean-wave-one-layer"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio="xMidYMid slice"
       >
-        <g
-          className="wave-one-motion"
-          style={{ transform: `translateY(${scrollProgress * -30}px)` }}
-        >
-          <path
-            d="M-100 470 Q0 410 100 465 T300 455 T500 445 T700 465 T900 440 T1100 460 T1300 445 L1300 800 L-100 800 Z"
-            fill="#278eb8"
-            opacity="0.8"
-          />
-          <path
-            d="M-100 475 Q0 425 100 470 T300 460 T500 450 T700 470 T900 445 T1100 465 T1300 450"
-            fill="none"
-            stroke="#9be8f2"
-            strokeWidth="10"
-            opacity="0.3"
-          />
+        <g transform={`translate(0, ${waveOneY})`}>
+          <g className="wave-one-motion">
+            <path
+              d="M-100 470 Q0 410 100 465 T300 455 T500 445 T700 465 T900 440 T1100 460 T1300 445 L1300 800 L-100 800 Z"
+              fill="#278eb8"
+              opacity="0.8"
+            />
+            <path
+              d="M-100 475 Q0 425 100 470 T300 460 T500 450 T700 470 T900 445 T1100 465 T1300 450"
+              fill="none"
+              stroke="#9be8f2"
+              strokeWidth="10"
+              opacity="0.3"
+            />
+          </g>
         </g>
       </svg>
 
-      {/* ===================== BOAT ===================== */}
+      {/* =====================================================
+          BOAT (giua wave 1 va wave 2, troi len khi lan xuong)
+      ===================================================== */}
       <svg
         className="ocean-layer ocean-boat-layer"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio="xMidYMid slice"
       >
         <g
-          style={{
-            transform: `translate(390px, ${310 + boatScrollY}px) scale(${boatScale})`,
-            transformOrigin: "390px 310px",
-            opacity: boatOpacity,
-          }}
+          style={{ opacity: skyOpacity }}
+          transform={`translate(390, ${310 + boatScrollY})`}
         >
           <g className="ocean-boat-motion">
             {/* SHADOW */}
             <ellipse cx="0" cy="215" rx="155" ry="17" fill="#164b67" opacity="0.22" />
 
-            {/* SAIL - LEFT */}
+            {/* SAILS */}
             <path d="M-12 -250 L-180 95 L-12 95 Z" fill="#fff7e5" />
             <path d="M-12 -245 L-145 95 L-95 95 Z" fill="#f0c5ce" opacity="0.8" />
-
-            {/* SAIL - RIGHT */}
             <path d="M15 -220 L155 95 L15 95 Z" fill="#fffdf3" />
             <path d="M15 -220 L70 95 L15 95 Z" fill="#e8e2d2" opacity="0.7" />
 
@@ -306,7 +279,7 @@ export default function OceanScrollBackground() {
             {/* FLAG */}
             <path d="M8 -270 L85 -245 L8 -220 Z" fill="#dc5246" />
 
-            {/* BOAT BODY */}
+            {/* HULL */}
             <path d="M-175 100 L180 100 L160 128 L-155 128 Z" fill="#c94339" />
             <path d="M-165 125 L165 125 L115 205 L-110 205 Z" fill="#9f2f2b" />
             <path d="M-145 128 L145 128 L115 155 L-125 155 Z" fill="#d34d42" />
@@ -320,36 +293,39 @@ export default function OceanScrollBackground() {
         </g>
       </svg>
 
-      {/* ===================== WAVE 2 (phía trước) ===================== */}
+      {/* =====================================================
+          WAVE 2 (phia truoc, che mot phan day thuyen)
+      ===================================================== */}
       <svg
         className="ocean-layer ocean-wave-two-layer"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio="xMidYMid slice"
       >
-        <g
-          className="wave-two-motion"
-          style={{ transform: `translateY(${scrollProgress * -18}px)` }}
-        >
-          <path
-            d="M-100 500 Q0 465 100 505 T300 495 T500 510 T700 485 T900 505 T1100 490 T1300 510 L1300 800 L-100 800 Z"
-            fill="#38b7d3"
-            opacity="0.93"
-          />
-          <path
-            d="M-100 500 Q0 465 100 505 T300 495 T500 510 T700 485 T900 505 T1100 490 T1300 510"
-            fill="none"
-            stroke="#c8f8ff"
-            strokeWidth="13"
-            opacity="0.52"
-          />
+        <g transform={`translate(0, ${waveTwoY})`}>
+          <g className="wave-two-motion">
+            <path
+              d="M-100 500 Q0 465 100 505 T300 495 T500 510 T700 485 T900 505 T1100 490 T1300 510 L1300 800 L-100 800 Z"
+              fill="#38b7d3"
+              opacity="0.93"
+            />
+            <path
+              d="M-100 500 Q0 465 100 505 T300 495 T500 510 T700 485 T900 505 T1100 490 T1300 510"
+              fill="none"
+              stroke="#c8f8ff"
+              strokeWidth="13"
+              opacity="0.52"
+            />
+          </g>
         </g>
       </svg>
 
-      {/* ===================== FISH (tầng nước nông hơn) ===================== */}
+      {/* =====================================================
+          FISH - lop ca gan mat nuoc, xuat hien dan khi lan xuong
+      ===================================================== */}
       <svg
         className="ocean-layer ocean-fish-layer"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio="xMidYMid slice"
         style={{ opacity: fishOpacity }}
       >
         {/* FISH A */}
@@ -380,61 +356,44 @@ export default function OceanScrollBackground() {
             <circle cx="16" cy="-4" r="3" fill="#0a2634" />
           </g>
         </g>
-
-        {/* FISH D - thêm để đàn cá dày hơn khi xuống sâu hơn một chút */}
-        <g transform="translate(450, 720)" className="fish fish-d">
-          <g className="fish-swim fish-swim-d">
-            <ellipse cx="0" cy="0" rx="22" ry="10" fill="#54a7c2" />
-            <path d="M-19 0 L-38 -14 L-38 14 Z" fill="#3a8aa5" />
-            <circle cx="13" cy="-3" r="2.5" fill="#0a2634" />
-          </g>
-        </g>
       </svg>
 
-      {/* ===================== SINH VẬT TẦNG SÂU ===================== */}
+      {/* =====================================================
+          DEEP SEA CREATURES - chi xuat hien khi lan du sau
+      ===================================================== */}
       <svg
-        className="ocean-layer ocean-deep-creature-layer"
+        className="ocean-layer ocean-deep-fish-layer"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="xMidYMid meet"
-        style={{ opacity: deepCreatureOpacity }}
+        preserveAspectRatio="xMidYMid slice"
+        style={{ opacity: deepFishOpacity }}
       >
-        {/* JELLYFISH A */}
-        <g transform="translate(310, 780)" className="jellyfish jellyfish-a">
-          <g className="jelly-drift jelly-drift-a">
+        {/* JELLYFISH */}
+        <g transform="translate(340, 700)" className="jellyfish jellyfish-a">
+          <g className="jelly-float jelly-float-a">
             <path
-              d="M-30 0 Q-30 -34 0 -34 Q30 -34 30 0 Q15 8 0 0 Q-15 8 -30 0 Z"
-              fill="#d7b6ff"
+              d="M-30 0 Q-30 -32 0 -32 Q30 -32 30 0 Q15 10 0 4 Q-15 10 -30 0 Z"
+              fill="#e6b6ff"
               opacity="0.75"
             />
-            <path d="M-18 4 Q-16 34 -20 60" stroke="#d7b6ff" strokeWidth="3" fill="none" opacity="0.6" />
-            <path d="M0 6 Q2 36 -2 64" stroke="#d7b6ff" strokeWidth="3" fill="none" opacity="0.6" />
-            <path d="M18 4 Q20 34 16 60" stroke="#d7b6ff" strokeWidth="3" fill="none" opacity="0.6" />
+            <path d="M-18 4 Q-18 30 -22 55" fill="none" stroke="#e6b6ff" strokeWidth="3" opacity="0.6" />
+            <path d="M0 6 Q0 34 -3 60" fill="none" stroke="#e6b6ff" strokeWidth="3" opacity="0.6" />
+            <path d="M18 4 Q18 30 22 55" fill="none" stroke="#e6b6ff" strokeWidth="3" opacity="0.6" />
           </g>
         </g>
 
-        {/* JELLYFISH B */}
-        <g transform="translate(870, 760)" className="jellyfish jellyfish-b">
-          <g className="jelly-drift jelly-drift-b">
-            <path
-              d="M-22 0 Q-22 -26 0 -26 Q22 -26 22 0 Q11 6 0 0 Q-11 6 -22 0 Z"
-              fill="#a3e6ff"
-              opacity="0.7"
-            />
-            <path d="M-13 3 Q-11 26 -15 46" stroke="#a3e6ff" strokeWidth="2.5" fill="none" opacity="0.55" />
-            <path d="M0 4 Q1 28 -2 48" stroke="#a3e6ff" strokeWidth="2.5" fill="none" opacity="0.55" />
-            <path d="M13 3 Q15 26 11 46" stroke="#a3e6ff" strokeWidth="2.5" fill="none" opacity="0.55" />
+        {/* SMALL DEEP-SEA SCHOOL */}
+        <g transform="translate(860, 730)" className="deep-school">
+          <g className="fish-swim fish-swim-a">
+            <ellipse cx="0" cy="0" rx="16" ry="8" fill="#5f4b8c" />
+            <path d="M-14 0 L-26 -9 L-26 9 Z" fill="#443269" />
           </g>
-        </g>
-
-        {/* DEEP EEL / CÁ TẦNG SÂU */}
-        <g transform="translate(700, 795)" className="deep-fish">
-          <g className="deep-fish-swim">
-            <path
-              d="M-70 0 Q-30 -18 10 0 Q-30 18 -70 0 Z"
-              fill="#1b3a55"
-            />
-            <path d="M10 0 L38 -12 L38 12 Z" fill="#132a3e" />
-            <circle cx="-52" cy="-3" r="2.5" fill="#7ee0ff" />
+          <g className="fish-swim fish-swim-b" transform="translate(50, 20)">
+            <ellipse cx="0" cy="0" rx="12" ry="6" fill="#6e5a9c" />
+            <path d="M-10 0 L-20 -7 L-20 7 Z" fill="#4c3a78" />
+          </g>
+          <g className="fish-swim fish-swim-c" transform="translate(-40, 30)">
+            <ellipse cx="0" cy="0" rx="10" ry="5" fill="#7a659f" />
+            <path d="M-9 0 L-17 -6 L-17 6 Z" fill="#584684" />
           </g>
         </g>
       </svg>
@@ -451,6 +410,9 @@ export default function OceanScrollBackground() {
 
       {/* DEEP SEA DARKNESS */}
       <div className="ocean-deep-overlay" style={{ opacity: deepSeaOpacity }} />
+
+      {/* ABYSS - lop toi gan nhu den khi lan cuc sau */}
+      <div className="ocean-abyss-overlay" style={{ opacity: abyssOpacity }} />
 
       {/* WATER SHIMMER */}
       <div className="ocean-shimmer" />
