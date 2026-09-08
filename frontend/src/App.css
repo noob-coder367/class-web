@@ -1020,3 +1020,7 @@ body,
 .events-section {
   background: transparent !important;
 }
+/* Thêm đoạn này vào index.css hoặc App.css chính của dự án */
+html, body, #root, main, .app, .page-container {
+  background: transparent !important;
+}
