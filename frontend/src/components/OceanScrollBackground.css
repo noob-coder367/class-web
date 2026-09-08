@@ -4,6 +4,8 @@
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
+  /* Fallback so nothing breaks before the JS effect runs / on very old browsers */
+  --osb-vh: 1vh;
 }
 
 .osb-sky-layer,
@@ -13,23 +15,37 @@
   top: 0;
   left: 0;
   width: 100%;
-  height: 55vh;
+  /* Was 55vh. Uses a JS-synced px unit (fixes mobile toolbar jump / rotation)
+     and is clamped so extreme aspect ratios (ultrawide desktop, short
+     landscape phones) don't squash or blow out the scene. */
+  height: clamp(280px, calc(var(--osb-vh) * 55), 560px);
   transition: transform 0.05s linear, opacity 0.15s linear;
+  z-index: 0;
+}
+
+.osb-mountain-layer {
+  z-index: 1;
+}
+
+.osb-lighthouse-layer {
+  z-index: 2;
 }
 
 .osb-water {
   position: absolute;
-  top: 40vh;
+  top: calc(var(--osb-vh) * 40);
   left: 0;
   width: 100%;
-  height: 100vh;
-  transition: background 0.15s linear;
+  height: calc(var(--osb-vh) * 100);
+  transition: background 0.15s linear, top 0.05s linear, height 0.05s linear;
   overflow: hidden;
+  z-index: 1;
 }
 
 .osb-caustics {
   position: absolute;
   inset: 0;
+  z-index: 0;
   background:
     radial-gradient(ellipse 40% 18% at 20% 8%, rgba(255, 255, 255, 0.28), transparent 70%),
     radial-gradient(ellipse 50% 22% at 70% 12%, rgba(180, 240, 255, 0.22), transparent 72%),
@@ -49,6 +65,15 @@
   width: 100%;
   height: 36vh;
   transition: opacity 0.2s linear;
+  /* Explicit z-index (not "auto") so this ALWAYS forms its own stacking
+     context, regardless of the current opacity value. Before this fix,
+     when opacity happened to equal exactly 1 (near the top of the page),
+     no stacking context was created and the foam wave's z-index:4 leaked
+     out and rendered above the boat (z-index:3) — that was the "buồm bị
+     sóng che" bug. Now the whole wave stack is pinned at z-index:2 and its
+     internal z-index:4 on the foam layer only ever competes with its own
+     siblings inside this stack, never with the boat. */
+  z-index: 2;
 }
 
 .osb-wave {
@@ -93,6 +118,8 @@
   left: 0;
   width: 100%;
   height: 55vh;
+  /* Always above the wave stack (z-index:2), fixing the "sail hidden by
+     waves" bug for good, independent of opacity/progress. */
   z-index: 3;
   transition: transform 0.05s linear, opacity 0.15s linear;
   overflow: visible;
@@ -165,6 +192,7 @@
   width: 100%;
   height: 100%;
   transition: opacity 0.3s linear;
+  z-index: 2;
 }
 
 .osb-fish--a {
@@ -196,6 +224,68 @@
 .osb-minnow--6 { animation-delay: -0.7s; }
 .osb-minnow--7 { animation-delay: -1.4s; }
 
+/* --- New: deep-sea life (whale, shark, starfish, seaweed) --- */
+.osb-deep-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.osb-whale {
+  transition: opacity 0.4s linear;
+  animation: osb-whale-drift 22s ease-in-out infinite;
+}
+
+.osb-whale-spout {
+  animation: osb-spout 3.2s ease-in-out infinite;
+}
+
+.osb-shark {
+  transition: opacity 0.4s linear;
+  animation: osb-shark-patrol 16s ease-in-out infinite;
+}
+
+.osb-seabed {
+  transition: opacity 0.4s linear;
+}
+
+.osb-seaweed {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
+.osb-seaweed--1 {
+  animation: osb-seaweed-sway 4.4s ease-in-out infinite;
+}
+
+.osb-seaweed--2 {
+  animation: osb-seaweed-sway 5.2s ease-in-out infinite reverse;
+  animation-delay: -1.2s;
+}
+
+.osb-seaweed--3 {
+  animation: osb-seaweed-sway 3.8s ease-in-out infinite;
+  animation-delay: -0.6s;
+}
+
+.osb-starfish {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: osb-starfish-glow 3.6s ease-in-out infinite;
+}
+
+.osb-starfish--2 {
+  animation-delay: -1.1s;
+}
+
+.osb-starfish--3 {
+  animation-delay: -2s;
+}
+
 .osb-bubbles {
   position: absolute;
   bottom: 0;
@@ -203,6 +293,7 @@
   width: 100%;
   height: 60vh;
   transition: opacity 0.3s linear;
+  z-index: 3;
 }
 
 .osb-bubble {
@@ -228,6 +319,7 @@
     radial-gradient(ellipse at 30% 100%, rgba(80, 190, 255, 0.22), transparent 65%),
     radial-gradient(ellipse at 75% 90%, rgba(40, 120, 220, 0.18), transparent 60%);
   transition: opacity 0.3s linear;
+  z-index: 0;
 }
 
 @keyframes osb-wave-drift {
@@ -307,6 +399,36 @@
   100% { transform: translate(10px, -280px); opacity: 0; }
 }
 
+@keyframes osb-whale-drift {
+  0% { transform: translate(-30px, 0); }
+  50% { transform: translate(60px, -18px); }
+  100% { transform: translate(-30px, 0); }
+}
+
+@keyframes osb-spout {
+  0%, 100% { opacity: 0; transform: translateY(0); }
+  15% { opacity: 0.8; }
+  40% { opacity: 0; transform: translateY(-10px); }
+}
+
+@keyframes osb-shark-patrol {
+  0% { transform: translate(40px, 0) scaleX(0.8); }
+  48% { transform: translate(-90px, 12px) scaleX(0.8); }
+  50% { transform: translate(-90px, 12px) scaleX(-0.8); }
+  98% { transform: translate(40px, -6px) scaleX(-0.8); }
+  100% { transform: translate(40px, 0) scaleX(0.8); }
+}
+
+@keyframes osb-seaweed-sway {
+  0%, 100% { transform: skewX(-6deg); }
+  50% { transform: skewX(6deg); }
+}
+
+@keyframes osb-starfish-glow {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .osb-wave,
   .osb-boat-bob,
@@ -324,7 +446,14 @@
   .osb-fish--c,
   .osb-school,
   .osb-minnow,
-  .osb-bubble {
+  .osb-bubble,
+  .osb-whale,
+  .osb-whale-spout,
+  .osb-shark,
+  .osb-seaweed--1,
+  .osb-seaweed--2,
+  .osb-seaweed--3,
+  .osb-starfish {
     animation: none !important;
   }
 }
