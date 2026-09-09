@@ -353,6 +353,42 @@ async function ensureProfile(user) {
   return created
 }
 
+/**
+ * Nếu profile đã tồn tại nhưng username bị trigger DB / Google metadata
+ * tự gán (full_name, email local-part...), ta ép về pending để frontend
+ * vẫn hiện bảng nhập Tên hiển thị (đặc biệt sau khi admin xóa rồi login lại).
+ */
+async function forcePendingIfAutoNamed(user, profile) {
+  if (!profile || isPendingUsername(profile.username)) return profile
+
+  const isGoogle = (user.identities || []).some((i) => i.provider === 'google')
+  if (!isGoogle) return profile
+
+  const metaName = String(
+    user.user_metadata?.full_name || user.user_metadata?.name || ''
+  ).trim()
+  const emailLocal = String(user.email || '').split('@')[0]
+  const uname = String(profile.username || '').trim()
+
+  const looksAuto =
+    (metaName && uname === metaName) ||
+    (emailLocal && uname === emailLocal) ||
+    (user.email && uname === user.email)
+
+  if (!looksAuto) return profile
+
+  const placeholder = pendingUsernameFor(user.id)
+  const { data: updated, error } = await supabaseAdmin
+    .from('profiles')
+    .update({ username: placeholder })
+    .eq('id', user.id)
+    .select(PROFILE_COLUMNS)
+    .maybeSingle()
+
+  if (error || !updated) return profile
+  return updated
+}
+
 export async function getUserFromAccessToken(accessToken) {
   const { data, error } = await supabaseAdmin.auth.getUser(accessToken)
   if (error || !data?.user) return null
@@ -360,6 +396,8 @@ export async function getUserFromAccessToken(accessToken) {
   let profile = await findProfileById(data.user.id)
   if (!profile) {
     profile = await ensureProfile(data.user)
+  } else {
+    profile = await forcePendingIfAutoNamed(data.user, profile)
   }
   return { user: data.user, profile }
 }

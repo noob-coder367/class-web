@@ -17,6 +17,7 @@ export default function AdminPanel({ onClose }) {
   const [tab, setTab] = useState('users')
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     fetchUsers()
@@ -44,6 +45,7 @@ export default function AdminPanel({ onClose }) {
   }
 
   const handleToggleMember = async (userId, currentStatus) => {
+    if (deletingId) return
     try {
       await adminService.toggleMember(userId, currentStatus)
       fetchUsers()
@@ -53,6 +55,7 @@ export default function AdminPanel({ onClose }) {
   }
 
   const handleRename = async (userId, currentName) => {
+    if (deletingId) return
     const next = window.prompt(
       'Nhập tên hiển thị mới:',
       currentName || ''
@@ -67,6 +70,7 @@ export default function AdminPanel({ onClose }) {
   }
 
   const handleToggleRole = async (userId, currentRole) => {
+    if (deletingId) return
     if (userId === currentUserId && currentRole === 'admin') {
       return alert('⚠️ Bạn không thể tự gỡ quyền Admin của chính mình!')
     }
@@ -82,18 +86,22 @@ export default function AdminPanel({ onClose }) {
     if (userId === currentUserId) {
       return alert('⛔ Bạn không thể tự xóa chính tài khoản của mình!')
     }
+    if (deletingId) return
 
     const confirmDelete = window.confirm(
-      `Bạn có chắc chắn muốn xóa tài khoản "${username}"?`
+      `Bạn có chắc chắn muốn xóa tài khoản "${username || 'Chưa đặt tên'}"?`
     )
     if (!confirmDelete) return
 
+    setDeletingId(userId)
     try {
       await adminService.deleteUser(userId)
       alert('Đã xóa tài khoản thành công!')
-      fetchUsers()
+      await fetchUsers()
     } catch (err) {
       alert('Xóa tài khoản thất bại: ' + err.message)
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -160,6 +168,7 @@ export default function AdminPanel({ onClose }) {
                 <tbody>
                   {users.map((u) => {
                     const isMe = u.id === currentUserId
+                    const isDeleting = deletingId === u.id
 
                     return (
                       <tr key={u.id} className={isMe ? 'highlight-me' : ''}>
@@ -177,7 +186,7 @@ export default function AdminPanel({ onClose }) {
                         </td>
 
                         <td>
-                          <span className={`badge ${u.is_member ? 'badge-success' : 'badge-muted'}`}>
+                          <span className={`badge ${u.is_member ? 'badge-success' : 'badge-muted'`}>
                             {u.is_member ? 'Đã xác minh' : 'Chưa xác minh'}
                           </span>
                         </td>
@@ -188,6 +197,7 @@ export default function AdminPanel({ onClose }) {
                               className="btn-action btn-rename"
                               onClick={() => handleRename(u.id, u.username)}
                               title="Đổi tên hiển thị"
+                              disabled={!!deletingId}
                             >
                               Đổi tên
                             </button>
@@ -195,13 +205,14 @@ export default function AdminPanel({ onClose }) {
                             <button
                               className="btn-action btn-member"
                               onClick={() => handleToggleMember(u.id, u.is_member)}
+                              disabled={!!deletingId}
                             >
                               {u.is_member ? 'Hủy 10A4' : 'Duyệt 10A4'}
                             </button>
 
                             <button
                               className="btn-action btn-role"
-                              disabled={isMe && u.role === 'admin'}
+                              disabled={(isMe && u.role === 'admin') || !!deletingId}
                               onClick={() => handleToggleRole(u.id, u.role)}
                               title={isMe ? 'Bạn không thể tự gỡ quyền Admin của chính mình' : ''}
                             >
@@ -210,15 +221,15 @@ export default function AdminPanel({ onClose }) {
 
                             <button
                               className="btn-action btn-delete"
-                              disabled={isMe}
+                              disabled={isMe || !!deletingId}
                               onClick={() => handleDeleteUser(u.id, u.username)}
                               style={{
-                                opacity: isMe ? 0.4 : 1,
-                                cursor: isMe ? 'not-allowed' : 'pointer',
+                                opacity: isMe || isDeleting ? 0.4 : 1,
+                                cursor: isMe || isDeleting ? 'not-allowed' : 'pointer',
                               }}
-                              title={isMe ? 'Bạn không thể tự xóa chính mình' : 'Xóa tài khoản này'}
+                              title={isMe ? 'Bạn không thể tự xóa chính mình' : isDeleting ? 'Đang xóa...' : 'Xóa tài khoản này'}
                             >
-                              {isMe ? 'Chính bạn' : 'Xóa'}
+                              {isMe ? 'Chính bạn' : isDeleting ? 'Đang xóa...' : 'Xóa'}
                             </button>
                           </div>
                         </td>

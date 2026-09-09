@@ -49,25 +49,20 @@ export async function deleteUser(targetUserId, requesterId) {
     throw new AppError('Bạn không thể tự xóa chính tài khoản của mình!')
   }
 
-  const { error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .delete()
-    .eq('id', targetUserId)
-
-  if (profileError) {
-    throw new AppError('Xóa tài khoản thất bại: ' + profileError.message, 500)
-  }
-
-  // Xóa luôn user bên Supabase Auth (yêu cầu service role key).
+  // Xóa Auth user trước (nếu bảng profiles có ON DELETE CASCADE thì profile cũng mất luôn).
+  // Cách này tránh trạng thái "đã xóa profile nhưng còn Auth" và thường nhanh hơn.
   const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(
     targetUserId
   )
 
   if (authError) {
     throw new AppError(
-      'Đã xóa hồ sơ nhưng xóa tài khoản đăng nhập thất bại: ' +
-        authError.message,
+      'Xóa tài khoản đăng nhập thất bại: ' + authError.message,
       500
     )
   }
+
+  // Dọn profile nếu còn sót (trường hợp không có cascade).
+  // Không ném lỗi nếu đã bị cascade xóa rồi.
+  await supabaseAdmin.from('profiles').delete().eq('id', targetUserId)
 }
