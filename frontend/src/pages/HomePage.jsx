@@ -19,7 +19,7 @@ const NAV_LINKS = [
   { href: '#gioi-thieu', label: 'Giới thiệu' },
   { href: '#giao-vien', label: 'Giáo viên' },
   { href: '#anh-lop', label: 'Ảnh lớp' },
-  { href: '#thong-bao', label: 'Thông báo' },
+  { href: '#thong-bao', label: 'Trò chuyện' },
 ]
 
 const PHOTO_PLACEHOLDER_COUNT = 6
