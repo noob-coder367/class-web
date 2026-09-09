@@ -658,7 +658,7 @@ export default function HomePage() {
           </p>
 
           <h2>
-            Thông báo
+            Trò chuyện
           </h2>
 
           <form
