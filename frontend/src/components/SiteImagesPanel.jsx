@@ -3,12 +3,16 @@ import * as adminService from '../services/adminService.js'
 
 const EMPTY = { teacher: [], hero: [], gallery: [] }
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const MAX_EDGE = 1920
+const JPEG_QUALITY = 0.82
+const SKIP_COMPRESS_UNDER = 400 * 1024
 
 export default function SiteImagesPanel() {
   const [images, setImages] = useState(EMPTY)
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(null)
+  const [uploadStage, setUploadStage] = useState('upload')
   const [captionDraft, setCaptionDraft] = useState({})
   const inputRefs = useRef({})
 
@@ -49,13 +53,16 @@ export default function SiteImagesPanel() {
     }
 
     setUploading(categoryId)
+    setUploadStage('compress')
     try {
-      const contentBase64 = await readAsDataUrl(file)
+      const prepared = await prepareImageForUpload(file)
+      setUploadStage('upload')
+      const contentBase64 = await readAsDataUrl(prepared)
       const data = await adminService.uploadSiteImage({
         category: categoryId,
-        filename: file.name,
+        filename: prepared.name,
         contentBase64,
-        mimeType: file.type,
+        mimeType: prepared.type,
         caption: captionDraft[categoryId] || '',
       })
       setImages(data.images || EMPTY)
@@ -65,6 +72,7 @@ export default function SiteImagesPanel() {
       alert(err.message || 'Không tải được ảnh lên GitHub.')
     } finally {
       setUploading(null)
+      setUploadStage('upload')
       if (inputRefs.current[categoryId]) inputRefs.current[categoryId].value = ''
     }
   }
@@ -88,10 +96,10 @@ export default function SiteImagesPanel() {
   return (
     <div className="site-images-panel">
       <p className="site-images-intro">
-        Ảnh được lưu trực tiếp vào repo GitHub <strong>class-web</strong>
-        {' '}(thư mục <code>frontend/public/images</code>). Trang chủ sẽ hiện
-        ảnh mới ngay sau khi thêm, không cần sửa code. Mỗi ảnh tối đa 10MB
-        (JPG, PNG, WEBP, GIF).
+        Ảnh được lưu <strong>vĩnh viễn</strong> trong repo GitHub{' '}
+        <strong>class-web</strong> (thư mục <code>frontend/public/images</code>),
+        cho đến khi admin bấm Xóa. Ảnh camera sẽ được nén trước khi tải lên
+        để nhanh hơn. Trang chủ hiện ảnh mới ngay sau khi thêm.
       </p>
 
       {categories.map((cat) => {
@@ -156,7 +164,11 @@ export default function SiteImagesPanel() {
                     disabled={busy}
                     onClick={() => handlePick(cat.id)}
                   >
-                    {busy ? 'Đang tải lên GitHub…' : 'Thêm ảnh'}
+                    {busy
+                      ? uploadStage === 'compress'
+                        ? 'Đang nén ảnh…'
+                        : 'Đang tải lên GitHub…'
+                      : 'Thêm ảnh'}
                   </button>
                 </div>
               )}
@@ -175,4 +187,81 @@ function readAsDataUrl(file) {
     reader.onerror = () => reject(new Error('Không đọc được file ảnh.'))
     reader.readAsDataURL(file)
   })
+}
+
+async function prepareImageForUpload(file) {
+  if (file.type === 'image/gif') return file
+  if (file.size <= SKIP_COMPRESS_UNDER) return file
+
+  try {
+    const compressed = await compressToJpeg(file)
+    if (compressed && compressed.size > 0 && compressed.size < file.size) {
+      return compressed
+    }
+  } catch (err) {
+    console.warn('Không nén được ảnh, gửi file gốc.', err)
+  }
+  return file
+}
+
+async function compressToJpeg(file) {
+  const source = await loadImageSource(file)
+  try {
+    const scale = Math.min(1, MAX_EDGE / Math.max(source.width, source.height, 1))
+    const width = Math.max(1, Math.round(source.width * scale))
+    const height = Math.max(1, Math.round(source.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d', { alpha: false })
+    if (!ctx) throw new Error('Canvas không khả dụng.')
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, width, height)
+    source.draw(ctx, width, height)
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (result) => (result ? resolve(result) : reject(new Error('Không nén được ảnh.'))),
+        'image/jpeg',
+        JPEG_QUALITY
+      )
+    })
+    const base = String(file.name || 'anh').replace(/\.[a-z0-9]+$/i, '') || 'anh'
+    return new File([blob], `${base}.jpg`, { type: 'image/jpeg', lastModified: Date.now() })
+  } finally {
+    source.close()
+  }
+}
+
+async function loadImageSource(file) {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(file)
+      return {
+        width: bitmap.width,
+        height: bitmap.height,
+        draw: (ctx, width, height) => ctx.drawImage(bitmap, 0, 0, width, height),
+        close: () => bitmap.close?.(),
+      }
+    } catch {
+      // Safari/iPad đôi khi fail createImageBitmap — fallback Image.
+    }
+  }
+
+  const url = URL.createObjectURL(file)
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const el = new Image()
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error('Không đọc được ảnh.'))
+      el.src = url
+    })
+    return {
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      draw: (ctx, width, height) => ctx.drawImage(image, 0, 0, width, height),
+      close: () => {},
+    }
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }
