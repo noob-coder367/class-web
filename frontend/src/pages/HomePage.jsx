@@ -42,6 +42,7 @@ export default function HomePage() {
   const [showAuth, setShowAuth] = useState(false)
   const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [authLoading, setAuthLoading] = useState(false)
+  const [authInitialStep, setAuthInitialStep] = useState('login')
   const [activeSection, setActiveSection] = useState('trang-chu')
 
   const [announcements, setAnnouncements] = useState([])
@@ -51,6 +52,7 @@ export default function HomePage() {
   const [submitting, setSubmitting] = useState(false)
 
   const openAuth = (step = 'login') => {
+    setAuthInitialStep(step === 'register' ? 'register' : 'login')
     setShowAuth(true)
   }
 
@@ -142,7 +144,12 @@ export default function HomePage() {
 
   return (
     <div className={`page ${showAuth ? 'no-scroll' : ''}`}>
-      {showAuth && <AuthPage onClose={() => setShowAuth(false)} />}
+      {showAuth && (
+        <AuthPage
+          initialStep={authInitialStep}
+          onClose={() => setShowAuth(false)}
+        />
+      )}
 
       {/* =====================================================
           NAVIGATION
