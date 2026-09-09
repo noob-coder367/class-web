@@ -33,6 +33,8 @@ export default function EventsSection({ profile }) {
   const [showNotifyMenu, setShowNotifyMenu] = useState(false)
 
   const [expiresAt, setExpiresAt] = useState('')
+  const [editingExpiryId, setEditingExpiryId] = useState(null)
+  const [editExpiresAt, setEditExpiresAt] = useState('')
 
   const fileInputRef = useRef(null)
 
@@ -324,6 +326,44 @@ if (expiresAt && new Date(expiresAt) <= new Date()) {
       prev.filter((e) => e.id !== eventId)
     )
   }
+  const startEditExpiry = (event) => {
+  if (!isAdmin) return
+  setEditingExpiryId(event.id)
+  setEditExpiresAt(
+    event.expires_at
+      ? new Date(event.expires_at).toISOString().slice(0, 16)
+      : ''
+  )
+}
+
+const cancelEditExpiry = () => {
+  setEditingExpiryId(null)
+  setEditExpiresAt('')
+}
+
+const handleUpdateExpiry = async (eventId) => {
+  if (!isAdmin) return
+  if (editExpiresAt && new Date(editExpiresAt) <= new Date()) {
+    return alert('Thời gian tự xóa phải lớn hơn thời gian hiện tại!')
+  }
+  const { error } = await supabase
+    .from('events')
+    .update({
+      expires_at: editExpiresAt ? new Date(editExpiresAt).toISOString() : null,
+    })
+    .eq('id', eventId)
+  if (error) {
+    return alert('Cập nhật thời gian tự xóa thất bại: ' + error.message)
+  }
+  setEvents((prev) =>
+    prev.map((e) =>
+      e.id === eventId
+        ? { ...e, expires_at: editExpiresAt ? new Date(editExpiresAt).toISOString() : null }
+        : e
+    )
+  )
+  cancelEditExpiry()
+}
 
   /* =====================================================
      RENDER
@@ -429,7 +469,7 @@ if (expiresAt && new Date(expiresAt) <= new Date()) {
                       )}
                     </span>
 
-                    {event.expires_at && (
+                    {event.expires_at && editingExpiryId !== event.id && (
                       <span className="event-meta-info">
                         Tự xóa:{' '}
                         {new Date(
@@ -439,6 +479,32 @@ if (expiresAt && new Date(expiresAt) <= new Date()) {
                         )}
                       </span>
                     )}
+                    {isAdmin && editingExpiryId === event.id ? (
+  <span className="expire-picker">
+    <input
+      type="datetime-local"
+      value={editExpiresAt}
+      onChange={(e) => setEditExpiresAt(e.target.value)}
+    />
+    <button type="button" className="btn-action btn-member" onClick={() => handleUpdateExpiry(event.id)}>
+      Lưu
+    </button>
+    <button type="button" className="btn-action" onClick={cancelEditExpiry}>
+      Hủy
+    </button>
+  </span>
+) : (
+  isAdmin && (
+    <button
+      type="button"
+      className="btn-action btn-rename"
+      onClick={() => startEditExpiry(event)}
+      title="Đổi thời gian tự xóa"
+    >
+      Đổi giờ tự xóa
+    </button>
+  )
+)}
 
                     {isAdmin && (
                       <button
