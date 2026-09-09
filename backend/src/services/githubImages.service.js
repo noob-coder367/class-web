@@ -1,4 +1,4 @@
-import { env } from '../config/env.js'
+import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
 
 export const IMAGE_CATEGORIES = {
@@ -25,8 +25,8 @@ export const IMAGE_CATEGORIES = {
   },
 }
 
-const IMAGES_ROOT = 'frontend/public/images'
-const MANIFEST_PATH = `${IMAGES_ROOT}/manifest.json`
+const BUCKET = 'site-images'
+const MANIFEST_PATH = 'manifest.json'
 const ALLOWED_MIME = {
   'image/jpeg': 'jpg',
   'image/jpg': 'jpg',
@@ -40,107 +40,48 @@ function emptyManifest() {
   return { teacher: [], hero: [], gallery: [] }
 }
 
-function githubHeaders(includeJson = false) {
-  const headers = {
-    Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-    'User-Agent': 'class-web-admin',
-  }
-  if (env.GITHUB_TOKEN) {
-    headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`
-  }
-  if (includeJson) headers['Content-Type'] = 'application/json'
-  return headers
-}
-
-function requireGithubWrite() {
-  if (!env.GITHUB_TOKEN) {
-    throw new AppError(
-      'Chưa cấu hình GITHUB_TOKEN trên backend. Thêm token (quyền contents:write) vào backend/.env để admin có thể thêm/xóa ảnh trên GitHub.',
-      503
-    )
+async function ensureBucket() {
+  const { data } = await supabaseAdmin.storage.getBucket(BUCKET)
+  if (!data) {
+    const { error } = await supabaseAdmin.storage.createBucket(BUCKET, {
+      public: true,
+      fileSizeLimit: MAX_BYTES,
+    })
+    if (error && !/already exists|duplicate|exists/i.test(error.message || '')) {
+      throw new AppError('Không tạo được kho ảnh: ' + error.message, 502)
+    }
+  } else if (data.public === false) {
+    await supabaseAdmin.storage.updateBucket(BUCKET, { public: true })
   }
 }
 
-function contentsUrl(filePath) {
-  const encoded = filePath
-    .split('/')
-    .map((part) => encodeURIComponent(part))
-    .join('/')
-  return `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${encoded}`
+function publicFileUrl(filePath) {
+  const { data } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(filePath)
+  return data?.publicUrl || ''
 }
 
-function publicFileUrl(filePath, sha) {
-  const ref = sha || env.GITHUB_BRANCH
-  return `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/${ref}/${filePath}`
-}
-
-async function githubJson(url, options = {}) {
-  const res = await fetch(url, options)
-  let data = null
-  try {
-    data = await res.json()
-  } catch {
-    data = null
-  }
-  return { res, data }
-}
-
-async function getFile(filePath) {
-  const url = `${contentsUrl(filePath)}?ref=${encodeURIComponent(env.GITHUB_BRANCH)}`
-  const { res, data } = await githubJson(url, { headers: githubHeaders() })
-  if (res.status === 404) return null
-  if (!res.ok) {
-    const message = data?.message || `GitHub API ${res.status}`
-    throw new AppError('Không đọc được file trên GitHub: ' + message, 502)
-  }
-  return data
-}
-
-async function putFile(filePath, { contentBase64, message, sha }) {
-  requireGithubWrite()
-  const body = {
-    message,
-    content: contentBase64,
-    branch: env.GITHUB_BRANCH,
-  }
-  if (sha) body.sha = sha
-
-  const { res, data } = await githubJson(contentsUrl(filePath), {
-    method: 'PUT',
-    headers: githubHeaders(true),
-    body: JSON.stringify(body),
+function withPublicUrls(manifest) {
+  const mapItem = (item) => ({
+    ...item,
+    url: publicFileUrl(item.path),
   })
-
-  if (!res.ok) {
-    const messageText = data?.message || `GitHub API ${res.status}`
-    throw new AppError('Không ghi được file lên GitHub: ' + messageText, 502)
-  }
-  return data
-}
-
-async function deleteFile(filePath, { sha, message }) {
-  requireGithubWrite()
-  const { res, data } = await githubJson(contentsUrl(filePath), {
-    method: 'DELETE',
-    headers: githubHeaders(true),
-    body: JSON.stringify({
-      message,
-      sha,
-      branch: env.GITHUB_BRANCH,
-    }),
-  })
-  if (res.status === 404) return
-  if (!res.ok) {
-    const messageText = data?.message || `GitHub API ${res.status}`
-    throw new AppError('Không xóa được file trên GitHub: ' + messageText, 502)
+  return {
+    teacher: (manifest.teacher || []).map(mapItem),
+    hero: (manifest.hero || []).map(mapItem),
+    gallery: (manifest.gallery || []).map(mapItem),
   }
 }
 
-function decodeManifestContent(file) {
-  if (!file?.content) return emptyManifest()
-  const text = Buffer.from(file.content.replace(/\n/g, ''), 'base64').toString('utf8')
+async function readManifest() {
+  const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(MANIFEST_PATH)
+  if (error || !data) {
+    if (error && !/not found|does not exist/i.test(error.message || '')) {
+      // Bucket rỗng / chưa có manifest là bình thường.
+    }
+    return emptyManifest()
+  }
   try {
+    const text = await data.text()
     const parsed = JSON.parse(text)
     return {
       teacher: Array.isArray(parsed.teacher) ? parsed.teacher : [],
@@ -152,35 +93,17 @@ function decodeManifestContent(file) {
   }
 }
 
-function withPublicUrls(manifest) {
-  const mapItem = (item) => ({
-    ...item,
-    url: publicFileUrl(item.path, item.sha),
-  })
-  return {
-    teacher: (manifest.teacher || []).map(mapItem),
-    hero: (manifest.hero || []).map(mapItem),
-    gallery: (manifest.gallery || []).map(mapItem),
+async function writeManifest(manifest) {
+  const body = Buffer.from(JSON.stringify(manifest, null, 2) + '\n', 'utf8')
+  const { error } = await supabaseAdmin.storage
+    .from(BUCKET)
+    .upload(MANIFEST_PATH, body, {
+      contentType: 'application/json',
+      upsert: true,
+    })
+  if (error) {
+    throw new AppError('Không lưu được danh sách ảnh: ' + error.message, 502)
   }
-}
-
-export async function listSiteImages() {
-  const file = await getFile(MANIFEST_PATH)
-  if (!file) return withPublicUrls(emptyManifest())
-  return withPublicUrls(decodeManifestContent(file))
-}
-
-async function readManifestRecord() {
-  const file = await getFile(MANIFEST_PATH)
-  if (!file) return { sha: null, manifest: emptyManifest() }
-  return { sha: file.sha, manifest: decodeManifestContent(file) }
-}
-
-async function writeManifest(manifest, sha, message) {
-  const contentBase64 = Buffer.from(JSON.stringify(manifest, null, 2) + '\n', 'utf8').toString(
-    'base64'
-  )
-  return putFile(MANIFEST_PATH, { contentBase64, message, sha })
 }
 
 function sanitizeFilename(name, ext) {
@@ -198,6 +121,11 @@ function stripDataUrl(contentBase64) {
   const raw = String(contentBase64 || '').trim()
   const match = raw.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/)
   return match ? match[1] : raw.replace(/\s+/g, '')
+}
+
+export async function listSiteImages() {
+  await ensureBucket()
+  return withPublicUrls(await readManifest())
 }
 
 export async function uploadSiteImage({ category, filename, contentBase64, mimeType, caption }) {
@@ -223,7 +151,8 @@ export async function uploadSiteImage({ category, filename, contentBase64, mimeT
     throw new AppError('Ảnh tối đa 10MB. Hãy nén hoặc chọn ảnh nhỏ hơn.')
   }
 
-  const { sha: manifestSha, manifest } = await readManifestRecord()
+  await ensureBucket()
+  const manifest = await readManifest()
   if ((manifest[category] || []).length >= meta.max) {
     throw new AppError(
       `Nhóm "${meta.label}" đã đủ ${meta.max} ảnh. Xóa bớt rồi thêm lại.`
@@ -231,72 +160,64 @@ export async function uploadSiteImage({ category, filename, contentBase64, mimeT
   }
 
   const safeName = sanitizeFilename(filename, ext)
-  const filePath = `${IMAGES_ROOT}/${meta.dir}/${safeName}`
+  const filePath = `${meta.dir}/${safeName}`
 
-  const saved = await putFile(filePath, {
-    contentBase64: pure,
-    message: `admin: thêm ${meta.label} ${safeName}`,
-  })
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from(BUCKET)
+    .upload(filePath, bytes, {
+      contentType: String(mimeType || 'image/jpeg').toLowerCase(),
+      upsert: false,
+    })
+  if (uploadError) {
+    throw new AppError('Không tải được ảnh lên: ' + uploadError.message, 502)
+  }
 
   const item = {
     name: safeName,
     path: filePath,
     caption: String(caption || '').trim().slice(0, 120),
-    sha: saved.content?.sha || saved.commit?.sha || '',
     category,
   }
 
   if (category === 'hero') {
+    const old = (manifest.hero || [])[0]
+    if (old?.path && old.path !== filePath) {
+      await supabaseAdmin.storage.from(BUCKET).remove([old.path])
+    }
     manifest.hero = [item]
   } else {
     manifest[category] = [...(manifest[category] || []), item]
   }
 
-  await writeManifest(
-    manifest,
-    manifestSha,
-    `admin: cập nhật danh sách ảnh (${meta.label})`
-  )
-
+  await writeManifest(manifest)
   return withPublicUrls(manifest)
 }
 
 export async function deleteSiteImage(filePath) {
   const path = String(filePath || '')
-  if (!path.startsWith(`${IMAGES_ROOT}/`)) {
+  if (!path || path === MANIFEST_PATH || path.includes('..')) {
     throw new AppError('Đường dẫn ảnh không hợp lệ.')
   }
-  if (path === MANIFEST_PATH) {
-    throw new AppError('Không được xóa file danh sách ảnh.')
-  }
-
-  const { sha: manifestSha, manifest } = await readManifestRecord()
-  let found = null
-  for (const key of Object.keys(IMAGE_CATEGORIES)) {
-    const hit = (manifest[key] || []).find((item) => item.path === path)
-    if (hit) {
-      found = hit
-      manifest[key] = manifest[key].filter((item) => item.path !== path)
-      break
-    }
-  }
-
-  const remote = await getFile(path)
-  if (remote?.sha) {
-    await deleteFile(path, {
-      sha: remote.sha,
-      message: `admin: xóa ảnh ${path.split('/').pop()}`,
-    })
-  } else if (!found) {
-    throw new AppError('Không tìm thấy ảnh này trên GitHub.', 404)
-  }
-
-  await writeManifest(
-    manifest,
-    manifestSha,
-    `admin: cập nhật danh sách ảnh sau khi xóa`
+  const allowed = Object.values(IMAGE_CATEGORIES).some((meta) =>
+    path.startsWith(`${meta.dir}/`)
   )
+  if (!allowed) throw new AppError('Đường dẫn ảnh không hợp lệ.')
 
+  await ensureBucket()
+  const manifest = await readManifest()
+  let found = false
+  for (const key of Object.keys(IMAGE_CATEGORIES)) {
+    const next = (manifest[key] || []).filter((item) => item.path !== path)
+    if (next.length !== (manifest[key] || []).length) found = true
+    manifest[key] = next
+  }
+
+  const { error } = await supabaseAdmin.storage.from(BUCKET).remove([path])
+  if (error && !found) {
+    throw new AppError('Không tìm thấy ảnh này.', 404)
+  }
+
+  await writeManifest(manifest)
   return withPublicUrls(manifest)
 }
 

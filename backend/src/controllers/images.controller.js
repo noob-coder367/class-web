@@ -28,7 +28,7 @@ export async function postAdminImage(req, res, next) {
       mimeType,
       caption,
     })
-    res.status(201).json({ message: 'Đã thêm ảnh lên GitHub.', images })
+    res.status(201).json({ message: 'Đã thêm ảnh.', images })
   } catch (err) {
     next(err)
   }
@@ -38,7 +38,7 @@ export async function deleteAdminImage(req, res, next) {
   try {
     const path = req.body?.path || req.query?.path
     const images = await githubImages.deleteSiteImage(path)
-    res.json({ message: 'Đã xóa ảnh trên GitHub.', images })
+    res.json({ message: 'Đã xóa ảnh.', images })
   } catch (err) {
     next(err)
   }

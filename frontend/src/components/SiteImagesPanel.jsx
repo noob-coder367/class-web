@@ -23,7 +23,7 @@ export default function SiteImagesPanel() {
       setImages(data.images || EMPTY)
       setCategories(data.categories || [])
     } catch (err) {
-      alert(err.message || 'Không tải được danh sách ảnh trên GitHub.')
+      alert(err.message || 'Không tải được danh sách ảnh.')
     } finally {
       setLoading(false)
     }
@@ -69,7 +69,7 @@ export default function SiteImagesPanel() {
       setCaptionDraft((prev) => ({ ...prev, [categoryId]: '' }))
       notifyHome()
     } catch (err) {
-      alert(err.message || 'Không tải được ảnh lên GitHub.')
+      alert(err.message || 'Không tải được ảnh lên.')
     } finally {
       setUploading(null)
       setUploadStage('upload')
@@ -78,7 +78,7 @@ export default function SiteImagesPanel() {
   }
 
   const handleDelete = async (item) => {
-    const ok = window.confirm(`Xóa ảnh "${item.caption || item.name}" khỏi GitHub?`)
+    const ok = window.confirm(`Xóa ảnh "${item.caption || item.name}"?`)
     if (!ok) return
     try {
       const data = await adminService.deleteSiteImage(item.path)
@@ -90,16 +90,16 @@ export default function SiteImagesPanel() {
   }
 
   if (loading) {
-    return <p className="loading-text">Đang tải ảnh từ GitHub…</p>
+    return <p className="loading-text">Đang tải danh sách ảnh…</p>
   }
 
   return (
     <div className="site-images-panel">
       <p className="site-images-intro">
-        Ảnh được lưu <strong>vĩnh viễn</strong> trong repo GitHub{' '}
-        <strong>class-web</strong> (thư mục <code>frontend/public/images</code>),
-        cho đến khi admin bấm Xóa. Ảnh camera sẽ được nén trước khi tải lên
-        để nhanh hơn. Trang chủ hiện ảnh mới ngay sau khi thêm.
+        Ảnh được lưu <strong>vĩnh viễn</strong> trên hệ thống, cho đến khi
+        admin bấm Xóa. Ảnh camera sẽ được nén trước khi tải lên để nhanh hơn.
+        Trang chủ hiện ảnh mới ngay sau khi thêm. Mỗi ảnh tối đa 10MB
+        (JPG, PNG, WEBP, GIF).
       </p>
 
       {categories.map((cat) => {
@@ -167,7 +167,7 @@ export default function SiteImagesPanel() {
                     {busy
                       ? uploadStage === 'compress'
                         ? 'Đang nén ảnh…'
-                        : 'Đang tải lên GitHub…'
+                        : 'Đang tải ảnh lên…'
                       : 'Thêm ảnh'}
                   </button>
                 </div>

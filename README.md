@@ -104,17 +104,9 @@ Admin mở **Quản lý Admin → tab Ảnh website** để thêm/xóa:
 - Ảnh lớp trên banner trang chủ
 - Ảnh gallery (kỷ niệm)
 
-Ảnh được commit vào GitHub `frontend/public/images/` (kèm `manifest.json`).
-Trang chủ đọc `GET /api/images` nên ảnh mới hiện ngay, không cần sửa JSX.
-
-Cần thêm vào `backend/.env`:
-
-```
-GITHUB_TOKEN=ghp_...          # PAT, quyền Contents: Read and write
-GITHUB_OWNER=noob-coder367
-GITHUB_REPO=class-web
-GITHUB_BRANCH=main
-```
+Ảnh được lưu trên **Supabase Storage** (bucket `site-images`), nên trang chủ
+hiện ảnh mới ngay, không cần token GitHub. Admin thêm/xóa từ
+**Quản lý Admin → tab Ảnh website**.
 
 Bảng đăng nhập/đăng ký: bấm ra ngoài khung (hoặc phím Esc) để đóng.
 
