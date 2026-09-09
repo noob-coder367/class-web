@@ -78,6 +78,20 @@ export async function resetPassword(req, res, next) {
 }
 
 export async function me(req, res) {
-  // req.profile được gắn sẵn bởi middleware requireAuth
-  res.json({ profile: req.profile })
+  // req.profile được gắn sẵn bởi middleware requireAuth (raw).
+  // Trả bản public để frontend biết cần hiện bảng TÊN HIỂN THỊ.
+  res.json({ profile: authService.toPublicProfile(req.profile) })
+}
+
+export async function setDisplayName(req, res, next) {
+  try {
+    const { username } = req.body
+    const profile = await authService.setDisplayName(req.profile.id, username)
+    res.json({
+      message: 'Đã lưu tên hiển thị.',
+      profile,
+    })
+  } catch (err) {
+    next(err)
+  }
 }

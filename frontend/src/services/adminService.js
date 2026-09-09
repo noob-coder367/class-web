@@ -5,6 +5,14 @@ export async function getUsers() {
   return data.users
 }
 
+export async function updateUsername(userId, username) {
+  return apiClient.patch(
+    `/admin/users/${userId}/username`,
+    { username },
+    { auth: true }
+  )
+}
+
 export async function toggleMember(userId, currentStatus) {
   return apiClient.patch(
     `/admin/users/${userId}/member`,

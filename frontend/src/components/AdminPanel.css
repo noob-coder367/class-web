@@ -134,6 +134,7 @@
 .btn-member { background: #3b82f6; color: #fff; }
 .btn-role { background: #f59e0b; color: #fff; }
 .btn-delete { background: #ef4444; color: #fff; }
+.btn-rename { background: #64748b; color: #fff; }
 
 .btn-action:disabled {
   background: #475569 !important;
@@ -143,6 +144,8 @@
 
 /* Badges / Tag */
 .tag-me { color: #38bdf8; font-size: 0.8rem; }
+.tag-pending { color: #fbbf24; font-size: 0.75rem; font-weight: 600; }
+.username-pending { color: #94a3b8; font-style: italic; font-weight: 500; }
 .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
 .badge-admin { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
 .badge-user { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }

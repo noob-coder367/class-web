@@ -80,6 +80,14 @@ export default function HomePage() {
   }
 
   useEffect(() => {
+    if (!authReady) return
+    if (profile?.needs_display_name) {
+      setAuthInitialStep('display-name')
+      setShowAuth(true)
+    }
+  }, [authReady, profile?.needs_display_name])
+
+  useEffect(() => {
     fetchAnnouncements()
     loadSiteImages()
 
@@ -174,6 +182,7 @@ export default function HomePage() {
     <div className={`page ${showAuth ? 'no-scroll' : ''}`}>
       {showAuth && (
         <AuthPage
+          key={authInitialStep}
           initialStep={authInitialStep}
           onClose={() => setShowAuth(false)}
         />

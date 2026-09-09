@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
-import { AppError } from './auth.service.js'
+import { AppError, setDisplayName, toPublicProfile } from './auth.service.js'
 
 /**
  * Toàn bộ thao tác quản trị (trước đây gọi thẳng từ AdminPanel.jsx
@@ -14,7 +14,11 @@ export async function listUsers() {
     .order('created_at', { ascending: false })
 
   if (error) throw new AppError('Không thể tải danh sách tài khoản!', 500)
-  return data || []
+  return (data || []).map(toPublicProfile)
+}
+
+export async function updateUsername(targetUserId, rawName) {
+  return setDisplayName(targetUserId, rawName)
 }
 
 export async function toggleMember(targetUserId, currentStatus) {

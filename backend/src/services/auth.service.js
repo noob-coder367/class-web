@@ -9,6 +9,7 @@ import { env } from '../config/env.js'
  *  - Gửi / xác thực OTP
  *  - Đăng nhập bằng username (tra email) + mật khẩu
  *  - Đổi mật khẩu
+ *  - Đặt tên hiển thị cho user Google lần đầu
  */
 
 export class AppError extends Error {
@@ -18,14 +19,52 @@ export class AppError extends Error {
   }
 }
 
+const PENDING_USERNAME_PREFIX = 'pending:'
+const PROFILE_COLUMNS = 'id, username, email, is_member, role, created_at'
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+export function isPendingUsername(username) {
+  return !username || String(username).startsWith(PENDING_USERNAME_PREFIX)
+}
+
+export function pendingUsernameFor(userId) {
+  return `${PENDING_USERNAME_PREFIX}${userId}`
+}
+
+export function toPublicProfile(profile) {
+  if (!profile) return null
+  const pending = isPendingUsername(profile.username)
+  return {
+    id: profile.id,
+    username: pending ? '' : profile.username,
+    email: profile.email,
+    is_member: profile.is_member,
+    role: profile.role,
+    created_at: profile.created_at,
+    needs_display_name: pending,
+  }
+}
+
+export function normalizeDisplayName(raw) {
+  const name = String(raw || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+  if (!name) throw new AppError('Vui lòng nhập tên hiển thị!')
+  if (name.length < 2) throw new AppError('Tên hiển thị phải có ít nhất 2 ký tự!')
+  if (name.length > 40) throw new AppError('Tên hiển thị tối đa 40 ký tự!')
+  if (name.toLowerCase().startsWith(PENDING_USERNAME_PREFIX)) {
+    throw new AppError('Tên hiển thị không hợp lệ!')
+  }
+  return name
+}
+
 async function findProfileByUsername(username) {
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('id, username, email, is_member, role')
+    .select(PROFILE_COLUMNS)
     .eq('username', username.trim())
     .maybeSingle()
 
@@ -36,7 +75,7 @@ async function findProfileByUsername(username) {
 async function findProfileById(userId) {
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('id, username, email, is_member, role')
+    .select(PROFILE_COLUMNS)
     .eq('id', userId)
     .maybeSingle()
 
@@ -55,10 +94,9 @@ export async function registerUser({
   isMember,
   secretCode,
 }) {
-  const cleanUsername = (username || '').trim()
+  const cleanUsername = normalizeDisplayName(username)
   const cleanEmail = (email || '').trim().toLowerCase()
 
-  if (!cleanUsername) throw new AppError('Vui lòng nhập username!')
   if (!cleanEmail) throw new AppError('Vui lòng nhập email!')
   if (!password || password.length < 8) {
     throw new AppError('Mật khẩu phải có ít nhất 8 ký tự!')
@@ -141,7 +179,7 @@ export async function verifyOtp({ email, otp, purpose }) {
 
   if (purpose === 'register') {
     const profile = await findProfileById(data.user.id)
-    return { profile, session: data.session }
+    return { profile: toPublicProfile(profile), session: data.session }
   }
 
   // purpose === 'reset' -> chỉ cần xác nhận OTP hợp lệ, trả về session tạm
@@ -170,9 +208,12 @@ export async function loginUser({ username, password }) {
   const cleanUsername = (username || '').trim()
   if (!cleanUsername) throw new AppError('Vui lòng nhập username!')
   if (!password) throw new AppError('Vui lòng nhập mật khẩu!')
+  if (isPendingUsername(cleanUsername)) {
+    throw new AppError('Username hoặc mật khẩu không chính xác!')
+  }
 
   const profile = await findProfileByUsername(cleanUsername)
-  if (!profile?.email) {
+  if (!profile?.email || isPendingUsername(profile.username)) {
     throw new AppError('Username hoặc mật khẩu không chính xác!')
   }
 
@@ -185,7 +226,7 @@ export async function loginUser({ username, password }) {
     throw new AppError('Username hoặc mật khẩu không chính xác!')
   }
 
-  return { session: data.session, profile }
+  return { session: data.session, profile: toPublicProfile(profile) }
 }
 
 // ---------------------------------------------------------------------------
@@ -195,9 +236,14 @@ export async function loginUser({ username, password }) {
 export async function forgotPassword({ username }) {
   const cleanUsername = (username || '').trim()
   if (!cleanUsername) throw new AppError('Vui lòng nhập username!')
+  if (isPendingUsername(cleanUsername)) {
+    throw new AppError('Không tìm thấy tài khoản!')
+  }
 
   const profile = await findProfileByUsername(cleanUsername)
-  if (!profile?.email) throw new AppError('Không tìm thấy tài khoản!')
+  if (!profile?.email || isPendingUsername(profile.username)) {
+    throw new AppError('Không tìm thấy tài khoản!')
+  }
 
   const { error } = await supabaseAdmin.auth.signInWithOtp({
     email: profile.email,
@@ -243,37 +289,57 @@ export async function resetPassword({ email, otp, newPassword }) {
 }
 
 // ---------------------------------------------------------------------------
+// Display name (Google lần đầu + Admin đổi tên)
+// ---------------------------------------------------------------------------
+
+export async function setDisplayName(userId, rawName) {
+  const cleanUsername = normalizeDisplayName(rawName)
+  const existing = await findProfileByUsername(cleanUsername)
+  if (existing && existing.id !== userId) {
+    throw new AppError('Tên hiển thị này đã được sử dụng!')
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .update({ username: cleanUsername })
+    .eq('id', userId)
+    .select(PROFILE_COLUMNS)
+    .maybeSingle()
+
+  if (error) {
+    throw new AppError('Không thể lưu tên hiển thị: ' + error.message, 500)
+  }
+  if (!data) throw new AppError('Không tìm thấy hồ sơ.', 404)
+  return toPublicProfile(data)
+}
+
+// ---------------------------------------------------------------------------
 // Current user (dùng bởi middleware auth)
 // ---------------------------------------------------------------------------
 
 /**
- * Đăng ký bằng username/password (registerUser) là nơi DUY NHẤT từng tạo
- * dòng trong bảng `profiles`. Đăng nhập Google (OAuth) chỉ tạo user bên
- * auth.users, KHÔNG tạo profile tương ứng -> mọi user Google lần đầu sẽ
- * không có profile -> bị coi là "Phiên đăng nhập không hợp lệ" ở mọi API
- * cần đăng nhập (không riêng admin).
- *
- * Sửa: nếu access_token hợp lệ (user có thật trong auth.users) nhưng
- * chưa có profile, tự tạo 1 profile mặc định (role thường, chưa là
- * thành viên 10A4) thay vì từ chối thẳng.
+ * Đăng ký bằng username/password (registerUser) là nơi DUY NHẤT từng
+ * tạo profile có tên hiển thị thật. Đăng nhập Google (OAuth) chỉ tạo
+ * user bên auth.users — nếu chưa có profile, tạo 1 hồ sơ tạm
+ * (username = pending:<id>) để:
+ *  - user xuất hiện ngay trong Quản lý Admin ("Chưa đặt tên")
+ *  - frontend bắt buộc hiện bảng nhập TÊN HIỂN THỊ trước khi dùng tiếp
  */
 async function ensureProfile(user) {
   const email = user.email || ''
-  const fallbackUsername =
-    (email.split('@')[0] || `user_${user.id.slice(0, 8)}`).trim() ||
-    `user_${user.id.slice(0, 8)}`
+  const placeholder = pendingUsernameFor(user.id)
 
   const { data: created, error } = await supabaseAdmin
     .from('profiles')
     .insert([
       {
         id: user.id,
-        username: fallbackUsername,
+        username: placeholder,
         email,
         is_member: false,
       },
     ])
-    .select('id, username, email, is_member, role')
+    .select(PROFILE_COLUMNS)
     .maybeSingle()
 
   if (error) {

@@ -43,4 +43,11 @@ router.post(
 
 router.get('/me', requireAuth, authController.me)
 
+router.post(
+  '/display-name',
+  requireAuth,
+  validateBody({ username: 'string' }),
+  authController.setDisplayName
+)
+
 export default router

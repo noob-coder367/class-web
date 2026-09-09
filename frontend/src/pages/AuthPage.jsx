@@ -13,10 +13,14 @@ import { supabase } from '../lib/supabaseClient.js'
  *    chứa thông tin nhạy cảm cần giấu.
  */
 export default function AuthPage({ onClose, initialStep = 'login' }) {
-  const { setSession, reloadProfile } = useAuth()
+  const { setSession, reloadProfile, logout, setProfile } = useAuth()
 
   const [authStep, setAuthStep] = useState(
-    initialStep === 'register' ? 'register' : 'login'
+    initialStep === 'register'
+      ? 'register'
+      : initialStep === 'display-name'
+        ? 'display-name'
+        : 'login'
   )
   const [authLoading, setAuthLoading] = useState(false)
 
@@ -59,6 +63,7 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
       case 'forgot-password': return 'Quên mật khẩu'
       case 'verify-reset': return 'Xác nhận mã'
       case 'reset-password': return 'Đặt mật khẩu mới'
+      case 'display-name': return 'Tên hiển thị'
       default: return 'Tài khoản'
     }
   }
@@ -66,6 +71,16 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
   const handleAuthBack = () => {
     if (authLoading) return
 
+    if (authStep === 'display-name') {
+      setAuthLoading(true)
+      logout()
+        .catch(() => {})
+        .finally(() => {
+          setAuthLoading(false)
+          onClose?.()
+        })
+      return
+    }
     if (authStep === 'verify-register') {
       setOtp('')
       setAuthStep('register')
@@ -93,6 +108,7 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
 
   const closeFromOutside = () => {
     if (authLoading) return
+    if (authStep === 'display-name') return
     onClose?.()
   }
 
@@ -273,13 +289,30 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
     }
   }
 
+  const handleDisplayNameSubmit = async (e) => {
+    e.preventDefault()
+    if (!username.trim()) return alert('Vui lòng nhập tên hiển thị!')
+
+    setAuthLoading(true)
+    try {
+      const { profile } = await authService.setDisplayName({ username })
+      if (profile) setProfile(profile)
+      else await reloadProfile()
+      onClose?.()
+    } catch (err) {
+      alert(err.message || 'Không thể lưu tên hiển thị!')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.key === 'Escape') closeFromOutside()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [authLoading])
+  }, [authLoading, authStep])
 
   return (
         <div
@@ -294,7 +327,7 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
             disabled={authLoading}
           >
             <span>&lt;</span>
-            Quay lại
+            {authStep === 'display-name' ? 'Đăng xuất' : 'Quay lại'}
           </button>
 
           <div
@@ -859,6 +892,49 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
 
                 </form>
 
+              </>
+            )}
+
+            {/* =========================================
+                DISPLAY NAME (Google lần đầu)
+            ========================================= */}
+
+            {authStep === 'display-name' && (
+              <>
+                <p className="setup-hint">
+                  Tài khoản Google của bạn đã được tạo.
+                  Hãy đặt tên hiển thị — tên này sẽ
+                  hiện trong Quản lý Admin.
+                </p>
+
+                <form
+                  onSubmit={handleDisplayNameSubmit}
+                  className="auth-form"
+                >
+                  <input
+                    type="text"
+                    placeholder="Tên hiển thị"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    autoComplete="nickname"
+                    minLength={2}
+                    maxLength={40}
+                    required
+                    autoFocus
+                  />
+
+                  <button
+                    type="submit"
+                    className="btn-submit"
+                    disabled={authLoading}
+                  >
+                    {authLoading ? 'Đang lưu...' : 'Lưu tên hiển thị'}
+                  </button>
+                </form>
+
+                <p className="setup-hint">
+                  Bấm Đăng xuất nếu muốn đặt tên sau.
+                </p>
               </>
             )}
 

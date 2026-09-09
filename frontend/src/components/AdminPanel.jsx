@@ -52,6 +52,20 @@ export default function AdminPanel({ onClose }) {
     }
   }
 
+  const handleRename = async (userId, currentName) => {
+    const next = window.prompt(
+      'Nhập tên hiển thị mới:',
+      currentName || ''
+    )
+    if (next === null) return
+    try {
+      await adminService.updateUsername(userId, next)
+      fetchUsers()
+    } catch (err) {
+      alert('Đổi tên thất bại: ' + (err.message || ''))
+    }
+  }
+
   const handleToggleRole = async (userId, currentRole) => {
     if (userId === currentUserId && currentRole === 'admin') {
       return alert('⚠️ Bạn không thể tự gỡ quyền Admin của chính mình!')
@@ -150,7 +164,9 @@ export default function AdminPanel({ onClose }) {
                     return (
                       <tr key={u.id} className={isMe ? 'highlight-me' : ''}>
                         <td>
-                          <strong>{u.username || 'Chưa đặt tên'}</strong>
+                          <strong className={u.needs_display_name ? 'username-pending' : ''}>
+                            {u.username || 'Chưa đặt tên'}
+                          </strong>
                           {isMe && <span className="tag-me"> (Bạn)</span>}
                         </td>
 
@@ -168,6 +184,14 @@ export default function AdminPanel({ onClose }) {
 
                         <td>
                           <div className="action-buttons">
+                            <button
+                              className="btn-action btn-rename"
+                              onClick={() => handleRename(u.id, u.username)}
+                              title="Đổi tên hiển thị"
+                            >
+                              Đổi tên
+                            </button>
+
                             <button
                               className="btn-action btn-member"
                               onClick={() => handleToggleMember(u.id, u.is_member)}

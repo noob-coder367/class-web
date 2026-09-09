@@ -10,6 +10,7 @@ const router = Router()
 router.use(requireAuth, requireAdmin)
 
 router.get('/users', adminController.getUsers)
+router.patch('/users/:id/username', adminController.patchUsername)
 router.patch('/users/:id/member', adminController.patchMember)
 router.patch('/users/:id/role', adminController.patchRole)
 router.delete('/users/:id', adminController.removeUser)

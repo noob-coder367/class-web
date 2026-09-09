@@ -53,6 +53,10 @@ export async function fetchMe() {
   return apiClient.get('/auth/me', { auth: true })
 }
 
+export async function setDisplayName({ username }) {
+  return apiClient.post('/auth/display-name', { username }, { auth: true })
+}
+
 export async function logout() {
   saveAccessToken(null)
   await supabase.auth.signOut()

@@ -9,6 +9,17 @@ export async function getUsers(req, res, next) {
   }
 }
 
+export async function patchUsername(req, res, next) {
+  try {
+    const { id } = req.params
+    const { username } = req.body
+    const profile = await adminService.updateUsername(id, username)
+    res.json({ message: 'Đã cập nhật tên hiển thị.', profile })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export async function patchMember(req, res, next) {
   try {
     const { id } = req.params
