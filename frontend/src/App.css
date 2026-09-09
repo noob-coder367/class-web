@@ -509,13 +509,15 @@ h1, h2, h3, h4 {
   gap: 8px;
   margin-bottom: 12px;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
+  align-items: start;
 }
 
 .event-image img {
   width: 100%;
-  height: 200px;
-  object-fit: cover;
+  height: auto;
+  display: block;
+  object-fit: contain;
   border-radius: 6px;
 }
 

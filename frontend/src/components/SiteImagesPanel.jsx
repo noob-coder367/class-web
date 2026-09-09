@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as adminService from '../services/adminService.js'
 
 const EMPTY = { teacher: [], hero: [], gallery: [] }
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 export default function SiteImagesPanel() {
   const [images, setImages] = useState(EMPTY)
@@ -43,8 +44,8 @@ export default function SiteImagesPanel() {
     if (!file.type.startsWith('image/')) {
       return alert('Vui lòng chọn file ảnh.')
     }
-    if (file.size > 2 * 1024 * 1024) {
-      return alert('Ảnh tối đa 2MB.')
+    if (file.size > MAX_IMAGE_BYTES) {
+      return alert('Ảnh tối đa 10MB.')
     }
 
     setUploading(categoryId)
@@ -89,7 +90,8 @@ export default function SiteImagesPanel() {
       <p className="site-images-intro">
         Ảnh được lưu trực tiếp vào repo GitHub <strong>class-web</strong>
         {' '}(thư mục <code>frontend/public/images</code>). Trang chủ sẽ hiện
-        ảnh mới ngay sau khi thêm, không cần sửa code.
+        ảnh mới ngay sau khi thêm, không cần sửa code. Mỗi ảnh tối đa 10MB
+        (JPG, PNG, WEBP, GIF).
       </p>
 
       {categories.map((cat) => {

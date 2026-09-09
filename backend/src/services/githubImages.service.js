@@ -34,7 +34,7 @@ const ALLOWED_MIME = {
   'image/webp': 'webp',
   'image/gif': 'gif',
 }
-const MAX_BYTES = 2 * 1024 * 1024
+const MAX_BYTES = 10 * 1024 * 1024
 
 function emptyManifest() {
   return { teacher: [], hero: [], gallery: [] }
@@ -220,7 +220,7 @@ export async function uploadSiteImage({ category, filename, contentBase64, mimeT
   }
   if (!bytes.length) throw new AppError('Ảnh trống.')
   if (bytes.length > MAX_BYTES) {
-    throw new AppError('Ảnh tối đa 2MB. Hãy nén hoặc chọn ảnh nhỏ hơn.')
+    throw new AppError('Ảnh tối đa 10MB. Hãy nén hoặc chọn ảnh nhỏ hơn.')
   }
 
   const { sha: manifestSha, manifest } = await readManifestRecord()
