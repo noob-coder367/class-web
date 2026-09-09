@@ -21,4 +21,11 @@ export const env = {
   // Mã bí mật để đăng ký làm "Thành viên 10A4".
   // KHÔNG BAO GIỜ đặt giá trị này ở phía frontend.
   SECRET_CODE: required('SECRET_CODE'),
+
+  // Token GitHub (fine-grained hoặc classic) với quyền contents:write
+  // trên repo class-web. Chỉ cần khi admin thêm/xóa ảnh website.
+  GITHUB_TOKEN: process.env.GITHUB_TOKEN || '',
+  GITHUB_OWNER: process.env.GITHUB_OWNER || 'noob-coder367',
+  GITHUB_REPO: process.env.GITHUB_REPO || 'class-web',
+  GITHUB_BRANCH: process.env.GITHUB_BRANCH || 'main',
 }

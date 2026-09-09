@@ -91,6 +91,15 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
     onClose?.()
   }
 
+  const closeFromOutside = () => {
+    if (authLoading) return
+    onClose?.()
+  }
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) closeFromOutside()
+  }
+
   const handleLoginSubmit = async (e) => {
     e.preventDefault()
     if (!username.trim()) return alert('Vui lòng nhập username!')
@@ -264,8 +273,20 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
     }
   }
 
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') closeFromOutside()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [authLoading])
+
   return (
-        <div className="auth-overlay fade-in">
+        <div
+          className="auth-overlay fade-in"
+          onClick={handleOverlayClick}
+          role="presentation"
+        >
 
           <button
             className="btn-back"
@@ -276,9 +297,15 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
             Quay lại
           </button>
 
-          <div className="auth-card slide-up">
+          <div
+            className="auth-card slide-up"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="auth-title"
+          >
 
-            <h2>
+            <h2 id="auth-title">
               {getAuthTitle()}
             </h2>
 

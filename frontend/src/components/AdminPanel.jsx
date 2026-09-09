@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
 import * as adminService from '../services/adminService.js'
+import SiteImagesPanel from './SiteImagesPanel.jsx'
 import './AdminPanel.css'
 
 /**
@@ -13,12 +14,21 @@ export default function AdminPanel({ onClose }) {
   const { profile } = useAuth()
   const currentUserId = profile?.id
 
+  const [tab, setTab] = useState('users')
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchUsers()
   }, [])
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') onClose?.()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
 
   const fetchUsers = async () => {
     setLoading(true)
@@ -73,16 +83,52 @@ export default function AdminPanel({ onClose }) {
     }
   }
 
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) onClose?.()
+  }
+
   return (
-    <div className="admin-overlay fade-in">
-      <div className="admin-modal slide-up">
+    <div
+      className="admin-overlay fade-in"
+      onClick={handleOverlayClick}
+      role="presentation"
+    >
+      <div
+        className="admin-modal slide-up"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
         <div className="admin-header">
-          <h2>Quản Lý Tài Khoản Lớp 10A4 🤓</h2>
+          <h2>Quản lý lớp 10A4</h2>
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
 
+        <div className="admin-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'users'}
+            className={tab === 'users' ? 'active' : ''}
+            onClick={() => setTab('users')}
+          >
+            Tài khoản
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'images'}
+            className={tab === 'images' ? 'active' : ''}
+            onClick={() => setTab('images')}
+          >
+            Ảnh website
+          </button>
+        </div>
+
         <div className="admin-body">
-          {loading ? (
+          {tab === 'images' ? (
+            <SiteImagesPanel />
+          ) : loading ? (
             <p className="loading-text">Đang tải danh sách người dùng...</p>
           ) : users.length === 0 ? (
             <p className="empty-state">Chưa có người dùng nào trong hệ thống.</p>
@@ -110,7 +156,7 @@ export default function AdminPanel({ onClose }) {
 
                         <td>
                           <span className={`badge ${u.role === 'admin' ? 'badge-admin' : 'badge-user'}`}>
-                            {u.role === 'admin' ? '👑 Admin' : 'Thành viên'}
+                            {u.role === 'admin' ? 'Admin' : 'Thành viên'}
                           </span>
                         </td>
 

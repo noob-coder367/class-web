@@ -96,6 +96,28 @@ RLS như bình thường. Nếu muốn siết chặt hơn nữa, có thể chuy�
 thao tác ghi trong `EventsSection.jsx` sang backend theo đúng khuôn mẫu
 `admin.routes.js`.
 
+## Ảnh website (giáo viên, ảnh lớp)
+
+Admin mở **Quản lý Admin → tab Ảnh website** để thêm/xóa:
+
+- Ảnh giáo viên
+- Ảnh lớp trên banner trang chủ
+- Ảnh gallery (kỷ niệm)
+
+Ảnh được commit vào GitHub `frontend/public/images/` (kèm `manifest.json`).
+Trang chủ đọc `GET /api/images` nên ảnh mới hiện ngay, không cần sửa JSX.
+
+Cần thêm vào `backend/.env`:
+
+```
+GITHUB_TOKEN=ghp_...          # PAT, quyền Contents: Read and write
+GITHUB_OWNER=noob-coder367
+GITHUB_REPO=class-web
+GITHUB_BRANCH=main
+```
+
+Bảng đăng nhập/đăng ký: bấm ra ngoài khung (hoặc phím Esc) để đóng.
+
 ## Cách chạy
 
 ### 1. Cấu hình Supabase

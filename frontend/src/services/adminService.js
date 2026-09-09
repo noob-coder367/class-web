@@ -24,3 +24,19 @@ export async function toggleRole(userId, currentRole) {
 export async function deleteUser(userId) {
   return apiClient.delete(`/admin/users/${userId}`, { auth: true })
 }
+
+export async function getPublicSiteImages() {
+  return apiClient.get('/images')
+}
+
+export async function getSiteImages() {
+  return apiClient.get('/admin/images', { auth: true })
+}
+
+export async function uploadSiteImage(payload) {
+  return apiClient.post('/admin/images', payload, { auth: true })
+}
+
+export async function deleteSiteImage(path) {
+  return apiClient.delete('/admin/images', { auth: true, body: { path } })
+}

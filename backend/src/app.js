@@ -17,7 +17,8 @@ export function createApp() {
       credentials: true,
     })
   )
-  app.use(express.json())
+  // 6MB để nhận ảnh base64 (ảnh gốc tối đa 2MB) khi admin upload lên GitHub.
+  app.use(express.json({ limit: '6mb' }))
   app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'))
 
   // Giới hạn số request cho các route auth để hạn chế brute-force / spam OTP.

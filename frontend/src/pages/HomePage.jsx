@@ -11,6 +11,7 @@ import {
   Bubbles,
   Glow,
 } from '../components/decor/SeaDecor.jsx'
+import * as adminService from '../services/adminService.js'
 
 const NAV_LINKS = [
   { href: '#trang-chu', label: 'Trang chủ' },
@@ -50,6 +51,28 @@ export default function HomePage() {
   const [content, setContent] = useState('')
   const [sender, setSender] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [siteImages, setSiteImages] = useState({
+    teacher: [],
+    hero: [],
+    gallery: [],
+  })
+
+  const teacherPhoto = siteImages.teacher[0]
+  const heroPhoto = siteImages.hero[0]
+  const galleryPhotos = siteImages.gallery
+
+  const loadSiteImages = async () => {
+    try {
+      const data = await adminService.getPublicSiteImages()
+      setSiteImages({
+        teacher: data.images?.teacher || [],
+        hero: data.images?.hero || [],
+        gallery: data.images?.gallery || [],
+      })
+    } catch (err) {
+      console.error('Lỗi tải ảnh website:', err)
+    }
+  }
 
   const openAuth = (step = 'login') => {
     setAuthInitialStep(step === 'register' ? 'register' : 'login')
@@ -58,6 +81,10 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchAnnouncements()
+    loadSiteImages()
+
+    const onImagesUpdated = () => loadSiteImages()
+    window.addEventListener('site-images-updated', onImagesUpdated)
 
     const channel = supabase
       .channel('realtime-announcements')
@@ -71,6 +98,7 @@ export default function HomePage() {
       .subscribe()
 
     return () => {
+      window.removeEventListener('site-images-updated', onImagesUpdated)
       supabase.removeChannel(channel)
     }
   }, [])
@@ -340,11 +368,15 @@ export default function HomePage() {
             <div className="polaroid polaroid--hero">
 
               <div className="photo-frame">
-                Ảnh lớp
+                {heroPhoto ? (
+                  <img src={heroPhoto.url} alt={heroPhoto.caption || 'Ảnh lớp 10A4'} />
+                ) : (
+                  'Ảnh lớp'
+                )}
               </div>
 
               <span className="polaroid-caption">
-                Lớp 10A4
+                {heroPhoto?.caption || 'Lớp 10A4'}
               </span>
 
             </div>
@@ -441,8 +473,27 @@ export default function HomePage() {
           <div className="teacher-photo">
 
             <div className="photo-frame photo-frame--teacher">
-              Ảnh cô Út
+              {teacherPhoto ? (
+                <img
+                  src={teacherPhoto.url}
+                  alt={teacherPhoto.caption || 'Ảnh giáo viên chủ nhiệm'}
+                />
+              ) : (
+                'Ảnh cô Út'
+              )}
             </div>
+
+            {siteImages.teacher.length > 1 && (
+              <div className="teacher-thumbs">
+                {siteImages.teacher.slice(1).map((photo) => (
+                  <img
+                    key={photo.path}
+                    src={photo.url}
+                    alt={photo.caption || 'Giáo viên'}
+                  />
+                ))}
+              </div>
+            )}
 
           </div>
 
@@ -523,9 +574,14 @@ export default function HomePage() {
 
           <div className="gallery-grid">
 
-            {Array.from({
-              length: PHOTO_PLACEHOLDER_COUNT,
-            }).map((_, i) => (
+            {(galleryPhotos.length
+              ? galleryPhotos
+              : Array.from({ length: PHOTO_PLACEHOLDER_COUNT }, (_, i) => ({
+                  path: `placeholder-${i}`,
+                  url: '',
+                  caption: '',
+                }))
+            ).map((photo, i) => (
 
               <div
                 className={`polaroid ${
@@ -533,12 +589,20 @@ export default function HomePage() {
                     ? 'tilt-left'
                     : 'tilt-right'
                 }`}
-                key={i}
+                key={photo.path}
               >
 
                 <div className="photo-frame">
-                  Ảnh lớp
+                  {photo.url ? (
+                    <img src={photo.url} alt={photo.caption || `Ảnh lớp ${i + 1}`} />
+                  ) : (
+                    'Ảnh lớp'
+                  )}
                 </div>
+
+                {photo.caption ? (
+                  <span className="polaroid-caption">{photo.caption}</span>
+                ) : null}
 
               </div>
 
