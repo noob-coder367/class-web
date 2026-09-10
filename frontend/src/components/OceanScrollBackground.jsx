@@ -87,41 +87,66 @@ function readScrollMetrics() {
 
 function computeProgress() {
   const { scrollY, maxScroll } = readScrollMetrics();
-
   if (scrollY <= TOP_EPSILON) return 0;
   if (maxScroll < MIN_SCROLLABLE) return 0;
-
   return clamp(scrollY / maxScroll);
 }
 
 /**
- * Tính phase thời gian thật (giờ địa phương).
+ * Mặt trời chạy trên cung tròn theo giờ thật.
+ *
+ * Cung: từ trái (bình minh) → đỉnh (trưa) → phải (hoàng hôn).
+ * Góc θ: 180° (sunrise, trái) → 90° (noon, cao nhất) → 0° (sunset, phải).
+ *
+ * Tâm cung nằm dưới mặt nước một chút để quỹ đạo tự nhiên.
  */
 function computeTimeOfDay() {
   const now = new Date();
   const hour = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
 
-  const sunrise = 5.5;
-  const noon = 12;
-  const sunset = 18.5;
+  const sunrise = 5.5; // ~5h30
+  const sunset = 18.5; // ~18h30
+  const dayLength = sunset - sunrise; // 13 giờ
 
   let phase = "night";
-  let sunElevation = 0;
   let isNight = false;
+  let sunProgress = 0; // 0 = sunrise, 0.5 = noon, 1 = sunset
+  let sunElevation = 0; // 0 → 1 → 0 trong ngày
 
-  if (hour >= sunrise && hour < noon) {
-    const t = (hour - sunrise) / (noon - sunrise);
-    sunElevation = Math.sin((t * Math.PI) / 2);
-    phase = t < 0.25 ? "dawn" : t < 0.6 ? "morning" : "noon";
-  } else if (hour >= noon && hour < sunset) {
-    const t = (hour - noon) / (sunset - noon);
-    sunElevation = Math.cos((t * Math.PI) / 2);
-    phase = t < 0.4 ? "afternoon" : "sunset";
+  if (hour >= sunrise && hour <= sunset) {
+    sunProgress = (hour - sunrise) / dayLength; // 0 → 1
+    // elevation = sin(π * progress) → 0 lúc bình minh/hoàng hôn, 1 lúc trưa
+    sunElevation = Math.sin(Math.PI * sunProgress);
+
+    if (sunProgress < 0.12) phase = "dawn";
+    else if (sunProgress < 0.35) phase = "morning";
+    else if (sunProgress < 0.65) phase = "noon";
+    else if (sunProgress < 0.88) phase = "afternoon";
+    else phase = "sunset";
   } else {
     phase = "night";
     isNight = true;
     sunElevation = 0;
+    sunProgress = hour < sunrise ? 0 : 1;
   }
+
+  // ——— Cung tròn mặt trời ———
+  // Tâm cung (trong hệ tọa độ design 1200×800)
+  const cx = 600; // giữa màn hình
+  const cy = 480; // gần mặt nước (WATER_Y = 500)
+  const radius = 340; // bán kính cung
+
+  // Góc: 180° (trái, bình minh) → 90° (đỉnh, trưa) → 0° (phải, hoàng hôn)
+  // sunProgress 0→1 map sang góc 180°→0°
+  const angleDeg = 180 - sunProgress * 180;
+  const angleRad = (angleDeg * Math.PI) / 180;
+
+  const sunX = cx + radius * Math.cos(angleRad);
+  const sunY = cy - radius * Math.sin(angleRad); // trừ vì SVG Y hướng xuống
+
+  // Ban đêm: mặt trăng ở phía phải cao vừa phải
+  const moonX = 920;
+  const moonY = 160;
 
   const palettes = {
     dawn: {
@@ -132,7 +157,8 @@ function computeTimeOfDay() {
       sunGlow: "#ff9e6d",
       waterReflect: "#ff9e6d",
       waterTop: "#2a6b8a",
-      baseGradient: "linear-gradient(to bottom, #1a2a4a 0%, #e07a5f 25%, #38b7d3 50%, #0d4e8a 75%, #031638 100%)",
+      baseGradient:
+        "linear-gradient(to bottom, #1a2a4a 0%, #e07a5f 25%, #38b7d3 50%, #0d4e8a 75%, #031638 100%)",
     },
     morning: {
       skyTop: "#5ba3d9",
@@ -142,7 +168,8 @@ function computeTimeOfDay() {
       sunGlow: "#ffe68b",
       waterReflect: "#ffe08a",
       waterTop: "#38b7d3",
-      baseGradient: "linear-gradient(to bottom, #5ba3d9 0%, #38b7d3 25%, #1d85b8 50%, #0d4e8a 75%, #031638 100%)",
+      baseGradient:
+        "linear-gradient(to bottom, #5ba3d9 0%, #38b7d3 25%, #1d85b8 50%, #0d4e8a 75%, #031638 100%)",
     },
     noon: {
       skyTop: "#4a9fd8",
@@ -152,7 +179,8 @@ function computeTimeOfDay() {
       sunGlow: "#ffe68b",
       waterReflect: "#fff5c0",
       waterTop: "#38b7d3",
-      baseGradient: "linear-gradient(to bottom, #4a9fd8 0%, #38b7d3 20%, #1d85b8 45%, #0d4e8a 70%, #031638 100%)",
+      baseGradient:
+        "linear-gradient(to bottom, #4a9fd8 0%, #38b7d3 20%, #1d85b8 45%, #0d4e8a 70%, #031638 100%)",
     },
     afternoon: {
       skyTop: "#3a8fc0",
@@ -162,7 +190,8 @@ function computeTimeOfDay() {
       sunGlow: "#ffc870",
       waterReflect: "#ffd080",
       waterTop: "#2d9bb8",
-      baseGradient: "linear-gradient(to bottom, #3a8fc0 0%, #2d9bb8 25%, #1d85b8 50%, #0d4e8a 75%, #031638 100%)",
+      baseGradient:
+        "linear-gradient(to bottom, #3a8fc0 0%, #2d9bb8 25%, #1d85b8 50%, #0d4e8a 75%, #031638 100%)",
     },
     sunset: {
       skyTop: "#2c1e3e",
@@ -172,7 +201,8 @@ function computeTimeOfDay() {
       sunGlow: "#e85d04",
       waterReflect: "#ff7b3a",
       waterTop: "#1a5a7a",
-      baseGradient: "linear-gradient(to bottom, #2c1e3e 0%, #c44536 22%, #e07a5f 40%, #0d4e8a 70%, #031638 100%)",
+      baseGradient:
+        "linear-gradient(to bottom, #2c1e3e 0%, #c44536 22%, #e07a5f 40%, #0d4e8a 70%, #031638 100%)",
     },
     night: {
       skyTop: "#0a0e1a",
@@ -182,21 +212,20 @@ function computeTimeOfDay() {
       sunGlow: "#a0a8d0",
       waterReflect: "#2a3a5a",
       waterTop: "#0d2a40",
-      baseGradient: "linear-gradient(to bottom, #0a0e1a 0%, #0d1a2e 30%, #0a2038 55%, #031638 80%, #01080f 100%)",
+      baseGradient:
+        "linear-gradient(to bottom, #0a0e1a 0%, #0d1a2e 30%, #0a2038 55%, #031638 80%, #01080f 100%)",
     },
   };
 
   const colors = palettes[phase] || palettes.noon;
 
-  const sunY = 420 - sunElevation * 300;
-  const sunX = 180 + ((hour - sunrise) / (sunset - sunrise || 1)) * 700;
-
   return {
     phase,
     hour,
     sunElevation,
-    sunY: isNight ? 180 : sunY,
-    sunX: isNight ? 900 : clamp(sunX, 80, 1050),
+    sunProgress,
+    sunX: isNight ? moonX : sunX,
+    sunY: isNight ? moonY : sunY,
     isNight,
     colors,
   };
@@ -209,10 +238,11 @@ export default function OceanScrollBackground() {
   const animationFrame = useRef(null);
   const lastProgress = useRef(0);
 
+  // Cập nhật vị trí mặt trời theo giờ thật (mỗi 20 giây cho mượt)
   useEffect(() => {
     const tick = () => setTimeOfDay(computeTimeOfDay());
     tick();
-    const id = setInterval(tick, 30000);
+    const id = setInterval(tick, 20000);
     return () => clearInterval(id);
   }, []);
 
@@ -271,40 +301,21 @@ export default function OceanScrollBackground() {
   const mountainParallaxY = cameraY * 0.25;
   const spanX = viewW / DESIGN_W;
 
-  /*
-   * GÓC CAMERA
-   * - Đầu trang (progress = 0): nghiêng ~38–42° (nhìn xuống)
-   * - Khi scroll xuống: giảm dần → 0° (nhìn thẳng)
-   * Dùng rotateX + scale nhẹ để hiệu ứng rõ trên mobile, không bị cắt mất.
-   */
-  const tiltAmount = 1 - scrollProgress; // 1 → 0
-  const cameraTiltDeg = 42 * tiltAmount; // ~42° lúc đầu, 0° lúc cuối
-  const tiltScale = 1 + tiltAmount * 0.12; // phóng nhẹ khi nghiêng để không lộ mép
-  const tiltTranslateY = tiltAmount * -4; // đẩy lên một chút khi nghiêng
-
   const { sunElevation, sunY, sunX, isNight, colors } = timeOfDay;
 
   const celestialOpacity = isNight
     ? clamp(0.85 - scrollProgress * 1.5)
-    : clamp(sunElevation * 1.2 - scrollProgress * 2.0);
+    : clamp(sunElevation * 1.15 - scrollProgress * 2.0);
 
   const skyOpacity = clamp(1 - scrollProgress * 1.8);
   const bubblesOpacity = clamp((scrollProgress - 0.1) * 2);
 
   const reflectStrength = isNight
-    ? 0.15
-    : clamp(0.25 + sunElevation * 0.45) * clamp(1 - scrollProgress * 2.5);
+    ? 0.12
+    : clamp(0.2 + sunElevation * 0.5) * clamp(1 - scrollProgress * 2.5);
 
   return (
-    <div
-      className="ocean-background"
-      aria-hidden="true"
-      style={{
-        transform: `perspective(900px) rotateX(${cameraTiltDeg}deg) scale(${tiltScale}) translateY(${tiltTranslateY}%)`,
-        transformOrigin: "50% 18%",
-        transition: "transform 0.04s linear",
-      }}
-    >
+    <div className="ocean-background" aria-hidden="true">
       <div
         className="ocean-base-gradient"
         style={{
@@ -339,8 +350,16 @@ export default function OceanScrollBackground() {
           </radialGradient>
 
           <radialGradient id="waterReflectGrad" cx="50%" cy="0%" r="70%">
-            <stop offset="0%" stopColor={colors.waterReflect} stopOpacity={reflectStrength} />
-            <stop offset="45%" stopColor={colors.waterReflect} stopOpacity={reflectStrength * 0.35} />
+            <stop
+              offset="0%"
+              stopColor={colors.waterReflect}
+              stopOpacity={reflectStrength}
+            />
+            <stop
+              offset="45%"
+              stopColor={colors.waterReflect}
+              stopOpacity={reflectStrength * 0.35}
+            />
             <stop offset="100%" stopColor={colors.waterReflect} stopOpacity="0" />
           </radialGradient>
 
@@ -361,12 +380,16 @@ export default function OceanScrollBackground() {
           </linearGradient>
 
           <linearGradient id="rayGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={colors.waterReflect} stopOpacity="0.18" />
+            <stop
+              offset="0%"
+              stopColor={colors.waterReflect}
+              stopOpacity="0.18"
+            />
             <stop offset="100%" stopColor={colors.waterReflect} stopOpacity="0" />
           </linearGradient>
         </defs>
 
-        {/* SKY + CELESTIAL */}
+        {/* ===== SKY + CELESTIAL ===== */}
         <g transform={`translate(0, ${skyParallaxY})`}>
           <rect
             x={-4}
@@ -377,9 +400,15 @@ export default function OceanScrollBackground() {
             opacity={skyOpacity}
           />
 
+          {/* Mặt trời / mặt trăng — vị trí theo cung tròn + giờ thật */}
           <g opacity={celestialOpacity}>
             <SceneObject x={sunX} y={sunY} sx={sx} ox={offsetX}>
-              <circle cx="0" cy="0" r={isNight ? 70 : 110} fill="url(#sunGlow)" />
+              <circle
+                cx="0"
+                cy="0"
+                r={isNight ? 70 : 110}
+                fill="url(#sunGlow)"
+              />
               <circle
                 cx="0"
                 cy="0"
@@ -397,6 +426,7 @@ export default function OceanScrollBackground() {
             </SceneObject>
           </g>
 
+          {/* Sao ban đêm */}
           {isNight && skyOpacity > 0.2 && (
             <g opacity={skyOpacity * 0.9}>
               <circle cx={viewW * 0.15} cy="80" r="1.5" fill="#fff" />
@@ -409,24 +439,72 @@ export default function OceanScrollBackground() {
             </g>
           )}
 
-          <SceneObject x={500} y={130} sx={sx} ox={offsetX} className="ocean-cloud ocean-cloud-one">
+          <SceneObject
+            x={500}
+            y={130}
+            sx={sx}
+            ox={offsetX}
+            className="ocean-cloud ocean-cloud-one"
+          >
             <g opacity={skyOpacity * (isNight ? 0.25 : 0.85)}>
-              <ellipse cx="0" cy="0" rx="90" ry="28" fill={isNight ? "#3a4558" : "#ffffff"} />
-              <ellipse cx="-60" cy="-5" rx="50" ry="22" fill={isNight ? "#3a4558" : "#ffffff"} />
-              <ellipse cx="50" cy="-10" rx="55" ry="32" fill={isNight ? "#3a4558" : "#ffffff"} />
+              <ellipse
+                cx="0"
+                cy="0"
+                rx="90"
+                ry="28"
+                fill={isNight ? "#3a4558" : "#ffffff"}
+              />
+              <ellipse
+                cx="-60"
+                cy="-5"
+                rx="50"
+                ry="22"
+                fill={isNight ? "#3a4558" : "#ffffff"}
+              />
+              <ellipse
+                cx="50"
+                cy="-10"
+                rx="55"
+                ry="32"
+                fill={isNight ? "#3a4558" : "#ffffff"}
+              />
             </g>
           </SceneObject>
 
-          <SceneObject x={880} y={180} sx={sx} ox={offsetX} className="ocean-cloud ocean-cloud-two">
+          <SceneObject
+            x={880}
+            y={180}
+            sx={sx}
+            ox={offsetX}
+            className="ocean-cloud ocean-cloud-two"
+          >
             <g opacity={skyOpacity * (isNight ? 0.2 : 0.75)}>
-              <ellipse cx="0" cy="0" rx="100" ry="30" fill={isNight ? "#3a4558" : "#ffffff"} />
-              <ellipse cx="-50" cy="-5" rx="55" ry="25" fill={isNight ? "#3a4558" : "#ffffff"} />
+              <ellipse
+                cx="0"
+                cy="0"
+                rx="100"
+                ry="30"
+                fill={isNight ? "#3a4558" : "#ffffff"}
+              />
+              <ellipse
+                cx="-50"
+                cy="-5"
+                rx="55"
+                ry="25"
+                fill={isNight ? "#3a4558" : "#ffffff"}
+              />
             </g>
           </SceneObject>
 
           {!isNight && (
             <SceneObject x={700} y={125} sx={sx} ox={offsetX}>
-              <g className="ocean-birds" stroke="#3f5668" strokeWidth="3" fill="none" opacity={skyOpacity}>
+              <g
+                className="ocean-birds"
+                stroke="#3f5668"
+                strokeWidth="3"
+                fill="none"
+                opacity={skyOpacity}
+              >
                 <path d="M-20 -15 Q-10 -25 0 -15 Q10 -25 20 -15" />
                 <path d="M40 15 Q48 7 56 15 Q64 7 72 15" />
               </g>
@@ -434,14 +512,23 @@ export default function OceanScrollBackground() {
           )}
         </g>
 
+        {/* Núi xa */}
         <g
           transform={`translate(0, ${mountainParallaxY}) scale(${spanX}, 1)`}
           opacity={skyOpacity}
         >
-          <polygon points="600,520 750,220 900,380 1050,190 1200,520" fill="url(#farMountain)" opacity="0.7" />
-          <polygon points="780,520 900,280 980,360 1100,230 1200,520" fill={isNight ? "#1e2a38" : "#4d647a"} />
+          <polygon
+            points="600,520 750,220 900,380 1050,190 1200,520"
+            fill="url(#farMountain)"
+            opacity="0.7"
+          />
+          <polygon
+            points="780,520 900,280 980,360 1100,230 1200,520"
+            fill={isNight ? "#1e2a38" : "#4d647a"}
+          />
         </g>
 
+        {/* Nước */}
         <rect
           x={-4}
           y={WATER_Y}
@@ -450,34 +537,41 @@ export default function OceanScrollBackground() {
           fill="url(#oceanWaterGrad)"
         />
 
-        {/* Phản chiếu ánh sáng trên mặt nước */}
+        {/* Phản chiếu ánh sáng trên mặt nước (đi theo mặt trời) */}
         <ellipse
           cx={offsetX + sunX * sx}
           cy={WATER_Y + 8}
-          rx={180 + sunElevation * 120}
-          ry={28 + sunElevation * 18}
+          rx={140 + sunElevation * 140}
+          ry={22 + sunElevation * 20}
           fill="url(#waterReflectGrad)"
           opacity={reflectStrength > 0.05 ? 1 : 0}
         />
 
+        {/* God rays xuyên nước */}
         <g
           className="ocean-light-rays"
           transform={`scale(${spanX}, 1)`}
-          opacity={clamp((isNight ? 0.3 : sunElevation) * (1 - scrollProgress * 1.5))}
+          opacity={clamp(
+            (isNight ? 0.25 : sunElevation) * (1 - scrollProgress * 1.5)
+          )}
         >
           <polygon
-            points={`${sunX - 80},500 ${sunX + 40},500 ${sunX + 180},1300 ${sunX - 20},1300`}
+            points={`${sunX - 70},500 ${sunX + 30},500 ${sunX + 160},1300 ${sunX - 30},1300`}
             fill="url(#rayGrad)"
           />
           <polygon
-            points={`${sunX + 60},500 ${sunX + 140},500 ${sunX + 280},1300 ${sunX + 160},1300`}
+            points={`${sunX + 50},500 ${sunX + 120},500 ${sunX + 250},1300 ${sunX + 140},1300`}
             fill="url(#rayGrad)"
             opacity="0.7"
           />
         </g>
 
         <g className="wave-motion-back">
-          <path d={wavePath(viewW, 510, 40)} fill={isNight ? "#1a4a60" : "#29a3c4"} opacity="0.7" />
+          <path
+            d={wavePath(viewW, 510, 40)}
+            fill={isNight ? "#1a4a60" : "#29a3c4"}
+            opacity="0.7"
+          />
         </g>
 
         <SceneObject
@@ -504,9 +598,14 @@ export default function OceanScrollBackground() {
         </SceneObject>
 
         <g className="wave-motion-front">
-          <path d={wavePath(viewW, 525, 35)} fill={isNight ? "#1e5a70" : "#38b7d3"} opacity="0.9" />
+          <path
+            d={wavePath(viewW, 525, 35)}
+            fill={isNight ? "#1e5a70" : "#38b7d3"}
+            opacity="0.9"
+          />
         </g>
 
+        {/* Sinh vật dưới nước */}
         <SceneObject x={380} y={780} sx={sx} ox={offsetX} className="sea-turtle-anim">
           <ellipse cx="0" cy="0" rx="35" ry="25" fill="#2a9d8f" />
           <ellipse cx="0" cy="0" rx="28" ry="20" fill="#e9c46a" opacity="0.8" />
@@ -535,18 +634,29 @@ export default function OceanScrollBackground() {
         </SceneObject>
 
         <SceneObject x={680} y={1320} sx={sx} ox={offsetX} className="manta-anim">
-          <path d="M0 -10 Q-90 -40 -120 10 Q-40 20 0 40 Q40 20 120 10 Q90 -40 0 -10 Z" fill="#1d3557" />
+          <path
+            d="M0 -10 Q-90 -40 -120 10 Q-40 20 0 40 Q40 20 120 10 Q90 -40 0 -10 Z"
+            fill="#1d3557"
+          />
           <path d="M0 40 Q-5 90 -2 120" stroke="#1d3557" strokeWidth="4" fill="none" />
         </SceneObject>
 
         <SceneObject x={320} y={1450} sx={sx} ox={offsetX} className="jelly-float">
-          <path d="M-25 0 Q-25 -30 0 -30 Q25 -30 25 0 Q12 8 0 3 Q-12 8 -25 0 Z" fill="#b8c0ff" opacity="0.75" />
+          <path
+            d="M-25 0 Q-25 -30 0 -30 Q25 -30 25 0 Q12 8 0 3 Q-12 8 -25 0 Z"
+            fill="#b8c0ff"
+            opacity="0.75"
+          />
           <path d="M-12 5 Q-15 30 -8 50" stroke="#e7c6ff" strokeWidth="2" fill="none" />
           <path d="M0 5 Q0 35 3 55" stroke="#e7c6ff" strokeWidth="2" fill="none" />
           <path d="M12 5 Q15 30 8 50" stroke="#e7c6ff" strokeWidth="2" fill="none" />
         </SceneObject>
         <SceneObject x={400} y={1520} sx={sx} ox={offsetX} className="jelly-float-delayed">
-          <path d="M-18 0 Q-18 -22 0 -22 Q18 -22 18 0 Q9 6 0 2 Q-9 6 -18 0 Z" fill="#c8b6ff" opacity="0.7" />
+          <path
+            d="M-18 0 Q-18 -22 0 -22 Q18 -22 18 0 Q9 6 0 2 Q-9 6 -18 0 Z"
+            fill="#c8b6ff"
+            opacity="0.7"
+          />
           <path d="M-8 4 Q-10 25 -5 40" stroke="#e7c6ff" strokeWidth="1.5" fill="none" />
           <path d="M8 4 Q10 25 5 40" stroke="#e7c6ff" strokeWidth="1.5" fill="none" />
         </SceneObject>
@@ -572,16 +682,60 @@ export default function OceanScrollBackground() {
           <path d="M40 90 L25 40 L10 15 L25 30 L40 50 L55 20 L50 45 Z" fill="#f72585" />
         </SceneObject>
 
-        <g transform={`translate(${offsetX}, 2380) scale(${sx}) translate(0, -2380)`} className="kelp-group">
-          <path d="M 120 2380 Q 140 2280 110 2180 T 130 1980" stroke="#2d6a4f" strokeWidth="18" fill="none" strokeLinecap="round" className="kelp-sway-1" />
-          <path d="M 120 2380 Q 140 2280 110 2180 T 130 1980" stroke="#52b788" strokeWidth="8" fill="none" strokeLinecap="round" className="kelp-sway-1" />
-          <path d="M 260 2400 Q 230 2300 270 2180 T 240 2020" stroke="#1b4332" strokeWidth="22" fill="none" strokeLinecap="round" className="kelp-sway-2" />
-          <path d="M 850 2390 Q 880 2280 840 2150 T 870 1990" stroke="#2d6a4f" strokeWidth="20" fill="none" strokeLinecap="round" className="kelp-sway-3" />
-          <path d="M 1020 2380 Q 990 2260 1030 2140 T 1000 2000" stroke="#40916c" strokeWidth="16" fill="none" strokeLinecap="round" className="kelp-sway-2" />
+        <g
+          transform={`translate(${offsetX}, 2380) scale(${sx}) translate(0, -2380)`}
+          className="kelp-group"
+        >
+          <path
+            d="M 120 2380 Q 140 2280 110 2180 T 130 1980"
+            stroke="#2d6a4f"
+            strokeWidth="18"
+            fill="none"
+            strokeLinecap="round"
+            className="kelp-sway-1"
+          />
+          <path
+            d="M 120 2380 Q 140 2280 110 2180 T 130 1980"
+            stroke="#52b788"
+            strokeWidth="8"
+            fill="none"
+            strokeLinecap="round"
+            className="kelp-sway-1"
+          />
+          <path
+            d="M 260 2400 Q 230 2300 270 2180 T 240 2020"
+            stroke="#1b4332"
+            strokeWidth="22"
+            fill="none"
+            strokeLinecap="round"
+            className="kelp-sway-2"
+          />
+          <path
+            d="M 850 2390 Q 880 2280 840 2150 T 870 1990"
+            stroke="#2d6a4f"
+            strokeWidth="20"
+            fill="none"
+            strokeLinecap="round"
+            className="kelp-sway-3"
+          />
+          <path
+            d="M 1020 2380 Q 990 2260 1030 2140 T 1000 2000"
+            stroke="#40916c"
+            strokeWidth="16"
+            fill="none"
+            strokeLinecap="round"
+            className="kelp-sway-2"
+          />
         </g>
 
         <SceneObject x={680} y={2330} sx={sx} ox={offsetX} localY={60}>
-          <path d="M0 0 L0 60 M-25 45 Q0 65 25 45 M-10 0 L10 0" stroke="#4a5568" strokeWidth="7" fill="none" strokeLinecap="round" />
+          <path
+            d="M0 0 L0 60 M-25 45 Q0 65 25 45 M-10 0 L10 0"
+            stroke="#4a5568"
+            strokeWidth="7"
+            fill="none"
+            strokeLinecap="round"
+          />
           <rect x="40" y="25" width="50" height="35" rx="4" fill="#7f4f24" />
           <path d="M40 25 Q65 10 90 25 Z" fill="#936639" />
           <rect x="61" y="37" width="8" height="10" fill="#e9c46a" />
@@ -599,7 +753,10 @@ export default function OceanScrollBackground() {
         </SceneObject>
 
         <SceneObject x={580} y={2385} sx={sx} ox={offsetX}>
-          <path d="M0 -12 L3 -4 L11 -4 L5 1 L7 9 L0 4 L-7 9 L-5 1 L-11 -4 L-3 -4 Z" fill="#ff70a6" />
+          <path
+            d="M0 -12 L3 -4 L11 -4 L5 1 L7 9 L0 4 L-7 9 L-5 1 L-11 -4 L-3 -4 Z"
+            fill="#ff70a6"
+          />
         </SceneObject>
       </svg>
 

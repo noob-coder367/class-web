@@ -1,5 +1,5 @@
 /* ============================================================
-   CONTAINER CHÍNH — phủ đúng khung nhìn, không tràn ngang
+   CONTAINER CHÍNH — góc nhìn 2D thuần, không perspective
 ============================================================ */
 .ocean-background {
   position: fixed;
@@ -10,17 +10,13 @@
   pointer-events: none;
   z-index: -1;
   isolation: isolate;
-  will-change: transform;
-  /* Giúp perspective + rotateX hiện rõ hơn trên mobile */
-  transform-style: preserve-3d;
-  backface-visibility: hidden;
 }
 
 .ocean-base-gradient {
   position: absolute;
   inset: 0;
   z-index: 0;
-  transition: background 1.5s ease;
+  transition: background 2s ease;
 }
 
 .ocean-svg-canvas {
