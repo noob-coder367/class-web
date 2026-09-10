@@ -10,12 +10,15 @@
   pointer-events: none;
   z-index: -1;
   isolation: isolate;
+  /* transform (perspective + rotateX) được set inline theo scroll */
+  will-change: transform;
 }
 
 .ocean-base-gradient {
   position: absolute;
   inset: 0;
   z-index: 0;
+  transition: background 1.5s ease;
 }
 
 .ocean-svg-canvas {
@@ -44,6 +47,22 @@
   100% {
     transform: scale(1.04);
     filter: drop-shadow(0 0 35px rgba(255, 245, 179, 0.95));
+  }
+}
+
+.ocean-moon {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: moonGlowPulse 5s ease-in-out infinite alternate;
+}
+@keyframes moonGlowPulse {
+  0% {
+    transform: scale(0.97);
+    filter: drop-shadow(0 0 12px rgba(200, 210, 255, 0.5));
+  }
+  100% {
+    transform: scale(1.03);
+    filter: drop-shadow(0 0 28px rgba(220, 230, 255, 0.85));
   }
 }
 
@@ -248,6 +267,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ocean-sun,
+  .ocean-moon,
   .ocean-cloud-one,
   .ocean-cloud-two,
   .wave-motion-back,
