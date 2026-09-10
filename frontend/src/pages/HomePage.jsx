@@ -5,6 +5,7 @@ import AuthPage from './AuthPage.jsx'
 import EventsSection from '../components/EventsSection.jsx'
 import AdminPanel from '../components/AdminPanel.jsx'
 import ClassRoomView from '../components/ClassRoomView.jsx'
+import ProfileMenu from '../components/ProfileMenu.jsx'
 import {
   Fish,
   Jellyfish,
@@ -229,13 +230,7 @@ export default function HomePage() {
                 Đang kiểm tra...
               </button>
             ) : session ? (
-              <button
-                className="btn-verify"
-                onClick={handleSignOut}
-                disabled={authLoading}
-              >
-                {authLoading ? 'Đang xử lý...' : 'Đăng xuất'}
-              </button>
+              <ProfileMenu onLogout={handleSignOut} />
             ) : (
               <>
                 <button className="btn-verify" onClick={() => openAuth('login')}>
