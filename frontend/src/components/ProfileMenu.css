@@ -105,7 +105,16 @@
 
 .profile-dropdown-icon {
   width: 20px;
-  text-align: center;
-  opacity: 0.85;
-  font-size: 15px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.profile-dropdown-svg {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
