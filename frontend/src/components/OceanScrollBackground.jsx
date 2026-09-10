@@ -166,6 +166,7 @@ export default function OceanScrollBackground() {
   const [timeOfDay, setTimeOfDay] = useState(() => computeTimeOfDay());
   const animationFrame = useRef(null);
   const lastProgress = useRef(0);
+  const metricsRef = useRef({ maxScroll: 0 });
 
   const { condition } = useWeather();
   const isThunder = condition === "thunderstorm";
@@ -189,15 +190,35 @@ export default function OceanScrollBackground() {
       lastProgress.current = next;
       setScrollProgress(next);
     };
+    // Chỉ đọc scrollY mỗi frame (rẻ). scrollHeight/offsetHeight (đắt, có thể
+    // ép trình duyệt tính lại layout) chỉ được đo lại khi layout thực sự đổi
+    // (resize / orientation change / nội dung đổi chiều cao), không phải mỗi lần vuốt.
+    const computeProgressCheap = () => {
+      const doc = document.documentElement;
+      const body = document.body;
+      const scrollY = Math.max(
+        0,
+        window.scrollY || window.pageYOffset || doc.scrollTop || body?.scrollTop || 0
+      );
+      const maxScroll = metricsRef.current.maxScroll;
+      if (scrollY <= TOP_EPSILON) return 0;
+      if (maxScroll < MIN_SCROLLABLE) return 0;
+      return clamp(scrollY / maxScroll);
+    };
     const updateScroll = () => {
       if (animationFrame.current) return;
       animationFrame.current = requestAnimationFrame(() => {
-        applyProgress(computeProgress());
+        applyProgress(computeProgressCheap());
         animationFrame.current = null;
       });
     };
+    const refreshMetrics = () => {
+      const { maxScroll } = readScrollMetrics();
+      metricsRef.current.maxScroll = maxScroll;
+    };
     const updateLayout = () => {
       setLayout(getOceanLayout());
+      refreshMetrics();
       updateScroll();
     };
     updateLayout();
@@ -207,11 +228,12 @@ export default function OceanScrollBackground() {
     window.visualViewport?.addEventListener("scroll", updateLayout);
     let resizeObserver;
     if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(() => updateScroll());
+      // Layout (chiều cao trang) có thể đổi -> đo lại metrics, không chỉ tick scroll.
+      resizeObserver = new ResizeObserver(() => updateLayout());
       resizeObserver.observe(document.documentElement);
       if (document.body) resizeObserver.observe(document.body);
     }
-    const onLoad = () => updateScroll();
+    const onLoad = () => updateLayout();
     window.addEventListener("load", onLoad);
     return () => {
       window.removeEventListener("scroll", updateScroll);
@@ -258,7 +280,7 @@ export default function OceanScrollBackground() {
       aria-hidden="true"
     >
       <div className="ocean-base-gradient" style={{ background: colors.baseGradient }} />
-      <svg className="ocean-svg-canvas" viewBox={`0 ${cameraY} ${viewW} ${viewH}`} preserveAspectRatio="none">
+      <svg className="ocean-svg-canvas" viewBox={`0 0 ${viewW} ${viewH}`} preserveAspectRatio="none">
         <defs>
           <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={colors.skyTop} />
@@ -312,6 +334,11 @@ export default function OceanScrollBackground() {
           </linearGradient>
         </defs>
 
+        <g
+          className="ocean-camera"
+          transform={`translate(0, ${-cameraY})`}
+          style={{ willChange: "transform" }}
+        >
         <g transform={`translate(0, ${skyParallaxY})`}>
           <rect x={-4} y="0" width={viewW + 8} height="520" fill="url(#skyGrad)" opacity={skyOpacity} />
           <g opacity={celestialOpacity}>
@@ -542,6 +569,7 @@ export default function OceanScrollBackground() {
         <SceneObject x={580} y={2385} sx={sx} ox={offsetX}>
           <path d="M0 -12 L3 -4 L11 -4 L5 1 L7 9 L0 4 L-7 9 L-5 1 L-11 -4 L-3 -4 Z" fill="#ff70a6" />
         </SceneObject>
+        </g>
       </svg>
 
       <div className="ocean-bubbles-container" style={{ opacity: bubblesOpacity }}>
