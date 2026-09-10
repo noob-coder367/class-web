@@ -461,11 +461,38 @@ h1, h2, h3, h4 {
   padding-top: 8px;
 }
 
+.announcement-header,
 .announcement-card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
+  margin-bottom: 8px;
+}
+
+.announcement-header h4,
+.announcement-card-header h4 {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-delete-announcement {
+  flex-shrink: 0;
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.4;
+  font-family: inherit;
+}
+
+.btn-delete-announcement:hover {
+  background: #fca5a5;
 }
 /* =====================================================
    5. EVENTS SECTION (SỰ KIỆN)
