@@ -11,22 +11,13 @@ import { useAuth } from './AuthContext.jsx'
 const WeatherContext = createContext(null)
 
 const STORAGE_KEY = 'classweb_location_permission'
-const WEATHER_POLL_MS = 5 * 60 * 1000 // 5 phút
+const WEATHER_POLL_MS = 5 * 60 * 1000
 
-/**
- * WMO weather code → trạng thái đơn giản
- * https://open-meteo.com/en/docs
- * 95-99 = thunderstorm
- */
 function mapWeatherCode(code, precipitation = 0) {
   if (code == null) return null
-  // 0 Clear, 1 Mainly clear
   if (code <= 1) return 'clear'
-  // 2 Partly cloudy, 3 Overcast, 45/48 Fog
   if (code <= 3 || code === 45 || code === 48) return 'cloudy'
-  // Thunderstorm (có sét)
   if (code >= 95 && code <= 99) return 'thunderstorm'
-  // Drizzle / light rain / light showers
   if (
     (code >= 51 && code <= 55) ||
     (code >= 61 && code <= 63) ||
@@ -35,11 +26,9 @@ function mapWeatherCode(code, precipitation = 0) {
   ) {
     return precipitation > 2.5 ? 'heavy-rain' : 'light-rain'
   }
-  // Heavy rain / heavy showers (không sét)
   if (code === 65 || code === 66 || code === 67 || code === 82) {
     return 'heavy-rain'
   }
-  // Snow / other → cloudy
   return 'cloudy'
 }
 
@@ -58,7 +47,7 @@ async function fetchWeather(lat, lon) {
     current.precipitation ?? 0
   )
   return {
-    condition, // 'clear' | 'cloudy' | 'light-rain' | 'heavy-rain' | 'thunderstorm' | null
+    condition,
     weatherCode: current.weather_code,
     precipitation: current.precipitation ?? 0,
     windSpeed: current.wind_speed_10m ?? 0,
@@ -134,6 +123,41 @@ export function WeatherProvider({ children }) {
     savePermission('denied')
   }, [savePermission])
 
+  /** Bật/tắt chia sẻ vị trí từ Cài đặt → Quyền riêng tư */
+  const setLocationEnabled = useCallback(
+    (enabled) => {
+      if (!enabled) {
+        // Tắt: xóa tọa độ, tắt weather, lưu denied
+        setCoords(null)
+        setWeather(null)
+        savePermission('denied')
+        return
+      }
+      // Bật lại: xin geolocation
+      if (!navigator.geolocation) {
+        savePermission('denied')
+        return
+      }
+      setLoading(true)
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setCoords({
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+          })
+          savePermission('granted')
+          setLoading(false)
+        },
+        () => {
+          savePermission('denied')
+          setLoading(false)
+        },
+        { enableHighAccuracy: false, timeout: 12000, maximumAge: 0 }
+      )
+    },
+    [savePermission]
+  )
+
   useEffect(() => {
     if (!isLoggedIn) return
     if (permission !== 'granted' || coords) return
@@ -185,6 +209,7 @@ export function WeatherProvider({ children }) {
     loading,
     handleAllow,
     handleDeny,
+    setLocationEnabled,
   }
 
   return (
