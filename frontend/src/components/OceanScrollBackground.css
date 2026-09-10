@@ -69,7 +69,10 @@
 .ocean-cloud-one,
 .ocean-cloud-two,
 .ocean-cloud-extra-1,
-.ocean-cloud-extra-2 {
+.ocean-cloud-extra-2,
+.ocean-cloud-extra-3,
+.ocean-cloud-extra-4,
+.ocean-cloud-extra-5 {
   transform-box: fill-box;
   transform-origin: center;
   transition: opacity 1.6s ease;
@@ -85,6 +88,15 @@
 }
 .ocean-cloud-extra-2 {
   animation: cloudFloatTwo 30s ease-in-out infinite alternate;
+}
+.ocean-cloud-extra-3 {
+  animation: cloudFloatOne 20s ease-in-out infinite alternate;
+}
+.ocean-cloud-extra-4 {
+  animation: cloudFloatTwo 26s ease-in-out infinite alternate-reverse;
+}
+.ocean-cloud-extra-5 {
+  animation: cloudFloatOne 18s ease-in-out 1s infinite alternate;
 }
 @keyframes cloudFloatOne {
   0% { transform: translateX(-8%); }
@@ -116,7 +128,6 @@
   100% { transform: translate(-1.5%, -0.8%); }
 }
 
-/* Sóng mạnh khi mưa */
 .is-raining .wave-motion-back {
   animation: waveMoveBackStorm 3.2s ease-in-out infinite alternate;
 }
@@ -148,7 +159,6 @@
   50% { transform: translateY(3%) rotate(1.5deg); }
 }
 
-/* Thuyền lên xuống mạnh khi mưa */
 .is-raining .ocean-boat-motion {
   animation: boatRockingStorm 2.2s ease-in-out infinite;
 }
@@ -175,83 +185,50 @@
   transform-origin: center;
 }
 
-.sea-turtle-anim {
-  animation: turtleSwim 12s ease-in-out infinite alternate;
-}
+.sea-turtle-anim { animation: turtleSwim 12s ease-in-out infinite alternate; }
 @keyframes turtleSwim {
   0% { transform: translate(-8%, 4%) rotate(-3deg); }
   100% { transform: translate(16%, -6%) rotate(4deg); }
 }
-
-.fish-swim-right {
-  animation: fishSwimR 8s ease-in-out infinite alternate;
-}
-.fish-swim-right-slow {
-  animation: fishSwimR 11s ease-in-out 1s infinite alternate;
-}
+.fish-swim-right { animation: fishSwimR 8s ease-in-out infinite alternate; }
+.fish-swim-right-slow { animation: fishSwimR 11s ease-in-out 1s infinite alternate; }
 @keyframes fishSwimR {
   0% { transform: translateX(-35%); }
   100% { transform: translateX(55%); }
 }
-
-.dolphin-anim {
-  animation: dolphinDiving 9s ease-in-out infinite alternate;
-}
+.dolphin-anim { animation: dolphinDiving 9s ease-in-out infinite alternate; }
 @keyframes dolphinDiving {
   0% { transform: translate(-10%, 4%) rotate(-5deg); }
   100% { transform: translate(22%, -10%) rotate(8deg); }
 }
-
-.manta-anim {
-  animation: mantaGlide 14s ease-in-out infinite alternate;
-}
+.manta-anim { animation: mantaGlide 14s ease-in-out infinite alternate; }
 @keyframes mantaGlide {
   0% { transform: translate(8%, 4%) scale(0.95); }
   100% { transform: translate(-12%, -8%) scale(1.05); }
 }
-
-.jelly-float {
-  animation: jellyPulse 5s ease-in-out infinite;
-}
-.jelly-float-delayed {
-  animation: jellyPulse 6s ease-in-out 2s infinite;
-}
+.jelly-float { animation: jellyPulse 5s ease-in-out infinite; }
+.jelly-float-delayed { animation: jellyPulse 6s ease-in-out 2s infinite; }
 @keyframes jellyPulse {
   0%, 100% { transform: translateY(0) scaleY(1); }
   50% { transform: translateY(-18%) scaleY(1.08); }
 }
-
-.crab-scuttle {
-  animation: crabWalk 7s ease-in-out infinite alternate;
-}
+.crab-scuttle { animation: crabWalk 7s ease-in-out infinite alternate; }
 @keyframes crabWalk {
   0% { transform: translateX(-20%); }
   100% { transform: translateX(30%); }
 }
-
-.angler-light {
-  animation: anglerGlow 2s ease-in-out infinite alternate;
-}
+.angler-light { animation: anglerGlow 2s ease-in-out infinite alternate; }
 @keyframes anglerGlow {
   0% { fill: #72efdd; filter: drop-shadow(0 0 2px #72efdd); }
   100% { fill: #ffffff; filter: drop-shadow(0 0 12px #4cc9f0); }
 }
-
-.kelp-sway-1,
-.kelp-sway-2,
-.kelp-sway-3 {
+.kelp-sway-1, .kelp-sway-2, .kelp-sway-3 {
   transform-box: fill-box;
   transform-origin: bottom center;
 }
-.kelp-sway-1 {
-  animation: kelpSwayLeft 5s ease-in-out infinite alternate;
-}
-.kelp-sway-2 {
-  animation: kelpSwayRight 6.5s ease-in-out infinite alternate;
-}
-.kelp-sway-3 {
-  animation: kelpSwayLeft 4.5s ease-in-out 1s infinite alternate;
-}
+.kelp-sway-1 { animation: kelpSwayLeft 5s ease-in-out infinite alternate; }
+.kelp-sway-2 { animation: kelpSwayRight 6.5s ease-in-out infinite alternate; }
+.kelp-sway-3 { animation: kelpSwayLeft 4.5s ease-in-out 1s infinite alternate; }
 @keyframes kelpSwayLeft {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(-8deg); }
@@ -261,9 +238,6 @@
   100% { transform: rotate(9deg); }
 }
 
-/* ============================================================
-   BONG BÓNG KHÍ
-============================================================ */
 .ocean-bubbles-container {
   position: absolute;
   inset: 0;
@@ -288,18 +262,11 @@
 .b6 { width: 6px; height: 6px; left: 88%; bottom: -20px; animation-duration: 7s; animation-delay: 5s; }
 .b7 { width: 12px; height: 12px; left: 35%; bottom: -20px; animation-duration: 13s; animation-delay: 0.5s; }
 .b8 { width: 20px; height: 20px; left: 72%; bottom: -20px; animation-duration: 15s; animation-delay: 2.5s; }
-
 @keyframes bubbleRiseUp {
-  0% {
-    transform: translateY(0) translateX(0);
-    opacity: 0;
-  }
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
   10% { opacity: 0.7; }
   90% { opacity: 0.4; }
-  100% {
-    transform: translateY(-110vh) translateX(30px);
-    opacity: 0;
-  }
+  100% { transform: translateY(-110vh) translateX(30px); opacity: 0; }
 }
 
 .ocean-abyss-darkness {
@@ -311,9 +278,6 @@
   transition: opacity 0.3s linear;
 }
 
-/* ============================================================
-   MƯA — rõ hơn, dễ thấy cả ban ngày lẫn ban đêm
-============================================================ */
 .ocean-rain {
   position: absolute;
   inset: 0;
@@ -323,134 +287,157 @@
   opacity: 0;
   animation: rainFadeIn 1s ease forwards;
 }
-
 @keyframes rainFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-
 .raindrop {
   position: absolute;
   top: -15%;
   width: 2px;
   height: 18px;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0),
-    rgba(220, 235, 255, 0.85)
-  );
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(220, 235, 255, 0.85));
   border-radius: 2px;
   box-shadow: 0 0 3px rgba(180, 210, 255, 0.4);
   animation: rainFall linear infinite;
-  left: calc(var(--i, 0) * 2.2% + 0.5%);
-  animation-duration: calc(0.5s + (var(--i, 0) * 0.01s));
-  animation-delay: calc(var(--i, 0) * -0.07s);
   transform: rotate(12deg);
 }
-
-.ocean-rain--light .raindrop {
-  width: 2px;
-  height: 16px;
-  opacity: 0.9;
-}
-
+.ocean-rain--light .raindrop { width: 2px; height: 16px; opacity: 0.9; }
 .ocean-rain--heavy .raindrop {
   width: 2.5px;
   height: 22px;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0),
-    rgba(230, 240, 255, 0.95)
-  );
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(230, 240, 255, 0.95));
   box-shadow: 0 0 4px rgba(200, 220, 255, 0.55);
-  animation-duration: calc(0.32s + (var(--i, 0) * 0.008s));
 }
-
 @keyframes rainFall {
-  0% {
-    transform: translateY(0) translateX(0) rotate(12deg);
-    opacity: 0;
-  }
-  8% {
-    opacity: 1;
-  }
-  90% {
-    opacity: 0.65;
-  }
-  100% {
-    transform: translateY(120vh) translateX(18px) rotate(12deg);
-    opacity: 0;
-  }
+  0% { transform: translateY(0) translateX(0) rotate(12deg); opacity: 0; }
+  8% { opacity: 1; }
+  90% { opacity: 0.65; }
+  100% { transform: translateY(120vh) translateX(18px) rotate(12deg); opacity: 0; }
 }
 
-/* Lớp mờ mưa nhẹ phủ lên trời (dễ nhận biết đang mưa) */
 .is-raining::after {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 4;
   pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    rgba(40, 60, 90, 0.25) 0%,
-    rgba(30, 50, 80, 0.12) 40%,
-    transparent 70%
-  );
+  background: linear-gradient(to bottom, rgba(40, 60, 90, 0.25) 0%, rgba(30, 50, 80, 0.12) 40%, transparent 70%);
   animation: rainOverlayIn 1.2s ease forwards;
 }
-
 .is-heavy-rain::after {
-  background: linear-gradient(
-    to bottom,
-    rgba(30, 45, 70, 0.4) 0%,
-    rgba(25, 40, 65, 0.2) 45%,
-    transparent 75%
-  );
+  background: linear-gradient(to bottom, rgba(30, 45, 70, 0.4) 0%, rgba(25, 40, 65, 0.2) 45%, transparent 75%);
 }
-
 @keyframes rainOverlayIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-/* Làm tối nhẹ bầu trời khi mây / mưa */
-.is-cloudy .ocean-base-gradient {
-  filter: brightness(0.88) saturate(0.9);
+.is-cloudy .ocean-base-gradient { filter: brightness(0.88) saturate(0.9); }
+.is-raining .ocean-base-gradient { filter: brightness(0.72) saturate(0.8); }
+.is-heavy-rain .ocean-base-gradient { filter: brightness(0.6) saturate(0.75); }
+.is-thunder .ocean-base-gradient { filter: brightness(0.55) saturate(0.7); }
+.is-thunder::after {
+  background: linear-gradient(to bottom, rgba(25, 35, 55, 0.45) 0%, rgba(20, 30, 50, 0.25) 45%, transparent 75%);
 }
-.is-raining .ocean-base-gradient {
-  filter: brightness(0.72) saturate(0.8);
+
+/* SÉT TRẮNG */
+.ocean-lightning {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  overflow: hidden;
 }
-.is-heavy-rain .ocean-base-gradient {
-  filter: brightness(0.6) saturate(0.75);
+.lightning-flash {
+  position: absolute;
+  inset: 0;
+  background: #ffffff;
+  opacity: 0;
+  mix-blend-mode: screen;
+}
+.lightning-flash-1 { animation: lightningFlashA 7s ease-in-out infinite; }
+.lightning-flash-2 { animation: lightningFlashB 11s ease-in-out 3.5s infinite; }
+@keyframes lightningFlashA {
+  0%, 88%, 100% { opacity: 0; }
+  89% { opacity: 0.55; }
+  90% { opacity: 0.12; }
+  91% { opacity: 0.7; }
+  92.5% { opacity: 0; }
+}
+@keyframes lightningFlashB {
+  0%, 90%, 100% { opacity: 0; }
+  91% { opacity: 0.4; }
+  91.5% { opacity: 0.08; }
+  92% { opacity: 0.65; }
+  93.5% { opacity: 0; }
+}
+.lightning-bolt {
+  position: absolute;
+  width: 4px;
+  opacity: 0;
+  filter: drop-shadow(0 0 6px #fff) drop-shadow(0 0 16px rgba(255, 255, 255, 0.95));
+}
+.lightning-bolt::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 200px;
+  background: #ffffff;
+  clip-path: polygon(
+    40% 0%, 58% 0%,
+    48% 16%, 78% 16%,
+    32% 42%, 62% 42%,
+    28% 68%, 55% 68%,
+    42% 100%, 26% 100%,
+    38% 68%, 12% 68%,
+    42% 42%, 14% 42%,
+    45% 16%, 22% 16%
+  );
+}
+.lightning-bolt-1 {
+  top: 1%;
+  left: 26%;
+  animation: boltStrike1 7s ease-in-out infinite;
+}
+.lightning-bolt-2 {
+  top: 4%;
+  left: 66%;
+  transform: scaleX(-1);
+  animation: boltStrike2 11s ease-in-out 3.5s infinite;
+}
+@keyframes boltStrike1 {
+  0%, 88%, 100% { opacity: 0; }
+  89% { opacity: 1; }
+  90% { opacity: 0.35; }
+  91% { opacity: 1; }
+  92.5% { opacity: 0; }
+}
+@keyframes boltStrike2 {
+  0%, 90%, 100% { opacity: 0; }
+  91% { opacity: 1; }
+  91.5% { opacity: 0.3; }
+  92% { opacity: 1; }
+  93.5% { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ocean-sun,
-  .ocean-moon,
-  .ocean-cloud-one,
-  .ocean-cloud-two,
-  .ocean-cloud-extra-1,
-  .ocean-cloud-extra-2,
-  .wave-motion-back,
-  .wave-motion-front,
+  .ocean-sun, .ocean-moon,
+  .ocean-cloud-one, .ocean-cloud-two,
+  .ocean-cloud-extra-1, .ocean-cloud-extra-2,
+  .ocean-cloud-extra-3, .ocean-cloud-extra-4, .ocean-cloud-extra-5,
+  .wave-motion-back, .wave-motion-front,
   .ocean-boat-motion,
-  .sea-turtle-anim,
-  .fish-swim-right,
-  .fish-swim-right-slow,
-  .dolphin-anim,
-  .manta-anim,
-  .jelly-float,
-  .jelly-float-delayed,
-  .crab-scuttle,
-  .kelp-sway-1,
-  .kelp-sway-2,
-  .kelp-sway-3,
-  .bubble,
-  .raindrop {
+  .sea-turtle-anim, .fish-swim-right, .fish-swim-right-slow,
+  .dolphin-anim, .manta-anim, .jelly-float, .jelly-float-delayed,
+  .crab-scuttle, .kelp-sway-1, .kelp-sway-2, .kelp-sway-3,
+  .bubble, .raindrop,
+  .lightning-flash, .lightning-bolt {
     animation: none !important;
   }
-  .is-raining::after,
-  .ocean-rain {
+  .is-raining::after, .ocean-rain {
     animation: none !important;
     opacity: 1 !important;
   }
