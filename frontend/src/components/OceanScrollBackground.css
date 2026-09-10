@@ -10,8 +10,10 @@
   pointer-events: none;
   z-index: -1;
   isolation: isolate;
-  /* transform (perspective + rotateX) được set inline theo scroll */
   will-change: transform;
+  /* Giúp perspective + rotateX hiện rõ hơn trên mobile */
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
 }
 
 .ocean-base-gradient {
@@ -32,7 +34,7 @@
 }
 
 /* ============================================================
-   HOẠT HỌA — chỉ lệch tương đối (fill-box), không ghi đè vị trí SVG
+   HOẠT HỌA
 ============================================================ */
 .ocean-sun {
   transform-box: fill-box;

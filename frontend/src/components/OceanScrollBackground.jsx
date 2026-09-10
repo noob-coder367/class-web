@@ -69,7 +69,6 @@ function readScrollMetrics() {
     doc.offsetHeight,
     body?.offsetHeight || 0
   );
-  // Ưu tiên visualViewport trên mobile (iPad/Safari) vì innerHeight nhảy khi thanh địa chỉ co/giãn.
   const viewportHeight = Math.max(
     1,
     window.visualViewport?.height ?? window.innerHeight
@@ -89,11 +88,7 @@ function readScrollMetrics() {
 function computeProgress() {
   const { scrollY, maxScroll } = readScrollMetrics();
 
-  // Đang ở (gần) đầu trang → luôn mặt nước, không bị nhảy xuống đáy.
   if (scrollY <= TOP_EPSILON) return 0;
-
-  // Trang chưa đủ cao (ảnh/content chưa load xong, hoặc modal no-scroll):
-  // đừng tin maxScroll nhỏ, giữ nguyên mặt nước.
   if (maxScroll < MIN_SCROLLABLE) return 0;
 
   return clamp(scrollY / maxScroll);
@@ -101,31 +96,26 @@ function computeProgress() {
 
 /**
  * Tính phase thời gian thật (giờ địa phương).
- * Trả về object: phase, sunElevation (0=chân trời, 1=cao nhất),
- * sunHue, sky colors, water reflection tint, isNight.
  */
 function computeTimeOfDay() {
   const now = new Date();
   const hour = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
 
-  // Chu kỳ mặt trời đơn giản (giả định ~5h–19h)
   const sunrise = 5.5;
   const noon = 12;
   const sunset = 18.5;
 
   let phase = "night";
-  let sunElevation = 0; // 0 = dưới chân trời, 1 = cao nhất
+  let sunElevation = 0;
   let isNight = false;
 
   if (hour >= sunrise && hour < noon) {
-    // Bình minh → trưa
     const t = (hour - sunrise) / (noon - sunrise);
-    sunElevation = Math.sin((t * Math.PI) / 2); // 0 → 1
+    sunElevation = Math.sin((t * Math.PI) / 2);
     phase = t < 0.25 ? "dawn" : t < 0.6 ? "morning" : "noon";
   } else if (hour >= noon && hour < sunset) {
-    // Trưa → hoàng hôn
     const t = (hour - noon) / (sunset - noon);
-    sunElevation = Math.cos((t * Math.PI) / 2); // 1 → 0
+    sunElevation = Math.cos((t * Math.PI) / 2);
     phase = t < 0.4 ? "afternoon" : "sunset";
   } else {
     phase = "night";
@@ -133,7 +123,6 @@ function computeTimeOfDay() {
     sunElevation = 0;
   }
 
-  // Màu sắc theo phase
   const palettes = {
     dawn: {
       skyTop: "#1a2a4a",
@@ -199,10 +188,7 @@ function computeTimeOfDay() {
 
   const colors = palettes[phase] || palettes.noon;
 
-  // Vị trí Y của mặt trời (thấp hơn khi elevation thấp)
-  // elevation 1 → y ≈ 120 (cao), elevation 0 → y ≈ 420 (gần chân trời)
   const sunY = 420 - sunElevation * 300;
-  // X dịch nhẹ theo giờ (trái buổi sáng, phải buổi chiều)
   const sunX = 180 + ((hour - sunrise) / (sunset - sunrise || 1)) * 700;
 
   return {
@@ -223,7 +209,6 @@ export default function OceanScrollBackground() {
   const animationFrame = useRef(null);
   const lastProgress = useRef(0);
 
-  // Cập nhật thời gian thật mỗi 30 giây
   useEffect(() => {
     const tick = () => setTimeOfDay(computeTimeOfDay());
     tick();
@@ -233,7 +218,6 @@ export default function OceanScrollBackground() {
 
   useEffect(() => {
     const applyProgress = (next) => {
-      // Tránh re-render liên tục khi số gần như không đổi.
       if (Math.abs(next - lastProgress.current) < 0.001) return;
       lastProgress.current = next;
       setScrollProgress(next);
@@ -259,7 +243,6 @@ export default function OceanScrollBackground() {
     window.visualViewport?.addEventListener("resize", updateLayout);
     window.visualViewport?.addEventListener("scroll", updateLayout);
 
-    // Khi ảnh / content động làm trang cao thêm → tính lại progress.
     let resizeObserver;
     if (typeof ResizeObserver !== "undefined") {
       resizeObserver = new ResizeObserver(() => updateScroll());
@@ -267,7 +250,6 @@ export default function OceanScrollBackground() {
       if (document.body) resizeObserver.observe(document.body);
     }
 
-    // Sau khi ảnh load xong cũng cập nhật (iPad hay load chậm).
     const onLoad = () => updateScroll();
     window.addEventListener("load", onLoad);
 
@@ -289,12 +271,19 @@ export default function OceanScrollBackground() {
   const mountainParallaxY = cameraY * 0.25;
   const spanX = viewW / DESIGN_W;
 
-  // Góc camera: 45° nhìn xuống lúc đầu trang → 0° (nhìn thẳng) khi scroll xuống
-  const cameraTiltDeg = 45 * (1 - scrollProgress);
+  /*
+   * GÓC CAMERA
+   * - Đầu trang (progress = 0): nghiêng ~38–42° (nhìn xuống)
+   * - Khi scroll xuống: giảm dần → 0° (nhìn thẳng)
+   * Dùng rotateX + scale nhẹ để hiệu ứng rõ trên mobile, không bị cắt mất.
+   */
+  const tiltAmount = 1 - scrollProgress; // 1 → 0
+  const cameraTiltDeg = 42 * tiltAmount; // ~42° lúc đầu, 0° lúc cuối
+  const tiltScale = 1 + tiltAmount * 0.12; // phóng nhẹ khi nghiêng để không lộ mép
+  const tiltTranslateY = tiltAmount * -4; // đẩy lên một chút khi nghiêng
 
-  const { phase, sunElevation, sunY, sunX, isNight, colors } = timeOfDay;
+  const { sunElevation, sunY, sunX, isNight, colors } = timeOfDay;
 
-  // Opacity mặt trời / mặt trăng
   const celestialOpacity = isNight
     ? clamp(0.85 - scrollProgress * 1.5)
     : clamp(sunElevation * 1.2 - scrollProgress * 2.0);
@@ -302,7 +291,6 @@ export default function OceanScrollBackground() {
   const skyOpacity = clamp(1 - scrollProgress * 1.8);
   const bubblesOpacity = clamp((scrollProgress - 0.1) * 2);
 
-  // Độ mạnh phản chiếu trên mặt nước
   const reflectStrength = isNight
     ? 0.15
     : clamp(0.25 + sunElevation * 0.45) * clamp(1 - scrollProgress * 2.5);
@@ -312,10 +300,9 @@ export default function OceanScrollBackground() {
       className="ocean-background"
       aria-hidden="true"
       style={{
-        // Perspective + rotateX tạo cảm giác góc camera nghiêng
-        transform: `perspective(1200px) rotateX(${cameraTiltDeg}deg)`,
-        transformOrigin: "50% 0%",
-        transition: "transform 0.05s linear",
+        transform: `perspective(900px) rotateX(${cameraTiltDeg}deg) scale(${tiltScale}) translateY(${tiltTranslateY}%)`,
+        transformOrigin: "50% 18%",
+        transition: "transform 0.04s linear",
       }}
     >
       <div
@@ -351,7 +338,6 @@ export default function OceanScrollBackground() {
             <stop offset="100%" stopColor={colors.sunGlow} stopOpacity="0" />
           </radialGradient>
 
-          {/* Phản chiếu ánh sáng trên mặt nước */}
           <radialGradient id="waterReflectGrad" cx="50%" cy="0%" r="70%">
             <stop offset="0%" stopColor={colors.waterReflect} stopOpacity={reflectStrength} />
             <stop offset="45%" stopColor={colors.waterReflect} stopOpacity={reflectStrength * 0.35} />
@@ -374,14 +360,13 @@ export default function OceanScrollBackground() {
             <stop offset="100%" stopColor="#6e5732" />
           </linearGradient>
 
-          {/* Ánh sáng xuyên nước (god rays) */}
           <linearGradient id="rayGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={colors.waterReflect} stopOpacity="0.18" />
             <stop offset="100%" stopColor={colors.waterReflect} stopOpacity="0" />
           </linearGradient>
         </defs>
 
-        {/* ===== SKY + CELESTIAL ===== */}
+        {/* SKY + CELESTIAL */}
         <g transform={`translate(0, ${skyParallaxY})`}>
           <rect
             x={-4}
@@ -392,7 +377,6 @@ export default function OceanScrollBackground() {
             opacity={skyOpacity}
           />
 
-          {/* Mặt trời / mặt trăng */}
           <g opacity={celestialOpacity}>
             <SceneObject x={sunX} y={sunY} sx={sx} ox={offsetX}>
               <circle cx="0" cy="0" r={isNight ? 70 : 110} fill="url(#sunGlow)" />
@@ -403,7 +387,6 @@ export default function OceanScrollBackground() {
                 fill={isNight ? "#e8e8ff" : colors.sunCore}
                 className={isNight ? "ocean-moon" : "ocean-sun"}
               />
-              {/* Craters mặt trăng */}
               {isNight && (
                 <>
                   <circle cx="-8" cy="-6" r="5" fill="#c8c8e0" opacity="0.5" />
@@ -414,7 +397,6 @@ export default function OceanScrollBackground() {
             </SceneObject>
           </g>
 
-          {/* Sao ban đêm */}
           {isNight && skyOpacity > 0.2 && (
             <g opacity={skyOpacity * 0.9}>
               <circle cx={viewW * 0.15} cy="80" r="1.5" fill="#fff" />
@@ -452,7 +434,6 @@ export default function OceanScrollBackground() {
           )}
         </g>
 
-        {/* Núi xa */}
         <g
           transform={`translate(0, ${mountainParallaxY}) scale(${spanX}, 1)`}
           opacity={skyOpacity}
@@ -461,7 +442,6 @@ export default function OceanScrollBackground() {
           <polygon points="780,520 900,280 980,360 1100,230 1200,520" fill={isNight ? "#1e2a38" : "#4d647a"} />
         </g>
 
-        {/* Nước */}
         <rect
           x={-4}
           y={WATER_Y}
@@ -470,7 +450,7 @@ export default function OceanScrollBackground() {
           fill="url(#oceanWaterGrad)"
         />
 
-        {/* Phản chiếu ánh sáng trên mặt nước (ellipse dưới mặt trời) */}
+        {/* Phản chiếu ánh sáng trên mặt nước */}
         <ellipse
           cx={offsetX + sunX * sx}
           cy={WATER_Y + 8}
@@ -480,7 +460,6 @@ export default function OceanScrollBackground() {
           opacity={reflectStrength > 0.05 ? 1 : 0}
         />
 
-        {/* God rays xuyên nước */}
         <g
           className="ocean-light-rays"
           transform={`scale(${spanX}, 1)`}
@@ -528,7 +507,6 @@ export default function OceanScrollBackground() {
           <path d={wavePath(viewW, 525, 35)} fill={isNight ? "#1e5a70" : "#38b7d3"} opacity="0.9" />
         </g>
 
-        {/* Sinh vật dưới nước (giữ nguyên) */}
         <SceneObject x={380} y={780} sx={sx} ox={offsetX} className="sea-turtle-anim">
           <ellipse cx="0" cy="0" rx="35" ry="25" fill="#2a9d8f" />
           <ellipse cx="0" cy="0" rx="28" ry="20" fill="#e9c46a" opacity="0.8" />
