@@ -6,6 +6,11 @@ const DESIGN_H = 800;
 const WORLD_H = 2600;
 const WATER_Y = 500;
 
+/** Coi là "đầu trang" nếu scrollY nhỏ hơn ngưỡng này (px). */
+const TOP_EPSILON = 8;
+/** Nếu trang còn quá thấp (chưa layout xong) thì không tin maxScroll. */
+const MIN_SCROLLABLE = 120;
+
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 
 function getOceanLayout() {
@@ -55,20 +60,63 @@ function seabedPath(width, y, dip) {
   ].join(" ");
 }
 
+function readScrollMetrics() {
+  const doc = document.documentElement;
+  const body = document.body;
+  const documentHeight = Math.max(
+    doc.scrollHeight,
+    body?.scrollHeight || 0,
+    doc.offsetHeight,
+    body?.offsetHeight || 0
+  );
+  // Ưu tiên visualViewport trên mobile (iPad/Safari) vì innerHeight nhảy khi thanh địa chỉ co/giãn.
+  const viewportHeight = Math.max(
+    1,
+    window.visualViewport?.height ?? window.innerHeight
+  );
+  const scrollY = Math.max(
+    0,
+    window.scrollY ||
+      window.pageYOffset ||
+      doc.scrollTop ||
+      body?.scrollTop ||
+      0
+  );
+  const maxScroll = Math.max(0, documentHeight - viewportHeight);
+  return { scrollY, maxScroll, documentHeight, viewportHeight };
+}
+
+function computeProgress() {
+  const { scrollY, maxScroll } = readScrollMetrics();
+
+  // Đang ở (gần) đầu trang → luôn mặt nước, không bị nhảy xuống đáy.
+  if (scrollY <= TOP_EPSILON) return 0;
+
+  // Trang chưa đủ cao (ảnh/content chưa load xong, hoặc modal no-scroll):
+  // đừng tin maxScroll nhỏ, giữ nguyên mặt nước.
+  if (maxScroll < MIN_SCROLLABLE) return 0;
+
+  return clamp(scrollY / maxScroll);
+}
+
 export default function OceanScrollBackground() {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [layout, setLayout] = useState(getOceanLayout);
   const animationFrame = useRef(null);
+  const lastProgress = useRef(0);
 
   useEffect(() => {
+    const applyProgress = (next) => {
+      // Tránh re-render liên tục khi số gần như không đổi.
+      if (Math.abs(next - lastProgress.current) < 0.001) return;
+      lastProgress.current = next;
+      setScrollProgress(next);
+    };
+
     const updateScroll = () => {
       if (animationFrame.current) return;
       animationFrame.current = requestAnimationFrame(() => {
-        const documentHeight = document.documentElement.scrollHeight;
-        const viewportHeight = window.innerHeight;
-        const maxScroll = Math.max(1, documentHeight - viewportHeight);
-        const progress = clamp(window.scrollY / maxScroll);
-        setScrollProgress(progress);
+        applyProgress(computeProgress());
         animationFrame.current = null;
       });
     };
@@ -79,16 +127,31 @@ export default function OceanScrollBackground() {
     };
 
     updateLayout();
+
     window.addEventListener("scroll", updateScroll, { passive: true });
     window.addEventListener("resize", updateLayout);
     window.visualViewport?.addEventListener("resize", updateLayout);
     window.visualViewport?.addEventListener("scroll", updateLayout);
 
+    // Khi ảnh / content động làm trang cao thêm → tính lại progress.
+    let resizeObserver;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => updateScroll());
+      resizeObserver.observe(document.documentElement);
+      if (document.body) resizeObserver.observe(document.body);
+    }
+
+    // Sau khi ảnh load xong cũng cập nhật (iPad hay load chậm).
+    const onLoad = () => updateScroll();
+    window.addEventListener("load", onLoad);
+
     return () => {
       window.removeEventListener("scroll", updateScroll);
       window.removeEventListener("resize", updateLayout);
+      window.removeEventListener("load", onLoad);
       window.visualViewport?.removeEventListener("resize", updateLayout);
       window.visualViewport?.removeEventListener("scroll", updateLayout);
+      resizeObserver?.disconnect();
       if (animationFrame.current) cancelAnimationFrame(animationFrame.current);
     };
   }, []);
