@@ -18,7 +18,7 @@ function DefaultAvatarLarge() {
 export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
   const { session, profile } = useAuth()
   const { permission, setLocationEnabled } = useWeather()
-  const [tab, setTab] = useState('info') // 'info' | 'privacy'
+  const [tab, setTab] = useState('info')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [pwMsg, setPwMsg] = useState('')
@@ -32,11 +32,11 @@ export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
   const hasPasswordProvider = useMemo(() => {
     const identities = user?.identities || []
     if (identities.length === 0) {
-      // login bằng username/password qua backend → thường không có identities trên client
-      // nếu có email + không có google identity thì cho phép đổi mật khẩu
-      const providers = identities.map((i) => i.provider)
-      if (providers.includes('google') && !providers.includes('email')) return false
       return true
+    }
+    const providers = identities.map((i) => i.provider)
+    if (providers.includes('google') && !providers.includes('email')) {
+      return false
     }
     return identities.some((i) => i.provider === 'email')
   }, [user])
@@ -128,7 +128,7 @@ export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
           onClick={onClose}
           aria-label="Đóng"
         >
-          <
+          {'<'}
         </button>
 
         <div className="settings-body">
