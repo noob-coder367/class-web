@@ -71,6 +71,8 @@ async function fetchWeather(lat, lon) {
 
 export function WeatherProvider({ children }) {
   const { session, authReady } = useAuth()
+  const isLoggedIn = !!session?.user
+
   const [permission, setPermission] = useState(() => {
     try {
       return localStorage.getItem(STORAGE_KEY) // 'granted' | 'denied' | null
@@ -87,12 +89,23 @@ export function WeatherProvider({ children }) {
   // Chỉ hỏi 1 lần sau khi auth sẵn sàng + đã đăng nhập + chưa từng trả lời
   useEffect(() => {
     if (!authReady) return
-    if (!session?.user) return
+    if (!isLoggedIn) {
+      setShowPrompt(false)
+      return
+    }
     if (permission === 'granted' || permission === 'denied') return
-    // Đợi một chút để UI ổn định sau login/register
     const t = setTimeout(() => setShowPrompt(true), 1200)
     return () => clearTimeout(t)
-  }, [authReady, session, permission])
+  }, [authReady, isLoggedIn, permission])
+
+  // Đăng xuất → tắt hết hiệu ứng thời tiết, về ngày-đêm
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setWeather(null)
+      setShowPrompt(false)
+      // Không xóa permission / coords — lần login sau vẫn nhớ
+    }
+  }, [isLoggedIn])
 
   const savePermission = useCallback((value) => {
     try {
@@ -116,7 +129,6 @@ export function WeatherProvider({ children }) {
         setLoading(false)
       },
       () => {
-        // User từ chối ở trình duyệt hoặc lỗi
         savePermission('denied')
         setLoading(false)
       },
@@ -128,8 +140,9 @@ export function WeatherProvider({ children }) {
     savePermission('denied')
   }, [savePermission])
 
-  // Khi đã granted nhưng chưa có coords (reload trang)
+  // Khi đã granted nhưng chưa có coords (reload trang) — chỉ khi đang login
   useEffect(() => {
+    if (!isLoggedIn) return
     if (permission !== 'granted' || coords) return
     if (!navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
@@ -137,17 +150,16 @@ export function WeatherProvider({ children }) {
         setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude })
       },
       () => {
-        // Không lấy được → coi như denied cho session này
         setWeather(null)
       },
       { enableHighAccuracy: false, timeout: 12000, maximumAge: 600000 }
     )
-  }, [permission, coords])
+  }, [isLoggedIn, permission, coords])
 
-  // Fetch + poll weather
+  // Fetch + poll weather — chỉ khi đang login + granted + có coords
   useEffect(() => {
-    if (permission !== 'granted' || !coords) {
-      setWeather(null)
+    if (!isLoggedIn || permission !== 'granted' || !coords) {
+      if (!isLoggedIn) setWeather(null)
       return
     }
 
@@ -159,7 +171,6 @@ export function WeatherProvider({ children }) {
         if (!cancelled) setWeather(data)
       } catch (err) {
         console.warn('Không lấy được thời tiết:', err)
-        // Giữ weather cũ nếu có, không crash
       }
     }
 
@@ -170,13 +181,16 @@ export function WeatherProvider({ children }) {
       cancelled = true
       if (pollRef.current) clearInterval(pollRef.current)
     }
-  }, [permission, coords])
+  }, [isLoggedIn, permission, coords])
+
+  // Chỉ trả condition khi đang đăng nhập — logout = nền ngày-đêm
+  const activeCondition = isLoggedIn ? weather?.condition ?? null : null
 
   const value = {
-    permission, // 'granted' | 'denied' | null
+    permission,
     showPrompt,
-    weather, // null hoặc { condition, ... }
-    condition: weather?.condition ?? null, // null = dùng ngày-đêm bình thường
+    weather,
+    condition: activeCondition,
     loading,
     handleAllow,
     handleDeny,
