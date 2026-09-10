@@ -16,6 +16,7 @@ const WEATHER_POLL_MS = 5 * 60 * 1000 // 5 phút
 /**
  * WMO weather code → trạng thái đơn giản
  * https://open-meteo.com/en/docs
+ * 95-99 = thunderstorm
  */
 function mapWeatherCode(code, precipitation = 0) {
   if (code == null) return null
@@ -23,6 +24,8 @@ function mapWeatherCode(code, precipitation = 0) {
   if (code <= 1) return 'clear'
   // 2 Partly cloudy, 3 Overcast, 45/48 Fog
   if (code <= 3 || code === 45 || code === 48) return 'cloudy'
+  // Thunderstorm (có sét)
+  if (code >= 95 && code <= 99) return 'thunderstorm'
   // Drizzle / light rain / light showers
   if (
     (code >= 51 && code <= 55) ||
@@ -32,17 +35,11 @@ function mapWeatherCode(code, precipitation = 0) {
   ) {
     return precipitation > 2.5 ? 'heavy-rain' : 'light-rain'
   }
-  // Heavy rain, thunderstorm, heavy showers
-  if (
-    code === 65 ||
-    code === 66 ||
-    code === 67 ||
-    code === 82 ||
-    (code >= 95 && code <= 99)
-  ) {
+  // Heavy rain / heavy showers (không sét)
+  if (code === 65 || code === 66 || code === 67 || code === 82) {
     return 'heavy-rain'
   }
-  // Snow / other → treat as cloudy for ocean theme
+  // Snow / other → cloudy
   return 'cloudy'
 }
 
@@ -61,7 +58,7 @@ async function fetchWeather(lat, lon) {
     current.precipitation ?? 0
   )
   return {
-    condition, // 'clear' | 'cloudy' | 'light-rain' | 'heavy-rain' | null
+    condition, // 'clear' | 'cloudy' | 'light-rain' | 'heavy-rain' | 'thunderstorm' | null
     weatherCode: current.weather_code,
     precipitation: current.precipitation ?? 0,
     windSpeed: current.wind_speed_10m ?? 0,
@@ -75,18 +72,17 @@ export function WeatherProvider({ children }) {
 
   const [permission, setPermission] = useState(() => {
     try {
-      return localStorage.getItem(STORAGE_KEY) // 'granted' | 'denied' | null
+      return localStorage.getItem(STORAGE_KEY)
     } catch {
       return null
     }
   })
   const [showPrompt, setShowPrompt] = useState(false)
   const [coords, setCoords] = useState(null)
-  const [weather, setWeather] = useState(null) // { condition, ... }
+  const [weather, setWeather] = useState(null)
   const [loading, setLoading] = useState(false)
   const pollRef = useRef(null)
 
-  // Chỉ hỏi 1 lần sau khi auth sẵn sàng + đã đăng nhập + chưa từng trả lời
   useEffect(() => {
     if (!authReady) return
     if (!isLoggedIn) {
@@ -98,12 +94,10 @@ export function WeatherProvider({ children }) {
     return () => clearTimeout(t)
   }, [authReady, isLoggedIn, permission])
 
-  // Đăng xuất → tắt hết hiệu ứng thời tiết, về ngày-đêm
   useEffect(() => {
     if (!isLoggedIn) {
       setWeather(null)
       setShowPrompt(false)
-      // Không xóa permission / coords — lần login sau vẫn nhớ
     }
   }, [isLoggedIn])
 
@@ -140,7 +134,6 @@ export function WeatherProvider({ children }) {
     savePermission('denied')
   }, [savePermission])
 
-  // Khi đã granted nhưng chưa có coords (reload trang) — chỉ khi đang login
   useEffect(() => {
     if (!isLoggedIn) return
     if (permission !== 'granted' || coords) return
@@ -156,7 +149,6 @@ export function WeatherProvider({ children }) {
     )
   }, [isLoggedIn, permission, coords])
 
-  // Fetch + poll weather — chỉ khi đang login + granted + có coords
   useEffect(() => {
     if (!isLoggedIn || permission !== 'granted' || !coords) {
       if (!isLoggedIn) setWeather(null)
@@ -183,7 +175,6 @@ export function WeatherProvider({ children }) {
     }
   }, [isLoggedIn, permission, coords])
 
-  // Chỉ trả condition khi đang đăng nhập — logout = nền ngày-đêm
   const activeCondition = isLoggedIn ? weather?.condition ?? null : null
 
   const value = {
