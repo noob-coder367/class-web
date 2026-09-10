@@ -236,6 +236,8 @@ export default function OceanScrollBackground() {
     ? 0.12
     : clamp(0.2 + sunElevation * 0.5) * clamp(1 - scrollProgress * 2.5) * (isCloudy ? 0.4 : 1);
 
+  const rainCount = isHeavyRain ? 80 : 50;
+
   return (
     <div
       className={[
@@ -528,8 +530,16 @@ export default function OceanScrollBackground() {
 
       {isRaining && (
         <div className={`ocean-rain ${isHeavyRain ? "ocean-rain--heavy" : "ocean-rain--light"}`} aria-hidden="true">
-          {Array.from({ length: isHeavyRain ? 48 : 28 }).map((_, i) => (
-            <span key={i} className="raindrop" style={{ "--i": i }} />
+          {Array.from({ length: rainCount }).map((_, i) => (
+            <span
+              key={i}
+              className="raindrop"
+              style={{
+                left: `${(i * 2.2) % 100}%`,
+                animationDuration: `${0.35 + (i % 9) * 0.06}s`,
+                animationDelay: `${-(i % 15) * 0.08}s`,
+              }}
+            />
           ))}
         </div>
       )}
