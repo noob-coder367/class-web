@@ -1,0 +1,111 @@
+.loc-perm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(4, 22, 32, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: locFadeIn 0.35s ease;
+}
+
+@keyframes locFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.loc-perm-card {
+  background: #fff;
+  width: 100%;
+  max-width: 380px;
+  padding: 28px 24px 22px;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  animation: locSlideUp 0.4s ease;
+}
+
+@keyframes locSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.loc-perm-icon {
+  font-size: 36px;
+  margin-bottom: 10px;
+}
+
+.loc-perm-card h3 {
+  margin: 0 0 10px;
+  font-size: 20px;
+  color: #14324a;
+}
+
+.loc-perm-card p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #4d5670;
+}
+
+.loc-perm-note {
+  font-size: 12px !important;
+  color: #7a8694 !important;
+  margin-bottom: 20px !important;
+}
+
+.loc-perm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.loc-perm-btn {
+  flex: 1;
+  max-width: 140px;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.loc-perm-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.loc-perm-btn--deny {
+  background: #f1f5f9;
+  color: #4d5670;
+}
+
+.loc-perm-btn--deny:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.loc-perm-btn--allow {
+  background: #14324a;
+  color: #fff;
+}
+
+.loc-perm-btn--allow:hover:not(:disabled) {
+  background: #0d2335;
+  transform: translateY(-1px);
+}
