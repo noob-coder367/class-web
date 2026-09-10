@@ -180,13 +180,25 @@ export default function AdminPanel({ onClose }) {
                         </td>
 
                         <td>
-                          <span className={`badge ${u.role === 'admin' ? 'badge-admin' : 'badge-user'}`}>
+                          <span
+                            className={
+                              `badge ${
+                                u.role === 'admin' ? 'badge-admin' : 'badge-user'
+                              }`
+                            }
+                          >
                             {u.role === 'admin' ? 'Admin' : 'Thành viên'}
                           </span>
                         </td>
 
                         <td>
-                          <span className={`badge ${u.is_member ? 'badge-success' : 'badge-muted'`}>
+                          <span
+                            className={
+                              `badge ${
+                                u.is_member ? 'badge-success' : 'badge-muted'
+                              }`
+                            }
+                          >
                             {u.is_member ? 'Đã xác minh' : 'Chưa xác minh'}
                           </span>
                         </td>
@@ -214,7 +226,11 @@ export default function AdminPanel({ onClose }) {
                               className="btn-action btn-role"
                               disabled={(isMe && u.role === 'admin') || !!deletingId}
                               onClick={() => handleToggleRole(u.id, u.role)}
-                              title={isMe ? 'Bạn không thể tự gỡ quyền Admin của chính mình' : ''}
+                              title={
+                                isMe
+                                  ? 'Bạn không thể tự gỡ quyền Admin của chính mình'
+                                  : ''
+                              }
                             >
                               {u.role === 'admin' ? 'Hạ User' : 'Lên Admin'}
                             </button>
@@ -227,7 +243,13 @@ export default function AdminPanel({ onClose }) {
                                 opacity: isMe || isDeleting ? 0.4 : 1,
                                 cursor: isMe || isDeleting ? 'not-allowed' : 'pointer',
                               }}
-                              title={isMe ? 'Bạn không thể tự xóa chính mình' : isDeleting ? 'Đang xóa...' : 'Xóa tài khoản này'}
+                              title={
+                                isMe
+                                  ? 'Bạn không thể tự xóa chính mình'
+                                  : isDeleting
+                                    ? 'Đang xóa...'
+                                    : 'Xóa tài khoản này'
+                              }
                             >
                               {isMe ? 'Chính bạn' : isDeleting ? 'Đang xóa...' : 'Xóa'}
                             </button>
