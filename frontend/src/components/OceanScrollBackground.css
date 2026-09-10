@@ -10,13 +10,14 @@
   pointer-events: none;
   z-index: -1;
   isolation: isolate;
+  transition: filter 1.8s ease;
 }
 
 .ocean-base-gradient {
   position: absolute;
   inset: 0;
   z-index: 0;
-  transition: background 2s ease;
+  transition: background 2s ease, opacity 1.5s ease;
 }
 
 .ocean-svg-canvas {
@@ -36,6 +37,7 @@
   transform-box: fill-box;
   transform-origin: center;
   animation: sunGlowPulse 3.5s ease-in-out infinite alternate;
+  transition: opacity 1.5s ease;
 }
 @keyframes sunGlowPulse {
   0% {
@@ -65,15 +67,24 @@
 }
 
 .ocean-cloud-one,
-.ocean-cloud-two {
+.ocean-cloud-two,
+.ocean-cloud-extra-1,
+.ocean-cloud-extra-2 {
   transform-box: fill-box;
   transform-origin: center;
+  transition: opacity 1.6s ease;
 }
 .ocean-cloud-one {
   animation: cloudFloatOne 28s ease-in-out infinite alternate;
 }
 .ocean-cloud-two {
   animation: cloudFloatTwo 36s ease-in-out infinite alternate;
+}
+.ocean-cloud-extra-1 {
+  animation: cloudFloatOne 22s ease-in-out infinite alternate-reverse;
+}
+.ocean-cloud-extra-2 {
+  animation: cloudFloatTwo 30s ease-in-out infinite alternate;
 }
 @keyframes cloudFloatOne {
   0% { transform: translateX(-8%); }
@@ -88,6 +99,7 @@
 .wave-motion-front {
   transform-box: fill-box;
   transform-origin: center;
+  transition: opacity 1.2s ease;
 }
 .wave-motion-back {
   animation: waveMoveBack 7s ease-in-out infinite alternate;
@@ -104,6 +116,28 @@
   100% { transform: translate(-1.5%, -0.8%); }
 }
 
+/* Sóng mạnh khi mưa */
+.is-raining .wave-motion-back {
+  animation: waveMoveBackStorm 3.2s ease-in-out infinite alternate;
+}
+.is-raining .wave-motion-front {
+  animation: waveMoveFrontStorm 2.4s ease-in-out infinite alternate;
+}
+.is-heavy-rain .wave-motion-back {
+  animation: waveMoveBackStorm 2.2s ease-in-out infinite alternate;
+}
+.is-heavy-rain .wave-motion-front {
+  animation: waveMoveFrontStorm 1.8s ease-in-out infinite alternate;
+}
+@keyframes waveMoveBackStorm {
+  0% { transform: translate(-3.5%, 0); }
+  100% { transform: translate(4%, -1.8%); }
+}
+@keyframes waveMoveFrontStorm {
+  0% { transform: translate(3.2%, 0); }
+  100% { transform: translate(-4%, -2.2%); }
+}
+
 .ocean-boat-motion {
   transform-box: fill-box;
   transform-origin: center bottom;
@@ -112,6 +146,20 @@
 @keyframes boatRocking {
   0%, 100% { transform: translateY(0) rotate(-1.2deg); }
   50% { transform: translateY(3%) rotate(1.5deg); }
+}
+
+/* Thuyền lên xuống mạnh khi mưa */
+.is-raining .ocean-boat-motion {
+  animation: boatRockingStorm 2.2s ease-in-out infinite;
+}
+.is-heavy-rain .ocean-boat-motion {
+  animation: boatRockingStorm 1.4s ease-in-out infinite;
+}
+@keyframes boatRockingStorm {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  25% { transform: translateY(8%) rotate(3deg); }
+  50% { transform: translateY(-4%) rotate(5deg); }
+  75% { transform: translateY(10%) rotate(-3deg); }
 }
 
 .sea-turtle-anim,
@@ -263,11 +311,83 @@
   transition: opacity 0.3s linear;
 }
 
+/* ============================================================
+   MƯA (overlay)
+============================================================ */
+.ocean-rain {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+  animation: rainFadeIn 1.2s ease forwards;
+}
+
+@keyframes rainFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.raindrop {
+  position: absolute;
+  top: -12%;
+  width: 1.5px;
+  height: 14px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(200, 220, 255, 0.55)
+  );
+  border-radius: 1px;
+  animation: rainFall linear infinite;
+  left: calc((var(--i) * 3.7%) + 1%);
+  animation-duration: calc(0.55s + (var(--i) % 7) * 0.08s);
+  animation-delay: calc((var(--i) % 11) * -0.12s);
+}
+
+.ocean-rain--heavy .raindrop {
+  width: 2px;
+  height: 18px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(210, 230, 255, 0.7)
+  );
+  animation-duration: calc(0.35s + (var(--i) % 5) * 0.05s);
+}
+
+@keyframes rainFall {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  10% { opacity: 0.85; }
+  90% { opacity: 0.5; }
+  100% {
+    transform: translateY(115vh) translateX(12px);
+    opacity: 0;
+  }
+}
+
+/* Làm tối nhẹ bầu trời khi mây / mưa */
+.is-cloudy .ocean-base-gradient {
+  filter: brightness(0.88) saturate(0.9);
+}
+.is-raining .ocean-base-gradient {
+  filter: brightness(0.78) saturate(0.85);
+}
+.is-heavy-rain .ocean-base-gradient {
+  filter: brightness(0.68) saturate(0.8);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ocean-sun,
   .ocean-moon,
   .ocean-cloud-one,
   .ocean-cloud-two,
+  .ocean-cloud-extra-1,
+  .ocean-cloud-extra-2,
   .wave-motion-back,
   .wave-motion-front,
   .ocean-boat-motion,
@@ -282,7 +402,8 @@
   .kelp-sway-1,
   .kelp-sway-2,
   .kelp-sway-3,
-  .bubble {
+  .bubble,
+  .raindrop {
     animation: none !important;
   }
 }
