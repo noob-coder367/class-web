@@ -60,7 +60,9 @@ async function request(path, { method = 'GET', body, auth = false } = {}) {
 
   if (!res.ok) {
     const message = data?.message || `Lỗi yêu cầu (${res.status})`
-    throw new Error(message)
+    const err = new Error(message)
+    err.status = res.status
+    throw err
   }
 
   return data

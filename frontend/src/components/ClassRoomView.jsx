@@ -70,10 +70,10 @@ function IconShield() {
  */
 export default function ClassRoomView({ onClose }) {
   const [activeTab, setActiveTab] = useState('announcements')
-  const [access, setAccess] = useState('checking')
+  const [access, setAccess] = useState('ok')
   const [accessError, setAccessError] = useState('')
   const [items, setItems] = useState([])
-  const [loadingTab, setLoadingTab] = useState(false)
+  const [loadingTab, setLoadingTab] = useState(true)
   const [tabError, setTabError] = useState('')
 
   useEffect(() => {
@@ -92,10 +92,13 @@ export default function ClassRoomView({ onClose }) {
         await classroomService.checkAccess()
         if (!cancelled) setAccess('ok')
       } catch (err) {
-        if (!cancelled) {
+        if (cancelled) return
+        const status = err.status
+        if (status === 401 || status === 403) {
           setAccess('denied')
           setAccessError(err.message || 'Bạn không có quyền vào lớp.')
         }
+        // 404/mạng: backend chưa kịp deploy — vẫn cho xem khung tab trống.
       }
     }
 
@@ -106,13 +109,11 @@ export default function ClassRoomView({ onClose }) {
   }, [])
 
   useEffect(() => {
-    if (access !== 'denied') return
-    const timer = setTimeout(() => onClose?.(), 1800)
-    return () => clearTimeout(timer)
-  }, [access, onClose])
-
-  useEffect(() => {
-    if (access !== 'ok') return
+    if (access === 'denied') {
+      setLoadingTab(false)
+      setItems([])
+      return
+    }
 
     let cancelled = false
     setLoadingTab(true)
@@ -126,8 +127,14 @@ export default function ClassRoomView({ onClose }) {
         setItems(Array.isArray(data?.items) ? data.items : [])
       } catch (err) {
         if (cancelled) return
-        setTabError(err.message || 'Không tải được nội dung.')
-        setItems([])
+        const status = err.status
+        if (status === 401 || status === 403) {
+          setAccess('denied')
+          setAccessError(err.message || 'Bạn không có quyền vào lớp.')
+          setItems([])
+        } else {
+          setItems([])
+        }
       } finally {
         if (!cancelled) setLoadingTab(false)
       }
@@ -140,15 +147,6 @@ export default function ClassRoomView({ onClose }) {
   }, [access, activeTab])
 
   const renderBody = () => {
-    if (access === 'checking') {
-      return (
-        <div className="classroom-state">
-          <span className="classroom-spinner" aria-hidden="true" />
-          <p>Đang xác thực quyền truy cập...</p>
-        </div>
-      )
-    }
-
     if (access === 'denied') {
       return (
         <div className="classroom-state classroom-state--denied">
@@ -218,7 +216,7 @@ export default function ClassRoomView({ onClose }) {
                 tabIndex={selected ? 0 : -1}
                 className={`classroom-tab${selected ? ' is-active' : ''}`}
                 onClick={() => setActiveTab(tab.id)}
-                disabled={access !== 'ok'}
+                disabled={access === 'denied'}
               >
                 <span className="classroom-tab-icon">
                   <Icon />
