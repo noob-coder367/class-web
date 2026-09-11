@@ -2,29 +2,6 @@ import { useEffect, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
 import './ClassRoomView.css'
 
-const TABS = [
-  {
-    id: 'announcements',
-    label: 'Thông báo chung',
-    icon: IconBell,
-  },
-  {
-    id: 'timetable',
-    label: 'Thời khoá biểu',
-    icon: IconCalendar,
-  },
-  {
-    id: 'homework',
-    label: 'Bài tập về nhà',
-    icon: IconBook,
-  },
-  {
-    id: 'rules',
-    label: 'Nội quy lớp',
-    icon: IconShield,
-  },
-]
-
 function IconBell() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -62,11 +39,25 @@ function IconShield() {
   )
 }
 
+function IconBack() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M15 5 L8 12 L15 19" />
+    </svg>
+  )
+}
+
+const TABS = [
+  { id: 'announcements', label: 'Thông báo chung', icon: IconBell },
+  { id: 'timetable', label: 'Thời khoá biểu', icon: IconCalendar },
+  { id: 'homework', label: 'Bài tập về nhà', icon: IconBook },
+  { id: 'rules', label: 'Nội quy lớp', icon: IconShield },
+]
+
 /**
  * Khu vực nội bộ lớp 10A4.
  * Tab mặc định: Thông báo chung.
- * Nội dung thật chỉ lấy từ backend sau khi xác thực thành viên —
- * không nhúng sẵn trong JS để tránh lộ khi mở F12.
+ * Nội dung thật chỉ lấy từ backend sau khi xác thực thành viên.
  */
 export default function ClassRoomView({ onClose }) {
   const [activeTab, setActiveTab] = useState('announcements')
@@ -98,7 +89,6 @@ export default function ClassRoomView({ onClose }) {
           setAccess('denied')
           setAccessError(err.message || 'Bạn không có quyền vào lớp.')
         }
-        // 404/mạng: backend chưa kịp deploy — vẫn cho xem khung tab trống.
       }
     }
 
@@ -198,34 +188,40 @@ export default function ClassRoomView({ onClose }) {
           aria-label="Quay về trang chính"
           title="Quay về"
         >
-          <
+          <IconBack />
         </button>
 
-        <nav className="classroom-tabs" role="tablist" aria-label="Mục lớp 10A4">
-          {TABS.map((tab) => {
-            const Icon = tab.icon
-            const selected = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                id={`classroom-tab-${tab.id}`}
-                aria-selected={selected}
-                aria-controls="classroom-panel"
-                tabIndex={selected ? 0 : -1}
-                className={`classroom-tab${selected ? ' is-active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
-                disabled={access === 'denied'}
-              >
-                <span className="classroom-tab-icon">
-                  <Icon />
-                </span>
-                <span className="classroom-tab-label">{tab.label}</span>
-              </button>
-            )
-          })}
-        </nav>
+        <div className="classroom-iso">
+          <span className="classroom-iso-lid" aria-hidden="true" />
+          <span className="classroom-iso-cap" aria-hidden="true" />
+          <nav className="classroom-iso-front" role="tablist" aria-label="Mục lớp 10A4">
+            {TABS.map((tab) => {
+              const Icon = tab.icon
+              const selected = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  id={`classroom-tab-${tab.id}`}
+                  aria-selected={selected}
+                  aria-controls="classroom-panel"
+                  tabIndex={selected ? 0 : -1}
+                  className={`classroom-tab${selected ? ' is-active' : ''}`}
+                  onClick={() => setActiveTab(tab.id)}
+                  disabled={access === 'denied'}
+                >
+                  <span className="classroom-tab-inner">
+                    <span className="classroom-tab-icon">
+                      <Icon />
+                    </span>
+                    <span className="classroom-tab-label">{tab.label}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </nav>
+        </div>
       </header>
 
       <div

@@ -12,10 +12,9 @@
 
 .classroom-topbar {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-bottom: 1px solid #e2e8f0;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 14px 16px 10px;
   background: #ffffff;
   flex-shrink: 0;
 }
@@ -24,18 +23,21 @@
   flex-shrink: 0;
   width: 40px;
   height: 40px;
+  margin-bottom: 2px;
   border: none;
   border-radius: 50%;
   background: #f1f5f9;
   color: #0f172a;
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background 0.15s, transform 0.15s;
+}
+
+.classroom-back svg {
+  width: 18px;
+  height: 18px;
 }
 
 .classroom-back:hover {
@@ -47,71 +49,127 @@
   transform: scale(0.96);
 }
 
-.classroom-tabs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* 3D isometric parallelogram strip — khớp hình vẽ tay */
+.classroom-iso {
+  --iso-h: 52px;
+  --iso-d: 11px;
+  --iso-skew: 22deg;
+  --iso-ink: #14324a;
+  --iso-face: #f4fafc;
+  --iso-lid: #d7ebf3;
+  --iso-cap: #0d2335;
+  position: relative;
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 18px), transparent 100%);
+  height: calc(var(--iso-h) + var(--iso-d));
+  margin-right: 10px;
 }
 
-.classroom-tabs::-webkit-scrollbar {
-  display: none;
+.classroom-iso-lid {
+  position: absolute;
+  top: 0;
+  left: 18px;
+  right: 2px;
+  height: var(--iso-d);
+  background: linear-gradient(180deg, #eef7fb 0%, var(--iso-lid) 100%);
+  border: 2.5px solid var(--iso-ink);
+  border-bottom: none;
+  transform: skewX(var(--iso-skew));
+  transform-origin: left bottom;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.classroom-iso-cap {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 16px;
+  height: var(--iso-h);
+  background: var(--iso-cap);
+  clip-path: polygon(100% 0, 100% 100%, 0 78%, 18% 0);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.classroom-iso-front {
+  position: absolute;
+  left: 10px;
+  right: 14px;
+  bottom: 0;
+  height: var(--iso-h);
+  display: flex;
+  transform: skewX(calc(-1 * var(--iso-skew)));
+  transform-origin: left bottom;
+  border: 2.5px solid var(--iso-ink);
+  background: var(--iso-face);
+  box-shadow: 7px 8px 0 var(--iso-ink);
+  overflow: hidden;
+  z-index: 1;
 }
 
 .classroom-tab {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 14px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
   border: none;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: #334155;
+  border-right: 2.5px solid var(--iso-ink);
+  background: transparent;
+  color: var(--iso-ink);
   font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease;
+  transition: background 0.18s ease, color 0.18s ease;
 }
 
-.classroom-tab:hover:not(:disabled):not(.is-active) {
-  background: #e2e8f0;
-  color: #0f172a;
+.classroom-tab:last-child {
+  border-right: none;
 }
 
-.classroom-tab:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.classroom-tab.is-active {
-  background: #14324a;
-  color: #ffffff;
-  box-shadow: 0 6px 14px rgba(20, 50, 74, 0.22);
-}
-
-.classroom-tab:disabled {
-  opacity: 0.55;
-  cursor: default;
+.classroom-tab-inner {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 10px;
+  transform: skewX(var(--iso-skew));
 }
 
 .classroom-tab-icon {
   display: flex;
   width: 16px;
   height: 16px;
+  flex-shrink: 0;
 }
 
 .classroom-tab-icon svg {
   width: 16px;
   height: 16px;
+}
+
+.classroom-tab-label {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.classroom-tab:hover:not(:disabled):not(.is-active) {
+  background: #e4f1f7;
+}
+
+.classroom-tab.is-active {
+  background: var(--iso-ink);
+  color: #ffffff;
+}
+
+.classroom-tab:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .classroom-body {
@@ -121,7 +179,7 @@
   justify-content: center;
   padding: 28px 24px 32px;
   overflow: auto;
-  background: #f8fafc;
+  background: #ffffff;
 }
 
 .classroom-empty {
@@ -199,23 +257,49 @@
   }
 }
 
+@media (max-width: 860px) {
+  .classroom-tab-label {
+    font-size: 11px;
+  }
+}
+
 @media (max-width: 640px) {
   .classroom-topbar {
-    padding: 10px 10px;
+    padding: 10px 10px 8px;
     gap: 8px;
   }
 
   .classroom-back {
     width: 36px;
     height: 36px;
-    font-size: 20px;
   }
 
-  .classroom-tab {
-    height: 36px;
-    padding: 0 11px;
-    gap: 6px;
-    font-size: 12px;
+  .classroom-iso {
+    --iso-h: 58px;
+    --iso-d: 8px;
+    --iso-skew: 16deg;
+    margin-right: 6px;
+  }
+
+  .classroom-tab-inner {
+    padding: 0 4px;
+    gap: 2px;
+  }
+
+  .classroom-tab-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .classroom-tab-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .classroom-tab-label {
+    font-size: 10px;
+    white-space: normal;
+    max-width: 9.5ch;
   }
 
   .classroom-empty {
