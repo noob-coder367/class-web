@@ -87,6 +87,10 @@ class-web-monorepo/
 - **Toàn bộ Admin Panel**: `GET/PATCH/DELETE /api/admin/users/...` —
   được canh gác bởi `requireAuth` + `requireAdmin`, chạy bằng service
   role key nên **không phụ thuộc RLS** để đảm bảo an toàn.
+- **Khu vực lớp 10A4**: `GET /api/classroom/access`,
+  `GET /api/classroom/tabs/:tab` — `requireAuth` + `requireMember`.
+  Nội dung tab (thông báo chung, TKB, bài tập, nội quy) **không** nằm
+  trong JS frontend; ai mở F12 cũng không đọc được nếu chưa là thành viên.
 
 Điều **vẫn giữ ở frontend** (vì không nhạy cảm, đúng mô hình khuyến nghị
 của Supabase): đọc `announcements`, đọc/đăng `events`, realtime
@@ -95,6 +99,18 @@ RLS như bình thường. Nếu muốn siết chặt hơn nữa, có thể chuy�
 `handleSubmit` / `handleDeleteAnnouncement` trong `HomePage.jsx` và các
 thao tác ghi trong `EventsSection.jsx` sang backend theo đúng khuôn mẫu
 `admin.routes.js`.
+
+## Khu vực lớp (Vô Lớp 10A4)
+
+Thành viên bấm **Vô Lớp 10A4** sẽ vào màn hình nội bộ với 4 mục cạnh nút thoát:
+
+1. Thông báo chung (mặc định)
+2. Thời khoá biểu
+3. Bài tập về nhà
+4. Nội quy lớp
+
+Hiện các mục đang trống ("Chưa có nội dung"). Khi bổ sung, ghi vào backend
+(không hardcode vào frontend) rồi trả về từ `GET /api/classroom/tabs/:tab`.
 
 ## Ảnh website (giáo viên, ảnh lớp)
 
@@ -147,3 +163,7 @@ npm run dev
 - Bảng `profiles` trên Supabase nên có RLS bật (người dùng chỉ đọc/sửa
   hồ sơ của chính mình) như một lớp phòng thủ bổ sung — dù giờ đây các
   thao tác quan trọng đã được backend enforce độc lập với RLS.
+- Nội dung khu vực lớp (thông báo, TKB, bài tập, nội quy) chỉ trả về
+  sau khi backend xác thực token + `is_member` (hoặc admin). Ẩn nút trên
+  UI không đủ — request thật vẫn bị 403 nếu giả lập F12.
+

@@ -6,13 +6,22 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  font-family: 'Be Vietnam Pro', 'Segoe UI', sans-serif;
+  color: #0f172a;
+}
+
+.classroom-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+  flex-shrink: 0;
 }
 
 .classroom-back {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  z-index: 2;
+  flex-shrink: 0;
   width: 40px;
   height: 40px;
   border: none;
@@ -38,12 +47,81 @@
   transform: scale(0.96);
 }
 
+.classroom-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 18px), transparent 100%);
+}
+
+.classroom-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.classroom-tab {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease;
+}
+
+.classroom-tab:hover:not(:disabled):not(.is-active) {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.classroom-tab:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.classroom-tab.is-active {
+  background: #14324a;
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(20, 50, 74, 0.22);
+}
+
+.classroom-tab:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.classroom-tab-icon {
+  display: flex;
+  width: 16px;
+  height: 16px;
+}
+
+.classroom-tab-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
 .classroom-body {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 72px 24px 24px;
+  padding: 28px 24px 32px;
+  overflow: auto;
+  background: #f8fafc;
 }
 
 .classroom-empty {
@@ -54,16 +132,102 @@
   text-align: center;
 }
 
+.classroom-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #64748b;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.classroom-state p {
+  margin: 0;
+}
+
+.classroom-state--denied {
+  color: #b91c1c;
+  max-width: 36ch;
+}
+
+.classroom-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid #dbe4ee;
+  border-top-color: #14324a;
+  border-radius: 50%;
+  animation: classroom-spin 0.7s linear infinite;
+}
+
+.classroom-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-self: flex-start;
+}
+
+.classroom-item {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.classroom-item h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: #14324a;
+}
+
+.classroom-item p {
+  margin: 0;
+  color: #334155;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+@keyframes classroom-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 640px) {
+  .classroom-topbar {
+    padding: 10px 10px;
+    gap: 8px;
+  }
+
   .classroom-back {
-    top: 12px;
-    left: 12px;
     width: 36px;
     height: 36px;
     font-size: 20px;
   }
 
+  .classroom-tab {
+    height: 36px;
+    padding: 0 11px;
+    gap: 6px;
+    font-size: 12px;
+  }
+
   .classroom-empty {
     font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .classroom-back,
+  .classroom-tab,
+  .classroom-spinner {
+    transition: none;
+    animation: none;
   }
 }

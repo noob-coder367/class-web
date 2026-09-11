@@ -30,6 +30,14 @@ export function createApp() {
   })
   app.use('/api/auth', authLimiter)
 
+  const classroomLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+  app.use('/api/classroom', classroomLimiter)
+
   app.use('/api', routes)
 
   app.use(notFoundHandler)
