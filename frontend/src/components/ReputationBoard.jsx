@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 
 function medalFor(rank) {
   if (rank === 1) return { emoji: '🥇', label: 'Vàng' }
@@ -193,11 +193,8 @@ export default function ReputationBoard({
                 []
 
               return (
-                <>
-                  <tr
-                    key={row.id}
-                    className={`${isMe ? 'is-me' : ''} is-${tone} ${isOpen ? 'is-expanded' : ''}`}
-                  >
+                <Fragment key={row.id}>
+                  <tr className={`${isMe ? 'is-me' : ''} is-${tone} ${isOpen ? 'is-expanded' : ''}`}>
                     <td className="rank-col-top">
                       <span className={`rank-badge is-top-${Math.min(row.rank, 4)}`}>
                         {medal ? <span aria-hidden="true">{medal.emoji}</span> : null}
@@ -248,7 +245,7 @@ export default function ReputationBoard({
                     </td>
                   </tr>
                   {isOpen ? (
-                    <tr key={`${row.id}-detail`} className="rank-detail-row">
+                    <tr className="rank-detail-row">
                       <td colSpan={5}>
                         <div className="rank-detail-panel">
                           <h4>Chi tiết vi phạm — {row.username}</h4>
@@ -273,7 +270,7 @@ export default function ReputationBoard({
                       </td>
                     </tr>
                   ) : null}
-                </>
+                </Fragment>
               )
             })}
           </tbody>
