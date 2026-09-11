@@ -441,7 +441,7 @@ export function buildLeaderboard(members, violations, rules) {
       id: member.id,
       username: member.username,
       role: member.role === 'admin' ? 'admin' : 'user',
-      score: starting - deducted,
+      score: Math.max(0, starting - deducted),
       deducted,
       violations: mine.length,
     }
