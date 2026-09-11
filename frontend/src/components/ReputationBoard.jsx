@@ -127,7 +127,7 @@ export default function ReputationBoard({
           <span className="rank-status-chip is-good">100–86: Tốt</span>
           <span className="rank-status-chip is-warn1">85–65: Cảnh báo cấp I</span>
           <span className="rank-status-chip is-warn2">64–31: Cảnh báo cấp II</span>
-          <span className="rank-status-chip is-warn3">≤30: Cảnh báo cấp III</span>
+          <span className="rank-status-chip is-warn3">30–0: Cảnh báo cấp III</span>
         </div>
       </header>
 
