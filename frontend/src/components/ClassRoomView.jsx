@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
+import TimetableBoard from './TimetableBoard.jsx'
 import './ClassRoomView.css'
 
 function IconBell() {
@@ -64,12 +65,16 @@ export default function ClassRoomView({ onClose }) {
   const [access, setAccess] = useState('ok')
   const [accessError, setAccessError] = useState('')
   const [items, setItems] = useState([])
+  const [timetable, setTimetable] = useState(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [loadingTab, setLoadingTab] = useState(true)
   const [tabError, setTabError] = useState('')
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.()
+      if (e.key !== 'Escape') return
+      if (document.querySelector('.tkb-settings-overlay')) return
+      onClose?.()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -80,8 +85,10 @@ export default function ClassRoomView({ onClose }) {
 
     const verify = async () => {
       try {
-        await classroomService.checkAccess()
-        if (!cancelled) setAccess('ok')
+        const data = await classroomService.checkAccess()
+        if (cancelled) return
+        setAccess('ok')
+        setIsAdmin(data?.role === 'admin')
       } catch (err) {
         if (cancelled) return
         const status = err.status
@@ -102,6 +109,7 @@ export default function ClassRoomView({ onClose }) {
     if (access === 'denied') {
       setLoadingTab(false)
       setItems([])
+      setTimetable(null)
       return
     }
 
@@ -112,9 +120,17 @@ export default function ClassRoomView({ onClose }) {
 
     const load = async () => {
       try {
-        const data = await classroomService.getTabContent(activeTab)
-        if (cancelled) return
-        setItems(Array.isArray(data?.items) ? data.items : [])
+        if (activeTab === 'timetable') {
+          const data = await classroomService.getTimetable()
+          if (cancelled) return
+          setTimetable(data?.timetable || null)
+          setItems([])
+        } else {
+          const data = await classroomService.getTabContent(activeTab)
+          if (cancelled) return
+          setTimetable(null)
+          setItems(Array.isArray(data?.items) ? data.items : [])
+        }
       } catch (err) {
         if (cancelled) return
         const status = err.status
@@ -122,8 +138,11 @@ export default function ClassRoomView({ onClose }) {
           setAccess('denied')
           setAccessError(err.message || 'Bạn không có quyền vào lớp.')
           setItems([])
+          setTimetable(null)
         } else {
           setItems([])
+          setTimetable(null)
+          setTabError(err.message || 'Không tải được nội dung.')
         }
       } finally {
         if (!cancelled) setLoadingTab(false)
@@ -135,6 +154,11 @@ export default function ClassRoomView({ onClose }) {
       cancelled = true
     }
   }, [access, activeTab])
+
+  const handleSaveTimetable = async (next) => {
+    const data = await classroomService.saveTimetable(next)
+    setTimetable(data?.timetable || next)
+  }
 
   const renderBody = () => {
     if (access === 'denied') {
@@ -159,6 +183,17 @@ export default function ClassRoomView({ onClose }) {
         <div className="classroom-state classroom-state--denied">
           <p>{tabError}</p>
         </div>
+      )
+    }
+
+    if (activeTab === 'timetable') {
+      if (!timetable) return <p className="classroom-empty">Chưa có thời khoá biểu</p>
+      return (
+        <TimetableBoard
+          data={timetable}
+          isAdmin={isAdmin}
+          onSave={handleSaveTimetable}
+        />
       )
     }
 
@@ -225,7 +260,7 @@ export default function ClassRoomView({ onClose }) {
       </header>
 
       <div
-        className="classroom-body"
+        className={`classroom-body${activeTab === 'timetable' ? ' classroom-body--timetable' : ''}`}
         id="classroom-panel"
         role="tabpanel"
         aria-labelledby={`classroom-tab-${activeTab}`}

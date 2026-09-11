@@ -109,8 +109,11 @@ Thành viên bấm **Vô Lớp 10A4** sẽ vào màn hình nội bộ với 4 m�
 3. Bài tập về nhà
 4. Nội quy lớp
 
-Hiện các mục đang trống ("Chưa có nội dung"). Khi bổ sung, ghi vào backend
-(không hardcode vào frontend) rồi trả về từ `GET /api/classroom/tabs/:tab`.
+Hiện các mục **Thông báo chung / Bài tập / Nội quy** đang trống ("Chưa có nội dung"). Tab **Thời khoá biểu** hiển thị TKB lớp 10A4 (buổi sáng + buổi chiều, gồm Thứ 7). Admin thấy nút cài đặt góc dưới phải để đổi môn (dropdown) và giờ học. Dữ liệu mặc định nằm ở `backend/src/data/timetable.default.json`, bản chỉnh của admin lưu vào Supabase Storage bucket `classroom-data` (`timetable.json`) qua:
+
+- `GET /api/classroom/timetable` — thành viên / admin
+- `PUT /api/classroom/timetable` — **chỉ admin**
+
 
 ## Ảnh website (giáo viên, ảnh lớp)
 

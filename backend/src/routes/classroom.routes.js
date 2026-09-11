@@ -2,6 +2,7 @@ import { Router } from 'express'
 import * as classroomController from '../controllers/classroom.controller.js'
 import { requireAuth } from '../middlewares/auth.middleware.js'
 import { requireMember } from '../middlewares/member.middleware.js'
+import { requireAdmin } from '../middlewares/admin.middleware.js'
 
 const router = Router()
 
@@ -11,5 +12,7 @@ router.use(requireAuth, requireMember)
 router.get('/access', classroomController.getAccess)
 router.get('/tabs', classroomController.getTabs)
 router.get('/tabs/:tab', classroomController.getTab)
+router.get('/timetable', classroomController.getTimetable)
+router.put('/timetable', requireAdmin, classroomController.putTimetable)
 
 export default router

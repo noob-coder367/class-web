@@ -1,0 +1,100 @@
+{
+  "className": "10A4",
+  "effectiveFrom": "2026-09-03",
+  "subjects": [
+    "Ngữ văn",
+    "Toán",
+    "CĐ Toán",
+    "Tiếng Anh",
+    "Tiếng Anh NN",
+    "Hóa học",
+    "CĐ Hóa học",
+    "Vật lí",
+    "CĐ Vật lí",
+    "Sinh học",
+    "Lịch sử",
+    "Địa lí",
+    "GD địa phương",
+    "GDQP và AN",
+    "GD thể",
+    "Công nghệ",
+    "Tin học",
+    "Tin học Quốc tế",
+    "STEM",
+    "Trí tuệ nhân tạo",
+    "HĐTN 1",
+    "HĐTN 2",
+    "HĐTN 3",
+    "Tự học",
+    "Câu lạc bộ",
+    "Sinh hoạt lớp"
+  ],
+  "days": [
+    { "id": "t2", "label": "Thứ 2" },
+    { "id": "t3", "label": "Thứ 3" },
+    { "id": "t4", "label": "Thứ 4" },
+    { "id": "t5", "label": "Thứ 5" },
+    { "id": "t6", "label": "Thứ 6" },
+    { "id": "t7", "label": "Thứ 7" }
+  ],
+  "morning": {
+    "label": "Buổi sáng",
+    "daysNote": "Thứ Hai — Thứ Bảy",
+    "arrival": "06:50",
+    "flagCeremony": {
+      "time": "06:45",
+      "note": "Riêng Thứ Hai — Học sinh có mặt"
+    },
+    "periods": [
+      { "id": 1, "start": "07:00", "end": "07:45" },
+      { "id": 2, "start": "07:45", "end": "08:30" },
+      { "id": 3, "start": "09:00", "end": "09:45" },
+      { "id": 4, "start": "09:45", "end": "10:30" },
+      { "id": 5, "start": "10:30", "end": "11:15", "note": "Lớp Tích Hợp áp dụng theo TKB của EMG" }
+    ],
+    "breaks": [
+      {
+        "after": 2,
+        "start": "08:30",
+        "end": "09:00",
+        "label": "Thể dục giữa giờ + Giải lao"
+      }
+    ],
+    "grid": {
+      "t2": ["HĐTN 1", "HĐTN 2", "Ngữ văn", "Ngữ văn", ""],
+      "t3": ["Trí tuệ nhân tạo", "CĐ Hóa học", "Công nghệ", "Công nghệ", ""],
+      "t4": ["GD địa phương", "GDQP và AN", "Tiếng Anh", "Tiếng Anh", ""],
+      "t5": ["Tiếng Anh NN", "Tiếng Anh NN", "Toán", "Toán", ""],
+      "t6": ["Lịch sử", "Lịch sử", "STEM", "STEM", ""],
+      "t7": ["", "", "", "", ""]
+    }
+  },
+  "afternoon": {
+    "label": "Buổi chiều",
+    "daysNote": "Thứ Hai — Thứ Bảy",
+    "arrival": "12:50",
+    "flagCeremony": null,
+    "periods": [
+      { "id": 1, "start": "13:00", "end": "13:45" },
+      { "id": 2, "start": "13:45", "end": "14:30" },
+      { "id": 3, "start": "14:45", "end": "15:30" },
+      { "id": 4, "start": "15:30", "end": "16:15" }
+    ],
+    "breaks": [
+      {
+        "after": 2,
+        "start": "14:30",
+        "end": "14:45",
+        "label": "Giải lao"
+      }
+    ],
+    "grid": {
+      "t2": ["Hóa học", "Hóa học", "Tiếng Anh", "CĐ Vật lí"],
+      "t3": ["HĐTN 3", "Ngữ văn", "Toán", "CĐ Toán"],
+      "t4": ["GD thể", "GD thể", "Tin học Quốc tế", "Tin học Quốc tế"],
+      "t5": ["Vật lí", "Vật lí", "Tự học", ""],
+      "t6": ["Tin học", "Tin học", "Câu lạc bộ", ""],
+      "t7": ["", "", "", ""]
+    }
+  }
+}
