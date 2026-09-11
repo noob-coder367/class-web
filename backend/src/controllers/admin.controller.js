@@ -1,4 +1,5 @@
 import * as adminService from '../services/admin.service.js'
+import * as timetableService from '../services/timetable.service.js'
 
 export async function getUsers(req, res, next) {
   try {
@@ -47,6 +48,27 @@ export async function removeUser(req, res, next) {
     const { id } = req.params
     await adminService.deleteUser(id, req.profile.id)
     res.json({ message: 'Xóa tài khoản thành công.' })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getTimetable(req, res, next) {
+  try {
+    const timetable = await timetableService.getTimetable()
+    res.json({ timetable })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function putTimetable(req, res, next) {
+  try {
+    const timetable = await timetableService.saveTimetable(
+      req.body?.timetable,
+      req.profile?.id
+    )
+    res.json({ message: 'Đã lưu thời khoá biểu.', timetable })
   } catch (err) {
     next(err)
   }

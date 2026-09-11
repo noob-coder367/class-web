@@ -1,0 +1,281 @@
+.tkb-settings-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(15, 23, 42, 0.42);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tkb-settings {
+  width: min(560px, 100%);
+  height: 100%;
+  background: #ffffff;
+  color: #1c2438;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -16px 0 40px rgba(15, 23, 42, 0.16);
+  font-family: inherit;
+}
+
+.tkb-settings-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 12px;
+}
+
+.tkb-settings-head h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #14324a;
+}
+
+.tkb-settings-head p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #5b6578;
+}
+
+.tkb-settings-close {
+  border: none;
+  background: #f1f5f9;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tkb-settings-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 20px;
+  padding: 4px;
+  background: #e8f1f6;
+  border-radius: 10px;
+}
+
+.tkb-settings-tabs button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  height: 34px;
+  border-radius: 8px;
+  font-weight: 650;
+  font-size: 13px;
+  color: #5b6578;
+  cursor: pointer;
+}
+
+.tkb-settings-tabs button.is-active {
+  background: #ffffff;
+  color: #14324a;
+}
+
+.tkb-settings-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px 20px 24px;
+}
+
+.tkb-field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+
+.tkb-add-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tkb-add-row input,
+.tkb-subject-list input,
+.tkb-subject-list select,
+.tkb-assign select,
+.tkb-time-row input {
+  height: 36px;
+  border: 1px solid #cfe0ea;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 13px;
+  background: #fff;
+}
+
+.tkb-add-row input {
+  flex: 1;
+}
+
+.tkb-add-row button,
+.tkb-btn-primary {
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: #14324a;
+  color: #fff;
+  font-weight: 650;
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+.tkb-subject-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tkb-subject-list li {
+  display: flex;
+  gap: 8px;
+}
+
+.tkb-subject-list input {
+  flex: 1;
+}
+
+.tkb-subject-list select {
+  width: 120px;
+}
+
+.tkb-icon-btn {
+  border: none;
+  background: transparent;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.tkb-session-switch {
+  display: flex;
+  gap: 4px;
+  background: #e8f1f6;
+  padding: 4px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.tkb-session-switch button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 650;
+  color: #5b6578;
+  cursor: pointer;
+}
+
+.tkb-session-switch button.is-active {
+  background: #fff;
+  color: #14324a;
+}
+
+.tkb-assign-wrap {
+  overflow-x: auto;
+}
+
+.tkb-assign {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.tkb-assign th,
+.tkb-assign td {
+  border: 1px solid #cfe0ea;
+  padding: 6px;
+  background: #fff;
+}
+
+.tkb-assign th {
+  background: #14324a;
+  color: #fff;
+}
+
+.tkb-assign-period {
+  text-align: left;
+  background: #f0f6fa;
+  white-space: nowrap;
+}
+
+.tkb-assign-period strong {
+  display: block;
+}
+
+.tkb-assign-period span {
+  color: #5b6578;
+}
+
+.tkb-assign select {
+  width: 100%;
+  min-width: 90px;
+}
+
+.tkb-time-block {
+  margin-bottom: 20px;
+}
+
+.tkb-time-block h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #14324a;
+}
+
+.tkb-time-row {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.tkb-time-row--split div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tkb-time-row--split input {
+  flex: 1;
+}
+
+.tkb-settings-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.tkb-btn-ghost {
+  height: 36px;
+  border: 1px solid #cfe0ea;
+  background: #fff;
+  border-radius: 8px;
+  padding: 0 14px;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.tkb-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  .tkb-time-row {
+    grid-template-columns: 1fr;
+  }
+}

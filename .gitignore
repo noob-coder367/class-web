@@ -25,5 +25,5 @@ yarn-error.log*
 .vscode/
 .idea/
 
-# Vite
-.vite/
+# Local timetable fallback written by the backend if Supabase table is missing
+backend/data/timetable.json

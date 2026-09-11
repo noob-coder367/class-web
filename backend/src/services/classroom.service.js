@@ -1,10 +1,9 @@
 import { AppError } from './auth.service.js'
+import { getTimetable } from './timetable.service.js'
 
 /**
  * Nội dung khu vực lớp KHÔNG được hardcode ở frontend.
  * Mọi tab đều đi qua API này, sau requireAuth + requireMember.
- * Hiện tại chưa có dữ liệu — trả mảng rỗng để UI hiện "Chưa có nội dung".
- * Khi bổ sung, đọc từ bảng class_contents (Supabase) trong hàm getTabContent.
  */
 export const CLASSROOM_TABS = [
   'announcements',
@@ -26,5 +25,9 @@ export function listTabs() {
 
 export async function getTabContent(tab) {
   const key = assertValidTab(tab)
+  if (key === 'timetable') {
+    const timetable = await getTimetable()
+    return { tab: key, timetable }
+  }
   return { tab: key, items: [] }
 }

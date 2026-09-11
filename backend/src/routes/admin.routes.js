@@ -19,4 +19,7 @@ router.get('/images', imagesController.getAdminImages)
 router.post('/images', imagesController.postAdminImage)
 router.delete('/images', imagesController.deleteAdminImage)
 
+router.get('/timetable', adminController.getTimetable)
+router.put('/timetable', adminController.putTimetable)
+
 export default router

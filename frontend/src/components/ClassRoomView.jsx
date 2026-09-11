@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useAuth } from '../context/AuthContext.jsx'
 import * as classroomService from '../services/classroomService.js'
+import TimetableBoard from './TimetableBoard.jsx'
+import TimetableSettings from './TimetableSettings.jsx'
 import './ClassRoomView.css'
 
 function IconBell() {
@@ -47,6 +50,15 @@ function IconBack() {
   )
 }
 
+function IconSettings() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+    </svg>
+  )
+}
+
 const TABS = [
   { id: 'announcements', label: 'Thông báo chung', icon: IconBell },
   { id: 'timetable', label: 'Thời khoá biểu', icon: IconCalendar },
@@ -60,20 +72,34 @@ const TABS = [
  * Nội dung thật chỉ lấy từ backend sau khi xác thực thành viên.
  */
 export default function ClassRoomView({ onClose }) {
+  const { isAdmin } = useAuth()
   const [activeTab, setActiveTab] = useState('announcements')
   const [access, setAccess] = useState('ok')
   const [accessError, setAccessError] = useState('')
   const [items, setItems] = useState([])
+  const [timetable, setTimetable] = useState(null)
+  const [draft, setDraft] = useState(null)
   const [loadingTab, setLoadingTab] = useState(true)
   const [tabError, setTabError] = useState('')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.()
+      if (e.key === 'Escape') {
+        if (settingsOpen) setSettingsOpen(false)
+        else onClose?.()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, settingsOpen])
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 30_000)
+    return () => window.clearInterval(id)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -102,6 +128,7 @@ export default function ClassRoomView({ onClose }) {
     if (access === 'denied') {
       setLoadingTab(false)
       setItems([])
+      setTimetable(null)
       return
     }
 
@@ -109,12 +136,18 @@ export default function ClassRoomView({ onClose }) {
     setLoadingTab(true)
     setTabError('')
     setItems([])
+    setTimetable(null)
+    setSettingsOpen(false)
 
     const load = async () => {
       try {
         const data = await classroomService.getTabContent(activeTab)
         if (cancelled) return
-        setItems(Array.isArray(data?.items) ? data.items : [])
+        if (activeTab === 'timetable') {
+          setTimetable(data?.timetable || null)
+        } else {
+          setItems(Array.isArray(data?.items) ? data.items : [])
+        }
       } catch (err) {
         if (cancelled) return
         const status = err.status
@@ -122,8 +155,10 @@ export default function ClassRoomView({ onClose }) {
           setAccess('denied')
           setAccessError(err.message || 'Bạn không có quyền vào lớp.')
           setItems([])
+          setTimetable(null)
         } else {
           setItems([])
+          setTimetable(null)
         }
       } finally {
         if (!cancelled) setLoadingTab(false)
@@ -135,6 +170,25 @@ export default function ClassRoomView({ onClose }) {
       cancelled = true
     }
   }, [access, activeTab])
+
+  const openSettings = () => {
+    setDraft(structuredClone(timetable))
+    setSettingsOpen(true)
+  }
+
+  const handleSave = async () => {
+    if (!draft) return
+    setSaving(true)
+    try {
+      const data = await classroomService.saveTimetable(draft)
+      setTimetable(data.timetable || draft)
+      setSettingsOpen(false)
+    } catch (err) {
+      alert(err.message || 'Không lưu được thời khoá biểu.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const renderBody = () => {
     if (access === 'denied') {
@@ -160,6 +214,11 @@ export default function ClassRoomView({ onClose }) {
           <p>{tabError}</p>
         </div>
       )
+    }
+
+    if (activeTab === 'timetable') {
+      if (!timetable) return <p className="classroom-empty">Chưa có nội dung</p>
+      return <TimetableBoard timetable={timetable} now={now} />
     }
 
     if (!items.length) {
@@ -225,13 +284,34 @@ export default function ClassRoomView({ onClose }) {
       </header>
 
       <div
-        className="classroom-body"
+        className={`classroom-body${activeTab === 'timetable' ? ' is-timetable' : ''}`}
         id="classroom-panel"
         role="tabpanel"
         aria-labelledby={`classroom-tab-${activeTab}`}
       >
         {renderBody()}
       </div>
+
+      {isAdmin && activeTab === 'timetable' && timetable && access === 'ok' ? (
+        <button
+          type="button"
+          className="tkb-fab"
+          onClick={openSettings}
+          aria-label="Cài đặt thời khoá biểu"
+          title="Cài đặt"
+        >
+          <IconSettings />
+        </button>
+      ) : null}
+
+      <TimetableSettings
+        open={settingsOpen}
+        timetable={draft}
+        onChange={setDraft}
+        onClose={() => setSettingsOpen(false)}
+        onSave={handleSave}
+        saving={saving}
+      />
     </div>
   )
 }

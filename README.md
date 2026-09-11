@@ -109,8 +109,9 @@ Thành viên bấm **Vô Lớp 10A4** sẽ vào màn hình nội bộ với 4 m�
 3. Bài tập về nhà
 4. Nội quy lớp
 
-Hiện các mục đang trống ("Chưa có nội dung"). Khi bổ sung, ghi vào backend
-(không hardcode vào frontend) rồi trả về từ `GET /api/classroom/tabs/:tab`.
+**Thời khoá biểu** hiển thị lưới tiết × thứ (Thứ 2–Thứ 7), buổi sáng và buổi chiều, kèm khung giờ từng tiết. Dữ liệu lấy từ `GET /api/classroom/tabs/timetable` (sau `requireAuth` + `requireMember`). Admin thấy nút cài đặt góc dưới phải để đổi môn (danh sách thả xuống) và chỉnh giờ; lưu qua `PUT /api/admin/timetable`.
+
+Nên tạo bảng `class_contents` trên Supabase (xem `backend/sql/class_contents.sql`). Nếu chưa có bảng, backend lưu tạm vào `backend/data/timetable.json`.
 
 ## Ảnh website (giáo viên, ảnh lớp)
 
