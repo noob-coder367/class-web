@@ -9,3 +9,7 @@ export async function getTabContent(tab) {
     auth: true,
   })
 }
+
+export async function saveTimetable(timetable) {
+  return apiClient.put('/admin/timetable', { timetable }, { auth: true })
+}

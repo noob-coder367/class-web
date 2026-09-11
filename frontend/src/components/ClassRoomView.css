@@ -182,6 +182,12 @@
   background: #ffffff;
 }
 
+.classroom-body.is-timetable {
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 16px 16px 88px;
+}
+
 .classroom-empty {
   margin: 0;
   font-size: 18px;
