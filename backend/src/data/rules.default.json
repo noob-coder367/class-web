@@ -1,33 +1,34 @@
 {
   "title": "NỘI QUY LỚP",
+  "startingPoints": 100,
   "sections": [
     {
       "id": "style",
       "title": "Tác phong – thái độ",
       "items": [
-        "Mặc đồng phục sai quy định của buổi học : đánh dấu 1 lần",
-        "Không có phù hiệu hoặc sai quy định về giày dép : đánh dấu 1 lần",
-        "Hành vi chan nhau trong lớp hoặc trong trường : đánh dấu 3 lần",
-        "Không tham gia chào cờ : đánh dấu 3 lần",
-        "Bị phát hiện gian lận trong giờ ktra : đánh dấu 3 lần",
-        "Bị phát hiện sử dụng ĐT trong lớp : đánh dấu 3 lần",
-        "Bị phát hiện ăn trong lớp hay ăn ngoài hành lang quá giờ quy định : đánh dấu 1 lần"
+        { "text": "Mặc đồng phục sai quy định của buổi học : đánh dấu 1 lần", "points": 5 },
+        { "text": "Không có phù hiệu hoặc sai quy định về giày dép : đánh dấu 1 lần", "points": 5 },
+        { "text": "Hành vi chan nhau trong lớp hoặc trong trường : đánh dấu 3 lần", "points": 15 },
+        { "text": "Không tham gia chào cờ : đánh dấu 3 lần", "points": 15 },
+        { "text": "Bị phát hiện gian lận trong giờ ktra : đánh dấu 3 lần", "points": 15 },
+        { "text": "Bị phát hiện sử dụng ĐT trong lớp : đánh dấu 3 lần", "points": 15 },
+        { "text": "Bị phát hiện ăn trong lớp hay ăn ngoài hành lang quá giờ quy định : đánh dấu 1 lần", "points": 5 }
       ]
     },
     {
       "id": "time",
       "title": "Thời gian học",
       "items": [
-        "Đi trễ : đánh dấu 1 lần"
+        { "text": "Đi trễ : đánh dấu 1 lần", "points": 5 }
       ]
     },
     {
       "id": "order",
       "title": "Trật tự",
       "items": [
-        "Nói chuyện lớn trong giờ học, ảnh hưởng đến người khác sẽ bị nhắc nhở",
-        "Mỗi người có 2 lần bị nhắc nhở, lần thứ 3 bắt đầu đánh dấu",
-        "Trường hợp bị giáo viên nhắc nhở thì đánh dấu ngay lập tức"
+        { "text": "Nói chuyện lớn trong giờ học, ảnh hưởng đến người khác sẽ bị nhắc nhở", "points": 3 },
+        { "text": "Mỗi người có 2 lần bị nhắc nhở, lần thứ 3 bắt đầu đánh dấu", "points": 5 },
+        { "text": "Trường hợp bị giáo viên nhắc nhở thì đánh dấu ngay lập tức", "points": 5 }
       ]
     }
   ],

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
 import TimetableBoard from './TimetableBoard.jsx'
 import RulesBoard from './RulesBoard.jsx'
@@ -71,6 +71,8 @@ export default function ClassRoomView({ onClose }) {
   const [timetable, setTimetable] = useState(null)
   const [rules, setRules] = useState(null)
   const [violations, setViolations] = useState([])
+  const [members, setMembers] = useState([])
+  const [directory, setDirectory] = useState([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [loadingTab, setLoadingTab] = useState(true)
   const [tabError, setTabError] = useState('')
@@ -78,7 +80,7 @@ export default function ClassRoomView({ onClose }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return
-      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay')) return
+      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox')) return
       onClose?.()
     }
     window.addEventListener('keydown', onKey)
@@ -117,6 +119,8 @@ export default function ClassRoomView({ onClose }) {
       setTimetable(null)
       setRules(null)
       setViolations([])
+      setMembers([])
+      setDirectory([])
       return
     }
 
@@ -135,13 +139,17 @@ export default function ClassRoomView({ onClose }) {
           setViolations([])
           setItems([])
         } else if (activeTab === 'rules') {
-          const [rulesData, violationData] = await Promise.all([
+          const [rulesData, violationData, membersData, directoryData] = await Promise.all([
             classroomService.getRules(),
             classroomService.getViolations(),
+            classroomService.getMembers(),
+            classroomService.getDirectory().catch(() => ({ members: [] })),
           ])
           if (cancelled) return
           setRules(rulesData?.rules || null)
           setViolations(Array.isArray(violationData?.violations) ? violationData.violations : [])
+          setMembers(Array.isArray(membersData?.members) ? membersData.members : [])
+          setDirectory(Array.isArray(directoryData?.members) ? directoryData.members : [])
           setTimetable(null)
           setItems([])
         } else {
@@ -162,11 +170,15 @@ export default function ClassRoomView({ onClose }) {
           setTimetable(null)
           setRules(null)
           setViolations([])
+          setMembers([])
+          setDirectory([])
         } else {
           setItems([])
           setTimetable(null)
           setRules(null)
           setViolations([])
+          setMembers([])
+          setDirectory([])
           setTabError(err.message || 'Không tải được nội dung.')
         }
       } finally {
@@ -201,6 +213,19 @@ export default function ClassRoomView({ onClose }) {
     await classroomService.deleteViolation(id)
     setViolations((prev) => prev.filter((row) => row.id !== id))
   }
+
+  const handleRefreshMembers = useCallback(async () => {
+    try {
+      const [data, dir] = await Promise.all([
+        classroomService.getMembers(),
+        classroomService.getDirectory().catch(() => ({ members: [] })),
+      ])
+      setMembers(Array.isArray(data?.members) ? data.members : [])
+      setDirectory(Array.isArray(dir?.members) ? dir.members : [])
+    } catch {
+      // giữ danh sách cũ nếu refresh lỗi
+    }
+  }, [])
 
   const renderBody = () => {
     if (access === 'denied') {
@@ -244,10 +269,13 @@ export default function ClassRoomView({ onClose }) {
         <RulesBoard
           rules={rules}
           violations={violations}
+          members={members}
+          directory={directory}
           isAdmin={isAdmin}
           onSaveRules={handleSaveRules}
           onAddViolation={handleAddViolation}
           onDeleteViolation={handleDeleteViolation}
+          onRefreshMembers={handleRefreshMembers}
         />
       )
     }

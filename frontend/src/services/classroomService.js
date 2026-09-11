@@ -39,3 +39,15 @@ export async function deleteViolation(id) {
     auth: true,
   })
 }
+
+export async function getMembers() {
+  return apiClient.get('/classroom/members', { auth: true })
+}
+
+export async function getDirectory() {
+  return apiClient.get('/classroom/directory', { auth: true })
+}
+
+export async function getLeaderboard() {
+  return apiClient.get('/classroom/leaderboard', { auth: true })
+}

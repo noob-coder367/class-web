@@ -109,3 +109,38 @@ export async function deleteViolation(req, res, next) {
     next(err)
   }
 }
+
+export async function getMembers(req, res, next) {
+  try {
+    noStore(res)
+    const members = await classroomService.listClassMembers({ membersOnly: true })
+    res.json({ members })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getDirectory(req, res, next) {
+  try {
+    noStore(res)
+    const members = await classroomService.listClassMembers({ membersOnly: false })
+    res.json({ members })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getLeaderboard(req, res, next) {
+  try {
+    noStore(res)
+    const [members, violationData, rules] = await Promise.all([
+      classroomService.listClassMembers(),
+      rulesService.getViolations(),
+      rulesService.getRules(),
+    ])
+    const leaderboard = rulesService.buildLeaderboard(members, violationData.items, rules)
+    res.json({ leaderboard, members })
+  } catch (err) {
+    next(err)
+  }
+}

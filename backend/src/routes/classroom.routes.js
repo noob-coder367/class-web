@@ -19,5 +19,8 @@ router.put('/rules', requireAdmin, classroomController.putRules)
 router.get('/violations', classroomController.getViolations)
 router.post('/violations', requireAdmin, classroomController.postViolation)
 router.delete('/violations/:id', requireAdmin, classroomController.deleteViolation)
+router.get('/members', classroomController.getMembers)
+router.get('/directory', requireAdmin, classroomController.getDirectory)
+router.get('/leaderboard', classroomController.getLeaderboard)
 
 export default router
