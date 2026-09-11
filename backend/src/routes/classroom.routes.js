@@ -14,5 +14,10 @@ router.get('/tabs', classroomController.getTabs)
 router.get('/tabs/:tab', classroomController.getTab)
 router.get('/timetable', classroomController.getTimetable)
 router.put('/timetable', requireAdmin, classroomController.putTimetable)
+router.get('/rules', classroomController.getRules)
+router.put('/rules', requireAdmin, classroomController.putRules)
+router.get('/violations', classroomController.getViolations)
+router.post('/violations', requireAdmin, classroomController.postViolation)
+router.delete('/violations/:id', requireAdmin, classroomController.deleteViolation)
 
 export default router

@@ -1,5 +1,6 @@
 import * as classroomService from '../services/classroom.service.js'
 import * as timetableService from '../services/timetable.service.js'
+import * as rulesService from '../services/rules.service.js'
 
 function noStore(res) {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
@@ -54,6 +55,56 @@ export async function putTimetable(req, res, next) {
     noStore(res)
     const timetable = await timetableService.saveTimetable(req.body?.timetable || req.body)
     res.json({ message: 'Đã lưu thời khoá biểu.', timetable })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getRules(req, res, next) {
+  try {
+    noStore(res)
+    const rules = await rulesService.getRules()
+    res.json({ rules })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function putRules(req, res, next) {
+  try {
+    noStore(res)
+    const rules = await rulesService.saveRules(req.body?.rules || req.body)
+    res.json({ message: 'Đã lưu nội quy.', rules })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getViolations(req, res, next) {
+  try {
+    noStore(res)
+    const data = await rulesService.getViolations()
+    res.json({ violations: data.items, updatedAt: data.updatedAt })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function postViolation(req, res, next) {
+  try {
+    noStore(res)
+    const violation = await rulesService.addViolation(req.body?.violation || req.body)
+    res.status(201).json({ message: 'Đã thêm vi phạm.', violation })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function deleteViolation(req, res, next) {
+  try {
+    noStore(res)
+    const result = await rulesService.removeViolation(req.params.id)
+    res.json({ message: 'Đã xoá vi phạm.', ...result })
   } catch (err) {
     next(err)
   }

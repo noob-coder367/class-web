@@ -17,7 +17,7 @@
   display: flex;
   align-items: flex-end;
   gap: 12px;
-  padding: 14px 16px 10px;
+  padding: 16px 16px 12px;
   background: #ffffff;
   flex-shrink: 0;
 }
@@ -52,27 +52,52 @@
   transform: scale(0.96);
 }
 
-/* 3D isometric parallelogram strip — khớp hình vẽ tay */
+/* Ribbon 3D: mảnh trái tối + mặt trước + nắp trên cùng một khối */
 .classroom-iso {
-  --iso-h: 52px;
-  --iso-d: 11px;
-  --iso-skew: 22deg;
+  --iso-h: 54px;
+  --iso-d: 10px;
+  --iso-skew: 16deg;
   --iso-ink: #14324a;
-  --iso-face: #f4fafc;
-  --iso-lid: #d7ebf3;
-  --iso-cap: #0d2335;
+  --iso-face: #f7fbfd;
+  --iso-lid: #d5eaf3;
+  --iso-end: #0d2233;
   position: relative;
   flex: 1;
   min-width: 0;
   height: calc(var(--iso-h) + var(--iso-d));
-  margin-right: 10px;
+  display: flex;
+  align-items: flex-end;
+  overflow: visible;
+  margin-right: 8px;
+}
+
+.classroom-iso-end {
+  position: relative;
+  z-index: 3;
+  width: 22px;
+  height: var(--iso-h);
+  flex-shrink: 0;
+  margin-right: -2.5px;
+  background: linear-gradient(90deg, #08141f 0%, #14324a 58%, #0d2233 100%);
+  border: 2.5px solid var(--iso-ink);
+  border-right: none;
+  transform: skewX(calc(-1 * var(--iso-skew)));
+  transform-origin: bottom right;
+  box-shadow: 6px 7px 0 var(--iso-ink);
+}
+
+.classroom-iso-main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
 }
 
 .classroom-iso-lid {
   position: absolute;
   top: 0;
-  left: 18px;
-  right: 2px;
+  left: -6px;
+  right: 6px;
   height: var(--iso-d);
   background: linear-gradient(180deg, #eef7fb 0%, var(--iso-lid) 100%);
   border: 2.5px solid var(--iso-ink);
@@ -81,24 +106,13 @@
   transform-origin: left bottom;
   box-sizing: border-box;
   pointer-events: none;
-}
-
-.classroom-iso-cap {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 16px;
-  height: var(--iso-h);
-  background: var(--iso-cap);
-  clip-path: polygon(100% 0, 100% 100%, 0 78%, 18% 0);
-  pointer-events: none;
   z-index: 2;
 }
 
 .classroom-iso-front {
   position: absolute;
-  left: 10px;
-  right: 14px;
+  left: 0;
+  right: 12px;
   bottom: 0;
   height: var(--iso-h);
   display: flex;
@@ -106,7 +120,7 @@
   transform-origin: left bottom;
   border: 2.5px solid var(--iso-ink);
   background: var(--iso-face);
-  box-shadow: 7px 8px 0 var(--iso-ink);
+  box-shadow: 6px 7px 0 var(--iso-ink);
   overflow: hidden;
   z-index: 1;
 }
@@ -189,7 +203,8 @@
   background: #ffffff;
 }
 
-.classroom-body--timetable {
+.classroom-body--timetable,
+.classroom-body--rules {
   display: block;
   padding: 18px 20px 96px;
   overflow-x: auto;
@@ -294,8 +309,12 @@
   .classroom-iso {
     --iso-h: 58px;
     --iso-d: 8px;
-    --iso-skew: 16deg;
+    --iso-skew: 12deg;
     margin-right: 6px;
+  }
+
+  .classroom-iso-end {
+    width: 16px;
   }
 
   .classroom-tab-inner {

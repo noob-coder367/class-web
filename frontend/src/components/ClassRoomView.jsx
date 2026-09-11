@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
 import TimetableBoard from './TimetableBoard.jsx'
+import RulesBoard from './RulesBoard.jsx'
 import './ClassRoomView.css'
 
 function IconBell() {
@@ -55,6 +56,8 @@ const TABS = [
   { id: 'rules', label: 'Nội quy lớp', icon: IconShield },
 ]
 
+const WIDE_TABS = new Set(['timetable', 'rules'])
+
 /**
  * Khu vực nội bộ lớp 10A4.
  * Tab mặc định: Thông báo chung.
@@ -66,6 +69,8 @@ export default function ClassRoomView({ onClose }) {
   const [accessError, setAccessError] = useState('')
   const [items, setItems] = useState([])
   const [timetable, setTimetable] = useState(null)
+  const [rules, setRules] = useState(null)
+  const [violations, setViolations] = useState([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [loadingTab, setLoadingTab] = useState(true)
   const [tabError, setTabError] = useState('')
@@ -73,7 +78,7 @@ export default function ClassRoomView({ onClose }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return
-      if (document.querySelector('.tkb-settings-overlay')) return
+      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay')) return
       onClose?.()
     }
     window.addEventListener('keydown', onKey)
@@ -110,6 +115,8 @@ export default function ClassRoomView({ onClose }) {
       setLoadingTab(false)
       setItems([])
       setTimetable(null)
+      setRules(null)
+      setViolations([])
       return
     }
 
@@ -124,11 +131,25 @@ export default function ClassRoomView({ onClose }) {
           const data = await classroomService.getTimetable()
           if (cancelled) return
           setTimetable(data?.timetable || null)
+          setRules(null)
+          setViolations([])
+          setItems([])
+        } else if (activeTab === 'rules') {
+          const [rulesData, violationData] = await Promise.all([
+            classroomService.getRules(),
+            classroomService.getViolations(),
+          ])
+          if (cancelled) return
+          setRules(rulesData?.rules || null)
+          setViolations(Array.isArray(violationData?.violations) ? violationData.violations : [])
+          setTimetable(null)
           setItems([])
         } else {
           const data = await classroomService.getTabContent(activeTab)
           if (cancelled) return
           setTimetable(null)
+          setRules(null)
+          setViolations([])
           setItems(Array.isArray(data?.items) ? data.items : [])
         }
       } catch (err) {
@@ -139,9 +160,13 @@ export default function ClassRoomView({ onClose }) {
           setAccessError(err.message || 'Bạn không có quyền vào lớp.')
           setItems([])
           setTimetable(null)
+          setRules(null)
+          setViolations([])
         } else {
           setItems([])
           setTimetable(null)
+          setRules(null)
+          setViolations([])
           setTabError(err.message || 'Không tải được nội dung.')
         }
       } finally {
@@ -158,6 +183,23 @@ export default function ClassRoomView({ onClose }) {
   const handleSaveTimetable = async (next) => {
     const data = await classroomService.saveTimetable(next)
     setTimetable(data?.timetable || next)
+  }
+
+  const handleSaveRules = async (next) => {
+    const data = await classroomService.saveRules(next)
+    setRules(data?.rules || next)
+  }
+
+  const handleAddViolation = async (payload) => {
+    const data = await classroomService.addViolation(payload)
+    if (data?.violation) {
+      setViolations((prev) => [data.violation, ...prev.filter((row) => row.id !== data.violation.id)])
+    }
+  }
+
+  const handleDeleteViolation = async (id) => {
+    await classroomService.deleteViolation(id)
+    setViolations((prev) => prev.filter((row) => row.id !== id))
   }
 
   const renderBody = () => {
@@ -197,6 +239,19 @@ export default function ClassRoomView({ onClose }) {
       )
     }
 
+    if (activeTab === 'rules') {
+      return (
+        <RulesBoard
+          rules={rules}
+          violations={violations}
+          isAdmin={isAdmin}
+          onSaveRules={handleSaveRules}
+          onAddViolation={handleAddViolation}
+          onDeleteViolation={handleDeleteViolation}
+        />
+      )
+    }
+
     if (!items.length) {
       return <p className="classroom-empty">Chưa có nội dung</p>
     }
@@ -213,6 +268,8 @@ export default function ClassRoomView({ onClose }) {
     )
   }
 
+  const bodyMod = WIDE_TABS.has(activeTab) ? ` classroom-body--${activeTab}` : ''
+
   return (
     <div className="classroom-view" role="dialog" aria-modal="true" aria-label="Khu vực lớp 10A4">
       <header className="classroom-topbar">
@@ -227,40 +284,42 @@ export default function ClassRoomView({ onClose }) {
         </button>
 
         <div className="classroom-iso">
-          <span className="classroom-iso-lid" aria-hidden="true" />
-          <span className="classroom-iso-cap" aria-hidden="true" />
-          <nav className="classroom-iso-front" role="tablist" aria-label="Mục lớp 10A4">
-            {TABS.map((tab) => {
-              const Icon = tab.icon
-              const selected = activeTab === tab.id
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  id={`classroom-tab-${tab.id}`}
-                  aria-selected={selected}
-                  aria-controls="classroom-panel"
-                  tabIndex={selected ? 0 : -1}
-                  className={`classroom-tab${selected ? ' is-active' : ''}`}
-                  onClick={() => setActiveTab(tab.id)}
-                  disabled={access === 'denied'}
-                >
-                  <span className="classroom-tab-inner">
-                    <span className="classroom-tab-icon">
-                      <Icon />
+          <span className="classroom-iso-end" aria-hidden="true" />
+          <div className="classroom-iso-main">
+            <span className="classroom-iso-lid" aria-hidden="true" />
+            <nav className="classroom-iso-front" role="tablist" aria-label="Mục lớp 10A4">
+              {TABS.map((tab) => {
+                const Icon = tab.icon
+                const selected = activeTab === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    id={`classroom-tab-${tab.id}`}
+                    aria-selected={selected}
+                    aria-controls="classroom-panel"
+                    tabIndex={selected ? 0 : -1}
+                    className={`classroom-tab${selected ? ' is-active' : ''}`}
+                    onClick={() => setActiveTab(tab.id)}
+                    disabled={access === 'denied'}
+                  >
+                    <span className="classroom-tab-inner">
+                      <span className="classroom-tab-icon">
+                        <Icon />
+                      </span>
+                      <span className="classroom-tab-label">{tab.label}</span>
                     </span>
-                    <span className="classroom-tab-label">{tab.label}</span>
-                  </span>
-                </button>
-              )
-            })}
-          </nav>
+                  </button>
+                )
+              })}
+            </nav>
+          </div>
         </div>
       </header>
 
       <div
-        className={`classroom-body${activeTab === 'timetable' ? ' classroom-body--timetable' : ''}`}
+        className={`classroom-body${bodyMod}`}
         id="classroom-panel"
         role="tabpanel"
         aria-labelledby={`classroom-tab-${activeTab}`}
