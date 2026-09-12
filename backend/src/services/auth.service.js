@@ -1,17 +1,6 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { env } from '../config/env.js'
 
-/**
- * Toàn bộ logic "nhạy cảm" của luồng Auth trước đây nằm ở frontend
- * (App.jsx) được chuyển vào đây:
- *  - Kiểm tra SECRET_CODE để duyệt "Thành viên 10A4"
- *  - Tạo user Supabase Auth bằng quyền admin
- *  - Gửi / xác thực OTP
- *  - Đăng nhập bằng username (tra email) + mật khẩu
- *  - Đổi mật khẩu
- *  - Đặt tên hiển thị cho user Google lần đầu
- */
-
 export class AppError extends Error {
   constructor(message, statusCode = 400) {
     super(message)
@@ -21,10 +10,10 @@ export class AppError extends Error {
 
 const PENDING_USERNAME_PREFIX = 'pending:'
 const PROFILE_COLUMNS = 'id, username, email, is_member, role, created_at'
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const DATA_BUCKET = 'classroom-data'
+const USERNAME_CHANGES_PATH = 'username-changes.json'
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+const MAX_CHANGES_PER_WEEK = 2
 
 export function isPendingUsername(username) {
   return !username || String(username).startsWith(PENDING_USERNAME_PREFIX)
@@ -83,9 +72,42 @@ async function findProfileById(userId) {
   return data
 }
 
-// ---------------------------------------------------------------------------
-// Register
-// ---------------------------------------------------------------------------
+async function readUsernameChanges() {
+  const { data, error } = await supabaseAdmin.storage.from(DATA_BUCKET).download(USERNAME_CHANGES_PATH)
+  if (error || !data) return {}
+  try {
+    const text = await data.text()
+    const parsed = JSON.parse(text)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+async function writeUsernameChanges(map) {
+  const { data: bucket } = await supabaseAdmin.storage.getBucket(DATA_BUCKET)
+  if (!bucket) {
+    await supabaseAdmin.storage.createBucket(DATA_BUCKET, { public: false, fileSizeLimit: 2 * 1024 * 1024 })
+  }
+  const body = Buffer.from(JSON.stringify(map, null, 2) + '\n', 'utf8')
+  const { error } = await supabaseAdmin.storage.from(DATA_BUCKET).upload(USERNAME_CHANGES_PATH, body, {
+    contentType: 'application/json',
+    upsert: true,
+  })
+  if (error) throw new AppError('Không lưu được lịch sử đổi tên: ' + error.message, 502)
+}
+
+export async function getUsernameChangeStatus(userId) {
+  const map = await readUsernameChanges()
+  const list = Array.isArray(map[userId]) ? map[userId] : []
+  const weekAgo = Date.now() - WEEK_MS
+  const recent = list.filter((t) => Number(t) > weekAgo)
+  return {
+    remaining: Math.max(0, MAX_CHANGES_PER_WEEK - recent.length),
+    max: MAX_CHANGES_PER_WEEK,
+    recentCount: recent.length,
+  }
+}
 
 export async function registerUser({
   username,
@@ -102,14 +124,12 @@ export async function registerUser({
     throw new AppError('Mật khẩu phải có ít nhất 8 ký tự!')
   }
   if (isMember === true && secretCode !== env.SECRET_CODE) {
-    // Kiểm tra mã thành viên CHỈ diễn ra ở server.
     throw new AppError('Mã thành viên không chính xác!')
   }
 
   const existing = await findProfileByUsername(cleanUsername)
   if (existing) throw new AppError('Username này đã được sử dụng!')
 
-  // Tạo user bằng quyền admin, chưa xác nhận email (sẽ xác nhận bằng OTP).
   const { data: created, error: createError } =
     await supabaseAdmin.auth.admin.createUser({
       email: cleanEmail,
@@ -131,12 +151,11 @@ export async function registerUser({
         id: user.id,
         username: cleanUsername,
         email: cleanEmail,
-        is_member: isMember === true, // chỉ true nếu secretCode hợp lệ (đã kiểm tra ở trên)
+        is_member: isMember === true,
       },
     ])
 
   if (profileError) {
-    // Dọn lại user Auth vừa tạo để tránh rác tài khoản không có hồ sơ.
     await supabaseAdmin.auth.admin.deleteUser(user.id)
     throw new AppError(
       'Tạo hồ sơ thất bại: ' + profileError.message,
@@ -159,10 +178,6 @@ export async function registerUser({
   return { email: cleanEmail }
 }
 
-// ---------------------------------------------------------------------------
-// OTP: verify / resend
-// ---------------------------------------------------------------------------
-
 export async function verifyOtp({ email, otp, purpose }) {
   if (!email) throw new AppError('Thiếu email.')
   if (!otp || otp.length !== 6) throw new AppError('Vui lòng nhập đủ 6 số!')
@@ -182,8 +197,6 @@ export async function verifyOtp({ email, otp, purpose }) {
     return { profile: toPublicProfile(profile), session: data.session }
   }
 
-  // purpose === 'reset' -> chỉ cần xác nhận OTP hợp lệ, trả về session tạm
-  // để bước đổi mật khẩu kế tiếp có quyền cập nhật đúng user.
   return { profile: null, session: data.session }
 }
 
@@ -199,10 +212,6 @@ export async function resendOtp({ email }) {
     throw new AppError('Không thể gửi lại mã: ' + error.message, 500)
   }
 }
-
-// ---------------------------------------------------------------------------
-// Login
-// ---------------------------------------------------------------------------
 
 export async function loginUser({ username, password }) {
   const cleanUsername = (username || '').trim()
@@ -228,10 +237,6 @@ export async function loginUser({ username, password }) {
 
   return { session: data.session, profile: toPublicProfile(profile) }
 }
-
-// ---------------------------------------------------------------------------
-// Forgot / Reset password
-// ---------------------------------------------------------------------------
 
 export async function forgotPassword({ username }) {
   const cleanUsername = (username || '').trim()
@@ -262,8 +267,6 @@ export async function resetPassword({ email, otp, newPassword }) {
     throw new AppError('Mật khẩu mới phải có ít nhất 8 ký tự!')
   }
 
-  // Xác thực lại OTP ngay trước khi đổi mật khẩu để chắc chắn
-  // request này thực sự thuộc về chủ tài khoản.
   const { data: verifyData, error: verifyError } =
     await supabaseAdmin.auth.verifyOtp({
       email,
@@ -288,15 +291,25 @@ export async function resetPassword({ email, otp, newPassword }) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Display name (Google lần đầu + Admin đổi tên)
-// ---------------------------------------------------------------------------
-
-export async function setDisplayName(userId, rawName) {
+export async function setDisplayName(userId, rawName, { countAsChange = false } = {}) {
   const cleanUsername = normalizeDisplayName(rawName)
   const existing = await findProfileByUsername(cleanUsername)
   if (existing && existing.id !== userId) {
     throw new AppError('Tên hiển thị này đã được sử dụng!')
+  }
+
+  const current = await findProfileById(userId)
+  if (!current) throw new AppError('Không tìm thấy hồ sơ.', 404)
+
+  const wasPending = isPendingUsername(current.username)
+  // Đổi tên sau lần đặt tên đầu: giới hạn 2 lần / 7 ngày
+  if (countAsChange || !wasPending) {
+    if (!wasPending) {
+      const status = await getUsernameChangeStatus(userId)
+      if (status.remaining <= 0) {
+        throw new AppError('Bạn chỉ được đổi tên tối đa 2 lần trong 1 tuần.')
+      }
+    }
   }
 
   const { data, error } = await supabaseAdmin
@@ -310,21 +323,18 @@ export async function setDisplayName(userId, rawName) {
     throw new AppError('Không thể lưu tên hiển thị: ' + error.message, 500)
   }
   if (!data) throw new AppError('Không tìm thấy hồ sơ.', 404)
+
+  if (!wasPending) {
+    const map = await readUsernameChanges()
+    const weekAgo = Date.now() - WEEK_MS
+    const recent = (Array.isArray(map[userId]) ? map[userId] : []).filter((t) => Number(t) > weekAgo)
+    map[userId] = [...recent, Date.now()]
+    await writeUsernameChanges(map)
+  }
+
   return toPublicProfile(data)
 }
 
-// ---------------------------------------------------------------------------
-// Current user (dùng bởi middleware auth)
-// ---------------------------------------------------------------------------
-
-/**
- * Đăng ký bằng username/password (registerUser) là nơi DUY NHẤT từng
- * tạo profile có tên hiển thị thật. Đăng nhập Google (OAuth) chỉ tạo
- * user bên auth.users — nếu chưa có profile, tạo 1 hồ sơ tạm
- * (username = pending:<id>) để:
- *  - user xuất hiện ngay trong Quản lý Admin ("Chưa đặt tên")
- *  - frontend bắt buộc hiện bảng nhập TÊN HIỂN THỊ trước khi dùng tiếp
- */
 async function ensureProfile(user) {
   const email = user.email || ''
   const placeholder = pendingUsernameFor(user.id)
@@ -343,8 +353,6 @@ async function ensureProfile(user) {
     .maybeSingle()
 
   if (error) {
-    // Có thể do đụng username trùng, hoặc race condition (2 request cùng
-    // lúc cùng tạo). Thử đọc lại profile trước khi báo lỗi hẳn.
     const existing = await findProfileById(user.id)
     if (existing) return existing
     throw new AppError('Không thể khởi tạo hồ sơ người dùng: ' + error.message, 500)
@@ -353,11 +361,6 @@ async function ensureProfile(user) {
   return created
 }
 
-/**
- * Nếu profile đã tồn tại nhưng username bị trigger DB / Google metadata
- * tự gán (full_name, email local-part...), ta ép về pending để frontend
- * vẫn hiện bảng nhập Tên hiển thị (đặc biệt sau khi admin xóa rồi login lại).
- */
 async function forcePendingIfAutoNamed(user, profile) {
   if (!profile || isPendingUsername(profile.username)) return profile
 
