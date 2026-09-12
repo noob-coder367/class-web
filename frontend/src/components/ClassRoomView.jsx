@@ -76,6 +76,7 @@ export default function ClassRoomView({ onClose }) {
   const [isAdmin, setIsAdmin] = useState(false)
   const [loadingTab, setLoadingTab] = useState(true)
   const [tabError, setTabError] = useState('')
+  const [dismissingNotice, setDismissingNotice] = useState(false)
 
   useEffect(() => {
     const onKey = (e) => {
@@ -197,6 +198,27 @@ export default function ClassRoomView({ onClose }) {
     setTimetable(data?.timetable || next)
   }
 
+  const handleDismissNotice = async () => {
+    setDismissingNotice(true)
+    try {
+      const data = await classroomService.dismissTimetableNotice()
+      if (data?.timetable) {
+        setTimetable(data.timetable)
+      } else if (timetable) {
+        setTimetable({
+          ...timetable,
+          changeNotice: timetable.changeNotice
+            ? { ...timetable.changeNotice, active: false }
+            : null,
+        })
+      }
+      // Cập nhật luôn list announcements nếu đang ở tab đó
+      setItems((prev) => prev.filter((item) => item.id !== 'tkb-change-notice'))
+    } finally {
+      setDismissingNotice(false)
+    }
+  }
+
   const handleSaveRules = async (next) => {
     const data = await classroomService.saveRules(next)
     setRules(data?.rules || next)
@@ -260,6 +282,7 @@ export default function ClassRoomView({ onClose }) {
           data={timetable}
           isAdmin={isAdmin}
           onSave={handleSaveTimetable}
+          onDismissNotice={handleDismissNotice}
         />
       )
     }
@@ -286,12 +309,39 @@ export default function ClassRoomView({ onClose }) {
 
     return (
       <ul className="classroom-list">
-        {items.map((item) => (
-          <li key={item.id} className="classroom-item">
-            {item.title ? <h3>{item.title}</h3> : null}
-            {item.body ? <p>{item.body}</p> : null}
-          </li>
-        ))}
+        {items.map((item) => {
+          const isTkbNotice = item.type === 'tkb-change' || item.id === 'tkb-change-notice'
+          return (
+            <li
+              key={item.id}
+              className={`classroom-item${isTkbNotice ? ' classroom-item--tkb-notice' : ''}${item.hasChanges ? ' classroom-item--changed' : ''}`}
+            >
+              {item.title ? <h3>{item.title}</h3> : null}
+              {item.body ? <p>{item.body}</p> : null}
+              {isTkbNotice ? (
+                <div className="classroom-item-actions">
+                  <button
+                    type="button"
+                    className="classroom-detail-link"
+                    onClick={() => setActiveTab('timetable')}
+                  >
+                    Ấn để xem chi tiết hơn
+                  </button>
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      className="classroom-dismiss-notice"
+                      onClick={handleDismissNotice}
+                      disabled={dismissingNotice}
+                    >
+                      {dismissingNotice ? 'Đang xoá…' : 'Xoá thông báo'}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </li>
+          )
+        })}
       </ul>
     )
   }
