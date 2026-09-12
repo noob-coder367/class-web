@@ -45,6 +45,41 @@ function IconGear() {
   )
 }
 
+/**
+ * Khoảng áp dụng: T2 → T7 tuần hiện tại.
+ * Chủ nhật: reset sang T2 → T7 tuần sau.
+ */
+function getApplicationRange(now = new Date()) {
+  const d = new Date(now)
+  const day = d.getDay() // 0=CN … 6=T7
+  const monday = new Date(d)
+  monday.setHours(0, 0, 0, 0)
+  if (day === 0) {
+    monday.setDate(d.getDate() + 1)
+  } else {
+    monday.setDate(d.getDate() - (day - 1))
+  }
+  const saturday = new Date(monday)
+  saturday.setDate(monday.getDate() + 5)
+  return { from: monday, to: saturday }
+}
+
+function formatDateVN(date) {
+  const d = date instanceof Date ? date : new Date(date)
+  if (Number.isNaN(d.getTime())) return ''
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  return `${dd}/${mm}/${yyyy}`
+}
+
+function formatISOToVN(iso) {
+  if (!iso || typeof iso !== 'string') return ''
+  const parts = iso.split('-')
+  if (parts.length !== 3) return iso
+  return `${parts[2]}/${parts[1]}/${parts[0]}`
+}
+
 function sessionRows(session) {
   const rows = []
   for (const period of session.periods || []) {
@@ -138,19 +173,86 @@ function SessionTable({ session, days, variant }) {
   )
 }
 
-export default function TimetableBoard({ data, isAdmin, onSave }) {
+function ChangeNoticeBox({ notice, isAdmin, onDismiss, dismissing }) {
+  if (!notice?.active) return null
+
+  const from = formatISOToVN(notice.from)
+  const to = formatISOToVN(notice.to)
+  const title =
+    from && to
+      ? `Thông báo thay đổi TKB từ ngày ${from} đến ngày ${to}`
+      : 'Thông báo thay đổi thời khoá biểu'
+
+  const hasLines = notice.hasChanges && Array.isArray(notice.lines) && notice.lines.length > 0
+
+  return (
+    <aside className={`tkb-change-notice${notice.hasChanges ? ' tkb-change-notice--changed' : ''}`}>
+      <div className="tkb-change-notice-head">
+        <h3>{title}</h3>
+        {isAdmin ? (
+          <button
+            type="button"
+            className="tkb-change-dismiss"
+            onClick={onDismiss}
+            disabled={dismissing}
+            title="Ẩn thông báo này"
+          >
+            {dismissing ? 'Đang xoá…' : 'Xoá thông báo'}
+          </button>
+        ) : null}
+      </div>
+      <p className="tkb-change-summary">{notice.summary || 'Chưa có sự thay đổi'}</p>
+      {hasLines ? (
+        <ul className="tkb-change-lines">
+          {notice.lines.slice(0, 20).map((line, idx) => (
+            <li key={idx}>{line}</li>
+          ))}
+          {notice.lines.length > 20 ? (
+            <li className="tkb-change-more">… và {notice.lines.length - 20} thay đổi khác</li>
+          ) : null}
+        </ul>
+      ) : null}
+    </aside>
+  )
+}
+
+export default function TimetableBoard({ data, isAdmin, onSave, onDismissNotice }) {
   const [openSettings, setOpenSettings] = useState(false)
+  const [dismissing, setDismissing] = useState(false)
+
+  const applyRange = useMemo(() => getApplicationRange(), [])
+  // Recompute on each render is fine; date rarely changes mid-session
 
   if (!data) return null
+
+  const handleDismiss = async () => {
+    if (!onDismissNotice) return
+    setDismissing(true)
+    try {
+      await onDismissNotice()
+    } finally {
+      setDismissing(false)
+    }
+  }
 
   return (
     <div className="tkb-board">
       <div className="tkb-banner">
         <div>
           <p className="tkb-kicker">Thời khoá biểu lớp {data.className}</p>
-          <h2>Áp dụng từ {data.effectiveFrom?.split('-').reverse().join('/')}</h2>
+          <h2>
+            Áp dụng từ ngày {formatDateVN(applyRange.from)} đến ngày{' '}
+            {formatDateVN(applyRange.to)}
+          </h2>
         </div>
       </div>
+
+      <ChangeNoticeBox
+        notice={data.changeNotice}
+        isAdmin={isAdmin}
+        onDismiss={handleDismiss}
+        dismissing={dismissing}
+      />
 
       <SessionTable session={data.morning} days={data.days} variant="morning" />
       <SessionTable session={data.afternoon} days={data.days} variant="afternoon" />

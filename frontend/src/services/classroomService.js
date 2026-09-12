@@ -18,6 +18,10 @@ export async function saveTimetable(timetable) {
   return apiClient.put('/classroom/timetable', { timetable }, { auth: true })
 }
 
+export async function dismissTimetableNotice() {
+  return apiClient.delete('/classroom/timetable/notice', { auth: true })
+}
+
 export async function getRules() {
   return apiClient.get('/classroom/rules', { auth: true })
 }

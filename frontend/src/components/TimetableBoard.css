@@ -34,6 +34,90 @@
   color: #14324a;
 }
 
+/* —— Thông báo thay đổi TKB —— */
+.tkb-change-notice {
+  border: 1.5px solid #bfdbfe;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+  padding: 14px 16px;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.08);
+}
+
+.tkb-change-notice--changed {
+  border-color: #fcd34d;
+  background: linear-gradient(135deg, #fffbeb 0%, #fefce8 100%);
+  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.1);
+}
+
+.tkb-change-notice-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.tkb-change-notice-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: #1e3a8a;
+  line-height: 1.35;
+}
+
+.tkb-change-notice--changed .tkb-change-notice-head h3 {
+  color: #92400e;
+}
+
+.tkb-change-dismiss {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #fee2e2;
+  color: #b91c1c;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.tkb-change-dismiss:hover:not(:disabled) {
+  background: #fecaca;
+}
+
+.tkb-change-dismiss:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.tkb-change-summary {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.tkb-change-lines {
+  margin: 10px 0 0;
+  padding: 0 0 0 18px;
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.tkb-change-more {
+  list-style: none;
+  margin-left: -18px;
+  font-style: italic;
+  color: #94a3b8;
+}
+
 .tkb-session {
   flex: 0 0 auto;
   border: 1.5px solid #d7e4ee;
@@ -248,6 +332,11 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
+  }
+
+  .tkb-change-notice-head {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .tkb-fab {
