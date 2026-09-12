@@ -37,10 +37,12 @@
 .hw-filter-dates input[type='date'] {
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
   font: inherit;
   font-size: 13px;
   color: #0f172a;
+  background: #ffffff;
+  color-scheme: light;
 }
 
 .hw-filter-clear {
@@ -200,6 +202,24 @@
   font-size: 15px;
 }
 
+.hw-exam-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.hw-exam-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
 .hw-block--exp {
   background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
   border: 1px solid #93c5fd;
@@ -344,6 +364,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  background: #ffffff;
 }
 
 .hw-title-row {
@@ -364,10 +385,12 @@
   flex: 1;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
   font: inherit;
   font-size: 15px;
   font-weight: 700;
+  color: #0f172a;
+  background: #f8fafc;
 }
 
 .hw-btn-edit-title {
@@ -392,41 +415,74 @@
   gap: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: #475569;
+  color: #334155;
 }
 
-.hw-field input[type='date'] {
+.hw-field input[type='date'],
+.hw-text-input,
+.hw-select {
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
   font: inherit;
   font-size: 14px;
+  font-weight: 500;
   color: #0f172a;
+  background: #f8fafc;
+  color-scheme: light;
+}
+
+.hw-field input[type='date']:focus,
+.hw-text-input:focus,
+.hw-select:focus,
+.hw-title-input:focus {
+  outline: 2px solid #0d9488;
+  outline-offset: 1px;
+  background: #ffffff;
+}
+
+.hw-select {
+  cursor: pointer;
+  appearance: auto;
 }
 
 .hw-textarea {
   resize: vertical;
   padding: 12px;
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
   font: inherit;
   font-size: 14px;
   font-weight: 400;
   color: #0f172a;
+  background: #f8fafc;
 }
 
 .hw-textarea:focus {
   outline: 2px solid #0d9488;
   outline-offset: 1px;
+  background: #ffffff;
 }
 
 .hw-textarea--exam {
   border-color: #fca5a5;
   background: #fff7f7;
+  color: #7f1d1d;
 }
 
 .hw-textarea--exam:focus {
   outline-color: #ef4444;
+  background: #ffffff;
+}
+
+.hw-exam-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
 }
 
 .hw-toggle-row {
@@ -483,6 +539,7 @@
   padding: 14px 18px 18px;
   border-top: 1px solid #e2e8f0;
   flex-shrink: 0;
+  background: #fff;
 }
 
 .hw-btn-post {
