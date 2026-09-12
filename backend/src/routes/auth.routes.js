@@ -50,4 +50,13 @@ router.post(
   authController.setDisplayName
 )
 
+router.post(
+  '/change-username',
+  requireAuth,
+  validateBody({ username: 'string' }),
+  authController.changeUsername
+)
+
+router.get('/username-change-status', requireAuth, authController.usernameChangeStatus)
+
 export default router
