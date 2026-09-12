@@ -22,6 +22,28 @@ export async function dismissTimetableNotice() {
   return apiClient.delete('/classroom/timetable/notice', { auth: true })
 }
 
+export async function getAnnouncements() {
+  return apiClient.get('/classroom/announcements', { auth: true })
+}
+
+export async function createAnnouncement(payload) {
+  return apiClient.post('/classroom/announcements', payload, { auth: true })
+}
+
+export async function deleteAnnouncement(id) {
+  return apiClient.delete(`/classroom/announcements/${encodeURIComponent(id)}`, {
+    auth: true,
+  })
+}
+
+export async function updateAnnouncementExpiry(id, expires_at) {
+  return apiClient.patch(
+    `/classroom/announcements/${encodeURIComponent(id)}/expiry`,
+    { expires_at },
+    { auth: true }
+  )
+}
+
 export async function getRules() {
   return apiClient.get('/classroom/rules', { auth: true })
 }
