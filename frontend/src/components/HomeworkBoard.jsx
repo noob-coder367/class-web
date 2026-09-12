@@ -2,6 +2,37 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
 import './HomeworkBoard.css'
 
+const SUBJECT_OPTIONS = [
+  'Ngữ văn',
+  'Toán',
+  'CĐ Toán',
+  'Tiếng Anh',
+  'Tiếng Anh NN',
+  'Hóa học',
+  'CĐ Hóa học',
+  'Vật lí',
+  'CĐ Vật lí',
+  'Sinh học',
+  'Lịch sử',
+  'Địa lí',
+  'GD địa phương',
+  'GDQP và AN',
+  'GD thể',
+  'Công nghệ',
+  'Tin học',
+  'Tin học Quốc tế',
+  'STEM',
+  'Trí tuệ nhân tạo',
+  'HĐTN 1',
+  'HĐTN 2',
+  'HĐTN 3',
+  'Tự học',
+  'Câu lạc bộ',
+  'Sinh hoạt lớp',
+]
+
+const SUBJECT_OTHER = '__other__'
+
 function todayISO() {
   const d = new Date()
   const y = d.getFullYear()
@@ -33,6 +64,9 @@ export default function HomeworkBoard({ isAdmin }) {
   const [title, setTitle] = useState(defaultTitle(todayISO()))
   const [editingTitle, setEditingTitle] = useState(false)
   const [hasExam, setHasExam] = useState(false)
+  const [examDate, setExamDate] = useState('')
+  const [examSubjectSelect, setExamSubjectSelect] = useState('')
+  const [examSubjectOther, setExamSubjectOther] = useState('')
   const [examContent, setExamContent] = useState('')
   const [experimentContent, setExperimentContent] = useState('')
   const [homeworkContent, setHomeworkContent] = useState('')
@@ -69,6 +103,11 @@ export default function HomeworkBoard({ isAdmin }) {
     }
   }, [reportDate, editingTitle])
 
+  const resolvedSubject = () => {
+    if (examSubjectSelect === SUBJECT_OTHER) return examSubjectOther.trim()
+    return examSubjectSelect.trim()
+  }
+
   const closeComposer = () => {
     if (posting) return
     const today = todayISO()
@@ -76,6 +115,9 @@ export default function HomeworkBoard({ isAdmin }) {
     setTitle(defaultTitle(today))
     setEditingTitle(false)
     setHasExam(false)
+    setExamDate('')
+    setExamSubjectSelect('')
+    setExamSubjectOther('')
     setExamContent('')
     setExperimentContent('')
     setHomeworkContent('')
@@ -87,9 +129,12 @@ export default function HomeworkBoard({ isAdmin }) {
     const exam = examContent.trim()
     const exp = experimentContent.trim()
     const hw = homeworkContent.trim()
+    const subject = resolvedSubject()
 
-    if (hasExam && !exam) {
-      return alert('Vui lòng nhập nội dung kiểm tra!')
+    if (hasExam) {
+      if (!examDate) return alert('Vui lòng chọn ngày kiểm tra!')
+      if (!subject) return alert('Vui lòng chọn hoặc nhập môn kiểm tra!')
+      if (!exam) return alert('Vui lòng nhập nội dung kiểm tra!')
     }
     if (!exp && !hw && !(hasExam && exam)) {
       return alert('Vui lòng nhập ít nhất một nội dung (kiểm tra / thí nghiệm / BTVN)!')
@@ -101,6 +146,8 @@ export default function HomeworkBoard({ isAdmin }) {
         title: title.trim() || defaultTitle(reportDate),
         report_date: reportDate,
         has_exam: hasExam,
+        exam_date: hasExam ? examDate : null,
+        exam_subject: hasExam ? subject : '',
         exam_content: hasExam ? exam : '',
         experiment_content: exp,
         homework_content: hw,
@@ -117,7 +164,8 @@ export default function HomeworkBoard({ isAdmin }) {
 
   const handleDelete = async (id) => {
     if (!isAdmin) return
-    if (!window.confirm('Bạn có chắc chắn muốn xóa báo bài này?')) return
+    if (!window.confirm('Bạn có chắc chắn muốn xóa báo bài này? (Thông báo kiểm tra liên quan cũng sẽ bị xóa)'))
+      return
     try {
       await classroomService.deleteHomework(id)
       setPosts((prev) => prev.filter((p) => p.id !== id))
@@ -140,7 +188,6 @@ export default function HomeworkBoard({ isAdmin }) {
       const hasExp = !!p.experiment_content
       const hasHw = !!p.homework_content
 
-      // Nếu tất cả type đều tắt → không hiện gì; nếu bật thì chỉ hiện bài có ít nhất 1 phần khớp
       const anyTypeOn = filterTypes.exam || filterTypes.experiment || filterTypes.homework
       if (!anyTypeOn) return false
 
@@ -148,11 +195,7 @@ export default function HomeworkBoard({ isAdmin }) {
       const matchExp = filterTypes.experiment && hasExp
       const matchHw = filterTypes.homework && hasHw
 
-      // Bài không có nội dung nào khớp filter type thì ẩn
-      if (!matchExam && !matchExp && !matchHw) {
-        // vẫn hiện nếu bài trống hoàn toàn? không — ẩn
-        return false
-      }
+      if (!matchExam && !matchExp && !matchHw) return false
       return true
     })
   }, [posts, filterFrom, filterTo, filterTypes])
@@ -236,6 +279,14 @@ export default function HomeworkBoard({ isAdmin }) {
                 {post.has_exam && post.exam_content ? (
                   <div className="hw-block hw-block--exam">
                     <div className="hw-block-label">Kiểm tra</div>
+                    <div className="hw-exam-meta">
+                      {post.exam_subject ? (
+                        <span className="hw-exam-pill">Môn: {post.exam_subject}</span>
+                      ) : null}
+                      {post.exam_date ? (
+                        <span className="hw-exam-pill">Ngày: {formatVNDate(post.exam_date)}</span>
+                      ) : null}
+                    </div>
                     <p className="hw-block-text">{post.exam_content}</p>
                   </div>
                 ) : null}
@@ -359,16 +410,57 @@ export default function HomeworkBoard({ isAdmin }) {
               </div>
 
               {hasExam ? (
-                <label className="hw-field">
-                  Nội dung kiểm tra
-                  <textarea
-                    className="hw-textarea hw-textarea--exam"
-                    rows={3}
-                    placeholder="Nhập nội dung kiểm tra..."
-                    value={examContent}
-                    onChange={(e) => setExamContent(e.target.value)}
-                  />
-                </label>
+                <div className="hw-exam-fields">
+                  <label className="hw-field">
+                    Ngày kiểm tra
+                    <input
+                      type="date"
+                      value={examDate}
+                      onChange={(e) => setExamDate(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="hw-field">
+                    Môn kiểm tra
+                    <select
+                      className="hw-select"
+                      value={examSubjectSelect}
+                      onChange={(e) => setExamSubjectSelect(e.target.value)}
+                    >
+                      <option value="">— Chọn môn —</option>
+                      {SUBJECT_OPTIONS.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                      <option value={SUBJECT_OTHER}>Khác…</option>
+                    </select>
+                  </label>
+
+                  {examSubjectSelect === SUBJECT_OTHER ? (
+                    <label className="hw-field">
+                      Tên môn khác
+                      <input
+                        type="text"
+                        className="hw-text-input"
+                        placeholder="Nhập tên môn..."
+                        value={examSubjectOther}
+                        onChange={(e) => setExamSubjectOther(e.target.value)}
+                      />
+                    </label>
+                  ) : null}
+
+                  <label className="hw-field">
+                    Nội dung kiểm tra
+                    <textarea
+                      className="hw-textarea hw-textarea--exam"
+                      rows={3}
+                      placeholder="Nhập nội dung kiểm tra..."
+                      value={examContent}
+                      onChange={(e) => setExamContent(e.target.value)}
+                    />
+                  </label>
+                </div>
               ) : null}
 
               <label className="hw-field">
