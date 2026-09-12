@@ -56,9 +56,13 @@ export function createApp() {
   app.use('/api/auth/me', authReadLimiter)
   app.use('/api/auth/username-change-status', authReadLimiter)
 
+  // Toàn bộ route /api/classroom đã bắt buộc requireAuth + requireMember
+  // (xem classroom.routes.js) nên không phải bề mặt brute-force - nới hơn
+  // để chịu được việc frontend polling định kỳ để cập nhật badge "thời
+  // gian thực", kể cả khi nhiều học sinh dùng chung 1 IP (mạng trường).
   const classroomLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 120,
+    limit: 600,
     standardHeaders: true,
     legacyHeaders: false,
   })
