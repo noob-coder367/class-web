@@ -19,6 +19,7 @@
 }
 
 .rules-switch button {
+  position: relative;
   flex: 1;
   border: none;
   background: transparent;
@@ -35,6 +36,24 @@
 .rules-switch button.is-active {
   background: #14324a;
   color: #fff;
+}
+
+.rules-pane-badge {
+  position: absolute;
+  top: -6px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 
 .rules-doc {
