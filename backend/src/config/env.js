@@ -28,4 +28,9 @@ export const env = {
   GITHUB_OWNER: process.env.GITHUB_OWNER || 'noob-coder367',
   GITHUB_REPO: process.env.GITHUB_REPO || 'class-web',
   GITHUB_BRANCH: process.env.GITHUB_BRANCH || 'main',
+
+  // Web Push (VAPID). Tạo bằng: npx web-push generate-vapid-keys
+  VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || '',
+  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || '',
+  VAPID_SUBJECT: process.env.VAPID_SUBJECT || 'mailto:admin@10a4.local',
 }
