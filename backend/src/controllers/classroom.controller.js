@@ -60,6 +60,16 @@ export async function putTimetable(req, res, next) {
   }
 }
 
+export async function dismissTimetableNotice(req, res, next) {
+  try {
+    noStore(res)
+    const timetable = await timetableService.dismissChangeNotice()
+    res.json({ message: 'Đã ẩn thông báo thay đổi TKB.', timetable })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export async function getRules(req, res, next) {
   try {
     noStore(res)

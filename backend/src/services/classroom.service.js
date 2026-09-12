@@ -1,11 +1,10 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError, isPendingUsername } from './auth.service.js'
+import * as timetableService from './timetable.service.js'
 
 /**
  * Nội dung khu vực lớp KHÔNG được hardcode ở frontend.
  * Mọi tab đều đi qua API này, sau requireAuth + requireMember.
- * Hiện tại chưa có dữ liệu — trả mảng rỗng để UI hiện "Chưa có nội dung".
- * Khi bổ sung, đọc từ bảng class_contents (Supabase) trong hàm getTabContent.
  */
 export const CLASSROOM_TABS = [
   'announcements',
@@ -25,9 +24,58 @@ export function listTabs() {
   return CLASSROOM_TABS.map((id) => ({ id }))
 }
 
+function formatDateFromISO(iso) {
+  if (!iso || typeof iso !== 'string') return ''
+  const parts = iso.split('-')
+  if (parts.length !== 3) return iso
+  return `${parts[2]}/${parts[1]}/${parts[0]}`
+}
+
+/**
+ * Thông báo thay đổi TKB (nếu còn active) được gắn vào tab Thông báo chung.
+ */
 export async function getTabContent(tab) {
   const key = assertValidTab(tab)
-  return { tab: key, items: [] }
+  const items = []
+
+  if (key === 'announcements') {
+    try {
+      const tkb = await timetableService.getTimetable()
+      const notice = tkb?.changeNotice
+      if (notice?.active) {
+        const from = formatDateFromISO(notice.from)
+        const to = formatDateFromISO(notice.to)
+        const title =
+          from && to
+            ? `Thông báo thay đổi TKB từ ngày ${from} đến ngày ${to}`
+            : 'Thông báo thay đổi thời khoá biểu'
+
+        let body = notice.summary || 'Chưa có sự thay đổi'
+        if (notice.hasChanges && Array.isArray(notice.lines) && notice.lines.length) {
+          body =
+            notice.summary +
+            '\n\n' +
+            notice.lines.slice(0, 12).join('\n') +
+            (notice.lines.length > 12 ? `\n… và ${notice.lines.length - 12} thay đổi khác` : '')
+        }
+
+        items.push({
+          id: 'tkb-change-notice',
+          type: 'tkb-change',
+          title,
+          body,
+          hasChanges: !!notice.hasChanges,
+          from: notice.from,
+          to: notice.to,
+          detailAction: 'timetable',
+        })
+      }
+    } catch (err) {
+      console.warn('[classroom] không lấy được notice TKB cho announcements:', err.message)
+    }
+  }
+
+  return { tab: key, items }
 }
 
 /**

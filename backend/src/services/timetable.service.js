@@ -10,6 +10,14 @@ const DEFAULT_PATH = join(__dirname, '../data/timetable.default.json')
 const BUCKET = 'classroom-data'
 const FILE_PATH = 'timetable.json'
 const DAY_IDS = ['t2', 't3', 't4', 't5', 't6', 't7']
+const DAY_LABELS = {
+  t2: 'Thứ 2',
+  t3: 'Thứ 3',
+  t4: 'Thứ 4',
+  t5: 'Thứ 5',
+  t6: 'Thứ 6',
+  t7: 'Thứ 7',
+}
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
 let memoryCache = null
@@ -29,6 +37,43 @@ function asText(value, fallback = '') {
 function asTime(value, fallback) {
   const text = asText(value, fallback)
   return TIME_RE.test(text) ? text : fallback
+}
+
+/**
+ * Khoảng áp dụng TKB: Thứ 2 → Thứ 7 của tuần hiện tại.
+ * Chủ nhật: reset sang tuần sau (Thứ 2 → Thứ 7 tuần tới).
+ */
+export function getApplicationRange(now = new Date()) {
+  const d = new Date(now)
+  // dùng local date (server có thể UTC, nhưng logic tuần vẫn đúng tương đối)
+  const day = d.getDay() // 0=CN, 1=T2, ..., 6=T7
+  const monday = new Date(d)
+  monday.setHours(0, 0, 0, 0)
+  if (day === 0) {
+    // Chủ nhật → tuần sau
+    monday.setDate(d.getDate() + 1)
+  } else {
+    monday.setDate(d.getDate() - (day - 1))
+  }
+  const saturday = new Date(monday)
+  saturday.setDate(monday.getDate() + 5)
+  return { from: monday, to: saturday }
+}
+
+export function formatDateVN(date) {
+  const d = date instanceof Date ? date : new Date(date)
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  return `${dd}/${mm}/${yyyy}`
+}
+
+function toISODate(date) {
+  const d = date instanceof Date ? date : new Date(date)
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
 }
 
 function normalizeSession(raw, fallback) {
@@ -91,6 +136,21 @@ function normalizeSession(raw, fallback) {
   return session
 }
 
+function normalizeChangeNotice(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  return {
+    active: raw.active === true,
+    hasChanges: raw.hasChanges === true,
+    from: asText(raw.from),
+    to: asText(raw.to),
+    summary: asText(raw.summary) || 'Chưa có sự thay đổi',
+    lines: Array.isArray(raw.lines)
+      ? raw.lines.map((l) => asText(l)).filter(Boolean).slice(0, 80)
+      : [],
+    createdAt: asText(raw.createdAt) || new Date().toISOString(),
+  }
+}
+
 export function normalizeTimetable(raw) {
   const fallback = loadDefault()
   const src = raw && typeof raw === 'object' ? raw : {}
@@ -106,8 +166,38 @@ export function normalizeTimetable(raw) {
     days: fallback.days,
     morning: normalizeSession(src.morning, fallback.morning),
     afternoon: normalizeSession(src.afternoon, fallback.afternoon),
+    changeNotice: normalizeChangeNotice(src.changeNotice),
     updatedAt: asText(src.updatedAt) || new Date().toISOString(),
   }
+}
+
+function sessionLabel(key) {
+  return key === 'afternoon' ? 'Buổi chiều' : 'Buổi sáng'
+}
+
+/** So sánh grid 2 phiên bản → danh sách dòng thay đổi */
+export function diffTimetable(prev, next) {
+  const lines = []
+  for (const sessionKey of ['morning', 'afternoon']) {
+    const prevGrid = prev?.[sessionKey]?.grid || {}
+    const nextGrid = next?.[sessionKey]?.grid || {}
+    const label = sessionLabel(sessionKey)
+    for (const dayId of DAY_IDS) {
+      const prevCol = prevGrid[dayId] || []
+      const nextCol = nextGrid[dayId] || []
+      const maxLen = Math.max(prevCol.length, nextCol.length)
+      for (let i = 0; i < maxLen; i++) {
+        const a = asText(prevCol[i])
+        const b = asText(nextCol[i])
+        if (a === b) continue
+        const dayLabel = DAY_LABELS[dayId] || dayId
+        const from = a || '(trống)'
+        const to = b || '(trống)'
+        lines.push(`${label} · ${dayLabel} · Tiết ${i + 1}: ${from} → ${to}`)
+      }
+    }
+  }
+  return lines
 }
 
 async function ensureBucket() {
@@ -160,9 +250,48 @@ export async function getTimetable() {
 }
 
 export async function saveTimetable(payload) {
+  const prev = await getTimetable()
   const next = normalizeTimetable(payload)
   next.updatedAt = new Date().toISOString()
+
+  const lines = diffTimetable(prev, next)
+  const range = getApplicationRange()
+  const fromISO = toISODate(range.from)
+  const toISO = toISODate(range.to)
+  const hasChanges = lines.length > 0
+
+  next.changeNotice = {
+    active: true,
+    hasChanges,
+    from: fromISO,
+    to: toISO,
+    summary: hasChanges
+      ? `Có ${lines.length} thay đổi so với bản trước.`
+      : 'Chưa có sự thay đổi',
+    lines,
+    createdAt: new Date().toISOString(),
+  }
+
+  // Cập nhật effectiveFrom theo tuần hiện tại (giữ tương thích cũ)
+  next.effectiveFrom = fromISO
+
   await writeToStorage(next)
   memoryCache = next
   return clone(next)
+}
+
+/** Admin tắt thông báo thay đổi TKB (ẩn ở cả TKB và Thông báo chung) */
+export async function dismissChangeNotice() {
+  const current = await getTimetable()
+  if (!current.changeNotice || !current.changeNotice.active) {
+    return clone(current)
+  }
+  current.changeNotice = {
+    ...current.changeNotice,
+    active: false,
+  }
+  current.updatedAt = new Date().toISOString()
+  await writeToStorage(current)
+  memoryCache = current
+  return clone(current)
 }
