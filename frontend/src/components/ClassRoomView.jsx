@@ -76,7 +76,12 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [loadingTab, setLoadingTab] = useState(true)
   const [tabError, setTabError] = useState('')
   const [dismissingNotice, setDismissingNotice] = useState(false)
-  const [tabBadges, setTabBadges] = useState({ announcements: 0, homework: 0, rules: 0 })
+  const [tabBadges, setTabBadges] = useState({
+    announcements: 0,
+    homework: 0,
+    rules: 0,
+    rulesViolations: 0,
+  })
 
   useEffect(() => {
     const onKey = (e) => {
@@ -130,12 +135,17 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           classroomService.getViolations().catch(() => ({ violations: [] })),
         ])
         if (cancelled) return
+        const violationsList = viol?.violations || []
         setTabBadges({
           announcements: Math.min(99, countNewer(ann?.items || [], 'announcements')),
           homework: Math.min(99, countNewer(hw?.items || [], 'homework')),
-          rules: Math.min(
+          rules: Math.min(99, countNewer(violationsList, 'rules', (item) => item.createdAt)),
+          // Badge riêng cho pane "Danh sách vi phạm": dùng key riêng
+          // ('rules-violations') để KHÔNG tự tắt chỉ vì người dùng mở
+          // tab "Nội quy lớp" - chỉ tắt khi thật sự vào xem danh sách đó.
+          rulesViolations: Math.min(
             99,
-            countNewer(viol?.violations || [], 'rules', (item) => item.createdAt)
+            countNewer(violationsList, 'rules-violations', (item) => item.createdAt)
           ),
         })
       } catch {
@@ -145,9 +155,23 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     loadBadges()
     const onUnread = () => loadBadges()
     window.addEventListener('classweb-unread-updated', onUnread)
+
+    // Poll định kỳ để nhận thông báo/bài tập/vi phạm mới mà không cần
+    // thoát ra vào lại lớp. Chỉ gọi khi tab trình duyệt đang hiển thị.
+    const POLL_MS = 15_000
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') loadBadges()
+    }, POLL_MS)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadBadges()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
     return () => {
       cancelled = true
       window.removeEventListener('classweb-unread-updated', onUnread)
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
     }
   }, [access])
 
@@ -363,6 +387,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           members={members}
           directory={directory}
           isAdmin={isAdmin}
+          violationsBadge={tabBadges.rulesViolations}
           onSaveRules={handleSaveRules}
           onAddViolation={handleAddViolation}
           onDeleteViolation={handleDeleteViolation}
