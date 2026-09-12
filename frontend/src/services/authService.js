@@ -1,12 +1,6 @@
 import { apiClient, saveAccessToken } from './apiClient.js'
 import { supabase } from '../lib/supabaseClient.js'
 
-/**
- * Mọi hàm ở đây gọi sang backend (KHÔNG còn kiểm tra SECRET_CODE,
- * KHÔNG còn gọi supabase.auth.signUp/signInWithPassword/verifyOtp
- * trực tiếp từ frontend nữa).
- */
-
 export async function register({ username, email, password, isMember, secretCode }) {
   return apiClient.post('/auth/register', {
     username,
@@ -57,18 +51,19 @@ export async function setDisplayName({ username }) {
   return apiClient.post('/auth/display-name', { username }, { auth: true })
 }
 
+export async function changeUsername({ username }) {
+  return apiClient.post('/auth/change-username', { username }, { auth: true })
+}
+
+export async function getUsernameChangeStatus() {
+  return apiClient.get('/auth/username-change-status', { auth: true })
+}
+
 export async function logout() {
   saveAccessToken(null)
   await supabase.auth.signOut()
 }
 
-/**
- * Sau khi backend xác thực thành công, nó trả về session thật của
- * Supabase (access_token/refresh_token). Ta nạp session này vào
- * client Supabase (anon key) của frontend để các truy vấn public
- * (announcements, events, realtime) tiếp tục hoạt động đúng theo
- * RLS của người dùng đang đăng nhập.
- */
 async function applySession(session) {
   saveAccessToken(session.access_token)
 
