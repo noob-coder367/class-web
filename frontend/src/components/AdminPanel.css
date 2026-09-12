@@ -96,7 +96,7 @@
 .admin-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 600px; /* Đảm bảo bảng không bị ép quá nhỏ */
+  min-width: 720px; /* Đảm bảo bảng không bị ép quá nhỏ */
   text-align: left;
 }
 
@@ -149,8 +149,59 @@
 .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
 .badge-admin { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
 .badge-user { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+.badge-vp-academic { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; }
+.badge-vp-discipline { background: rgba(244, 63, 94, 0.2); color: #fb7185; }
+.badge-vp-events { background: rgba(167, 139, 250, 0.22); color: #c4b5fd; }
 .badge-success { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
 .badge-muted { background: rgba(148, 163, 184, 0.1); color: #94a3b8; }
+
+.admin-role-hint {
+  margin: 0 0 12px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
+.role-select-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+
+.role-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #0f1d2a;
+  color: #f8fafc;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: 6px;
+  padding: 6px 28px 6px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 168px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='%23fbbf24' d='M1 1l5 5 5-5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.role-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 .site-images-panel {
   display: flex;

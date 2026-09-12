@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState } from 'react'
+import { ROLES, roleLabel } from '../lib/roles.js'
 
 function medalFor(rank) {
   if (rank === 1) return { emoji: '🥇', label: 'Vàng' }
@@ -212,7 +213,9 @@ export default function ReputationBoard({
                             {isMe ? <em className="rank-you">Bạn</em> : null}
                           </strong>
                           <small>
-                            {row.role === 'admin' ? 'Admin · ' : ''}
+                            {row.role && row.role !== ROLES.USER
+                              ? `${roleLabel(row.role)} · `
+                              : ''}
                             {row.violations
                               ? `${row.violations} vi phạm · −${row.deducted}đ`
                               : 'Chưa có vi phạm'}

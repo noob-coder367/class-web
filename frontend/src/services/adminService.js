@@ -21,6 +21,14 @@ export async function toggleMember(userId, currentStatus) {
   )
 }
 
+export async function setRole(userId, role) {
+  return apiClient.patch(
+    `/admin/users/${userId}/role`,
+    { role },
+    { auth: true }
+  )
+}
+
 export async function toggleRole(userId, currentRole) {
   return apiClient.patch(
     `/admin/users/${userId}/role`,

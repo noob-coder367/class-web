@@ -86,7 +86,16 @@ class-web-monorepo/
   `POST /api/auth/reset-password`.
 - **Toàn bộ Admin Panel**: `GET/PATCH/DELETE /api/admin/users/...` —
   được canh gác bởi `requireAuth` + `requireAdmin`, chạy bằng service
-  role key nên **không phụ thuộc RLS** để đảm bảo an toàn.
+  role key nên **không phụ thuộc RLS** để đảm bảo an toàn. Chỉ **Admin**
+  mới truyền được chức (dropdown): Admin / Lớp phó học tập / Lớp phó kỷ luật
+  / Lớp phó sự kiện / Thành viên. Lớp phó **không** vào được `/api/admin`.
+- **Quyền lớp phó (enforce ở backend, không chỉ ẩn nút UI)**:
+  - Lớp phó học tập (`vp_academic`) — ghi tab Bài tập về nhà
+  - Lớp phó kỷ luật (`vp_discipline`) — ghi tab Nội quy lớp (nội quy + vi phạm)
+  - Lớp phó sự kiện (`vp_events`) — ghi EventSection + tab Thông báo chung
+  - Thời khoá biểu, ảnh website, duyệt thành viên, xóa user: **chỉ Admin**
+- **Sự kiện**: `POST/PATCH/DELETE /api/events` — `requireAuth` + capability
+  `events`. Client không còn insert/delete thẳng bảng `events`.
 - **Khu vực lớp 10A4**: `GET /api/classroom/access`,
   `GET /api/classroom/tabs/:tab` — `requireAuth` + `requireMember`.
   Nội dung tab (thông báo chung, TKB, bài tập, nội quy) **không** nằm
@@ -166,6 +175,9 @@ npm run dev
 - Bảng `profiles` trên Supabase nên có RLS bật (người dùng chỉ đọc/sửa
   hồ sơ của chính mình) như một lớp phòng thủ bổ sung — dù giờ đây các
   thao tác quan trọng đã được backend enforce độc lập với RLS.
+- **Bắt buộc chạy** `supabase/secure-roles.sql` trên SQL Editor: chặn user
+  tự `update({ role: 'admin' })` từ DevTools, cho phép 3 vai trò lớp phó,
+  và khóa ghi bảng `events` từ anon/authenticated (chỉ backend ghi).
 - Nội dung khu vực lớp (thông báo, TKB, bài tập, nội quy) chỉ trả về
   sau khi backend xác thực token + `is_member` (hoặc admin). Ẩn nút trên
   UI không đủ — request thật vẫn bị 403 nếu giả lập F12.

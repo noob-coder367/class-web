@@ -5,6 +5,7 @@ import RulesBoard from './RulesBoard.jsx'
 import AnnouncementsBoard from './AnnouncementsBoard.jsx'
 import HomeworkBoard from './HomeworkBoard.jsx'
 import { markSeen, countNewer } from '../lib/unreadStore.js'
+import { capabilitiesFor } from '../lib/roles.js'
 import './ClassRoomView.css'
 
 function IconBell() {
@@ -61,6 +62,8 @@ const TABS = [
 
 const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework'])
 
+const EMPTY_CAPS = capabilitiesFor('user')
+
 export default function ClassRoomView({ onClose, initialTab = 'announcements' }) {
   const [activeTab, setActiveTab] = useState(initialTab || 'announcements')
   const [access, setAccess] = useState('ok')
@@ -72,7 +75,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [violations, setViolations] = useState([])
   const [members, setMembers] = useState([])
   const [directory, setDirectory] = useState([])
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [caps, setCaps] = useState(EMPTY_CAPS)
   const [loadingTab, setLoadingTab] = useState(true)
   const [tabError, setTabError] = useState('')
   const [dismissingNotice, setDismissingNotice] = useState(false)
@@ -106,7 +109,11 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         const data = await classroomService.checkAccess()
         if (cancelled) return
         setAccess('ok')
-        setIsAdmin(data?.role === 'admin')
+        if (data?.capabilities) {
+          setCaps({ ...EMPTY_CAPS, ...data.capabilities })
+        } else {
+          setCaps(capabilitiesFor(data?.role))
+        }
       } catch (err) {
         if (cancelled) return
         const status = err.status
@@ -354,7 +361,8 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     if (activeTab === 'announcements') {
       return (
         <AnnouncementsBoard
-          isAdmin={isAdmin}
+          isAdmin={!!caps.announcements}
+          canDismissTkb={!!caps.timetable}
           tkbNotice={tkbNotice}
           onDismissTkbNotice={handleDismissNotice}
           dismissingTkb={dismissingNotice}
@@ -364,7 +372,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     }
 
     if (activeTab === 'homework') {
-      return <HomeworkBoard isAdmin={isAdmin} />
+      return <HomeworkBoard isAdmin={!!caps.homework} />
     }
 
     if (activeTab === 'timetable') {
@@ -372,7 +380,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       return (
         <TimetableBoard
           data={timetable}
-          isAdmin={isAdmin}
+          isAdmin={!!caps.timetable}
           onSave={handleSaveTimetable}
           onDismissNotice={handleDismissNotice}
         />
@@ -386,7 +394,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           violations={violations}
           members={members}
           directory={directory}
-          isAdmin={isAdmin}
+          isAdmin={!!caps.rules}
           violationsBadge={tabBadges.rulesViolations}
           onSaveRules={handleSaveRules}
           onAddViolation={handleAddViolation}

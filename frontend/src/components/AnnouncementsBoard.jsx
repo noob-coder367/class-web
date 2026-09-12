@@ -29,6 +29,7 @@ function imageGridStyle(count) {
 
 export default function AnnouncementsBoard({
   isAdmin,
+  canDismissTkb,
   tkbNotice,
   onDismissTkbNotice,
   dismissingTkb,
@@ -223,7 +224,7 @@ export default function AnnouncementsBoard({
                 <button type="button" className="ann-btn-detail" onClick={onOpenTimetable}>
                   Ấn để xem chi tiết hơn
                 </button>
-                {isAdmin ? (
+                {canDismissTkb ? (
                   <button
                     type="button"
                     className="ann-btn-delete"

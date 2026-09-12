@@ -2,14 +2,17 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
 import * as adminService from '../services/adminService.js'
 import SiteImagesPanel from './SiteImagesPanel.jsx'
+import {
+  ASSIGNABLE_ROLES,
+  ROLE_LABELS,
+  ROLES,
+  isAdminRole,
+  normalizeRole,
+  roleBadgeClass,
+  roleLabel,
+} from '../lib/roles.js'
 import './AdminPanel.css'
 
-/**
- * Trước đây component này gọi thẳng `supabase.from('profiles')...`
- * bằng anon key, chỉ được bảo vệ bởi RLS (nếu có). Nay mọi thao tác
- * đi qua backend (adminService -> /api/admin/*), được canh gác bởi
- * middleware requireAuth + requireAdmin ở server.
- */
 export default function AdminPanel({ onClose }) {
   const { profile } = useAuth()
   const currentUserId = profile?.id
@@ -18,6 +21,7 @@ export default function AdminPanel({ onClose }) {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState(null)
+  const [roleBusyId, setRoleBusyId] = useState(null)
 
   useEffect(() => {
     fetchUsers()
@@ -69,16 +73,34 @@ export default function AdminPanel({ onClose }) {
     }
   }
 
-  const handleToggleRole = async (userId, currentRole) => {
-    if (deletingId) return
-    if (userId === currentUserId && currentRole === 'admin') {
+  const handleSetRole = async (userId, currentRole, nextRole, username) => {
+    if (deletingId || roleBusyId) return
+    const from = normalizeRole(currentRole)
+    const to = normalizeRole(nextRole)
+    if (from === to) return
+
+    if (userId === currentUserId && isAdminRole(from) && to !== ROLES.ADMIN) {
       return alert('⚠️ Bạn không thể tự gỡ quyền Admin của chính mình!')
     }
+
+    const name = username || 'tài khoản này'
+    const confirmText =
+      to === ROLES.ADMIN
+        ? `Phong Admin cho "${name}"?\nHọ sẽ có toàn quyền (kể cả truyền chức). Bạn vẫn giữ quyền Admin của mình.`
+        : to === ROLES.USER
+          ? `Hạ "${name}" về Thành viên thường?`
+          : `Bổ nhiệm "${name}" làm ${ROLE_LABELS[to]}?`
+
+    if (!window.confirm(confirmText)) return
+
+    setRoleBusyId(userId)
     try {
-      await adminService.toggleRole(userId, currentRole)
-      fetchUsers()
+      await adminService.setRole(userId, to)
+      await fetchUsers()
     } catch (err) {
       alert('Đổi quyền thất bại: ' + err.message)
+    } finally {
+      setRoleBusyId(null)
     }
   }
 
@@ -155,112 +177,124 @@ export default function AdminPanel({ onClose }) {
           ) : users.length === 0 ? (
             <p className="empty-state">Chưa có người dùng nào trong hệ thống.</p>
           ) : (
-            <div className="table-wrapper">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Tên hiển thị</th>
-                    <th>Vai trò</th>
-                    <th>Thành viên 10A4</th>
-                    <th>Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u) => {
-                    const isMe = u.id === currentUserId
-                    const isDeleting = deletingId === u.id
+            <>
+              <p className="admin-role-hint">
+                Chỉ Admin mới truyền được chức. Lớp phó học tập — Bài tập về nhà;
+                Lớp phó kỷ luật — Nội quy lớp; Lớp phó sự kiện — Sự kiện & Thông báo chung.
+              </p>
+              <div className="table-wrapper">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Tên hiển thị</th>
+                      <th>Vai trò</th>
+                      <th>Thành viên 10A4</th>
+                      <th>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((u) => {
+                      const isMe = u.id === currentUserId
+                      const isDeleting = deletingId === u.id
+                      const role = normalizeRole(u.role)
+                      const lockOwnAdmin = isMe && role === ROLES.ADMIN
 
-                    return (
-                      <tr key={u.id} className={isMe ? 'highlight-me' : ''}>
-                        <td>
-                          <strong className={u.needs_display_name ? 'username-pending' : ''}>
-                            {u.username || 'Chưa đặt tên'}
-                          </strong>
-                          {isMe && <span className="tag-me"> (Bạn)</span>}
-                        </td>
+                      return (
+                        <tr key={u.id} className={isMe ? 'highlight-me' : ''}>
+                          <td>
+                            <strong className={u.needs_display_name ? 'username-pending' : ''}>
+                              {u.username || 'Chưa đặt tên'}
+                            </strong>
+                            {isMe && <span className="tag-me"> (Bạn)</span>}
+                          </td>
 
-                        <td>
-                          <span
-                            className={
-                              `badge ${
-                                u.role === 'admin' ? 'badge-admin' : 'badge-user'
-                              }`
-                            }
-                          >
-                            {u.role === 'admin' ? 'Admin' : 'Thành viên'}
-                          </span>
-                        </td>
+                          <td>
+                            <span className={`badge ${roleBadgeClass(role)}`}>
+                              {roleLabel(role)}
+                            </span>
+                          </td>
 
-                        <td>
-                          <span
-                            className={
-                              `badge ${
-                                u.is_member ? 'badge-success' : 'badge-muted'
-                              }`
-                            }
-                          >
-                            {u.is_member ? 'Đã xác minh' : 'Chưa xác minh'}
-                          </span>
-                        </td>
-
-                        <td>
-                          <div className="action-buttons">
-                            <button
-                              className="btn-action btn-rename"
-                              onClick={() => handleRename(u.id, u.username)}
-                              title="Đổi tên hiển thị"
-                              disabled={!!deletingId}
-                            >
-                              Đổi tên
-                            </button>
-
-                            <button
-                              className="btn-action btn-member"
-                              onClick={() => handleToggleMember(u.id, u.is_member)}
-                              disabled={!!deletingId}
-                            >
-                              {u.is_member ? 'Hủy 10A4' : 'Duyệt 10A4'}
-                            </button>
-
-                            <button
-                              className="btn-action btn-role"
-                              disabled={(isMe && u.role === 'admin') || !!deletingId}
-                              onClick={() => handleToggleRole(u.id, u.role)}
-                              title={
-                                isMe
-                                  ? 'Bạn không thể tự gỡ quyền Admin của chính mình'
-                                  : ''
+                          <td>
+                            <span
+                              className={
+                                `badge ${
+                                  u.is_member ? 'badge-success' : 'badge-muted'
+                                }`
                               }
                             >
-                              {u.role === 'admin' ? 'Hạ User' : 'Lên Admin'}
-                            </button>
+                              {u.is_member ? 'Đã xác minh' : 'Chưa xác minh'}
+                            </span>
+                          </td>
 
-                            <button
-                              className="btn-action btn-delete"
-                              disabled={isMe || !!deletingId}
-                              onClick={() => handleDeleteUser(u.id, u.username)}
-                              style={{
-                                opacity: isMe || isDeleting ? 0.4 : 1,
-                                cursor: isMe || isDeleting ? 'not-allowed' : 'pointer',
-                              }}
-                              title={
-                                isMe
-                                  ? 'Bạn không thể tự xóa chính mình'
-                                  : isDeleting
-                                    ? 'Đang xóa...'
-                                    : 'Xóa tài khoản này'
-                              }
-                            >
-                              {isMe ? 'Chính bạn' : isDeleting ? 'Đang xóa...' : 'Xóa'}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          <td>
+                            <div className="action-buttons">
+                              <button
+                                className="btn-action btn-rename"
+                                onClick={() => handleRename(u.id, u.username)}
+                                title="Đổi tên hiển thị"
+                                disabled={!!deletingId}
+                              >
+                                Đổi tên
+                              </button>
+
+                              <button
+                                className="btn-action btn-member"
+                                onClick={() => handleToggleMember(u.id, u.is_member)}
+                                disabled={!!deletingId}
+                              >
+                                {u.is_member ? 'Hủy 10A4' : 'Duyệt 10A4'}
+                              </button>
+
+                              <label className="role-select-wrap">
+                                <span className="sr-only">Truyền chức</span>
+                                <select
+                                  className="role-select"
+                                  value={role}
+                                  disabled={lockOwnAdmin || !!deletingId || roleBusyId === u.id}
+                                  onChange={(e) =>
+                                    handleSetRole(u.id, role, e.target.value, u.username)
+                                  }
+                                  title={
+                                    lockOwnAdmin
+                                      ? 'Bạn không thể tự gỡ quyền Admin của chính mình'
+                                      : 'Chọn chức để truyền'
+                                  }
+                                >
+                                  {ASSIGNABLE_ROLES.map((value) => (
+                                    <option key={value} value={value}>
+                                      {ROLE_LABELS[value]}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+
+                              <button
+                                className="btn-action btn-delete"
+                                disabled={isMe || !!deletingId}
+                                onClick={() => handleDeleteUser(u.id, u.username)}
+                                style={{
+                                  opacity: isMe || isDeleting ? 0.4 : 1,
+                                  cursor: isMe || isDeleting ? 'not-allowed' : 'pointer',
+                                }}
+                                title={
+                                  isMe
+                                    ? 'Bạn không thể tự xóa chính mình'
+                                    : isDeleting
+                                      ? 'Đang xóa...'
+                                      : 'Xóa tài khoản này'
+                                }
+                              >
+                                {isMe ? 'Chính bạn' : isDeleting ? 'Đang xóa...' : 'Xóa'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>
