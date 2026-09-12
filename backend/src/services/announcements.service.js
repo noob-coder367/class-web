@@ -102,6 +102,8 @@ function normalizeItem(raw) {
     created_at: String(raw.created_at || new Date().toISOString()),
     created_by: raw.created_by ? String(raw.created_by) : null,
     created_by_name: String(raw.created_by_name || 'Admin').trim() || 'Admin',
+    source_homework_id: raw.source_homework_id ? String(raw.source_homework_id) : null,
+    is_exam_reminder: raw.is_exam_reminder === true,
   }
 }
 
@@ -239,6 +241,45 @@ export async function createAnnouncement(payload, profile) {
     created_at: new Date().toISOString(),
     created_by: profile?.id || null,
     created_by_name: String(profile?.username || 'Admin').trim() || 'Admin',
+    source_homework_id: null,
+    is_exam_reminder: false,
+  }
+
+  const data = await loadAll()
+  const next = [item, ...data.items.filter((row) => !isExpired(row))]
+  await saveAll(next)
+  return item
+}
+
+/**
+ * Thông báo nhắc kiểm tra (từ báo bài BTVN).
+ * Nền cảnh báo urgent, tự xóa sau ngày kiểm tra.
+ */
+export async function createExamReminderAnnouncement(payload, profile) {
+  const content = String(payload?.content || '').trim()
+  if (!content) throw new AppError('Thiếu nội dung thông báo kiểm tra.')
+
+  let expiresAt = null
+  if (payload?.expires_at) {
+    const t = new Date(payload.expires_at)
+    if (!Number.isNaN(t.getTime()) && t.getTime() > Date.now()) {
+      expiresAt = t.toISOString()
+    }
+  }
+
+  const item = {
+    id: randomUUID(),
+    content,
+    images: [],
+    notify_type: 'urgent',
+    expires_at: expiresAt,
+    created_at: new Date().toISOString(),
+    created_by: profile?.id || null,
+    created_by_name: String(profile?.username || 'Admin').trim() || 'Admin',
+    source_homework_id: payload?.source_homework_id
+      ? String(payload.source_homework_id)
+      : null,
+    is_exam_reminder: true,
   }
 
   const data = await loadAll()
@@ -259,6 +300,23 @@ export async function deleteAnnouncement(id) {
   const next = data.items.filter((row) => row.id !== targetId)
   await saveAll(next)
   return { id: targetId }
+}
+
+/** Xóa mọi thông báo gắn với một báo bài (khi admin xóa BTVN). */
+export async function deleteAnnouncementsByHomeworkId(homeworkId) {
+  const target = String(homeworkId || '').trim()
+  if (!target) return { deleted: 0 }
+
+  const data = await loadAll()
+  const toRemove = data.items.filter((row) => row.source_homework_id === target)
+  if (!toRemove.length) return { deleted: 0 }
+
+  for (const item of toRemove) {
+    await removeImages(item.images)
+  }
+  const next = data.items.filter((row) => row.source_homework_id !== target)
+  await saveAll(next)
+  return { deleted: toRemove.length }
 }
 
 export async function updateAnnouncementExpiry(id, expiresAtRaw) {
