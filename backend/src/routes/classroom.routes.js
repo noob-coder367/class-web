@@ -15,6 +15,12 @@ router.get('/tabs/:tab', classroomController.getTab)
 router.get('/timetable', classroomController.getTimetable)
 router.put('/timetable', requireAdmin, classroomController.putTimetable)
 router.delete('/timetable/notice', requireAdmin, classroomController.dismissTimetableNotice)
+
+router.get('/announcements', classroomController.listAnnouncements)
+router.post('/announcements', requireAdmin, classroomController.createAnnouncement)
+router.delete('/announcements/:id', requireAdmin, classroomController.deleteAnnouncement)
+router.patch('/announcements/:id/expiry', requireAdmin, classroomController.updateAnnouncementExpiry)
+
 router.get('/rules', classroomController.getRules)
 router.put('/rules', requireAdmin, classroomController.putRules)
 router.get('/violations', classroomController.getViolations)
