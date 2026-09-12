@@ -2,19 +2,20 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
 import RulesSettings from './RulesSettings.jsx'
 import ReputationBoard, { statusFor } from './ReputationBoard.jsx'
+import { markSeen } from '../lib/unreadStore.js'
 import './RulesBoard.css'
 
 const PERIOD_OPTIONS = [
   '',
-  'Sáng T1',
-  'Sáng T2',
-  'Sáng T3',
-  'Sáng T4',
-  'Sáng T5',
-  'Chiều T1',
-  'Chiều T2',
-  'Chiều T3',
-  'Chiều T4',
+  'Sáng Tiết 1',
+  'Sáng Tiết 2',
+  'Sáng Tiết 3',
+  'Sáng Tiết 4',
+  'Sáng Tiết 5',
+  'Chiều Tiết 1',
+  'Chiều Tiết 2',
+  'Chiều Tiết 3',
+  'Chiều Tiết 4',
 ]
 
 const MAX_PHOTOS = 3
@@ -112,6 +113,7 @@ export default function RulesBoard({
   members,
   directory,
   isAdmin,
+  violationsBadge = 0,
   onSaveRules,
   onAddViolation,
   onDeleteViolation,
@@ -200,6 +202,10 @@ export default function RulesBoard({
   useEffect(() => {
     if (pane === 'rank') onRefreshMembers?.()
   }, [pane, onRefreshMembers])
+
+  useEffect(() => {
+    if (pane === 'violations') markSeen('rules-violations')
+  }, [pane])
 
   useEffect(() => {
     if (!lightbox) return
@@ -340,6 +346,11 @@ export default function RulesBoard({
           onClick={() => setPane('violations')}
         >
           Danh sách vi phạm
+          {violationsBadge > 0 ? (
+            <span className="rules-pane-badge">
+              {violationsBadge > 99 ? '99+' : violationsBadge}
+            </span>
+          ) : null}
         </button>
         <button
           type="button"
