@@ -133,7 +133,10 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         setTabBadges({
           announcements: Math.min(99, countNewer(ann?.items || [], 'announcements')),
           homework: Math.min(99, countNewer(hw?.items || [], 'homework')),
-          rules: Math.min(99, countNewer(viol?.violations || [], 'rules')),
+          rules: Math.min(
+            99,
+            countNewer(viol?.violations || [], 'rules', (item) => item.createdAt)
+          ),
         })
       } catch {
         /* ignore */
