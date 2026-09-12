@@ -2,6 +2,7 @@ import * as classroomService from '../services/classroom.service.js'
 import * as timetableService from '../services/timetable.service.js'
 import * as rulesService from '../services/rules.service.js'
 import * as announcementsService from '../services/announcements.service.js'
+import * as homeworkService from '../services/homework.service.js'
 
 function noStore(res) {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
@@ -109,6 +110,36 @@ export async function updateAnnouncementExpiry(req, res, next) {
       req.body?.expires_at ?? null
     )
     res.json({ message: 'Đã cập nhật thời gian tự xóa.', item })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function listHomework(req, res, next) {
+  try {
+    noStore(res)
+    const items = await homeworkService.listHomework()
+    res.json({ items })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function createHomework(req, res, next) {
+  try {
+    noStore(res)
+    const item = await homeworkService.createHomework(req.body || {}, req.profile)
+    res.status(201).json({ message: 'Đã đăng báo bài.', item })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function deleteHomework(req, res, next) {
+  try {
+    noStore(res)
+    const result = await homeworkService.deleteHomework(req.params.id)
+    res.json({ message: 'Đã xoá báo bài.', ...result })
   } catch (err) {
     next(err)
   }
