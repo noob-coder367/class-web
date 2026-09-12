@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { supabase } from '../lib/supabaseClient.js'
 import AuthPage from './AuthPage.jsx'
@@ -6,6 +6,7 @@ import EventsSection from '../components/EventsSection.jsx'
 import AdminPanel from '../components/AdminPanel.jsx'
 import ClassRoomView from '../components/ClassRoomView.jsx'
 import ProfileMenu from '../components/ProfileMenu.jsx'
+import NotificationPermissionModal from '../components/NotificationPermissionModal.jsx'
 import {
   Fish,
   Jellyfish,
@@ -14,6 +15,16 @@ import {
   Glow,
 } from '../components/decor/SeaDecor.jsx'
 import * as adminService from '../services/adminService.js'
+import * as classroomService from '../services/classroomService.js'
+import {
+  hasPromptedPermission,
+  markPrompted,
+  isPushEnabledPref,
+  requestPermissionAndSubscribe,
+  registerServiceWorker,
+  getNotificationPermission,
+} from '../services/pushService.js'
+import { countNewer } from '../lib/unreadStore.js'
 
 const NAV_LINKS = [
   { href: '#trang-chu', label: 'Trang chủ' },
@@ -32,6 +43,7 @@ export default function HomePage() {
   const [showAuth, setShowAuth] = useState(false)
   const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [showClassRoom, setShowClassRoom] = useState(false)
+  const [classInitialTab, setClassInitialTab] = useState('announcements')
   const [authLoading, setAuthLoading] = useState(false)
   const [authInitialStep, setAuthInitialStep] = useState('login')
   const [activeSection, setActiveSection] = useState('trang-chu')
@@ -46,6 +58,9 @@ export default function HomePage() {
     hero: [],
     gallery: [],
   })
+
+  const [unreadTotal, setUnreadTotal] = useState(0)
+  const [showPushPrompt, setShowPushPrompt] = useState(false)
 
   const teacherPhoto = siteImages.teacher[0]
   const heroPhoto = siteImages.hero[0]
@@ -64,6 +79,26 @@ export default function HomePage() {
     }
   }
 
+  const refreshUnread = useCallback(async () => {
+    if (!profile?.is_member) {
+      setUnreadTotal(0)
+      return
+    }
+    try {
+      const [ann, hw] = await Promise.all([
+        classroomService.getAnnouncements().catch(() => ({ items: [] })),
+        classroomService.getHomework().catch(() => ({ items: [] })),
+      ])
+      const annItems = Array.isArray(ann?.items) ? ann.items : []
+      const hwItems = Array.isArray(hw?.items) ? hw.items : []
+      const a = countNewer(annItems, 'announcements')
+      const h = countNewer(hwItems, 'homework')
+      setUnreadTotal(Math.min(99, a + h))
+    } catch {
+      setUnreadTotal(0)
+    }
+  }, [profile?.is_member])
+
   const openAuth = (step = 'login') => {
     setAuthInitialStep(step === 'register' ? 'register' : 'login')
     setShowAuth(true)
@@ -76,6 +111,72 @@ export default function HomePage() {
       setShowAuth(true)
     }
   }, [authReady, profile?.needs_display_name])
+
+  useEffect(() => {
+    if (!authReady || !profile?.is_member) return
+
+    refreshUnread()
+    const onUnread = () => refreshUnread()
+    window.addEventListener('classweb-unread-updated', onUnread)
+
+    registerServiceWorker().catch(() => {})
+
+    const perm = getNotificationPermission()
+    if (
+      !hasPromptedPermission() &&
+      isPushEnabledPref() &&
+      perm !== 'granted' &&
+      perm !== 'denied' &&
+      perm !== 'unsupported'
+    ) {
+      const t = setTimeout(() => setShowPushPrompt(true), 1200)
+      return () => {
+        clearTimeout(t)
+        window.removeEventListener('classweb-unread-updated', onUnread)
+      }
+    }
+
+    if (perm === 'granted' && isPushEnabledPref()) {
+      requestPermissionAndSubscribe().catch(() => {})
+    }
+
+    return () => window.removeEventListener('classweb-unread-updated', onUnread)
+  }, [authReady, profile?.is_member, refreshUnread])
+
+  useEffect(() => {
+    const applyHash = () => {
+      const hash = window.location.hash || ''
+      if (hash.startsWith('#/classroom')) {
+        const parts = hash.replace(/^#\/?/, '').split('/')
+        const tab = parts[1] || 'announcements'
+        const allowed = new Set(['announcements', 'timetable', 'homework', 'rules'])
+        setClassInitialTab(allowed.has(tab) ? tab : 'announcements')
+        if (profile?.is_member) setShowClassRoom(true)
+      }
+    }
+    applyHash()
+    window.addEventListener('hashchange', applyHash)
+
+    const onMsg = (event) => {
+      if (event.data?.type === 'PUSH_NAVIGATE' && event.data.url) {
+        try {
+          const u = new URL(event.data.url, window.location.origin)
+          window.location.hash = u.hash || '#/classroom/announcements'
+        } catch {
+          window.location.hash = '#/classroom/announcements'
+        }
+      }
+    }
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', onMsg)
+    }
+    return () => {
+      window.removeEventListener('hashchange', applyHash)
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', onMsg)
+      }
+    }
+  }, [profile?.is_member])
 
   useEffect(() => {
     fetchAnnouncements()
@@ -164,9 +265,34 @@ export default function HomePage() {
       await logout()
       setShowAuth(false)
       setShowClassRoom(false)
+      setUnreadTotal(0)
     } finally {
       setAuthLoading(false)
     }
+  }
+
+  const handleAllowPush = async () => {
+    setShowPushPrompt(false)
+    try {
+      await requestPermissionAndSubscribe()
+    } catch (err) {
+      console.warn('Push subscribe:', err?.message || err)
+    }
+  }
+
+  const handleDenyPush = () => {
+    markPrompted()
+    setShowPushPrompt(false)
+  }
+
+  const openClassRoom = (tab = 'announcements') => {
+    setClassInitialTab(tab)
+    setShowClassRoom(true)
+  }
+
+  const closeClassRoom = () => {
+    setShowClassRoom(false)
+    refreshUnread()
   }
 
   return (
@@ -180,7 +306,17 @@ export default function HomePage() {
       )}
 
       {showClassRoom && (
-        <ClassRoomView onClose={() => setShowClassRoom(false)} />
+        <ClassRoomView
+          onClose={closeClassRoom}
+          initialTab={classInitialTab}
+        />
+      )}
+
+      {showPushPrompt && (
+        <NotificationPermissionModal
+          onAllow={handleAllowPush}
+          onDeny={handleDenyPush}
+        />
       )}
 
       <header className="nav">
@@ -208,10 +344,15 @@ export default function HomePage() {
             {profile?.is_member && (
               <button
                 type="button"
-                className="btn-class"
-                onClick={() => setShowClassRoom(true)}
+                className="btn-class btn-class--badge"
+                onClick={() => openClassRoom('announcements')}
               >
                 Vô Lớp 10A4
+                {unreadTotal > 0 ? (
+                  <span className="nav-unread-badge" aria-label={`${unreadTotal} thông báo mới`}>
+                    {unreadTotal > 99 ? '99+' : unreadTotal}
+                  </span>
+                ) : null}
               </button>
             )}
 
