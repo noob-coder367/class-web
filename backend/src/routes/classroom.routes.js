@@ -21,6 +21,10 @@ router.post('/announcements', requireAdmin, classroomController.createAnnounceme
 router.delete('/announcements/:id', requireAdmin, classroomController.deleteAnnouncement)
 router.patch('/announcements/:id/expiry', requireAdmin, classroomController.updateAnnouncementExpiry)
 
+router.get('/homework', classroomController.listHomework)
+router.post('/homework', requireAdmin, classroomController.createHomework)
+router.delete('/homework/:id', requireAdmin, classroomController.deleteHomework)
+
 router.get('/rules', classroomController.getRules)
 router.put('/rules', requireAdmin, classroomController.putRules)
 router.get('/violations', classroomController.getViolations)
