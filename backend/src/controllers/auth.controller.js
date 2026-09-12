@@ -78,8 +78,6 @@ export async function resetPassword(req, res, next) {
 }
 
 export async function me(req, res) {
-  // req.profile được gắn sẵn bởi middleware requireAuth (raw).
-  // Trả bản public để frontend biết cần hiện bảng TÊN HIỂN THỊ.
   res.json({ profile: authService.toPublicProfile(req.profile) })
 }
 
@@ -91,6 +89,33 @@ export async function setDisplayName(req, res, next) {
       message: 'Đã lưu tên hiển thị.',
       profile,
     })
+  } catch (err) {
+    next(err)
+  }
+}
+
+/** Đổi tên sau khi đã có tên (tính vào hạn mức 2 lần/tuần). */
+export async function changeUsername(req, res, next) {
+  try {
+    const { username } = req.body
+    const profile = await authService.setDisplayName(req.profile.id, username, {
+      countAsChange: true,
+    })
+    const status = await authService.getUsernameChangeStatus(req.profile.id)
+    res.json({
+      message: 'Đã đổi tên hiển thị.',
+      profile,
+      usernameChange: status,
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function usernameChangeStatus(req, res, next) {
+  try {
+    const status = await authService.getUsernameChangeStatus(req.profile.id)
+    res.json(status)
   } catch (err) {
     next(err)
   }
