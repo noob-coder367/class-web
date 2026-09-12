@@ -17,15 +17,8 @@ export function getAccessToken() {
 }
 
 /**
- * Supabase tự refresh access_token ngầm (mặc định access_token sống
- * ~1 tiếng). localStorage['class-web:access_token'] chỉ được ghi 1 lần
- * lúc login/loadProfile nên sẽ hết hạn theo thời gian, gây lỗi
- * "Phiên đăng nhập không hợp lệ" dù giao diện vẫn hiện đã đăng nhập.
- *
- * Sửa: trước mỗi request cần auth, luôn hỏi thẳng
- * supabase.auth.getSession() để lấy access_token MỚI NHẤT (đã được
- * supabase-js tự refresh nếu cần), đồng bộ lại localStorage, rồi mới
- * dùng token đó gọi backend.
+ * Supabase tự refresh access_token ngầm.
+ * Trước mỗi request cần auth: lấy token mới nhất từ getSession().
  */
 async function getFreshAccessToken() {
   const {
@@ -37,7 +30,7 @@ async function getFreshAccessToken() {
   return token
 }
 
-async function request(path, { method = 'GET', body, auth = false } = {}) {
+async function request(path, { method = 'GET', body, auth = false, _retried = false } = {}) {
   const headers = { 'Content-Type': 'application/json' }
 
   if (auth) {
@@ -56,6 +49,19 @@ async function request(path, { method = 'GET', body, auth = false } = {}) {
     data = await res.json()
   } catch {
     // no JSON body
+  }
+
+  // 401 + auth → thử refresh 1 lần rồi gọi lại
+  if (res.status === 401 && auth && !_retried) {
+    try {
+      const { data: refreshed, error } = await supabase.auth.refreshSession()
+      if (!error && refreshed?.session?.access_token) {
+        saveAccessToken(refreshed.session.access_token)
+        return request(path, { method, body, auth, _retried: true })
+      }
+    } catch {
+      /* fall through */
+    }
   }
 
   if (!res.ok) {
