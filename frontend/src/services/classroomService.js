@@ -44,6 +44,20 @@ export async function updateAnnouncementExpiry(id, expires_at) {
   )
 }
 
+export async function getHomework() {
+  return apiClient.get('/classroom/homework', { auth: true })
+}
+
+export async function createHomework(payload) {
+  return apiClient.post('/classroom/homework', payload, { auth: true })
+}
+
+export async function deleteHomework(id) {
+  return apiClient.delete(`/classroom/homework/${encodeURIComponent(id)}`, {
+    auth: true,
+  })
+}
+
 export async function getRules() {
   return apiClient.get('/classroom/rules', { auth: true })
 }
