@@ -176,6 +176,31 @@ async function removeImages(urls) {
   }
 }
 
+async function notifyPush(item) {
+  try {
+    const { broadcastPush } = await import('./push.service.js')
+    const preview = String(item.content || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120)
+    const title =
+      item.is_exam_reminder || item.notify_type === 'urgent'
+        ? '🚨 Thông báo quan trọng — 10A4'
+        : item.notify_type === 'hot'
+          ? '🔥 Thông báo mới — 10A4'
+          : 'Thông báo mới — 10A4'
+    await broadcastPush({
+      title,
+      body: preview || 'Có thông báo mới trong lớp.',
+      url: '/#/classroom/announcements',
+      tag: `announcement-${item.id}`,
+      data: { type: 'announcement', id: item.id, tab: 'announcements' },
+    })
+  } catch (err) {
+    console.warn('[announcements] push thất bại:', err?.message || err)
+  }
+}
+
 /** Danh sách thông báo còn hiệu lực, mới nhất trước. Tự dọn hết hạn. */
 export async function listAnnouncements() {
   const data = await loadAll()
@@ -248,6 +273,7 @@ export async function createAnnouncement(payload, profile) {
   const data = await loadAll()
   const next = [item, ...data.items.filter((row) => !isExpired(row))]
   await saveAll(next)
+  void notifyPush(item)
   return item
 }
 
@@ -285,6 +311,7 @@ export async function createExamReminderAnnouncement(payload, profile) {
   const data = await loadAll()
   const next = [item, ...data.items.filter((row) => !isExpired(row))]
   await saveAll(next)
+  void notifyPush(item)
   return item
 }
 
