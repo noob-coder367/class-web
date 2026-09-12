@@ -3,6 +3,7 @@ import * as timetableService from '../services/timetable.service.js'
 import * as rulesService from '../services/rules.service.js'
 import * as announcementsService from '../services/announcements.service.js'
 import * as homeworkService from '../services/homework.service.js'
+import { capabilitiesFor, normalizeRole } from '../lib/roles.js'
 
 function noStore(res) {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
@@ -13,10 +14,12 @@ function noStore(res) {
 export async function getAccess(req, res, next) {
   try {
     noStore(res)
+    const role = normalizeRole(req.profile?.role)
     res.json({
       ok: true,
       is_member: req.profile?.is_member === true,
-      role: req.profile?.role || 'user',
+      role,
+      capabilities: capabilitiesFor(role),
     })
   } catch (err) {
     next(err)

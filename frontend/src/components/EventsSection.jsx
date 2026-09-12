@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
+import { hasCapability } from '../lib/roles.js'
+import * as eventsService from '../services/eventsService.js'
 import './EventsSection.css'
 
 const NOTIFY_OPTIONS = ['normal', 'hot', 'urgent']
@@ -8,6 +10,15 @@ const NOTIFY_LABELS = {
   normal: 'Thông thường',
   hot: '🔥 Hot',
   urgent: '🚨 Khẩn cấp',
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(new Error('Không đọc được ảnh'))
+    reader.readAsDataURL(file)
+  })
 }
 
 export default function EventsSection({ profile }) {
@@ -38,7 +49,7 @@ export default function EventsSection({ profile }) {
 
   const fileInputRef = useRef(null)
 
-  const isAdmin = profile?.role === 'admin'
+  const canManage = hasCapability(profile?.role, 'events')
 
   /* =====================================================
      FETCH EVENTS
@@ -180,55 +191,11 @@ export default function EventsSection({ profile }) {
   }
 
   /* =====================================================
-     UPLOAD ẢNH LÊN SUPABASE STORAGE
-
-     Bucket: event-images (cần tạo trước,
-     để Public).
-  ===================================================== */
-
-  const uploadImages = async () => {
-    const uploadedUrls = []
-
-    for (let i = 0; i < selectedFiles.length; i++) {
-      const file = selectedFiles[i]
-
-      const ext =
-        file.name.split('.').pop() || 'jpg'
-
-      const path = `events/${Date.now()}-${i}-${Math.random()
-        .toString(36)
-        .slice(2, 8)}.${ext}`
-
-      const {
-        error: uploadError,
-      } = await supabase.storage
-        .from('event-images')
-        .upload(path, file)
-
-      if (uploadError) {
-        throw new Error(
-          `Tải ảnh "${file.name}" thất bại: ${uploadError.message}`
-        )
-      }
-
-      const {
-        data: publicUrlData,
-      } = supabase.storage
-        .from('event-images')
-        .getPublicUrl(path)
-
-      uploadedUrls.push(publicUrlData.publicUrl)
-    }
-
-    return uploadedUrls
-  }
-
-  /* =====================================================
-     ĐĂNG SỰ KIỆN
+     ĐĂNG SỰ KIỆN (qua backend — không ghi thẳng Supabase)
   ===================================================== */
 
   const handlePostEvent = async () => {
-    if (!isAdmin) return
+    if (!canManage) return
 
     const cleanContent = content.trim()
 
@@ -238,52 +205,34 @@ export default function EventsSection({ profile }) {
       )
     }
 
-// Kiểm tra nếu thời gian tự xóa nhỏ hơn thời gian hiện tại
-if (expiresAt && new Date(expiresAt) <= new Date()) {
-  alert("Thời gian tự xóa phải lớn hơn thời gian hiện tại!");
-  return;
-}
-
+    if (expiresAt && new Date(expiresAt) <= new Date()) {
+      alert("Thời gian tự xóa phải lớn hơn thời gian hiện tại!");
+      return;
+    }
 
     setPosting(true)
 
     try {
-      const imageUrls =
-        selectedFiles.length > 0
-          ? await uploadImages()
-          : []
-
-      const {
-        error,
-      } = await supabase.from('events').insert([
-        {
-          content: cleanContent,
-          images: imageUrls,
-          notify_type: notifyType,
-          expires_at: expiresAt
-            ? new Date(expiresAt).toISOString()
-            : null,
-          created_by: profile?.id || null,
-          created_by_name:
-            profile?.username || 'Admin',
-        },
-      ])
-
-      if (error) {
-        alert(
-          'Đăng sự kiện thất bại: ' +
-          error.message
-        )
-
-        return
+      const images = []
+      for (const file of selectedFiles) {
+        const dataUrl = await fileToBase64(file)
+        images.push({
+          mimeType: file.type || 'image/jpeg',
+          contentBase64: dataUrl,
+        })
       }
+
+      await eventsService.createEvent({
+        content: cleanContent,
+        notify_type: notifyType,
+        expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+        images,
+      })
 
       closeComposer()
       fetchEvents()
-
     } catch (error) {
       console.error(error)
-
       alert(
         error.message ||
         'Có lỗi xảy ra khi đăng sự kiện!'
@@ -294,11 +243,11 @@ if (expiresAt && new Date(expiresAt) <= new Date()) {
   }
 
   /* =====================================================
-     XÓA SỰ KIỆN (chỉ admin)
+     XÓA SỰ KIỆN (admin / lớp phó sự kiện)
   ===================================================== */
 
   const handleDeleteEvent = async (eventId) => {
-    if (!isAdmin) return
+    if (!canManage) return
 
     const confirmDelete = window.confirm(
       'Bạn có chắc chắn muốn xóa sự kiện này?'
@@ -306,28 +255,20 @@ if (expiresAt && new Date(expiresAt) <= new Date()) {
 
     if (!confirmDelete) return
 
-    const {
-      error,
-    } = await supabase
-      .from('events')
-      .delete()
-      .eq('id', eventId)
-
-    if (error) {
+    try {
+      await eventsService.deleteEvent(eventId)
+      setEvents((prev) =>
+        prev.filter((e) => e.id !== eventId)
+      )
+    } catch (error) {
       alert(
         'Xóa sự kiện thất bại: ' +
-        error.message
+        (error.message || '')
       )
-
-      return
     }
-
-    setEvents((prev) =>
-      prev.filter((e) => e.id !== eventId)
-    )
   }
   const startEditExpiry = (event) => {
-  if (!isAdmin) return
+  if (!canManage) return
   setEditingExpiryId(event.id)
   setEditExpiresAt(
     event.expires_at
@@ -342,27 +283,29 @@ const cancelEditExpiry = () => {
 }
 
 const handleUpdateExpiry = async (eventId) => {
-  if (!isAdmin) return
+  if (!canManage) return
   if (editExpiresAt && new Date(editExpiresAt) <= new Date()) {
     return alert('Thời gian tự xóa phải lớn hơn thời gian hiện tại!')
   }
-  const { error } = await supabase
-    .from('events')
-    .update({
-      expires_at: editExpiresAt ? new Date(editExpiresAt).toISOString() : null,
-    })
-    .eq('id', eventId)
-  if (error) {
-    return alert('Cập nhật thời gian tự xóa thất bại: ' + error.message)
-  }
-  setEvents((prev) =>
-    prev.map((e) =>
-      e.id === eventId
-        ? { ...e, expires_at: editExpiresAt ? new Date(editExpiresAt).toISOString() : null }
-        : e
+  try {
+    const data = await eventsService.updateEventExpiry(
+      eventId,
+      editExpiresAt ? new Date(editExpiresAt).toISOString() : null
     )
-  )
-  cancelEditExpiry()
+    setEvents((prev) =>
+      prev.map((e) =>
+        e.id === eventId
+          ? (data?.item || {
+              ...e,
+              expires_at: editExpiresAt ? new Date(editExpiresAt).toISOString() : null,
+            })
+          : e
+      )
+    )
+    cancelEditExpiry()
+  } catch (error) {
+    return alert('Cập nhật thời gian tự xóa thất bại: ' + (error.message || ''))
+  }
 }
 
   /* =====================================================
@@ -479,7 +422,7 @@ const handleUpdateExpiry = async (eventId) => {
                         )}
                       </span>
                     )}
-                    {isAdmin && editingExpiryId === event.id ? (
+                    {canManage && editingExpiryId === event.id ? (
   <span className="expire-picker">
     <input
       type="datetime-local"
@@ -494,7 +437,7 @@ const handleUpdateExpiry = async (eventId) => {
     </button>
   </span>
 ) : (
-  isAdmin && (
+  canManage && (
     <button
       type="button"
       className="btn-action btn-rename"
@@ -506,7 +449,7 @@ const handleUpdateExpiry = async (eventId) => {
   )
 )}
 
-                    {isAdmin && (
+                    {canManage && (
                       <button
                         type="button"
                         className="btn-delete-event"
@@ -533,10 +476,10 @@ const handleUpdateExpiry = async (eventId) => {
       </section>
 
       {/* =================================================
-          FAB - CHỈ ADMIN THẤY
+          FAB - ADMIN / LỚP PHÓ SỰ KIỆN
       ================================================= */}
 
-      {isAdmin && (
+      {canManage && (
         <button
           type="button"
           className="event-fab"

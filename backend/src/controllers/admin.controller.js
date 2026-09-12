@@ -34,8 +34,13 @@ export async function patchMember(req, res, next) {
 export async function patchRole(req, res, next) {
   try {
     const { id } = req.params
-    const { currentRole } = req.body
-    await adminService.toggleRole(id, currentRole, req.profile.id)
+    const requestedRole = req.body?.role ?? req.body?.nextRole
+    if (requestedRole) {
+      await adminService.setRole(id, requestedRole, req.profile.id)
+    } else {
+      // payload cũ { currentRole } — toggle admin/user
+      await adminService.toggleRole(id, req.body?.currentRole, req.profile.id)
+    }
     res.json({ message: 'Cập nhật quyền thành công.' })
   } catch (err) {
     next(err)

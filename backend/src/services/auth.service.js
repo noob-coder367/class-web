@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { env } from '../config/env.js'
+import { normalizeRole } from '../lib/roles.js'
 
 export class AppError extends Error {
   constructor(message, statusCode = 400) {
@@ -31,7 +32,7 @@ export function toPublicProfile(profile) {
     username: pending ? '' : profile.username,
     email: profile.email,
     is_member: profile.is_member,
-    role: profile.role,
+    role: normalizeRole(profile.role),
     created_at: profile.created_at,
     needs_display_name: pending,
   }

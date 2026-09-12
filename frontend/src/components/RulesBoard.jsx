@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import RulesSettings from './RulesSettings.jsx'
 import ReputationBoard, { statusFor } from './ReputationBoard.jsx'
 import { markSeen } from '../lib/unreadStore.js'
+import { ROLES, roleLabel } from '../lib/roles.js'
 import './RulesBoard.css'
 
 const PERIOD_OPTIONS = [
@@ -437,7 +438,9 @@ export default function RulesBoard({
                     {(nameOptions).map((member) => (
                       <option key={member.id} value={member.id}>
                         {member.username}
-                        {member.role === 'admin' ? ' (Admin)' : ''}
+                        {member.role && member.role !== ROLES.USER
+                          ? ` (${roleLabel(member.role)})`
+                          : ''}
                         {member.is_member === false ? ' (chưa 10A4)' : ''}
                       </option>
                     ))}

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef } f
 import { supabase } from '../lib/supabaseClient.js'
 import * as authService from '../services/authService.js'
 import { saveAccessToken } from '../services/apiClient.js'
+import { capabilitiesFor, hasCapability, isAdminRole } from '../lib/roles.js'
 
 const AuthContext = createContext(null)
 const PROFILE_CACHE_KEY = 'classweb_profile_cache_v1'
@@ -193,8 +194,13 @@ export function AuthProvider({ children }) {
     profile,
     authReady,
     isLoggedIn: !!session,
-    isAdmin: profile?.role === 'admin',
+    isAdmin: isAdminRole(profile?.role),
     isMember: !!profile?.is_member,
+    capabilities: capabilitiesFor(profile?.role),
+    canManageEvents: hasCapability(profile?.role, 'events'),
+    canManageHomework: hasCapability(profile?.role, 'homework'),
+    canManageRules: hasCapability(profile?.role, 'rules'),
+    canManageAnnouncements: hasCapability(profile?.role, 'announcements'),
     reloadProfile: loadProfile,
     setSession,
     setProfile,
