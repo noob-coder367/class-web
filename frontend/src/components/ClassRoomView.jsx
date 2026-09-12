@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
 import TimetableBoard from './TimetableBoard.jsx'
 import RulesBoard from './RulesBoard.jsx'
+import AnnouncementsBoard from './AnnouncementsBoard.jsx'
 import './ClassRoomView.css'
 
 function IconBell() {
@@ -56,12 +57,11 @@ const TABS = [
   { id: 'rules', label: 'Nội quy lớp', icon: IconShield },
 ]
 
-const WIDE_TABS = new Set(['timetable', 'rules'])
+const WIDE_TABS = new Set(['timetable', 'rules', 'announcements'])
 
 /**
  * Khu vực nội bộ lớp 10A4.
  * Tab mặc định: Thông báo chung.
- * Nội dung thật chỉ lấy từ backend sau khi xác thực thành viên.
  */
 export default function ClassRoomView({ onClose }) {
   const [activeTab, setActiveTab] = useState('announcements')
@@ -69,6 +69,7 @@ export default function ClassRoomView({ onClose }) {
   const [accessError, setAccessError] = useState('')
   const [items, setItems] = useState([])
   const [timetable, setTimetable] = useState(null)
+  const [tkbNotice, setTkbNotice] = useState(null)
   const [rules, setRules] = useState(null)
   const [violations, setViolations] = useState([])
   const [members, setMembers] = useState([])
@@ -81,7 +82,12 @@ export default function ClassRoomView({ onClose }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return
-      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox')) return
+      if (
+        document.querySelector(
+          '.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox, .ann-composer-overlay'
+        )
+      )
+        return
       onClose?.()
     }
     window.addEventListener('keydown', onKey)
@@ -118,6 +124,7 @@ export default function ClassRoomView({ onClose }) {
       setLoadingTab(false)
       setItems([])
       setTimetable(null)
+      setTkbNotice(null)
       setRules(null)
       setViolations([])
       setMembers([])
@@ -136,6 +143,7 @@ export default function ClassRoomView({ onClose }) {
           const data = await classroomService.getTimetable()
           if (cancelled) return
           setTimetable(data?.timetable || null)
+          setTkbNotice(data?.timetable?.changeNotice || null)
           setRules(null)
           setViolations([])
           setItems([])
@@ -152,6 +160,15 @@ export default function ClassRoomView({ onClose }) {
           setMembers(Array.isArray(membersData?.members) ? membersData.members : [])
           setDirectory(Array.isArray(directoryData?.members) ? directoryData.members : [])
           setTimetable(null)
+          setItems([])
+        } else if (activeTab === 'announcements') {
+          // Tải notice TKB (nếu có) để hiển thị kèm danh sách bài đăng
+          const tkbData = await classroomService.getTimetable().catch(() => null)
+          if (cancelled) return
+          setTkbNotice(tkbData?.timetable?.changeNotice || null)
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
           setItems([])
         } else {
           const data = await classroomService.getTabContent(activeTab)
@@ -196,6 +213,7 @@ export default function ClassRoomView({ onClose }) {
   const handleSaveTimetable = async (next) => {
     const data = await classroomService.saveTimetable(next)
     setTimetable(data?.timetable || next)
+    setTkbNotice(data?.timetable?.changeNotice || null)
   }
 
   const handleDismissNotice = async () => {
@@ -204,16 +222,10 @@ export default function ClassRoomView({ onClose }) {
       const data = await classroomService.dismissTimetableNotice()
       if (data?.timetable) {
         setTimetable(data.timetable)
-      } else if (timetable) {
-        setTimetable({
-          ...timetable,
-          changeNotice: timetable.changeNotice
-            ? { ...timetable.changeNotice, active: false }
-            : null,
-        })
+        setTkbNotice(data.timetable.changeNotice || null)
+      } else {
+        setTkbNotice((prev) => (prev ? { ...prev, active: false } : null))
       }
-      // Cập nhật luôn list announcements nếu đang ở tab đó
-      setItems((prev) => prev.filter((item) => item.id !== 'tkb-change-notice'))
     } finally {
       setDismissingNotice(false)
     }
@@ -258,7 +270,7 @@ export default function ClassRoomView({ onClose }) {
       )
     }
 
-    if (loadingTab) {
+    if (loadingTab && activeTab !== 'announcements') {
       return (
         <div className="classroom-state">
           <span className="classroom-spinner" aria-hidden="true" />
@@ -272,6 +284,18 @@ export default function ClassRoomView({ onClose }) {
         <div className="classroom-state classroom-state--denied">
           <p>{tabError}</p>
         </div>
+      )
+    }
+
+    if (activeTab === 'announcements') {
+      return (
+        <AnnouncementsBoard
+          isAdmin={isAdmin}
+          tkbNotice={tkbNotice}
+          onDismissTkbNotice={handleDismissNotice}
+          dismissingTkb={dismissingNotice}
+          onOpenTimetable={() => setActiveTab('timetable')}
+        />
       )
     }
 
@@ -309,39 +333,12 @@ export default function ClassRoomView({ onClose }) {
 
     return (
       <ul className="classroom-list">
-        {items.map((item) => {
-          const isTkbNotice = item.type === 'tkb-change' || item.id === 'tkb-change-notice'
-          return (
-            <li
-              key={item.id}
-              className={`classroom-item${isTkbNotice ? ' classroom-item--tkb-notice' : ''}${item.hasChanges ? ' classroom-item--changed' : ''}`}
-            >
-              {item.title ? <h3>{item.title}</h3> : null}
-              {item.body ? <p>{item.body}</p> : null}
-              {isTkbNotice ? (
-                <div className="classroom-item-actions">
-                  <button
-                    type="button"
-                    className="classroom-detail-link"
-                    onClick={() => setActiveTab('timetable')}
-                  >
-                    Ấn để xem chi tiết hơn
-                  </button>
-                  {isAdmin ? (
-                    <button
-                      type="button"
-                      className="classroom-dismiss-notice"
-                      onClick={handleDismissNotice}
-                      disabled={dismissingNotice}
-                    >
-                      {dismissingNotice ? 'Đang xoá…' : 'Xoá thông báo'}
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-            </li>
-          )
-        })}
+        {items.map((item) => (
+          <li key={item.id} className="classroom-item">
+            {item.title ? <h3>{item.title}</h3> : null}
+            {item.body ? <p>{item.body}</p> : null}
+          </li>
+        ))}
       </ul>
     )
   }

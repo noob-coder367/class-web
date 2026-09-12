@@ -1,0 +1,590 @@
+.ann-board {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding-bottom: 88px;
+  align-self: flex-start;
+}
+
+.ann-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 16px;
+  color: #64748b;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.ann-state--error {
+  color: #b91c1c;
+}
+
+.ann-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid #dbe4ee;
+  border-top-color: #14324a;
+  border-radius: 50%;
+  animation: ann-spin 0.7s linear infinite;
+}
+
+@keyframes ann-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ann-empty {
+  margin: 40px 0;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.ann-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ann-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #2563eb;
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.ann-card--hot {
+  border-left-color: #f97316;
+}
+
+.ann-card--urgent {
+  border-left-color: #ef4444;
+}
+
+.ann-card--tkb {
+  border-left-color: #3b82f6;
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+}
+
+.ann-card--tkb.ann-card--changed {
+  border-left-color: #f59e0b;
+  background: linear-gradient(135deg, #fffbeb 0%, #fefce8 100%);
+}
+
+.ann-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #1e3a8a;
+  line-height: 1.35;
+}
+
+.ann-card--changed .ann-title {
+  color: #92400e;
+}
+
+.ann-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ann-images {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.ann-image {
+  display: block;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f1f5f9;
+  line-height: 0;
+}
+
+.ann-image img {
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+  object-fit: cover;
+  display: block;
+  vertical-align: top;
+}
+
+.ann-images[style*='1fr 1fr']:not([style*='1fr 1fr 1fr']) .ann-image img {
+  max-height: 240px;
+}
+
+.ann-content-wrap {
+  min-width: 0;
+}
+
+.ann-content {
+  margin: 0;
+  color: #0f172a;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14.5px;
+}
+
+.ann-tkb-lines {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.ann-meta {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed #e2e8f0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.ann-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ann-badge--normal {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.ann-badge--hot {
+  background: rgba(249, 115, 22, 0.15);
+  color: #c2410c;
+}
+
+.ann-badge--urgent {
+  background: rgba(239, 68, 68, 0.15);
+  color: #b91c1c;
+}
+
+.ann-meta-info {
+  font-weight: 500;
+}
+
+.ann-btn-detail {
+  border: none;
+  background: #14324a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.ann-btn-detail:hover {
+  background: #0f2436;
+}
+
+.ann-btn-delete {
+  background: transparent;
+  border: 1px solid #ef4444;
+  color: #ef4444;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ann-btn-delete:hover:not(:disabled) {
+  background: #ef4444;
+  color: #fff;
+}
+
+.ann-btn-delete:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.ann-btn-expiry {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ann-btn-expiry:hover {
+  background: #e2e8f0;
+}
+
+.ann-expire-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ann-expire-edit input {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font: inherit;
+  font-size: 12px;
+}
+
+.ann-btn-save-expiry,
+.ann-btn-cancel-expiry {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ann-btn-save-expiry {
+  background: #14324a;
+  color: #fff;
+}
+
+.ann-btn-cancel-expiry {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* FAB */
+.ann-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 230;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 50%;
+  background: #e0a640;
+  color: #1a1305;
+  font-size: 30px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(224, 166, 64, 0.45);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.ann-fab:hover {
+  background: #d4922a;
+  transform: scale(1.06);
+}
+
+/* Composer */
+.ann-composer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(8, 18, 28, 0.65);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.ann-composer-modal {
+  width: min(860px, 100%);
+  max-height: 92vh;
+  background: #fff;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.ann-composer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  background: #14324a;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.ann-composer-header h2 {
+  margin: 0;
+  font-size: 17px;
+  color: #fff;
+}
+
+.ann-composer-close {
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  opacity: 0.85;
+  padding: 0 6px;
+}
+
+.ann-composer-close:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.ann-composer-close:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ann-composer-body {
+  padding: 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.ann-composer-left {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ann-upload-box {
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: #f8fafc;
+  padding: 12px;
+  transition: border-color 0.15s;
+}
+
+.ann-upload-box:hover {
+  border-color: #e0a640;
+}
+
+.ann-upload-placeholder {
+  text-align: center;
+  color: #64748b;
+}
+
+.ann-upload-icon {
+  font-size: 32px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.ann-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.ann-upload-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ann-upload-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ann-upload-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ann-btn-add-more {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid #14324a;
+  color: #14324a;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ann-composer-right {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ann-textarea {
+  flex: 1;
+  min-height: 150px;
+  resize: vertical;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  font: inherit;
+  font-size: 14px;
+}
+
+.ann-textarea:focus {
+  outline: 2px solid #e0a640;
+  outline-offset: 1px;
+}
+
+.ann-composer-extras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.ann-notify-dropdown {
+  position: relative;
+}
+
+.ann-btn-notify {
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ann-notify-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+  z-index: 10;
+  min-width: 150px;
+}
+
+.ann-notify-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 10px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #0f172a;
+}
+
+.ann-notify-item:hover {
+  background: #f1f5f9;
+}
+
+.ann-notify-item.is-active {
+  font-weight: 700;
+  color: #0369a1;
+}
+
+.ann-expire-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.ann-expire-field input {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font: inherit;
+  font-size: 13px;
+}
+
+.ann-composer-footer {
+  padding: 14px 18px 18px;
+  border-top: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.ann-btn-post {
+  width: 100%;
+  background: #14324a;
+  color: #fff;
+  border: none;
+  padding: 14px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.ann-btn-post:hover:not(:disabled) {
+  background: #0f2436;
+}
+
+.ann-btn-post:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  .ann-composer-body {
+    flex-direction: column;
+  }
+
+  .ann-fab {
+    right: 14px;
+    bottom: 14px;
+    width: 50px;
+    height: 50px;
+  }
+
+  .ann-meta {
+    justify-content: flex-start;
+  }
+}

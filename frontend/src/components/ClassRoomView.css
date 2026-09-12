@@ -52,7 +52,6 @@
   transform: scale(0.96);
 }
 
-/* Ribbon 3D: mảnh trái tối + mặt trước + nắp trên cùng một khối */
 .classroom-iso {
   --iso-h: 54px;
   --iso-d: 10px;
@@ -204,7 +203,8 @@
 }
 
 .classroom-body--timetable,
-.classroom-body--rules {
+.classroom-body--rules,
+.classroom-body--announcements {
   display: block;
   padding: 18px 20px 96px;
   overflow-x: auto;
@@ -283,78 +283,6 @@
   white-space: pre-wrap;
 }
 
-/* Thông báo thay đổi TKB trong tab Thông báo chung */
-.classroom-item--tkb-notice {
-  border-color: #bfdbfe;
-  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
-}
-
-.classroom-item--tkb-notice.classroom-item--changed {
-  border-color: #fcd34d;
-  background: linear-gradient(135deg, #fffbeb 0%, #fefce8 100%);
-}
-
-.classroom-item--tkb-notice h3 {
-  color: #1e3a8a;
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.classroom-item--tkb-notice.classroom-item--changed h3 {
-  color: #92400e;
-}
-
-.classroom-item-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
-}
-
-.classroom-detail-link {
-  border: none;
-  background: #14324a;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 8px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
-}
-
-.classroom-detail-link:hover {
-  background: #0f2436;
-}
-
-.classroom-detail-link:active {
-  transform: scale(0.97);
-}
-
-.classroom-dismiss-notice {
-  border: none;
-  background: #fee2e2;
-  color: #b91c1c;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 7px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.classroom-dismiss-notice:hover:not(:disabled) {
-  background: #fecaca;
-}
-
-.classroom-dismiss-notice:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
 @keyframes classroom-spin {
   to {
     transform: rotate(360deg);
@@ -414,13 +342,9 @@
     font-size: 16px;
   }
 
-  .classroom-item-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .classroom-body--timetable,
-  .classroom-body--rules {
+  .classroom-body--rules,
+  .classroom-body--announcements {
     padding: 12px 12px 88px;
   }
 }
