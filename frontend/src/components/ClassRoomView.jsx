@@ -3,6 +3,7 @@ import * as classroomService from '../services/classroomService.js'
 import TimetableBoard from './TimetableBoard.jsx'
 import RulesBoard from './RulesBoard.jsx'
 import AnnouncementsBoard from './AnnouncementsBoard.jsx'
+import HomeworkBoard from './HomeworkBoard.jsx'
 import './ClassRoomView.css'
 
 function IconBell() {
@@ -57,7 +58,7 @@ const TABS = [
   { id: 'rules', label: 'Nội quy lớp', icon: IconShield },
 ]
 
-const WIDE_TABS = new Set(['timetable', 'rules', 'announcements'])
+const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework'])
 
 /**
  * Khu vực nội bộ lớp 10A4.
@@ -84,7 +85,7 @@ export default function ClassRoomView({ onClose }) {
       if (e.key !== 'Escape') return
       if (
         document.querySelector(
-          '.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox, .ann-composer-overlay'
+          '.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox, .ann-composer-overlay, .hw-composer-overlay'
         )
       )
         return
@@ -166,6 +167,12 @@ export default function ClassRoomView({ onClose }) {
           const tkbData = await classroomService.getTimetable().catch(() => null)
           if (cancelled) return
           setTkbNotice(tkbData?.timetable?.changeNotice || null)
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
+          setItems([])
+        } else if (activeTab === 'homework') {
+          // HomeworkBoard tự fetch
           setTimetable(null)
           setRules(null)
           setViolations([])
@@ -270,7 +277,7 @@ export default function ClassRoomView({ onClose }) {
       )
     }
 
-    if (loadingTab && activeTab !== 'announcements') {
+    if (loadingTab && activeTab !== 'announcements' && activeTab !== 'homework') {
       return (
         <div className="classroom-state">
           <span className="classroom-spinner" aria-hidden="true" />
@@ -297,6 +304,10 @@ export default function ClassRoomView({ onClose }) {
           onOpenTimetable={() => setActiveTab('timetable')}
         />
       )
+    }
+
+    if (activeTab === 'homework') {
+      return <HomeworkBoard isAdmin={isAdmin} />
     }
 
     if (activeTab === 'timetable') {
