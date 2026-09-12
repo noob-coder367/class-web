@@ -1,7 +1,10 @@
 .rules-board {
   width: min(820px, 100%);
+  max-width: 100%;
   margin: 0 auto;
   padding-bottom: 28px;
+  box-sizing: border-box;
+  overflow-x: clip;
 }
 
 .rules-switch {
@@ -129,6 +132,10 @@
   gap: 10px;
 }
 
+.rules-add-grid > * {
+  min-width: 0;
+}
+
 .rules-add-span {
   grid-column: 1 / -1;
 }
@@ -144,6 +151,9 @@
 
 .rules-add-form input,
 .rules-add-form select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 9px 10px;
@@ -452,6 +462,8 @@
 }
 
 .rank-table-wrap {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid #dbe4ee;
@@ -632,6 +644,8 @@
 }
 
 .rules-table-wrap {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid #dbe4ee;
@@ -912,9 +926,17 @@
     font-size: 26px;
   }
 
+  .rules-add-form {
+    padding: 12px;
+  }
+
   .rules-add-grid,
   .rules-other-row {
     grid-template-columns: 1fr;
+  }
+
+  .rules-switch {
+    width: 100%;
   }
 
   .rules-switch button {
@@ -951,6 +973,11 @@
 
   .rules-filters-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .rules-filters,
+  .rules-attention {
+    padding: 12px;
   }
 }
 
