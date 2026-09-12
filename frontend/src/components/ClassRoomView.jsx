@@ -4,7 +4,7 @@ import TimetableBoard from './TimetableBoard.jsx'
 import RulesBoard from './RulesBoard.jsx'
 import AnnouncementsBoard from './AnnouncementsBoard.jsx'
 import HomeworkBoard from './HomeworkBoard.jsx'
-import { markSeen } from '../lib/unreadStore.js'
+import { markSeen, countNewer } from '../lib/unreadStore.js'
 import './ClassRoomView.css'
 
 function IconBell() {
@@ -76,6 +76,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [loadingTab, setLoadingTab] = useState(true)
   const [tabError, setTabError] = useState('')
   const [dismissingNotice, setDismissingNotice] = useState(false)
+  const [tabBadges, setTabBadges] = useState({ announcements: 0, homework: 0, rules: 0 })
 
   useEffect(() => {
     const onKey = (e) => {
@@ -116,6 +117,36 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       cancelled = true
     }
   }, [])
+
+  // Đếm badge từng tab (không đếm TKB)
+  useEffect(() => {
+    if (access !== 'ok') return
+    let cancelled = false
+    const loadBadges = async () => {
+      try {
+        const [ann, hw, viol] = await Promise.all([
+          classroomService.getAnnouncements().catch(() => ({ items: [] })),
+          classroomService.getHomework().catch(() => ({ items: [] })),
+          classroomService.getViolations().catch(() => ({ violations: [] })),
+        ])
+        if (cancelled) return
+        setTabBadges({
+          announcements: Math.min(99, countNewer(ann?.items || [], 'announcements')),
+          homework: Math.min(99, countNewer(hw?.items || [], 'homework')),
+          rules: Math.min(99, countNewer(viol?.violations || [], 'rules')),
+        })
+      } catch {
+        /* ignore */
+      }
+    }
+    loadBadges()
+    const onUnread = () => loadBadges()
+    window.addEventListener('classweb-unread-updated', onUnread)
+    return () => {
+      cancelled = true
+      window.removeEventListener('classweb-unread-updated', onUnread)
+    }
+  }, [access])
 
   useEffect(() => {
     if (access === 'ok' && activeTab) markSeen(activeTab)
@@ -376,6 +407,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
               {TABS.map((tab) => {
                 const Icon = tab.icon
                 const selected = activeTab === tab.id
+                const badge = tab.id === 'timetable' ? 0 : tabBadges[tab.id] || 0
                 return (
                   <button
                     key={tab.id}
@@ -392,6 +424,9 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                     <span className="classroom-tab-inner">
                       <span className="classroom-tab-icon">
                         <Icon />
+                        {badge > 0 ? (
+                          <span className="classroom-tab-badge">{badge > 99 ? '99+' : badge}</span>
+                        ) : null}
                       </span>
                       <span className="classroom-tab-label">{tab.label}</span>
                     </span>
