@@ -4,6 +4,7 @@ import TimetableBoard from './TimetableBoard.jsx'
 import RulesBoard from './RulesBoard.jsx'
 import AnnouncementsBoard from './AnnouncementsBoard.jsx'
 import HomeworkBoard from './HomeworkBoard.jsx'
+import { markSeen } from '../lib/unreadStore.js'
 import './ClassRoomView.css'
 
 function IconBell() {
@@ -60,12 +61,8 @@ const TABS = [
 
 const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework'])
 
-/**
- * Khu vực nội bộ lớp 10A4.
- * Tab mặc định: Thông báo chung.
- */
-export default function ClassRoomView({ onClose }) {
-  const [activeTab, setActiveTab] = useState('announcements')
+export default function ClassRoomView({ onClose, initialTab = 'announcements' }) {
+  const [activeTab, setActiveTab] = useState(initialTab || 'announcements')
   const [access, setAccess] = useState('ok')
   const [accessError, setAccessError] = useState('')
   const [items, setItems] = useState([])
@@ -121,6 +118,10 @@ export default function ClassRoomView({ onClose }) {
   }, [])
 
   useEffect(() => {
+    if (access === 'ok' && activeTab) markSeen(activeTab)
+  }, [access, activeTab])
+
+  useEffect(() => {
     if (access === 'denied') {
       setLoadingTab(false)
       setItems([])
@@ -163,7 +164,6 @@ export default function ClassRoomView({ onClose }) {
           setTimetable(null)
           setItems([])
         } else if (activeTab === 'announcements') {
-          // Tải notice TKB (nếu có) để hiển thị kèm danh sách bài đăng
           const tkbData = await classroomService.getTimetable().catch(() => null)
           if (cancelled) return
           setTkbNotice(tkbData?.timetable?.changeNotice || null)
@@ -172,7 +172,6 @@ export default function ClassRoomView({ onClose }) {
           setViolations([])
           setItems([])
         } else if (activeTab === 'homework') {
-          // HomeworkBoard tự fetch
           setTimetable(null)
           setRules(null)
           setViolations([])
@@ -264,7 +263,7 @@ export default function ClassRoomView({ onClose }) {
       setMembers(Array.isArray(data?.members) ? data.members : [])
       setDirectory(Array.isArray(dir?.members) ? dir.members : [])
     } catch {
-      // giữ danh sách cũ nếu refresh lỗi
+      // giữ danh sách cũ
     }
   }, [])
 
