@@ -1,7 +1,14 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useWeather } from '../context/WeatherContext.jsx'
 import { supabase } from '../lib/supabaseClient.js'
+import * as authService from '../services/authService.js'
+import {
+  isPushEnabledPref,
+  requestPermissionAndSubscribe,
+  unsubscribePush,
+  getNotificationPermission,
+} from '../services/pushService.js'
 import { saveAvatar, getAvatarMeta } from './ProfileMenu.jsx'
 import './SettingsPanel.css'
 
@@ -16,7 +23,7 @@ function DefaultAvatarLarge() {
 }
 
 export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
-  const { session, profile } = useAuth()
+  const { session, profile, reloadProfile } = useAuth()
   const { permission, setLocationEnabled } = useWeather()
   const [tab, setTab] = useState('info')
   const [newPassword, setNewPassword] = useState('')
@@ -26,23 +33,46 @@ export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
   const [avatarMsg, setAvatarMsg] = useState('')
   const fileRef = useRef(null)
 
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState('')
+  const [nameMsg, setNameMsg] = useState('')
+  const [nameLoading, setNameLoading] = useState(false)
+  const [nameStatus, setNameStatus] = useState({ remaining: 2, max: 2 })
+
+  const [pushOn, setPushOn] = useState(isPushEnabledPref() && getNotificationPermission() === 'granted')
+  const [pushMsg, setPushMsg] = useState('')
+  const [pushLoading, setPushLoading] = useState(false)
+
   const user = session?.user
   const userId = user?.id
 
   const hasPasswordProvider = useMemo(() => {
     const identities = user?.identities || []
-    if (identities.length === 0) {
-      return true
-    }
+    if (identities.length === 0) return true
     const providers = identities.map((i) => i.provider)
-    if (providers.includes('google') && !providers.includes('email')) {
-      return false
-    }
+    if (providers.includes('google') && !providers.includes('email')) return false
     return identities.some((i) => i.provider === 'email')
   }, [user])
 
   const email = profile?.email || user?.email || ''
   const username = profile?.username || ''
+
+  useEffect(() => {
+    setNameInput(username || '')
+  }, [username])
+
+  useEffect(() => {
+    let cancelled = false
+    authService
+      .getUsernameChangeStatus()
+      .then((s) => {
+        if (!cancelled) setNameStatus(s)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const remainingAvatarChanges = useMemo(() => {
     if (!userId) return 0
@@ -109,25 +139,58 @@ export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
     reader.readAsDataURL(file)
   }
 
+  const handleSaveName = async () => {
+    setNameMsg('')
+    const next = nameInput.trim()
+    if (!next || next === username) {
+      setEditingName(false)
+      return
+    }
+    setNameLoading(true)
+    try {
+      const data = await authService.changeUsername({ username: next })
+      if (data?.usernameChange) setNameStatus(data.usernameChange)
+      await reloadProfile?.()
+      setNameMsg('Đã đổi tên thành công.')
+      setEditingName(false)
+    } catch (err) {
+      setNameMsg(err.message || 'Không thể đổi tên.')
+    } finally {
+      setNameLoading(false)
+    }
+  }
+
   const locationOn = permission === 'granted'
 
   const handleToggleLocation = () => {
-    if (locationOn) {
-      setLocationEnabled(false)
-    } else {
-      setLocationEnabled(true)
+    if (locationOn) setLocationEnabled(false)
+    else setLocationEnabled(true)
+  }
+
+  const handleTogglePush = async () => {
+    setPushMsg('')
+    setPushLoading(true)
+    try {
+      if (pushOn) {
+        await unsubscribePush()
+        setPushOn(false)
+        setPushMsg('Đã tắt thông báo đẩy.')
+      } else {
+        await requestPermissionAndSubscribe()
+        setPushOn(true)
+        setPushMsg('Đã bật thông báo đẩy.')
+      }
+    } catch (err) {
+      setPushMsg(err.message || 'Không thể thay đổi quyền thông báo.')
+    } finally {
+      setPushLoading(false)
     }
   }
 
   return (
     <div className="settings-overlay" role="dialog" aria-modal="true">
       <div className="settings-panel">
-        <button
-          type="button"
-          className="settings-back"
-          onClick={onClose}
-          aria-label="Đóng"
-        >
+        <button type="button" className="settings-back" onClick={onClose} aria-label="Đóng">
           {'<'}
         </button>
 
@@ -135,18 +198,14 @@ export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
           <aside className="settings-sidebar">
             <button
               type="button"
-              className={`settings-nav-item ${
-                tab === 'info' ? 'active' : ''
-              }`}
+              className={`settings-nav-item ${tab === 'info' ? 'active' : ''}`}
               onClick={() => setTab('info')}
             >
               Thông tin cá nhân
             </button>
             <button
               type="button"
-              className={`settings-nav-item ${
-                tab === 'privacy' ? 'active' : ''
-              }`}
+              className={`settings-nav-item ${tab === 'privacy' ? 'active' : ''}`}
               onClick={() => setTab('privacy')}
             >
               Quyền riêng tư
@@ -162,28 +221,16 @@ export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
 
                 <div className="settings-avatar-block">
                   <div className="settings-avatar-preview">
-                    {avatarUrl ? (
-                      <img src={avatarUrl} alt="Avatar" />
-                    ) : (
-                      <DefaultAvatarLarge />
-                    )}
+                    {avatarUrl ? <img src={avatarUrl} alt="Avatar" /> : <DefaultAvatarLarge />}
                   </div>
                   <div className="settings-avatar-actions">
-                    <button
-                      type="button"
-                      className="settings-btn"
-                      onClick={handleAvatarPick}
-                    >
+                    <button type="button" className="settings-btn" onClick={handleAvatarPick}>
                       Đổi ảnh đại diện
                     </button>
                     <p className="settings-hint">
                       Còn {remainingAvatarChanges}/3 lần đổi trong 24 giờ.
-                      Mặc định: xanh biển (hoặc ảnh Google nếu đăng nhập
-                      Google).
                     </p>
-                    {avatarMsg && (
-                      <p className="settings-msg">{avatarMsg}</p>
-                    )}
+                    {avatarMsg && <p className="settings-msg">{avatarMsg}</p>}
                     <input
                       ref={fileRef}
                       type="file"
@@ -195,25 +242,74 @@ export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
                 </div>
 
                 <div className="settings-field">
-                  <label>Tên đăng nhập</label>
-                  <input type="text" value={username || '—'} readOnly />
+                  <label>Tên hiển thị</label>
+                  {editingName ? (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <input
+                        type="text"
+                        value={nameInput}
+                        onChange={(e) => setNameInput(e.target.value)}
+                        disabled={nameLoading}
+                        style={{ flex: 1, minWidth: 140 }}
+                      />
+                      <button
+                        type="button"
+                        className="settings-btn settings-btn--primary"
+                        onClick={handleSaveName}
+                        disabled={nameLoading}
+                      >
+                        {nameLoading ? '…' : 'Lưu'}
+                      </button>
+                      <button
+                        type="button"
+                        className="settings-btn"
+                        onClick={() => {
+                          setEditingName(false)
+                          setNameInput(username || '')
+                          setNameMsg('')
+                        }}
+                        disabled={nameLoading}
+                      >
+                        Hủy
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input type="text" value={username || '—'} readOnly style={{ flex: 1 }} />
+                      <button
+                        type="button"
+                        className="settings-btn"
+                        onClick={() => setEditingName(true)}
+                        disabled={nameStatus.remaining <= 0}
+                        title={
+                          nameStatus.remaining <= 0
+                            ? 'Đã hết lượt đổi tên trong tuần'
+                            : 'Đổi tên'
+                        }
+                      >
+                        Đổi tên
+                      </button>
+                    </div>
+                  )}
+                  <p className="settings-hint">
+                    Còn {nameStatus.remaining}/{nameStatus.max} lần đổi trong 7 ngày.
+                  </p>
+                  {nameMsg && <p className="settings-msg">{nameMsg}</p>}
                 </div>
+
                 <div className="settings-field">
                   <label>Email</label>
                   <input type="text" value={email || '—'} readOnly />
                 </div>
 
                 <form
-                  className={`settings-password ${
-                    hasPasswordProvider ? '' : 'is-disabled'
-                  }`}
+                  className={`settings-password ${hasPasswordProvider ? '' : 'is-disabled'}`}
                   onSubmit={handlePasswordChange}
                 >
                   <h3>Đổi mật khẩu</h3>
                   {!hasPasswordProvider && (
                     <p className="settings-hint">
-                      Tài khoản đăng nhập bằng Google không đổi mật khẩu tại
-                      đây.
+                      Tài khoản đăng nhập bằng Google không đổi mật khẩu tại đây.
                     </p>
                   )}
                   <div className="settings-field">
@@ -254,19 +350,14 @@ export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
                 <h2>Quyền riêng tư</h2>
                 <div className="settings-toggle-row">
                   <div>
-                    <p className="settings-toggle-title">
-                      Cho phép chia sẻ vị trí
-                    </p>
+                    <p className="settings-toggle-title">Cho phép chia sẻ vị trí</p>
                     <p className="settings-hint">
                       Dùng để nền đại dương phản ánh thời tiết nơi bạn đang ở.
-                      Tắt sẽ xóa tọa độ đã lưu và về nền ngày–đêm.
                     </p>
                   </div>
                   <button
                     type="button"
-                    className={`settings-switch ${
-                      locationOn ? 'is-on' : ''
-                    }`}
+                    className={`settings-switch ${locationOn ? 'is-on' : ''}`}
                     role="switch"
                     aria-checked={locationOn}
                     onClick={handleToggleLocation}
@@ -274,6 +365,26 @@ export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
                     <span className="settings-switch-knob" />
                   </button>
                 </div>
+
+                <div className="settings-toggle-row" style={{ marginTop: 16 }}>
+                  <div>
+                    <p className="settings-toggle-title">Thông báo đẩy (Web Push)</p>
+                    <p className="settings-hint">
+                      Nhận thông báo khi có tin mới trong lớp. Chỉ hỏi quyền trình duyệt một lần.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className={`settings-switch ${pushOn ? 'is-on' : ''}`}
+                    role="switch"
+                    aria-checked={pushOn}
+                    onClick={handleTogglePush}
+                    disabled={pushLoading}
+                  >
+                    <span className="settings-switch-knob" />
+                  </button>
+                </div>
+                {pushMsg && <p className="settings-msg">{pushMsg}</p>}
               </div>
             )}
           </main>
