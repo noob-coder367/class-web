@@ -143,6 +143,32 @@ export default function HomePage() {
     return () => window.removeEventListener('classweb-unread-updated', onUnread)
   }, [authReady, profile?.is_member, refreshUnread])
 
+  // Poll định kỳ để cập nhật badge "Vô Lớp 10A4" gần như thời gian thực.
+  // Chỉ chạy khi KHÔNG đang mở lớp (ClassRoomView có polling riêng của nó)
+  // và chỉ khi tab đang được xem, để tránh tốn request khi tab ẩn/nền.
+  useEffect(() => {
+    if (!authReady || !profile?.is_member || showClassRoom) return
+
+    const POLL_MS = 20_000
+    let timer = null
+
+    const tick = () => {
+      if (document.visibilityState === 'visible') refreshUnread()
+    }
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshUnread()
+    }
+
+    timer = setInterval(tick, POLL_MS)
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [authReady, profile?.is_member, showClassRoom, refreshUnread])
+
   useEffect(() => {
     const applyHash = () => {
       const hash = window.location.hash || ''
