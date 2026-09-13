@@ -4,6 +4,7 @@ import TimetableBoard from './TimetableBoard.jsx'
 import RulesBoard from './RulesBoard.jsx'
 import AnnouncementsBoard from './AnnouncementsBoard.jsx'
 import HomeworkBoard from './HomeworkBoard.jsx'
+import CleaningBoard from './CleaningBoard.jsx'
 import { markSeen, countNewer, countUnseenPosts } from '../lib/unreadStore.js'
 import { capabilitiesFor } from '../lib/roles.js'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -46,6 +47,16 @@ function IconShield() {
   )
 }
 
+function IconBroom() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M19 3 9.5 12.5" />
+      <path d="M13 8l-8.5 8.5a2 2 0 0 0 0 2.8l.2.2a2 2 0 0 0 2.8 0L16 11" />
+      <path d="M6.5 15 4 21l6-2.5" />
+    </svg>
+  )
+}
+
 function IconBack() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -59,9 +70,10 @@ const TABS = [
   { id: 'timetable', label: 'Thời khoá biểu', icon: IconCalendar },
   { id: 'homework', label: 'Bài tập về nhà', icon: IconBook },
   { id: 'rules', label: 'Nội quy lớp', icon: IconShield },
+  { id: 'cleaning-duty', label: 'Vệ sinh lớp', icon: IconBroom },
 ]
 
-const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework'])
+const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty'])
 const EMPTY_CAPS = capabilitiesFor('user')
 
 export default function ClassRoomView({ onClose, initialTab = 'announcements' }) {
@@ -206,6 +218,11 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           setRules(null)
           setViolations([])
           setItems([])
+        } else if (activeTab === 'cleaning-duty') {
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
+          setItems([])
         } else {
           const data = await classroomService.getTabContent(activeTab)
           if (cancelled) return
@@ -293,7 +310,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         </div>
       )
     }
-    if (loadingTab && activeTab !== 'announcements' && activeTab !== 'homework') {
+    if (loadingTab && activeTab !== 'announcements' && activeTab !== 'homework' && activeTab !== 'cleaning-duty') {
       return (
         <div className="classroom-state">
           <span className="classroom-spinner" aria-hidden="true" />
@@ -322,6 +339,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       )
     }
     if (activeTab === 'homework') return <HomeworkBoard isAdmin={!!caps.homework} />
+    if (activeTab === 'cleaning-duty') return <CleaningBoard isAdmin={!!caps.cleaningDuty} />
     if (activeTab === 'timetable') {
       if (!timetable) return <p className="classroom-empty">Chưa có thời khoá biểu</p>
       return (
