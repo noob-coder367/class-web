@@ -35,6 +35,14 @@ export const ASSIGNABLE_ROLES = [
   ROLES.ADMIN,
 ]
 
+export const ANNOUNCEMENT_SECTIONS = ['main', 'important', 'discipline']
+
+export const SECTION_LABELS = {
+  main: 'Thông báo chính',
+  important: 'Báo bài quan trọng',
+  discipline: 'Vi phạm kỷ luật cao',
+}
+
 const CAPABILITY_ROLES = {
   adminPanel: [ROLES.ADMIN],
   assignRoles: [ROLES.ADMIN],
@@ -43,7 +51,10 @@ const CAPABILITY_ROLES = {
   homework: [ROLES.ADMIN, ROLES.VP_ACADEMIC],
   rules: [ROLES.ADMIN, ROLES.VP_DISCIPLINE],
   directory: [ROLES.ADMIN, ROLES.VP_DISCIPLINE],
-  announcements: [ROLES.ADMIN, ROLES.VP_EVENTS],
+  announcements: [ROLES.ADMIN, ROLES.VP_EVENTS, ROLES.VP_ACADEMIC, ROLES.VP_DISCIPLINE],
+  announcements_main_manage: [ROLES.ADMIN, ROLES.VP_EVENTS],
+  announcements_important_manage: [ROLES.ADMIN, ROLES.VP_ACADEMIC],
+  announcements_discipline_manage: [ROLES.ADMIN, ROLES.VP_DISCIPLINE],
   events: [ROLES.ADMIN, ROLES.VP_EVENTS],
 }
 
@@ -85,4 +96,50 @@ export function roleBadgeClass(role) {
   if (r === ROLES.VP_DISCIPLINE) return 'badge-vp-discipline'
   if (r === ROLES.VP_EVENTS) return 'badge-vp-events'
   return 'badge-user'
+}
+
+export function normalizeSection(raw) {
+  const section = String(raw || '').trim().toLowerCase()
+  return ANNOUNCEMENT_SECTIONS.includes(section) ? section : 'main'
+}
+
+const SECTION_POST_CAP = {
+  main: 'announcements_main_manage',
+  important: 'announcements_important_manage',
+}
+
+const SECTION_HIDE_CAP = {
+  main: 'announcements_main_manage',
+  important: 'announcements_important_manage',
+  discipline: 'announcements_discipline_manage',
+}
+
+export function canPostToSection(role, section) {
+  const key = normalizeSection(section)
+  if (key === 'discipline') return false
+  return hasCapability(role, SECTION_POST_CAP[key])
+}
+
+export function canHide(role, section) {
+  const key = normalizeSection(section)
+  return hasCapability(role, SECTION_HIDE_CAP[key])
+}
+
+export function canHardDelete(role, section) {
+  if (isAdminRole(role)) return true
+  return normalizeSection(section) === 'main' && hasCapability(role, 'announcements_main_manage')
+}
+
+export function canEdit(role, section) {
+  const key = normalizeSection(section)
+  if (isAdminRole(role)) return true
+  return canPostToSection(role, key)
+}
+
+export function canManageArchive(role) {
+  return hasCapability(role, 'announcements_main_manage')
+}
+
+export function postableSections(role) {
+  return ANNOUNCEMENT_SECTIONS.filter((section) => canPostToSection(role, section))
 }
