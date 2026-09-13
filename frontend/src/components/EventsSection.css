@@ -194,7 +194,7 @@
   border-radius: 16px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
 }
 
@@ -206,6 +206,7 @@
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
+  border-radius: 16px 16px 0 0;
 }
 
 .event-composer-header h2 {
@@ -235,9 +236,12 @@
 .event-composer-body {
   padding: 20px;
   overflow-y: auto;
+  overflow-x: visible;
   display: flex;
   flex-wrap: wrap;
   gap: 20px;
+  /* Cho phép dropdown nhô ra khỏi vùng scroll */
+  position: relative;
 }
 
 .composer-left {
@@ -330,6 +334,8 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  position: relative;
+  z-index: 2;
 }
 
 .composer-textarea {
@@ -341,6 +347,8 @@
   border: 1px solid var(--line);
   font-family: inherit;
   font-size: 14px;
+  background: #fff;
+  color: var(--ink);
 }
 
 .composer-textarea:focus {
@@ -352,11 +360,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  align-items: center;
+  align-items: flex-end;
+  position: relative;
+  z-index: 5;
 }
 
 .notify-dropdown {
   position: relative;
+  z-index: 20;
 }
 
 .btn-notify-toggle {
@@ -368,6 +379,11 @@
   font-size: 13px;
   cursor: pointer;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.btn-notify-toggle:hover {
+  border-color: var(--primary);
 }
 
 .notify-menu {
@@ -377,10 +393,11 @@
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: var(--shadow);
-  overflow: hidden;
-  z-index: 10;
-  min-width: 150px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  overflow: visible;
+  z-index: 50;
+  min-width: 160px;
+  max-height: none;
 }
 
 .notify-menu-item {
@@ -393,6 +410,7 @@
   font-size: 13px;
   cursor: pointer;
   color: var(--ink);
+  font-family: inherit;
 }
 
 .notify-menu-item:hover {
@@ -402,6 +420,7 @@
 .notify-menu-item.active {
   font-weight: 700;
   color: var(--primary);
+  background: var(--primary-soft);
 }
 
 .expire-picker {
@@ -410,20 +429,32 @@
   gap: 4px;
   font-size: 12px;
   color: var(--ink-soft);
+  font-weight: 600;
 }
 
-.expire-picker input {
+.expire-picker input[type="datetime-local"] {
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--line);
   font-family: inherit;
   font-size: 13px;
+  background: #fff;
+  color: var(--ink);
+  min-width: 180px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.expire-picker input[type="datetime-local"]:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .event-composer-footer {
   padding: 16px 20px;
   border-top: 1px solid var(--line);
   flex-shrink: 0;
+  border-radius: 0 0 16px 16px;
 }
 
 .btn-post-event {
@@ -456,5 +487,22 @@
 
   .event-meta {
     justify-content: flex-start;
+  }
+
+  .composer-extra-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .notify-menu {
+    left: 0;
+    right: 0;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .expire-picker input[type="datetime-local"] {
+    min-width: 0;
+    width: 100%;
   }
 }
