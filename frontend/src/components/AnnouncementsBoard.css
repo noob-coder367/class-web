@@ -268,6 +268,8 @@
   box-shadow: 0 10px 24px rgba(224, 166, 64, 0.45);
 }
 
+/* ========== COMPOSER MODAL ========== */
+
 .ann-composer-overlay {
   position: fixed;
   inset: 0;
@@ -277,7 +279,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 12px;
 }
 
 .ann-composer-modal {
@@ -287,7 +289,7 @@
   border-radius: 16px;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow: hidden;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
 }
 
@@ -314,46 +316,59 @@
   color: #fff;
   font-size: 20px;
   cursor: pointer;
+  line-height: 1;
+  padding: 4px 6px;
 }
 
 .ann-composer-body {
-  padding: 18px;
+  padding: 16px;
   overflow-y: auto;
-  overflow-x: visible;
+  -webkit-overflow-scrolling: touch;
   display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
-  position: relative;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .ann-composer-left {
-  flex: 1 1 260px;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .ann-upload-box {
   border: 2px dashed #cbd5e1;
   border-radius: 12px;
-  min-height: 180px;
+  min-height: 140px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   background: #f8fafc;
   padding: 12px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ann-upload-box:hover,
+.ann-upload-box:active {
+  border-color: #14324a;
+  background: #f1f5f9;
 }
 
 .ann-upload-placeholder {
   text-align: center;
   color: #64748b;
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 .ann-upload-icon {
-  font-size: 32px;
+  font-size: 36px;
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .ann-upload-grid {
@@ -368,52 +383,67 @@
   aspect-ratio: 1;
   border-radius: 8px;
   overflow: hidden;
+  background: #e2e8f0;
 }
 
 .ann-upload-item img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .ann-upload-remove {
   position: absolute;
   top: 4px;
   right: 4px;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border: none;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.65);
   color: #fff;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  z-index: 2;
 }
 
 .ann-btn-add-more {
-  align-self: flex-start;
-  background: transparent;
-  border: 1px solid #14324a;
+  width: 100%;
+  background: #fff;
+  border: 1.5px solid #14324a;
   color: #14324a;
-  padding: 8px 14px;
-  border-radius: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+}
+
+.ann-btn-add-more:hover,
+.ann-btn-add-more:active {
+  background: #f1f5f9;
 }
 
 .ann-composer-right {
-  flex: 1 1 260px;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  flex-shrink: 0;
   position: relative;
   z-index: 2;
 }
 
 .ann-textarea {
-  flex: 1;
-  min-height: 150px;
+  width: 100%;
+  min-height: 120px;
   resize: vertical;
   padding: 12px;
   border-radius: 10px;
@@ -422,19 +452,20 @@
   font-size: 14px;
   background: #fff;
   color: #0f172a;
+  box-sizing: border-box;
 }
 
 .ann-textarea:focus {
   outline: 2px solid #14324a;
   outline-offset: 1px;
+  border-color: #14324a;
 }
 
-/* Hàng extras: section + notify dropdown + expire */
+/* Extras: section + notify + expire */
 .ann-composer-extras {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 12px;
-  align-items: flex-end;
   position: relative;
   z-index: 5;
 }
@@ -443,72 +474,92 @@
 .ann-section-locked {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   font-size: 12px;
   color: #64748b;
   font-weight: 600;
 }
 
 .ann-section-field select {
-  padding: 8px 10px;
-  border-radius: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
   border: 1px solid #e2e8f0;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   background: #fff;
   color: #0f172a;
-  min-width: 140px;
+  box-sizing: border-box;
+  appearance: auto;
 }
 
+/* ---- Notify dropdown (quan trọng) ---- */
 .ann-notify-dropdown {
   position: relative;
-  z-index: 20;
+  z-index: 30;
+  width: 100%;
 }
 
 .ann-btn-notify {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   background: #e0f2fe;
-  border: 1px solid #bae6fd;
+  border: 1.5px solid #7dd3fc;
   color: #0369a1;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 13px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-size: 14px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
   font-family: inherit;
-  white-space: nowrap;
+  text-align: left;
+  box-sizing: border-box;
 }
 
-.ann-btn-notify:hover {
-  border-color: #0369a1;
+.ann-btn-notify:hover,
+.ann-btn-notify:active {
+  border-color: #0284c7;
+  background: #bae6fd;
 }
 
 .ann-notify-menu {
-  position: absolute;
-  top: calc(100% + 6px);
+  position: absolute !important;
+  top: calc(100% + 4px);
   left: 0;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
-  overflow: visible;
-  z-index: 50;
-  min-width: 160px;
+  right: 0;
+  width: 100%;
+  background: #fff !important;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22);
+  z-index: 60 !important;
+  overflow: hidden;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 4px;
+  box-sizing: border-box;
 }
 
 .ann-notify-item {
-  display: block;
-  width: 100%;
+  display: block !important;
+  width: 100% !important;
   text-align: left;
   background: transparent;
   border: none;
-  padding: 10px 14px;
-  font-size: 13px;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 14px;
   cursor: pointer;
   color: #0f172a;
   font-family: inherit;
+  font-weight: 500;
+  box-sizing: border-box;
 }
 
-.ann-notify-item:hover {
+.ann-notify-item:hover,
+.ann-notify-item:active {
   background: #f0f9ff;
 }
 
@@ -521,34 +572,36 @@
 .ann-expire-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   font-size: 12px;
   color: #64748b;
   font-weight: 600;
 }
 
 .ann-expire-field input[type="datetime-local"] {
-  padding: 8px 10px;
-  border-radius: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
   border: 1px solid #e2e8f0;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   background: #fff;
   color: #0f172a;
-  min-width: 180px;
-  max-width: 100%;
   box-sizing: border-box;
+  min-height: 44px;
 }
 
 .ann-expire-field input[type="datetime-local"]:focus {
   outline: 2px solid #14324a;
   outline-offset: 1px;
+  border-color: #14324a;
 }
 
 .ann-composer-footer {
-  padding: 14px 18px 18px;
+  padding: 14px 16px 16px;
   border-top: 1px solid #e2e8f0;
   flex-shrink: 0;
+  background: #fff;
   border-radius: 0 0 16px 16px;
 }
 
@@ -562,6 +615,7 @@
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
+  font-family: inherit;
 }
 
 .ann-btn-post:disabled {
@@ -736,6 +790,52 @@
   color: #64748b;
 }
 
+/* Desktop: 2 cột */
+@media (min-width: 641px) {
+  .ann-composer-body {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .ann-composer-left {
+    flex: 1 1 260px;
+    max-width: 100%;
+  }
+
+  .ann-composer-right {
+    flex: 1 1 260px;
+  }
+
+  .ann-composer-extras {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  .ann-section-field,
+  .ann-notify-dropdown,
+  .ann-expire-field {
+    flex: 1 1 140px;
+  }
+
+  .ann-btn-notify {
+    width: auto;
+    min-width: 140px;
+  }
+
+  .ann-notify-menu {
+    width: auto;
+    min-width: 160px;
+    right: auto;
+  }
+
+  .ann-btn-add-more {
+    width: auto;
+    align-self: flex-start;
+  }
+}
+
 @media (min-width: 900px) {
   .ann-sections:not(.is-focusing) {
     display: grid;
@@ -745,26 +845,26 @@
 }
 
 @media (max-width: 640px) {
-  .ann-composer-body {
-    flex-direction: column;
+  .ann-composer-overlay {
+    padding: 8px;
+    align-items: flex-end;
   }
 
-  .ann-composer-extras {
-    flex-direction: column;
-    align-items: stretch;
+  .ann-composer-modal {
+    max-height: 94vh;
+    border-radius: 16px 16px 0 0;
   }
 
-  .ann-notify-menu {
-    left: 0;
-    right: 0;
-    min-width: 0;
-    width: 100%;
+  .ann-composer-header {
+    border-radius: 16px 16px 0 0;
   }
 
-  .ann-expire-field input[type="datetime-local"],
-  .ann-section-field select {
-    min-width: 0;
-    width: 100%;
+  .ann-upload-box {
+    min-height: 120px;
+  }
+
+  .ann-textarea {
+    min-height: 100px;
   }
 
   .ann-fab {
