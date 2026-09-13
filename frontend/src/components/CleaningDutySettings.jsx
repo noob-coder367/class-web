@@ -4,10 +4,10 @@ import {
   DAY_IDS,
   dayLabel,
   formatDateVN,
+  getActiveWeekEndISO,
+  getActiveWeekStartISO,
   getNextWeekEndISO,
   getNextWeekStartISO,
-  getWeekEndISO,
-  getWeekStartISO,
 } from '../lib/cleaningDuty.js'
 import './CleaningDutySettings.css'
 
@@ -33,8 +33,9 @@ function daysFromSchedule(schedule) {
 }
 
 export default function CleaningDutySettings({ onClose, onSave }) {
-  const thisWeekStart = useMemo(() => getWeekStartISO(new Date()), [])
-  const thisWeekEnd = useMemo(() => getWeekEndISO(new Date()), [])
+  // Chủ nhật: "Tuần này" = T2–T7 tuần kế (đã reset)
+  const thisWeekStart = useMemo(() => getActiveWeekStartISO(new Date()), [])
+  const thisWeekEnd = useMemo(() => getActiveWeekEndISO(new Date()), [])
   const nextWeekStart = useMemo(() => getNextWeekStartISO(new Date()), [])
   const nextWeekEnd = useMemo(() => getNextWeekEndISO(new Date()), [])
 
@@ -116,7 +117,6 @@ export default function CleaningDutySettings({ onClose, onSave }) {
     setSaving(true)
     setError('')
     try {
-      // Lưu cả hai tuần nếu có thay đổi (luôn lưu tuần đang chọn + tuần kia để đồng bộ)
       const payloadThis = {
         week_start: thisWeekStart,
         note: thisNote.trim(),
