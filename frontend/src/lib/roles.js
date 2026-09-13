@@ -8,6 +8,7 @@ export const ROLES = {
   VP_ACADEMIC: 'vp_academic',
   VP_DISCIPLINE: 'vp_discipline',
   VP_EVENTS: 'vp_events',
+  VP_LABOR: 'vp_labor',
   USER: 'user',
 }
 
@@ -16,6 +17,7 @@ export const ROLE_VALUES = [
   ROLES.VP_ACADEMIC,
   ROLES.VP_DISCIPLINE,
   ROLES.VP_EVENTS,
+  ROLES.VP_LABOR,
   ROLES.USER,
 ]
 
@@ -24,6 +26,7 @@ export const ROLE_LABELS = {
   vp_academic: 'Lớp phó học tập',
   vp_discipline: 'Lớp phó kỷ luật',
   vp_events: 'Lớp phó sự kiện',
+  vp_labor: 'Lớp phó Lao động',
   user: 'Thành viên',
 }
 
@@ -32,6 +35,7 @@ export const ASSIGNABLE_ROLES = [
   ROLES.VP_ACADEMIC,
   ROLES.VP_DISCIPLINE,
   ROLES.VP_EVENTS,
+  ROLES.VP_LABOR,
   ROLES.ADMIN,
 ]
 
@@ -56,6 +60,7 @@ const CAPABILITY_ROLES = {
   announcements_important_manage: [ROLES.ADMIN, ROLES.VP_ACADEMIC],
   announcements_discipline_manage: [ROLES.ADMIN, ROLES.VP_DISCIPLINE],
   events: [ROLES.ADMIN, ROLES.VP_EVENTS],
+  cleaningDuty: [ROLES.ADMIN, ROLES.VP_LABOR],
 }
 
 export function isKnownRole(raw) {
@@ -95,6 +100,7 @@ export function roleBadgeClass(role) {
   if (r === ROLES.VP_ACADEMIC) return 'badge-vp-academic'
   if (r === ROLES.VP_DISCIPLINE) return 'badge-vp-discipline'
   if (r === ROLES.VP_EVENTS) return 'badge-vp-events'
+  if (r === ROLES.VP_LABOR) return 'badge-vp-labor'
   return 'badge-user'
 }
 
