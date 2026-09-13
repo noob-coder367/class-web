@@ -2,6 +2,10 @@
  * Tiện ích ngày/tuần + status cho tab "Vệ sinh lớp".
  * Logic tính tuần (T2 → T7) phải khớp với backend
  * (backend/src/services/cleaningDuty.service.js).
+ *
+ * Quy tắc "tuần đang hiệu lực" (Ô 2 + tab Cài đặt):
+ * - Thứ 2 → Thứ 7: tuần chứa hôm nay
+ * - Chủ nhật: tự sang tuần kế tiếp (T2 ngày mai → T7), vì tuần cũ đã hết
  */
 
 export const DAY_IDS = ['t2', 't3', 't4', 't5', 't6', 't7']
@@ -59,7 +63,7 @@ function toISODate(date) {
   return `${yyyy}-${mm}-${dd}`
 }
 
-/** Thứ 2 của tuần chứa `dateLike` (0=CN,1=T2,...6=T7). Chủ nhật lùi về T2 tuần trước. */
+/** Thứ 2 của tuần lịch chứa `dateLike` (0=CN,1=T2,...6=T7). Chủ nhật lùi về T2 tuần trước. */
 export function getWeekStart(dateLike = new Date()) {
   const d = toMidnight(dateLike)
   const day = d.getDay()
@@ -72,23 +76,48 @@ export function getWeekStartISO(dateLike) {
   return toISODate(getWeekStart(dateLike))
 }
 
-/** Thứ 7 (cuối tuần trực) của tuần chứa `dateLike`. */
+/** Thứ 7 (cuối tuần trực) của tuần lịch chứa `dateLike`. */
 export function getWeekEndISO(dateLike = new Date()) {
   const start = getWeekStart(dateLike)
   start.setDate(start.getDate() + 5) // T2 + 5 = T7
   return toISODate(start)
 }
 
-/** Thứ 2 của tuần kế tiếp. */
+/**
+ * Tuần đang hiệu lực để HIỂN THỊ bảng trực / tab "Tuần này".
+ * - T2–T7: cùng getWeekStart(hôm nay)
+ * - Chủ nhật: tuần kế (T2 ngày mai), vì tuần T2–T7 vừa qua đã kết thúc
+ */
+export function getActiveWeekStart(dateLike = new Date()) {
+  const d = toMidnight(typeof dateLike === 'string' ? dateLike : ymdInTimeZone(dateLike))
+  if (d.getDay() === 0) {
+    // Chủ nhật → Thứ 2 tuần sau = ngày mai
+    d.setDate(d.getDate() + 1)
+    return d
+  }
+  return getWeekStart(d)
+}
+
+export function getActiveWeekStartISO(dateLike = new Date()) {
+  return toISODate(getActiveWeekStart(dateLike))
+}
+
+export function getActiveWeekEndISO(dateLike = new Date()) {
+  const start = getActiveWeekStart(dateLike)
+  start.setDate(start.getDate() + 5)
+  return toISODate(start)
+}
+
+/** Thứ 2 của tuần kế tiếp (sau tuần hiệu lực). */
 export function getNextWeekStartISO(dateLike = new Date()) {
-  const start = getWeekStart(dateLike)
+  const start = getActiveWeekStart(dateLike)
   start.setDate(start.getDate() + 7)
   return toISODate(start)
 }
 
-/** Thứ 7 của tuần kế tiếp. */
+/** Thứ 7 của tuần kế tiếp (sau tuần hiệu lực). */
 export function getNextWeekEndISO(dateLike = new Date()) {
-  const start = getWeekStart(dateLike)
+  const start = getActiveWeekStart(dateLike)
   start.setDate(start.getDate() + 12) // T2 tuần sau + 5 = T7 tuần sau
   return toISODate(start)
 }
