@@ -19,6 +19,8 @@ router.get('/tabs/:tab', classroomController.getTab)
 router.get('/timetable', classroomController.getTimetable)
 router.put('/timetable', requireAdmin, classroomController.putTimetable)
 router.delete('/timetable/notice', requireAdmin, classroomController.dismissTimetableNotice)
+// POST fallback — một số proxy/host chặn DELETE
+router.post('/timetable/notice/dismiss', requireAdmin, classroomController.dismissTimetableNotice)
 
 router.get('/announcements', classroomController.listAnnouncements)
 router.get(
