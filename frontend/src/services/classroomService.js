@@ -23,7 +23,6 @@ export async function dismissTimetableNotice() {
   try {
     return await apiClient.post('/classroom/timetable/notice/dismiss', {}, { auth: true })
   } catch (err) {
-    // Fallback DELETE nếu backend cũ chưa có POST
     if (err?.status === 404) {
       return apiClient.delete('/classroom/timetable/notice', { auth: true })
     }
@@ -51,6 +50,27 @@ export async function updateAnnouncementExpiry(id, expires_at) {
     { expires_at },
     { auth: true }
   )
+}
+
+export async function hideAnnouncement(id) {
+  return apiClient.patch(
+    `/classroom/announcements/${encodeURIComponent(id)}/hide`,
+    {},
+    { auth: true }
+  )
+}
+
+export async function unhideAnnouncement(id) {
+  return apiClient.patch(
+    `/classroom/announcements/${encodeURIComponent(id)}/unhide`,
+    {},
+    { auth: true }
+  )
+}
+
+export async function getAnnouncementsArchive(section) {
+  const query = section ? `?section=${encodeURIComponent(section)}` : ''
+  return apiClient.get(`/classroom/announcements/archive${query}`, { auth: true })
 }
 
 export async function getHomework() {
