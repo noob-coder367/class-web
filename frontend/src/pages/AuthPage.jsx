@@ -23,12 +23,13 @@ import { supabase } from '../lib/supabaseClient.js'
 export default function AuthPage({ onClose, initialStep = 'login' }) {
   const { setSession, reloadProfile, logout, setProfile } = useAuth()
 
+  // BẢO TRÌ ĐĂNG KÝ: dù nơi khác trong app truyền initialStep="register"
+  // (ví dụ nút Đăng ký ở Navbar/trang chủ), KHÔNG cho mở thẳng vào bước
+  // đăng ký nữa — luôn rơi về 'login' trong trường hợp đó.
   const [authStep, setAuthStep] = useState(
-    initialStep === 'register'
-      ? 'register'
-      : initialStep === 'display-name'
-        ? 'display-name'
-        : 'login'
+    initialStep === 'display-name'
+      ? 'display-name'
+      : 'login'
   )
   const [authLoading, setAuthLoading] = useState(false)
 
@@ -63,7 +64,17 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
     setOtpCooldown(0)
   }
 
-  const getAuthTitle = () => {
+  useEffect(() => {
+    // BẢO TRÌ ĐĂNG KÝ: lớp chặn runtime — nếu bằng cách nào đó authStep
+    // bị đưa về 'register' (initialStep, code khác, v.v.), tự động huỷ
+    // và quay về màn đăng nhập kèm thông báo.
+    if (authStep === 'register') {
+      alert('Nút đăng ký đang bảo trì')
+      setAuthStep('login')
+    }
+  }, [authStep])
+
+
     switch (authStep) {
       case 'login': return 'Đăng nhập'
       case 'register': return 'Đăng ký'
