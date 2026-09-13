@@ -1,0 +1,135 @@
+.cleaning-settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 20, 30, 0.55);
+}
+
+.cleaning-settings {
+  width: min(680px, 100%);
+  max-height: min(88vh, 780px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+}
+
+.cleaning-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1.5px solid #e2ecf1;
+}
+
+.cleaning-settings-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #14324a;
+}
+
+.cleaning-settings-head button {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.cleaning-settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cleaning-settings-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cleaning-settings-days {
+  display: grid;
+  gap: 14px;
+}
+
+.cleaning-settings-day {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1.5px solid #e2ecf1;
+  border-radius: 12px;
+  background: #f8fbfd;
+}
+
+.cleaning-settings-day label,
+.cleaning-settings-weeknote {
+  display: grid;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #14324a;
+}
+
+.cleaning-settings-day textarea,
+.cleaning-settings-day input,
+.cleaning-settings-weeknote input {
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #111;
+  border: 1.5px solid #cbd8e0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.cleaning-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.cleaning-settings-cancel,
+.cleaning-settings-save {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-weight: 700;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.cleaning-settings-cancel {
+  background: #eef2f6;
+  color: #334155;
+}
+
+.cleaning-settings-save {
+  background: #14324a;
+  color: #fff;
+}
+
+.cleaning-settings-save:disabled,
+.cleaning-settings-cancel:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
