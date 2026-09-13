@@ -13,6 +13,8 @@ self.addEventListener('push', (event) => {
     body: 'Có cập nhật mới.',
     url: '/#/classroom/announcements',
     tag: 'class-web',
+    urgency: 'normal',
+    requireInteraction: false,
   }
   try {
     if (event.data) {
@@ -26,6 +28,8 @@ self.addEventListener('push', (event) => {
       /* ignore */
     }
   }
+
+  const isUrgent = data.urgency === 'high' || data.urgency === 'urgent' || data.requireInteraction
 
   event.waitUntil(
     (async () => {
@@ -48,6 +52,11 @@ self.addEventListener('push', (event) => {
         badge: '/favicon.png',
         tag: data.tag || 'class-web',
         renotify: true,
+        // Khẩn cấp: giữ noti trên màn hình cho đến khi user tương tác (nếu trình duyệt hỗ trợ)
+        requireInteraction: Boolean(isUrgent),
+        // Một số trình duyệt/Android dùng silent=false + vibrate để nổi bật
+        silent: false,
+        vibrate: isUrgent ? [200, 100, 200, 100, 200] : [100, 50, 100],
         data: {
           url: data.url || '/#/classroom/announcements',
           ...(data.data || {}),

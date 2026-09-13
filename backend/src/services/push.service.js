@@ -118,15 +118,19 @@ export async function removeSubscription(userId, endpoint) {
   return { ok: true }
 }
 
-async function sendOne(sub, payload) {
+async function sendOne(sub, payload, urgency = 'normal') {
   try {
+    const options = {
+      TTL: 60 * 60 * 12,
+      urgency: urgency === 'high' || urgency === 'urgent' ? 'high' : 'normal',
+    }
     await webpush.sendNotification(
       {
         endpoint: sub.endpoint,
         keys: sub.keys,
       },
       JSON.stringify(payload),
-      { TTL: 60 * 60 * 12 }
+      options
     )
     return true
   } catch (err) {
@@ -140,8 +144,8 @@ async function sendOne(sub, payload) {
 }
 
 /**
- * payload: { title, body, url, tag?, data? }
- * options: { userIds?: string[] } — nếu có chỉ gửi cho các user đó; không có thì broadcast member subscriptions
+ * payload: { title, body, url, tag?, data?, urgency?, requireInteraction? }
+ * options: { userIds?: string[] } — nếu có chỉ gửi cho các user đó; không có thì broadcast
  */
 export async function sendPushNotification(payload, options = {}) {
   if (!ensureVapid()) return { sent: 0, skipped: true }
@@ -151,12 +155,16 @@ export async function sendPushNotification(payload, options = {}) {
   const url = String(payload?.url || '/#/classroom/announcements')
   const tag = String(payload?.tag || 'class-web')
   const data = payload?.data && typeof payload.data === 'object' ? payload.data : {}
+  const urgency = payload?.urgency === 'high' || payload?.urgency === 'urgent' ? 'high' : 'normal'
+  const requireInteraction = Boolean(payload?.requireInteraction)
 
   const message = {
     title,
     body,
     url,
     tag,
+    urgency,
+    requireInteraction,
     data,
   }
 
@@ -170,7 +178,7 @@ export async function sendPushNotification(payload, options = {}) {
   const gone = []
   let sent = 0
   for (const sub of targets) {
-    const result = await sendOne(sub, message)
+    const result = await sendOne(sub, message, urgency)
     if (result === true) sent += 1
     if (result === 'gone') gone.push(sub.endpoint)
   }

@@ -35,6 +35,14 @@ const NAV_LINKS = [
   { href: '#thong-bao', label: 'Trò chuyện' },
 ]
 
+const CLASSROOM_TABS = new Set([
+  'announcements',
+  'timetable',
+  'homework',
+  'rules',
+  'cleaning-duty',
+])
+
 const PHOTO_PLACEHOLDER_COUNT = 6
 
 export default function HomePage() {
@@ -143,9 +151,6 @@ export default function HomePage() {
     return () => window.removeEventListener('classweb-unread-updated', onUnread)
   }, [authReady, profile?.is_member, refreshUnread])
 
-  // Poll định kỳ để cập nhật badge "Vô Lớp 10A4" gần như thời gian thực.
-  // Chỉ chạy khi KHÔNG đang mở lớp (ClassRoomView có polling riêng của nó)
-  // và chỉ khi tab đang được xem, để tránh tốn request khi tab ẩn/nền.
   useEffect(() => {
     if (!authReady || !profile?.is_member || showClassRoom) return
 
@@ -175,8 +180,7 @@ export default function HomePage() {
       if (hash.startsWith('#/classroom')) {
         const parts = hash.replace(/^#\/?/, '').split('/')
         const tab = parts[1] || 'announcements'
-        const allowed = new Set(['announcements', 'timetable', 'homework', 'rules'])
-        setClassInitialTab(allowed.has(tab) ? tab : 'announcements')
+        setClassInitialTab(CLASSROOM_TABS.has(tab) ? tab : 'announcements')
         if (profile?.is_member) setShowClassRoom(true)
       }
     }
@@ -577,82 +581,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      <section id="thong-bao" className="zone zone--abyss">
-        <Glow count={7} />
-        <Jellyfish style={{ top: '18%', right: '12%', width: 52, opacity: 0.45 }} />
-        <Anglerfish style={{ bottom: '12%', left: '8%', width: 64, opacity: 0.35 }} />
-        <div className="section-inner">
-          <p className="eyebrow">Góc trò chuyện</p>
-          <h2>Thông báo nhanh</h2>
-          <p className="section-desc">
-            Khu vực này dành cho tin ngắn, lời nhắn giữa các bạn trong lớp (không
-            phải thông báo chính thức trong Vô lớp 10A4).
-          </p>
-
-          <form className="announcement-form" onSubmit={handleSubmit}>
-            <input
-              type="text"
-              placeholder="Tiêu đề"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-            <textarea
-              placeholder="Nội dung..."
-              rows={3}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-            />
-            <input
-              type="text"
-              placeholder="Người gửi (tuỳ chọn)"
-              value={sender}
-              onChange={(e) => setSender(e.target.value)}
-            />
-            <button type="submit" disabled={submitting}>
-              {submitting ? 'Đang gửi...' : 'Gửi thông báo'}
-            </button>
-          </form>
-
-          <div className="announcement-list">
-            {announcements.length === 0 ? (
-              <p className="announcement-empty">Chưa có tin nhắn nào.</p>
-            ) : (
-              announcements.map((item) => (
-                <article key={item.id} className="announcement-card">
-                  <div className="announcement-card-header">
-                    <h3>{item.title}</h3>
-                    {profile?.role === 'admin' && (
-                      <button
-                        type="button"
-                        className="btn-delete-announcement"
-                        onClick={() => handleDeleteAnnouncement(item.id)}
-                      >
-                        Xóa
-                      </button>
-                    )}
-                  </div>
-                  <p>{item.content}</p>
-                  <div className="announcement-meta">
-                    <span>{item.sender || 'Ẩn danh'}</span>
-                    <span>
-                      {item.created_at
-                        ? new Date(item.created_at).toLocaleString('vi-VN')
-                        : ''}
-                    </span>
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        </div>
-      </section>
-
-      <footer className="site-footer zone zone--floor">
-        <div className="section-inner">
-          <p>Lớp 10A4 · THPT Nguyễn Hữu Huân · Niên khoá 2026 – 2027</p>
-        </div>
-      </footer>
 
       {showAdminPanel && (
         <AdminPanel onClose={() => setShowAdminPanel(false)} />
