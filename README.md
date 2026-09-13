@@ -88,14 +88,23 @@ class-web-monorepo/
   được canh gác bởi `requireAuth` + `requireAdmin`, chạy bằng service
   role key nên **không phụ thuộc RLS** để đảm bảo an toàn. Chỉ **Admin**
   mới truyền được chức (dropdown): Admin / Lớp phó học tập / Lớp phó kỷ luật
-  / Lớp phó sự kiện / Thành viên. Lớp phó **không** vào được `/api/admin`.
+  / Lớp phó sự kiện / Lớp phó Lao động / Thành viên. Lớp phó **không** vào
+  được `/api/admin`.
 - **Quyền lớp phó (enforce ở backend, không chỉ ẩn nút UI)**:
   - Lớp phó học tập (`vp_academic`) — ghi tab Bài tập về nhà
   - Lớp phó kỷ luật (`vp_discipline`) — ghi tab Nội quy lớp (nội quy + vi phạm)
   - Lớp phó sự kiện (`vp_events`) — ghi EventSection + tab Thông báo chung
+  - Lớp phó Lao động (`vp_labor`) — quản lý lịch trực vệ sinh theo tuần
+    (T2–T7) + cập nhật trạng thái vệ sinh từng ngày (`cleaning_duty_*`)
   - Thời khoá biểu, ảnh website, duyệt thành viên, xóa user: **chỉ Admin**
 - **Sự kiện**: `POST/PATCH/DELETE /api/events` — `requireAuth` + capability
   `events`. Client không còn insert/delete thẳng bảng `events`.
+- **Lịch trực vệ sinh**: `GET /api/classroom/cleaning-duty/schedule|status`
+  (mọi thành viên đọc được), `PUT /api/classroom/cleaning-duty/schedule` +
+  `PATCH /api/classroom/cleaning-duty/status/:date` — `requireAuth` +
+  capability `cleaningDuty` (Admin / LPLĐ). Dữ liệu ở 2 bảng Postgres
+  `cleaning_duty_schedule` (lịch theo tuần T2–T7) và `cleaning_duty_status`
+  (trạng thái từng ngày) — xem `supabase/cleaning-duty-schema.sql`.
 - **Khu vực lớp 10A4**: `GET /api/classroom/access`,
   `GET /api/classroom/tabs/:tab` — `requireAuth` + `requireMember`.
   Nội dung tab (thông báo chung, TKB, bài tập, nội quy) **không** nằm
@@ -181,4 +190,3 @@ npm run dev
 - Nội dung khu vực lớp (thông báo, TKB, bài tập, nội quy) chỉ trả về
   sau khi backend xác thực token + `is_member` (hoặc admin). Ẩn nút trên
   UI không đủ — request thật vẫn bị 403 nếu giả lập F12.
-
