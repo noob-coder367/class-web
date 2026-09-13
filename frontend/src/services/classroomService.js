@@ -120,3 +120,30 @@ export async function getDirectory() {
 export async function getLeaderboard() {
   return apiClient.get('/classroom/leaderboard', { auth: true })
 }
+
+export async function getCleaningSchedule(weekStart) {
+  const query = weekStart ? `?week_start=${encodeURIComponent(weekStart)}` : ''
+  return apiClient.get(`/classroom/cleaning-duty/schedule${query}`, { auth: true })
+}
+
+export async function getCleaningSchedules(limit) {
+  const query = limit ? `?limit=${encodeURIComponent(limit)}` : ''
+  return apiClient.get(`/classroom/cleaning-duty/schedules${query}`, { auth: true })
+}
+
+export async function saveCleaningSchedule(payload) {
+  return apiClient.put('/classroom/cleaning-duty/schedule', payload, { auth: true })
+}
+
+export async function getCleaningStatus(weekStart) {
+  const query = weekStart ? `?week_start=${encodeURIComponent(weekStart)}` : ''
+  return apiClient.get(`/classroom/cleaning-duty/status${query}`, { auth: true })
+}
+
+export async function updateCleaningStatus(date, payload) {
+  return apiClient.patch(
+    `/classroom/cleaning-duty/status/${encodeURIComponent(date)}`,
+    payload,
+    { auth: true }
+  )
+}
