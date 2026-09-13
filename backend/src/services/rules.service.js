@@ -4,6 +4,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
+import { isStatusDrop, statusFor } from '../lib/reputationStatus.js'
+import * as announcementsService from './announcements.service.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_PATH = join(__dirname, '../data/rules.default.json')
@@ -173,9 +175,7 @@ function normalizePhoto(raw) {
 function normalizeViolation(raw, { createId = false, rules } = {}) {
   const src = raw && typeof raw === 'object' ? raw : {}
   const date = DATE_RE.test(asText(src.date)) ? asText(src.date) : ''
-  if (!DATE_RE.test(date)) {
-    throw new AppError('Ngày vi phạm không hợp lệ.', 400)
-  }
+  if (!DATE_RE.test(date)) throw new AppError('Ngày vi phạm không hợp lệ.', 400)
   const name = asText(src.name)
   if (!name) throw new AppError('Cần nhập tên học sinh.', 400)
   const offense = asText(src.offense)
@@ -269,9 +269,7 @@ async function writeJson(path, payload, label) {
     contentType: 'application/json',
     upsert: true,
   })
-  if (error) {
-    throw new AppError(`Không lưu được ${label}: ` + error.message, 502)
-  }
+  if (error) throw new AppError(`Không lưu được ${label}: ` + error.message, 502)
 }
 
 async function decodePhotoPayload(photo) {
@@ -288,9 +286,7 @@ async function decodePhotoPayload(photo) {
     throw new AppError('Ảnh bằng chứng không hợp lệ.')
   }
   if (!bytes.length) throw new AppError('Ảnh bằng chứng trống.')
-  if (bytes.length > MAX_PHOTO_BYTES) {
-    throw new AppError('Mỗi ảnh tối đa 10MB.')
-  }
+  if (bytes.length > MAX_PHOTO_BYTES) throw new AppError('Mỗi ảnh tối đa 10MB.')
   return {
     bytes,
     mime,
@@ -312,9 +308,7 @@ async function uploadViolationPhotos(violationId, photos) {
         contentType: decoded.mime,
         upsert: false,
       })
-      if (error) {
-        throw new AppError('Không tải được ảnh bằng chứng: ' + error.message, 502)
-      }
+      if (error) throw new AppError('Không tải được ảnh bằng chứng: ' + error.message, 502)
       uploaded.push({
         path: filePath,
         name: decoded.filename,
@@ -385,6 +379,7 @@ export async function addViolation(payload) {
   const rules = await getRules()
   const incoming = payload && typeof payload === 'object' ? payload : {}
   const row = normalizeViolation(incoming, { createId: true, rules })
+  const oldScore = memberScore(row, current.items, rules)
   const photoPayloads = Array.isArray(incoming.photos)
     ? incoming.photos.filter((item) => item && item.contentBase64)
     : []
@@ -402,6 +397,8 @@ export async function addViolation(payload) {
     throw err
   }
   violationsCache = current
+  const newScore = memberScore(row, current.items, rules)
+  void announceIfStatusDropped(row, oldScore, newScore)
   return clone(row)
 }
 
@@ -463,9 +460,45 @@ export function buildLeaderboard(members, violations, rules) {
     row.rank = rank
   }
 
-  return {
-    startingPoints: starting,
-    total: rows.length,
-    rows,
+  return { startingPoints: starting, total: rows.length, rows }
+}
+
+function memberScore({ userId, name }, items, rules) {
+  const starting = clampInt(rules?.startingPoints, 1, 200, 100)
+  const map = offensePointsMap(rules)
+  const uid = asText(userId)
+  const display = asText(name)
+  const mine = (Array.isArray(items) ? items : []).filter((row) => {
+    if (uid && row.userId) return row.userId === uid
+    return !row.userId && display && row.name === display
+  })
+  let deducted = 0
+  for (const row of mine) {
+    const pts = Number.isFinite(Number(row.points))
+      ? clampInt(row.points, 0, 100, 5)
+      : (map.get(row.offense) ?? inferPoints(row.offense))
+    deducted += pts
+  }
+  return Math.max(0, starting - deducted)
+}
+
+async function announceIfStatusDropped(member, oldScore, newScore) {
+  const from = statusFor(oldScore)
+  const to = statusFor(newScore)
+  if (!isStatusDrop(from, to)) return
+  try {
+    await announcementsService.createSystemDisciplineAnnouncement({
+      userId: member.userId || null,
+      name: member.name,
+      fromLevel: from.level,
+      toLevel: to.level,
+      fromLabel: from.label,
+      toLabel: to.label,
+      content:
+        `⚠️ ${member.name} đã tụt 1 bậc trạng thái uy tín: ${from.label} → ${to.label}.\n\n`
+        + `Hãy chú ý nội quy lớp để lấy lại điểm uy tín.`,
+    })
+  } catch (err) {
+    console.warn('[rules] không tạo được thông báo kỷ luật:', err?.message || err)
   }
 }
