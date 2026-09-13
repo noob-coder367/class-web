@@ -130,6 +130,14 @@ function buildExamReminderContent({ examDate, subject, examContent }) {
   return text
 }
 
+function buildImportantHomeworkContent({ title, experimentContent, homeworkContent, reportDate }) {
+  const parts = [`📚 ${title || 'Báo bài quan trọng'}`]
+  if (reportDate) parts.push(`Ngày báo bài: ${formatVNDate(reportDate)}`)
+  if (experimentContent) parts.push(`Thí nghiệm:\n${experimentContent}`)
+  if (homeworkContent) parts.push(`Bài tập về nhà:\n${homeworkContent}`)
+  return parts.join('\n\n')
+}
+
 /** Danh sách báo bài, mới nhất trước. Không tự xóa báo bài. */
 export async function listHomework() {
   const data = await loadAll()
@@ -200,6 +208,25 @@ export async function createHomework(payload, profile) {
     } catch (err) {
       console.warn('[homework] không tạo được thông báo kiểm tra:', err.message)
     }
+  } else if (experimentContent || homeworkContent) {
+    // Báo bài thường (không phải exam reminder) → ô "Báo bài quan trọng".
+    try {
+      const ann = await announcementsService.createImportantHomeworkAnnouncement(
+        {
+          content: buildImportantHomeworkContent({
+            title,
+            experimentContent,
+            homeworkContent,
+            reportDate,
+          }),
+          source_homework_id: homeworkId,
+        },
+        profile
+      )
+      examAnnouncementId = ann?.id || null
+    } catch (err) {
+      console.warn('[homework] không tạo được thông báo báo bài:', err.message)
+    }
   }
 
   const item = {
@@ -232,7 +259,7 @@ export async function deleteHomework(id) {
   const found = data.items.find((row) => row.id === targetId)
   if (!found) throw new AppError('Không tìm thấy báo bài.', 404)
 
-  // Xóa luôn thông báo kiểm tra liên quan trên tab Thông báo chung
+  // Xóa luôn thông báo liên quan trên tab Thông báo chung (ô Báo bài quan trọng)
   try {
     if (found.exam_announcement_id) {
       await announcementsService.deleteAnnouncement(found.exam_announcement_id).catch(() => {})
