@@ -590,7 +590,7 @@ export default function HomePage() {
             phải thông báo chính thức trong Vô lớp 10A4).
           </p>
 
-          <form className="announce-form" onSubmit={handleSubmit}>
+          <form className="announcement-form" onSubmit={handleSubmit}>
             <input
               type="text"
               placeholder="Tiêu đề"
@@ -614,18 +614,18 @@ export default function HomePage() {
             </button>
           </form>
 
-          <div className="announce-list">
+          <div className="announcement-list">
             {announcements.length === 0 ? (
-              <p className="announce-empty">Chưa có tin nhắn nào.</p>
+              <p className="announcement-empty">Chưa có tin nhắn nào.</p>
             ) : (
               announcements.map((item) => (
-                <article key={item.id} className="announce-card">
-                  <div className="announce-card-head">
+                <article key={item.id} className="announcement-card">
+                  <div className="announcement-card-header">
                     <h3>{item.title}</h3>
                     {profile?.role === 'admin' && (
                       <button
                         type="button"
-                        className="announce-delete"
+                        className="btn-delete-announcement"
                         onClick={() => handleDeleteAnnouncement(item.id)}
                       >
                         Xóa
