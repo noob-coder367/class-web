@@ -6,6 +6,7 @@
  * vp_academic        — Lớp phó học tập (LPHT): tab Bài tập + ô "Báo bài quan trọng" (đăng/sửa/ẩn, không xóa cứng)
  * vp_discipline      — Lớp phó kỷ luật (LPKL): tab Nội quy + ẩn bài ô "Vi phạm kỷ luật cao"
  * vp_events          — Lớp phó sự kiện (LPSK): EventSection + ô "Thông báo chính" (đăng/ẩn/xóa cứng) + kho lưu trữ
+ * vp_labor           — Lớp phó Lao động (LPLĐ): quản lý lịch trực vệ sinh theo tuần (T2–T7) + cập nhật trạng thái vệ sinh từng ngày
  * user               — thành viên thường
  */
 
@@ -14,6 +15,7 @@ export const ROLES = {
   VP_ACADEMIC: 'vp_academic',
   VP_DISCIPLINE: 'vp_discipline',
   VP_EVENTS: 'vp_events',
+  VP_LABOR: 'vp_labor',
   USER: 'user',
 }
 
@@ -22,6 +24,7 @@ export const ROLE_VALUES = Object.freeze([
   ROLES.VP_ACADEMIC,
   ROLES.VP_DISCIPLINE,
   ROLES.VP_EVENTS,
+  ROLES.VP_LABOR,
   ROLES.USER,
 ])
 
@@ -30,6 +33,7 @@ export const ROLE_LABELS = Object.freeze({
   vp_academic: 'Lớp phó học tập',
   vp_discipline: 'Lớp phó kỷ luật',
   vp_events: 'Lớp phó sự kiện',
+  vp_labor: 'Lớp phó Lao động',
   user: 'Thành viên',
 })
 
@@ -39,6 +43,7 @@ export const ASSIGNABLE_ROLES = Object.freeze([
   ROLES.VP_ACADEMIC,
   ROLES.VP_DISCIPLINE,
   ROLES.VP_EVENTS,
+  ROLES.VP_LABOR,
   ROLES.ADMIN,
 ])
 
@@ -70,6 +75,7 @@ const CAPABILITY_ROLES = Object.freeze({
   announcements_important_manage: [ROLES.ADMIN, ROLES.VP_ACADEMIC],
   announcements_discipline_manage: [ROLES.ADMIN, ROLES.VP_DISCIPLINE],
   events: [ROLES.ADMIN, ROLES.VP_EVENTS],
+  cleaningDuty: [ROLES.ADMIN, ROLES.VP_LABOR],
 })
 
 export const CAPABILITIES = Object.freeze(Object.keys(CAPABILITY_ROLES))
