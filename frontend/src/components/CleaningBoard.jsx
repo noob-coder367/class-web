@@ -5,6 +5,7 @@ import {
   DAY_IDS,
   dayIdFor,
   dayLabel,
+  effectiveStatus,
   formatDateVN,
   getWeekStartISO,
   statusLabel,
@@ -24,8 +25,9 @@ function IconGear() {
 
 function statusDotClass(status) {
   if (status === 'done') return 'cleaning-dot cleaning-dot--done'
-  if (status === 'not_done') return 'cleaning-dot cleaning-dot--not-done'
-  return 'cleaning-dot cleaning-dot--pending'
+  if (status === 'not_clean') return 'cleaning-dot cleaning-dot--not-clean'
+  if (status === 'doing') return 'cleaning-dot cleaning-dot--doing'
+  return 'cleaning-dot cleaning-dot--preparing'
 }
 
 /** Tìm hàng trạng thái của 1 ngày cụ thể trong danh sách trả về từ API tuần. */
@@ -33,11 +35,19 @@ function findStatusRow(weekStatus, dateISO) {
   return (weekStatus?.days || []).find((row) => row.duty_date === dateISO) || null
 }
 
-function DutyStatusCard({ title, dateISO, statusRow, isAdmin, onUpdate, updating }) {
+/** Lấy danh sách người trực từ schedule theo ngày ISO. */
+function getAssigneesForDate(schedule, dateISO) {
   const dayId = dayIdFor(dateISO)
+  if (!dayId || !schedule?.days) return []
+  return schedule.days[dayId]?.assignees || []
+}
+
+function DutyStatusCard({ title, dateISO, statusRow, assignees, isAdmin, onUpdate, updating }) {
+  const dayId = dayIdFor(dateISO)
+  const displayStatus = effectiveStatus(dateISO, statusRow)
 
   return (
-    <div className="cleaning-status-card">
+    <div className={`cleaning-status-card cleaning-status-card--${displayStatus}`}>
       <div className="cleaning-status-card-head">
         <span className="cleaning-status-card-title">{title}</span>
         <span className="cleaning-status-card-date">{formatDateVN(dateISO)}</span>
@@ -47,10 +57,23 @@ function DutyStatusCard({ title, dateISO, statusRow, isAdmin, onUpdate, updating
         <p className="cleaning-status-card-empty">Chủ nhật — không có lịch trực vệ sinh.</p>
       ) : (
         <>
-          <div className="cleaning-status-row">
-            <span className={statusDotClass(statusRow?.status)} aria-hidden="true" />
-            <span className="cleaning-status-text">{statusLabel(statusRow?.status)}</span>
+          {/* Người trực (lấy từ bảng phân công Ô 2) */}
+          <div className="cleaning-status-assignees">
+            {assignees.length > 0 ? (
+              assignees.map((name) => (
+                <span key={name} className="cleaning-assignee-chip">{name}</span>
+              ))
+            ) : (
+              <span className="cleaning-status-no-assignee">Chưa phân công</span>
+            )}
           </div>
+
+          {/* Tình trạng */}
+          <div className="cleaning-status-row">
+            <span className={statusDotClass(displayStatus)} aria-hidden="true" />
+            <span className="cleaning-status-text">{statusLabel(displayStatus)}</span>
+          </div>
+
           {statusRow?.marked_by_name ? (
             <p className="cleaning-status-meta">
               Cập nhật bởi {statusRow.marked_by_name}
@@ -59,29 +82,39 @@ function DutyStatusCard({ title, dateISO, statusRow, isAdmin, onUpdate, updating
           ) : null}
           {statusRow?.note ? <p className="cleaning-status-note">Ghi chú: {statusRow.note}</p> : null}
 
+          {/* Chỉ Admin / LPLĐ được đổi trạng thái, đặc biệt tick "Chưa sạch!" */}
           {isAdmin ? (
             <div className="cleaning-status-actions">
               <button
                 type="button"
+                className="cleaning-status-btn cleaning-status-btn--doing"
+                disabled={updating || displayStatus === 'doing'}
+                onClick={() => onUpdate(dateISO, 'doing')}
+              >
+                Đang làm
+              </button>
+              <button
+                type="button"
                 className="cleaning-status-btn cleaning-status-btn--done"
-                disabled={updating || statusRow?.status === 'done'}
+                disabled={updating || displayStatus === 'done'}
                 onClick={() => onUpdate(dateISO, 'done')}
               >
-                Đã dọn
+                Đã làm
               </button>
               <button
                 type="button"
-                className="cleaning-status-btn cleaning-status-btn--not-done"
-                disabled={updating || statusRow?.status === 'not_done'}
-                onClick={() => onUpdate(dateISO, 'not_done')}
+                className="cleaning-status-btn cleaning-status-btn--not-clean"
+                disabled={updating || displayStatus === 'not_clean'}
+                onClick={() => onUpdate(dateISO, 'not_clean')}
+                title="Đánh dấu lớp chưa đạt yêu cầu vệ sinh"
               >
-                Chưa dọn
+                Chưa sạch!
               </button>
               <button
                 type="button"
-                className="cleaning-status-btn cleaning-status-btn--pending"
-                disabled={updating || statusRow?.status === 'pending' || !statusRow?.status}
-                onClick={() => onUpdate(dateISO, 'pending')}
+                className="cleaning-status-btn cleaning-status-btn--preparing"
+                disabled={updating || displayStatus === 'preparing'}
+                onClick={() => onUpdate(dateISO, 'preparing')}
               >
                 Đặt lại
               </button>
@@ -155,6 +188,8 @@ export default function CleaningBoard({ isAdmin }) {
 
   const todayStatusRow = findStatusRow(todayWeekStatus, todayDate)
   const tomorrowStatusRow = findStatusRow(tomorrowWeekStatus, tomorrowDate)
+  const todayAssignees = getAssigneesForDate(schedule, todayDate)
+  const tomorrowAssignees = getAssigneesForDate(schedule, tomorrowDate)
 
   return (
     <div className="cleaning-board">
@@ -170,6 +205,7 @@ export default function CleaningBoard({ isAdmin }) {
               title="Hôm nay"
               dateISO={todayDate}
               statusRow={todayStatusRow}
+              assignees={todayAssignees}
               isAdmin={isAdmin}
               onUpdate={handleUpdateStatus}
               updating={updatingDate === todayDate}
@@ -178,6 +214,7 @@ export default function CleaningBoard({ isAdmin }) {
               title="Ngày mai"
               dateISO={tomorrowDate}
               statusRow={tomorrowStatusRow}
+              assignees={tomorrowAssignees}
               isAdmin={isAdmin}
               onUpdate={handleUpdateStatus}
               updating={updatingDate === tomorrowDate}

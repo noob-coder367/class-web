@@ -77,6 +77,21 @@
   gap: 8px;
 }
 
+.cleaning-status-card--not_clean {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.cleaning-status-card--done {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.cleaning-status-card--doing {
+  border-color: #bae6fd;
+  background: #f0f9ff;
+}
+
 .cleaning-status-card-head {
   display: flex;
   align-items: baseline;
@@ -102,6 +117,20 @@
   color: #64748b;
 }
 
+/* Người trực trong Ô 1 */
+.cleaning-status-assignees {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 24px;
+}
+
+.cleaning-status-no-assignee {
+  font-size: 12.5px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
 .cleaning-status-row {
   display: flex;
   align-items: center;
@@ -115,15 +144,19 @@
   flex: none;
 }
 
-.cleaning-dot--pending {
+.cleaning-dot--preparing {
   background: #cbd5e1;
+}
+
+.cleaning-dot--doing {
+  background: #0ea5e9;
 }
 
 .cleaning-dot--done {
   background: #22c55e;
 }
 
-.cleaning-dot--not-done {
+.cleaning-dot--not-clean {
   background: #ef4444;
 }
 
@@ -157,15 +190,19 @@
   color: #fff;
 }
 
+.cleaning-status-btn--doing {
+  background: #0ea5e9;
+}
+
 .cleaning-status-btn--done {
   background: #22c55e;
 }
 
-.cleaning-status-btn--not-done {
+.cleaning-status-btn--not-clean {
   background: #ef4444;
 }
 
-.cleaning-status-btn--pending {
+.cleaning-status-btn--preparing {
   background: #94a3b8;
 }
 

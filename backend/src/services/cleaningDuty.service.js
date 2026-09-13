@@ -18,7 +18,16 @@ export const DAY_LABELS = Object.freeze({
   t7: 'Thứ 7',
 })
 
-const STATUS_VALUES = new Set(['pending', 'done', 'not_done'])
+/**
+ * Status lưu DB:
+ * - preparing  → Chuẩn bị làm
+ * - doing      → Đang làm
+ * - done       → Đã làm
+ * - not_clean  → Chưa sạch!
+ *
+ * Giữ tương thích ngược với dữ liệu cũ: pending → preparing, not_done → not_clean.
+ */
+const STATUS_VALUES = new Set(['preparing', 'doing', 'done', 'not_clean', 'pending', 'not_done'])
 
 function asText(value, fallback = '') {
   return String(value ?? fallback).trim()
@@ -60,6 +69,14 @@ export function dateForDay(weekStart, dayId) {
 function isValidISODate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false
   return !Number.isNaN(new Date(value).getTime())
+}
+
+function normalizeStatus(raw) {
+  const s = String(raw || '').trim()
+  if (s === 'pending') return 'preparing'
+  if (s === 'not_done') return 'not_clean'
+  if (STATUS_VALUES.has(s)) return s
+  return 'preparing'
 }
 
 function normalizeDaySlot(raw) {
@@ -176,8 +193,8 @@ export async function saveSchedule(payload, profile) {
     result = data
   }
 
-  // Đảm bảo mỗi ngày trong tuần đều có 1 hàng trạng thái (mặc định 'pending'),
-  // không ghi đè trạng thái đã có sẵn (ví dụ đã được đánh dấu 'done' trước đó).
+  // Đảm bảo mỗi ngày trong tuần đều có 1 hàng trạng thái (mặc định 'preparing'),
+  // không ghi đè trạng thái đã có sẵn.
   await ensureStatusRowsForWeek(weekStart)
 
   return {
@@ -193,6 +210,7 @@ async function ensureStatusRowsForWeek(weekStart) {
     duty_date: toISODate(dateForDay(weekStart, dayId)),
     week_start: toISODate(weekStart),
     day_of_week: dayId,
+    status: 'preparing',
   }))
 
   const { error } = await supabaseAdmin
@@ -200,8 +218,6 @@ async function ensureStatusRowsForWeek(weekStart) {
     .upsert(rows, { onConflict: 'duty_date', ignoreDuplicates: true })
 
   if (error) {
-    // Không chặn luồng lưu lịch trực nếu bước "khởi tạo trạng thái" lỗi —
-    // chỉ log để không ảnh hưởng trải nghiệm của LPLĐ/Admin.
     console.warn('[cleaningDuty] khởi tạo trạng thái ngày thất bại:', error.message)
   }
 }
@@ -233,7 +249,7 @@ export async function getWeekStatus(weekStartRaw) {
       return {
         day_of_week: dayId,
         duty_date: row?.duty_date || toISODate(dateForDay(weekStart, dayId)),
-        status: row?.status || 'pending',
+        status: normalizeStatus(row?.status),
         note: asText(row?.note),
         marked_by_name: row?.marked_by_name || null,
         marked_at: row?.marked_at || null,
@@ -244,15 +260,15 @@ export async function getWeekStatus(weekStartRaw) {
 
 /**
  * Cập nhật trạng thái vệ sinh của 1 ngày cụ thể. Chỉ Admin / LPLĐ.
- * Tự tạo hàng nếu ngày đó chưa từng có (ví dụ trực đột xuất, chưa có lịch tuần).
+ * Tự tạo hàng nếu ngày đó chưa từng có.
  */
 export async function updateDayStatus(dutyDateRaw, payload, profile) {
   if (!isValidISODate(dutyDateRaw)) {
     throw new AppError('Ngày không hợp lệ.')
   }
-  const status = String(payload?.status || '').trim()
-  if (!STATUS_VALUES.has(status)) {
-    throw new AppError('Trạng thái không hợp lệ. Chỉ nhận: pending, done, not_done.')
+  const status = normalizeStatus(payload?.status)
+  if (!['preparing', 'doing', 'done', 'not_clean'].includes(status)) {
+    throw new AppError('Trạng thái không hợp lệ. Chỉ nhận: preparing, doing, done, not_clean.')
   }
 
   const dutyDate = toMidnight(dutyDateRaw)
@@ -281,5 +297,8 @@ export async function updateDayStatus(dutyDateRaw, payload, profile) {
     .maybeSingle()
 
   if (error) throw new AppError('Cập nhật trạng thái vệ sinh thất bại: ' + error.message, 500)
-  return data
+  return {
+    ...data,
+    status: normalizeStatus(data?.status),
+  }
 }

@@ -1,7 +1,7 @@
 /**
- * Tiện ích ngày/tuần cho tab "Vệ sinh lớp".
+ * Tiện ích ngày/tuần + status cho tab "Vệ sinh lớp".
  * Logic tính tuần (T2 → T7) phải khớp với backend
- * (backend/src/services/cleaningDuty.service.js) để tra đúng dữ liệu.
+ * (backend/src/services/cleaningDuty.service.js).
  */
 
 export const DAY_IDS = ['t2', 't3', 't4', 't5', 't6', 't7']
@@ -15,10 +15,21 @@ export const DAY_LABELS = {
   t7: 'Thứ 7',
 }
 
+/** Status hiển thị cho người dùng */
 export const STATUS_LABELS = {
-  pending: 'Chưa cập nhật',
-  done: 'Đã dọn vệ sinh',
-  not_done: 'Chưa dọn vệ sinh',
+  preparing: 'Chuẩn bị làm',
+  doing: 'Đang làm',
+  done: 'Đã làm',
+  not_clean: 'Chưa sạch!',
+}
+
+/** Map status cũ → mới (tương thích dữ liệu đã lưu) */
+function normalizeStatus(raw) {
+  const s = String(raw || '').trim()
+  if (s === 'pending') return 'preparing'
+  if (s === 'not_done') return 'not_clean'
+  if (STATUS_LABELS[s]) return s
+  return 'preparing'
 }
 
 function ymdInTimeZone(date, timeZone = 'Asia/Ho_Chi_Minh') {
@@ -81,5 +92,55 @@ export function dayLabel(dayId) {
 }
 
 export function statusLabel(status) {
-  return STATUS_LABELS[status] || STATUS_LABELS.pending
+  return STATUS_LABELS[normalizeStatus(status)] || STATUS_LABELS.preparing
+}
+
+/**
+ * Tính trạng thái hiệu lực để hiển thị trên Ô 1.
+ *
+ * Quy tắc mặc định theo khung giờ hệ thống (Asia/Ho_Chi_Minh):
+ * - Ngày đã qua (hôm qua trở về trước) → Đã làm
+ * - Trong ngày hôm nay, trước 17:00 → Đang làm
+ * - Từ 17:00 hôm nay trở đi → Đã làm
+ * - Ngày mai / tương lai → Chuẩn bị làm
+ *
+ * Nếu Admin/LPLĐ đã đánh dấu thủ công (có marked_at + status not_clean hoặc done),
+ * ưu tiên status đã lưu (đặc biệt "Chưa sạch!").
+ */
+export function effectiveStatus(dutyDateISO, storedRow) {
+  const stored = normalizeStatus(storedRow?.status)
+  const hasManual = Boolean(storedRow?.marked_at)
+
+  // Ưu tiên override thủ công của LPLĐ/Admin, đặc biệt "Chưa sạch!"
+  if (hasManual && (stored === 'not_clean' || stored === 'done' || stored === 'doing' || stored === 'preparing')) {
+    return stored
+  }
+
+  const today = todayISO()
+  if (!dutyDateISO) return 'preparing'
+
+  if (dutyDateISO < today) {
+    return 'done' // ngày cũ / hôm qua → Đã làm
+  }
+
+  if (dutyDateISO > today) {
+    return 'preparing' // ngày mai / tương lai → Chuẩn bị làm
+  }
+
+  // dutyDateISO === today
+  // Lấy giờ hiện tại theo Asia/Ho_Chi_Minh
+  const nowParts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date())
+  const hour = Number(nowParts.find((p) => p.type === 'hour')?.value || 0)
+  const minute = Number(nowParts.find((p) => p.type === 'minute')?.value || 0)
+  const totalMinutes = hour * 60 + minute
+
+  // Từ 17:00 → Đã làm
+  if (totalMinutes >= 17 * 60) return 'done'
+  // Trong ngày trước 17:00 → Đang làm
+  return 'doing'
 }
