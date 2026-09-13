@@ -112,16 +112,22 @@ export default function HomePage() {
     }
   }, [authReady, profile?.needs_display_name])
 
+  // Push + SW: mọi user đã đăng nhập (kể cả chưa là thành viên A4, Google/email).
+  // Unread badge: chỉ thành viên — giữ nguyên logic cũ.
   useEffect(() => {
-    if (!authReady || !profile?.is_member) return
+    if (!authReady || !session) return
 
-    refreshUnread()
-    const onUnread = () => refreshUnread()
-    window.addEventListener('classweb-unread-updated', onUnread)
+    let onUnread = null
+    if (profile?.is_member) {
+      refreshUnread()
+      onUnread = () => refreshUnread()
+      window.addEventListener('classweb-unread-updated', onUnread)
+    }
 
     registerServiceWorker().catch(() => {})
 
     const perm = getNotificationPermission()
+    let promptTimer = null
     if (
       !hasPromptedPermission() &&
       isPushEnabledPref() &&
@@ -129,19 +135,16 @@ export default function HomePage() {
       perm !== 'denied' &&
       perm !== 'unsupported'
     ) {
-      const t = setTimeout(() => setShowPushPrompt(true), 1200)
-      return () => {
-        clearTimeout(t)
-        window.removeEventListener('classweb-unread-updated', onUnread)
-      }
-    }
-
-    if (perm === 'granted' && isPushEnabledPref()) {
+      promptTimer = setTimeout(() => setShowPushPrompt(true), 1200)
+    } else if (perm === 'granted' && isPushEnabledPref()) {
       requestPermissionAndSubscribe().catch(() => {})
     }
 
-    return () => window.removeEventListener('classweb-unread-updated', onUnread)
-  }, [authReady, profile?.is_member, refreshUnread])
+    return () => {
+      if (promptTimer) clearTimeout(promptTimer)
+      if (onUnread) window.removeEventListener('classweb-unread-updated', onUnread)
+    }
+  }, [authReady, session, profile?.is_member, refreshUnread])
 
   useEffect(() => {
     if (!authReady || !profile?.is_member || showClassRoom) return
@@ -578,13 +581,13 @@ export default function HomePage() {
       <section id="thong-bao" className="zone zone--abyss">
         <Glow count={7} />
         <Jellyfish style={{ top: '18%', right: '12%', width: 52, opacity: 0.45 }} />
-        <Anglerfish style={{ bottom: '12%', left: '8%', width: 64, opacity: 0.35 }} />
+        <Anglerfish style={{ bottom: '12%', left: '8%', width: 64, opacity: 0.5 }} />
         <div className="section-inner">
-          <p className="eyebrow">Góc trò chuyện</p>
-          <h2>Thông báo nhanh</h2>
+          <p className="eyebrow">Cộng đồng</p>
+          <h2>Trò chuyện lớp</h2>
           <p className="section-desc">
-            Khu vực này dành cho tin ngắn, lời nhắn giữa các bạn trong lớp (không
-            phải thông báo chính thức trong Vô lớp 10A4).
+            Gửi lời chào, thông báo nhanh hoặc chia sẻ khoảnh khắc — mọi người
+            trong lớp đều có thể xem.
           </p>
 
           <form className="announcement-form" onSubmit={handleSubmit}>
