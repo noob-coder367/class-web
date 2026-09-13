@@ -2,11 +2,12 @@
 -- Bắt buộc để khóa việc tự phong Admin / lớp phó từ trình duyệt (anon key).
 -- Backend dùng service_role key nên vẫn đổi được role qua /api/admin/users/:id/role.
 
--- 1) Cho phép 3 vai trò lớp phó trên cột profiles.role
+-- 1) Cho phép 4 vai trò lớp phó trên cột profiles.role
+--    (đã bổ sung 'vp_labor' — Lớp phó Lao động — không đổi các giá trị cũ)
 ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
 ALTER TABLE public.profiles
   ADD CONSTRAINT profiles_role_check
-  CHECK (role IN ('admin', 'user', 'vp_academic', 'vp_discipline', 'vp_events'));
+  CHECK (role IN ('admin', 'user', 'vp_academic', 'vp_discipline', 'vp_events', 'vp_labor'));
 
 -- 2) Trigger: user thường KHÔNG được tự sửa role / is_member / id.
 --    service_role (backend) đi qua bình thường.
