@@ -85,10 +85,22 @@ export async function listAnnouncements(req, res, next) {
   }
 }
 
+export async function listAnnouncementsArchive(req, res, next) {
+  try {
+    noStore(res)
+    const items = await announcementsService.listArchive(req.query?.section)
+    res.json({ items })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export async function createAnnouncement(req, res, next) {
   try {
     noStore(res)
-    const item = await announcementsService.createAnnouncement(req.body || {}, req.profile)
+    const body = { ...(req.body || {}) }
+    if (req.announcementSection) body.section = req.announcementSection
+    const item = await announcementsService.createAnnouncement(body, req.profile)
     res.status(201).json({ message: 'Đã đăng thông báo.', item })
   } catch (err) {
     next(err)
@@ -100,6 +112,26 @@ export async function deleteAnnouncement(req, res, next) {
     noStore(res)
     const result = await announcementsService.deleteAnnouncement(req.params.id)
     res.json({ message: 'Đã xoá thông báo.', ...result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function hideAnnouncement(req, res, next) {
+  try {
+    noStore(res)
+    const item = await announcementsService.hideAnnouncement(req.params.id, req.profile)
+    res.json({ message: 'Đã ẩn thông báo.', item })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function unhideAnnouncement(req, res, next) {
+  try {
+    noStore(res)
+    const item = await announcementsService.unhideAnnouncement(req.params.id)
+    res.json({ message: 'Đã bỏ ẩn thông báo.', item })
   } catch (err) {
     next(err)
   }
