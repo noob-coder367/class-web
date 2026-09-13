@@ -11,6 +11,14 @@ import { supabase } from '../lib/supabaseClient.js'
  *    trực tiếp -> tất cả đi qua authService (gọi backend).
  *  - Đăng nhập Google vẫn dùng supabase trực tiếp vì OAuth không
  *    chứa thông tin nhạy cảm cần giấu.
+ *
+ * GHI CHÚ SỬA ĐỔI (bảo trì đăng ký):
+ *  - Nút "Chưa có tài khoản? Đăng ký ngay" ở màn Đăng nhập: không còn
+ *    chuyển sang bước 'register' nữa, chỉ hiện thông báo bảo trì.
+ *  - Nút submit "Đăng ký" trong form Đăng ký: bị vô hiệu hoá, không gọi
+ *    authService.register nữa, chỉ hiện thông báo bảo trì.
+ *  - Toàn bộ code/form đăng ký vẫn được GIỮ NGUYÊN, không xoá, để dễ
+ *    bật lại khi cần (chỉ cần gỡ 2 đoạn chặn bên dưới).
  */
 export default function AuthPage({ onClose, initialStep = 'login' }) {
   const { setSession, reloadProfile, logout, setProfile } = useAuth()
@@ -136,6 +144,11 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault()
+
+    // --- BẢO TRÌ ĐĂNG KÝ: chặn ngay, không gọi authService.register nữa ---
+    alert('Nút đăng ký đang bảo trì')
+    return
+    // --- Hết đoạn chặn. Code gốc bên dưới được giữ nguyên, chưa xoá ---
 
     if (!username.trim()) return alert('Vui lòng nhập username!')
     if (!email.trim()) return alert('Vui lòng nhập email!')
@@ -443,9 +456,9 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
                     type="button"
                     className="btn-toggle-mode"
                     onClick={() => {
+                      // --- BẢO TRÌ ĐĂNG KÝ: không chuyển step nữa, chỉ báo bảo trì ---
                       if (authLoading) return
-                      resetAuthForm()
-                      setAuthStep('register')
+                      alert('Nút đăng ký đang bảo trì')
                     }}
                   >
                     Chưa có tài khoản? Đăng ký ngay
