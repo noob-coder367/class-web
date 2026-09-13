@@ -211,6 +211,43 @@
   cursor: pointer;
 }
 
+.ann-expire-edit {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ann-expire-edit input[type="datetime-local"] {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font: inherit;
+  font-size: 12px;
+  background: #fff;
+}
+
+.ann-btn-save-expiry,
+.ann-btn-cancel-expiry {
+  border: none;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ann-btn-save-expiry {
+  background: #14324a;
+  color: #fff;
+}
+
+.ann-btn-cancel-expiry {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
 .ann-fab {
   position: fixed;
   right: 22px;
@@ -250,7 +287,7 @@
   border-radius: 16px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
 }
 
@@ -261,6 +298,8 @@
   padding: 16px 18px;
   background: #14324a;
   color: #fff;
+  border-radius: 16px 16px 0 0;
+  flex-shrink: 0;
 }
 
 .ann-composer-header h2 {
@@ -280,9 +319,11 @@
 .ann-composer-body {
   padding: 18px;
   overflow-y: auto;
+  overflow-x: visible;
   display: flex;
   flex-wrap: wrap;
   gap: 18px;
+  position: relative;
 }
 
 .ann-composer-left {
@@ -307,6 +348,12 @@
 .ann-upload-placeholder {
   text-align: center;
   color: #64748b;
+}
+
+.ann-upload-icon {
+  font-size: 32px;
+  display: block;
+  margin-bottom: 6px;
 }
 
 .ann-upload-grid {
@@ -343,11 +390,25 @@
   cursor: pointer;
 }
 
+.ann-btn-add-more {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid #14324a;
+  color: #14324a;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .ann-composer-right {
   flex: 1 1 260px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  position: relative;
+  z-index: 2;
 }
 
 .ann-textarea {
@@ -359,11 +420,136 @@
   border: 1px solid #e2e8f0;
   font: inherit;
   font-size: 14px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.ann-textarea:focus {
+  outline: 2px solid #14324a;
+  outline-offset: 1px;
+}
+
+/* Hàng extras: section + notify dropdown + expire */
+.ann-composer-extras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  position: relative;
+  z-index: 5;
+}
+
+.ann-section-field,
+.ann-section-locked {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.ann-section-field select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font: inherit;
+  font-size: 13px;
+  background: #fff;
+  color: #0f172a;
+  min-width: 140px;
+}
+
+.ann-notify-dropdown {
+  position: relative;
+  z-index: 20;
+}
+
+.ann-btn-notify {
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 600;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.ann-btn-notify:hover {
+  border-color: #0369a1;
+}
+
+.ann-notify-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  overflow: visible;
+  z-index: 50;
+  min-width: 160px;
+}
+
+.ann-notify-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 10px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #0f172a;
+  font-family: inherit;
+}
+
+.ann-notify-item:hover {
+  background: #f0f9ff;
+}
+
+.ann-notify-item.is-active {
+  font-weight: 700;
+  color: #0369a1;
+  background: #e0f2fe;
+}
+
+.ann-expire-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.ann-expire-field input[type="datetime-local"] {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font: inherit;
+  font-size: 13px;
+  background: #fff;
+  color: #0f172a;
+  min-width: 180px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.ann-expire-field input[type="datetime-local"]:focus {
+  outline: 2px solid #14324a;
+  outline-offset: 1px;
 }
 
 .ann-composer-footer {
   padding: 14px 18px 18px;
   border-top: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  border-radius: 0 0 16px 16px;
 }
 
 .ann-btn-post {
@@ -376,6 +562,11 @@
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.ann-btn-post:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .ann-btn-archive,
@@ -401,6 +592,12 @@
   background: #14324a;
   color: #fff;
   padding: 6px 12px;
+}
+
+.ann-toolbar {
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .ann-sections {
@@ -520,25 +717,6 @@
   font-style: italic;
 }
 
-.ann-section-field,
-.ann-section-locked {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: #64748b;
-  font-weight: 600;
-}
-
-.ann-section-field select {
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  font: inherit;
-  font-size: 13px;
-  background: #fff;
-}
-
 .ann-archive-modal {
   width: min(720px, 100%);
 }
@@ -570,6 +748,25 @@
   .ann-composer-body {
     flex-direction: column;
   }
+
+  .ann-composer-extras {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ann-notify-menu {
+    left: 0;
+    right: 0;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .ann-expire-field input[type="datetime-local"],
+  .ann-section-field select {
+    min-width: 0;
+    width: 100%;
+  }
+
   .ann-fab {
     right: 14px;
     bottom: 14px;
