@@ -1,0 +1,273 @@
+.cleaning-board {
+  width: min(820px, 100%);
+  max-width: 100%;
+  margin: 0 auto;
+  padding-bottom: 28px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.cleaning-board-error {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cleaning-board-loading {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  padding: 8px 2px;
+}
+
+.cleaning-card {
+  background: #fff;
+  border: 1.5px solid #e2ecf1;
+  border-radius: 16px;
+  padding: 16px 16px 18px;
+  box-shadow: 0 2px 10px rgba(20, 50, 74, 0.05);
+}
+
+.cleaning-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cleaning-card-title {
+  margin: 0 0 14px;
+  font-size: 17px;
+  font-weight: 800;
+  color: #14324a;
+}
+
+.cleaning-card-head .cleaning-card-title {
+  margin-bottom: 0;
+}
+
+.cleaning-card-week {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 14px;
+}
+
+/* Ô 1: Tình trạng vệ sinh — Hôm nay / Ngày mai */
+.cleaning-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.cleaning-status-card {
+  border: 1.5px solid #e2ecf1;
+  border-radius: 14px;
+  padding: 14px;
+  background: #f8fbfd;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cleaning-status-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cleaning-status-card-title {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #14324a;
+}
+
+.cleaning-status-card-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.cleaning-status-card-empty {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.cleaning-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cleaning-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.cleaning-dot--pending {
+  background: #cbd5e1;
+}
+
+.cleaning-dot--done {
+  background: #22c55e;
+}
+
+.cleaning-dot--not-done {
+  background: #ef4444;
+}
+
+.cleaning-status-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: #14324a;
+}
+
+.cleaning-status-meta,
+.cleaning-status-note {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.cleaning-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.cleaning-status-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+}
+
+.cleaning-status-btn--done {
+  background: #22c55e;
+}
+
+.cleaning-status-btn--not-done {
+  background: #ef4444;
+}
+
+.cleaning-status-btn--pending {
+  background: #94a3b8;
+}
+
+.cleaning-status-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Ô 2: Bảng phân công trực */
+.cleaning-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cleaning-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.cleaning-table th,
+.cleaning-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2ecf1;
+  vertical-align: top;
+}
+
+.cleaning-table th {
+  color: #64748b;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cleaning-table-day {
+  font-weight: 800;
+  color: #14324a;
+  white-space: nowrap;
+}
+
+.cleaning-row--today {
+  background: #eef9f1;
+}
+
+.cleaning-assignees {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cleaning-assignee-chip {
+  background: #e0f2fe;
+  color: #0c4a6e;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cleaning-table-empty {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.cleaning-table-note {
+  color: #475569;
+}
+
+.cleaning-week-note {
+  margin: 12px 2px 0;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.cleaning-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: #14324a;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(20, 50, 74, 0.35);
+  cursor: pointer;
+  z-index: 20;
+}
+
+.cleaning-fab svg {
+  width: 22px;
+  height: 22px;
+}
+
+@media (max-width: 560px) {
+  .cleaning-status-grid {
+    grid-template-columns: 1fr;
+  }
+}
