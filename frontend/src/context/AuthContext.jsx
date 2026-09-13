@@ -200,7 +200,10 @@ export function AuthProvider({ children }) {
     canManageEvents: hasCapability(profile?.role, 'events'),
     canManageHomework: hasCapability(profile?.role, 'homework'),
     canManageRules: hasCapability(profile?.role, 'rules'),
-    canManageAnnouncements: hasCapability(profile?.role, 'announcements'),
+    canManageAnnouncements:
+      hasCapability(profile?.role, 'announcements_main_manage')
+      || hasCapability(profile?.role, 'announcements_important_manage')
+      || hasCapability(profile?.role, 'announcements_discipline_manage'),
     reloadProfile: loadProfile,
     setSession,
     setProfile,

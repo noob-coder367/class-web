@@ -1,5 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
+import { useAuth } from '../context/AuthContext.jsx'
+import {
+  getSeenPostIds,
+  isPostSeen,
+  markPostSeen,
+} from '../lib/unreadStore.js'
+import {
+  canEdit,
+  canHardDelete,
+  canHide,
+  canManageArchive,
+  canPostToSection,
+  postableSections,
+  SECTION_LABELS,
+} from '../lib/roles.js'
 import './AnnouncementsBoard.css'
 
 const NOTIFY_OPTIONS = ['normal', 'hot', 'urgent']
@@ -9,6 +24,24 @@ const NOTIFY_LABELS = {
   hot: '🔥 Hot',
   urgent: '🚨 Khẩn cấp',
 }
+
+const SECTION_META = [
+  {
+    id: 'main',
+    title: 'Thông báo chính',
+    hint: 'Thông tin chung của lớp',
+  },
+  {
+    id: 'important',
+    title: 'Báo bài quan trọng',
+    hint: 'Kiểm tra & báo bài từ LPHT',
+  },
+  {
+    id: 'discipline',
+    title: 'Vi phạm kỷ luật cao',
+    hint: 'Hệ thống tự đăng khi tụt bậc uy tín',
+  },
+]
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -27,17 +60,178 @@ function imageGridStyle(count) {
   return { gridTemplateColumns: 'repeat(3, 1fr)' }
 }
 
+function excerpt(text, max = 160) {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim()
+  if (clean.length <= max) return clean
+  return `${clean.slice(0, max).trim()}…`
+}
+
+function PostCard({
+  post,
+  compact = false,
+  role,
+  onOpen,
+  onHide,
+  onDelete,
+  onStartEditExpiry,
+  editingExpiryId,
+  editExpiresAt,
+  setEditExpiresAt,
+  onSaveExpiry,
+  onCancelExpiry,
+}) {
+  const canHideThis = canHide(role, post.section)
+  const canDeleteThis = canHardDelete(role, post.section)
+  const canEditThis = canEdit(role, post.section)
+  const showActions = !compact && (canHideThis || canDeleteThis || canEditThis)
+
+  return (
+    <article
+      className={`ann-card ann-card--${post.notify_type || 'normal'} ann-card--${post.section || 'main'}${compact ? ' ann-card--preview' : ''}`}
+      onClick={compact && onOpen ? () => onOpen(post) : undefined}
+      role={compact ? 'button' : undefined}
+      tabIndex={compact ? 0 : undefined}
+      onKeyDown={
+        compact && onOpen
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onOpen(post)
+              }
+            }
+          : undefined
+      }
+    >
+      <div className="ann-body">
+        {post.images?.length > 0 ? (
+          <div className="ann-images" style={imageGridStyle(compact ? 1 : post.images.length)}>
+            {(compact ? post.images.slice(0, 1) : post.images).map((url, i) => (
+              <a
+                key={i}
+                className="ann-image"
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <img src={url} alt={`Ảnh ${i + 1}`} loading="lazy" />
+              </a>
+            ))}
+          </div>
+        ) : null}
+
+        {post.content ? (
+          <div className="ann-content-wrap">
+            <p className="ann-content">
+              {compact ? excerpt(post.content) : post.content}
+            </p>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="ann-meta">
+        <span className={`ann-badge ann-badge--${post.notify_type || 'normal'}`}>
+          {NOTIFY_LABELS[post.notify_type] || 'Thông thường'}
+        </span>
+        <span className="ann-meta-info">
+          {post.created_by_name || 'Admin'} ·{' '}
+          {new Date(post.created_at).toLocaleString('vi-VN')}
+        </span>
+
+        {post.expires_at && editingExpiryId !== post.id ? (
+          <span className="ann-meta-info">
+            Tự xóa: {new Date(post.expires_at).toLocaleString('vi-VN')}
+          </span>
+        ) : null}
+
+        {compact ? (
+          <span className="ann-meta-hint">Nhấn để xem · sẽ chuyển vào kho chi tiết sau khi xem</span>
+        ) : null}
+
+        {showActions && canEditThis && editingExpiryId === post.id ? (
+          <span className="ann-expire-edit" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="datetime-local"
+              value={editExpiresAt}
+              onChange={(e) => setEditExpiresAt(e.target.value)}
+            />
+            <button type="button" className="ann-btn-save-expiry" onClick={() => onSaveExpiry(post.id)}>
+              Lưu
+            </button>
+            <button type="button" className="ann-btn-cancel-expiry" onClick={onCancelExpiry}>
+              Hủy
+            </button>
+          </span>
+        ) : showActions && canEditThis ? (
+          <button
+            type="button"
+            className="ann-btn-expiry"
+            onClick={(e) => {
+              e.stopPropagation()
+              onStartEditExpiry(post)
+            }}
+            title="Đổi thời gian tự xóa"
+          >
+            Đổi giờ tự xóa
+          </button>
+        ) : null}
+
+        {showActions && canHideThis ? (
+          <button
+            type="button"
+            className="ann-btn-hide"
+            onClick={(e) => {
+              e.stopPropagation()
+              onHide(post)
+            }}
+          >
+            Ẩn
+          </button>
+        ) : null}
+
+        {showActions && canDeleteThis ? (
+          <button
+            type="button"
+            className="ann-btn-delete"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(post)
+            }}
+          >
+            Xóa vĩnh viễn
+          </button>
+        ) : null}
+      </div>
+    </article>
+  )
+}
+
 export default function AnnouncementsBoard({
-  isAdmin,
+  role: roleProp,
+  caps,
   canDismissTkb,
   tkbNotice,
   onDismissTkbNotice,
   dismissingTkb,
   onOpenTimetable,
 }) {
+  const { profile } = useAuth()
+  const role = roleProp || profile?.role || 'user'
+  const userId = profile?.id || 'anon'
+
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // Recalc preview on every mount (đổi tab đi-về). seenTick forces re-read localStorage.
+  const [seenTick, setSeenTick] = useState(0)
+  const [openedPreviewId, setOpenedPreviewId] = useState(null)
+
+  // expandedSection: ẩn 2 ô còn lại, hiện toàn bộ bài của ô đang mở.
+  const [expandedSection, setExpandedSection] = useState(null)
+  const [showArchive, setShowArchive] = useState(false)
+  const [archiveItems, setArchiveItems] = useState([])
+  const [archiveLoading, setArchiveLoading] = useState(false)
+  const [archiveError, setArchiveError] = useState('')
 
   const [showComposer, setShowComposer] = useState(false)
   const [posting, setPosting] = useState(false)
@@ -47,11 +241,20 @@ export default function AnnouncementsBoard({
   const [notifyType, setNotifyType] = useState('normal')
   const [showNotifyMenu, setShowNotifyMenu] = useState(false)
   const [expiresAt, setExpiresAt] = useState('')
-
+  const allowedSections = useMemo(() => postableSections(role), [role])
+  const [composerSection, setComposerSection] = useState(allowedSections[0] || 'main')
   const [editingExpiryId, setEditingExpiryId] = useState(null)
   const [editExpiresAt, setEditExpiresAt] = useState('')
 
   const fileInputRef = useRef(null)
+  const canArchive = canManageArchive(role) || !!caps?.announcements_main_manage
+  const canPost = allowedSections.length > 0
+
+  useEffect(() => {
+    if (!allowedSections.includes(composerSection)) {
+      setComposerSection(allowedSections[0] || 'main')
+    }
+  }, [allowedSections, composerSection])
 
   const fetchPosts = useCallback(async () => {
     try {
@@ -70,6 +273,41 @@ export default function AnnouncementsBoard({
     const interval = setInterval(fetchPosts, 60000)
     return () => clearInterval(interval)
   }, [fetchPosts])
+
+  const bySection = useMemo(() => {
+    const map = { main: [], important: [], discipline: [] }
+    for (const post of posts) {
+      const key = post.section === 'important' || post.section === 'discipline' ? post.section : 'main'
+      map[key].push(post)
+    }
+    return map
+  }, [posts])
+
+  const unseenBySection = useMemo(() => {
+    const seen = getSeenPostIds(userId)
+    const map = { main: [], important: [], discipline: [] }
+    for (const key of Object.keys(map)) {
+      map[key] = bySection[key].filter((p) => p.id && !seen.has(String(p.id)))
+    }
+    void seenTick
+    return map
+  }, [bySection, userId, seenTick])
+
+  const handleOpenPreview = (post) => {
+    markPostSeen(post.id, userId)
+    setOpenedPreviewId(post.id)
+  }
+
+  const handleOpenInList = (post) => {
+    if (!isPostSeen(post.id, userId)) {
+      markPostSeen(post.id, userId)
+      setSeenTick((n) => n + 1)
+    }
+  }
+
+  const toggleSection = (id) => {
+    setExpandedSection((current) => (current === id ? null : id))
+  }
 
   const handleFilesChange = (e) => {
     const files = Array.from(e.target.files || []).filter((f) =>
@@ -98,11 +336,12 @@ export default function AnnouncementsBoard({
     setNotifyType('normal')
     setShowNotifyMenu(false)
     setExpiresAt('')
+    setComposerSection(allowedSections[0] || 'main')
     setShowComposer(false)
   }
 
   const handlePost = async () => {
-    if (!isAdmin) return
+    if (!canPostToSection(role, composerSection)) return
     const clean = content.trim()
     if (!clean && selectedFiles.length === 0) {
       return alert('Vui lòng nhập nội dung hoặc chọn ít nhất 1 ảnh!')
@@ -125,6 +364,7 @@ export default function AnnouncementsBoard({
       await classroomService.createAnnouncement({
         content: clean,
         notify_type: notifyType,
+        section: composerSection,
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
         images,
       })
@@ -139,19 +379,30 @@ export default function AnnouncementsBoard({
     }
   }
 
-  const handleDelete = async (id) => {
-    if (!isAdmin) return
-    if (!window.confirm('Bạn có chắc chắn muốn xóa thông báo này?')) return
+  const handleDelete = async (post) => {
+    if (!canHardDelete(role, post.section)) return
+    if (!window.confirm('Xóa vĩnh viễn thông báo này? Ảnh đính kèm cũng sẽ bị xóa.')) return
     try {
-      await classroomService.deleteAnnouncement(id)
-      setPosts((prev) => prev.filter((p) => p.id !== id))
+      await classroomService.deleteAnnouncement(post.id)
+      setPosts((prev) => prev.filter((p) => p.id !== post.id))
     } catch (err) {
       alert(err.message || 'Xóa thất bại.')
     }
   }
 
+  const handleHide = async (post) => {
+    if (!canHide(role, post.section)) return
+    if (!window.confirm('Ẩn thông báo này? Mọi thành viên sẽ không còn thấy bài.')) return
+    try {
+      await classroomService.hideAnnouncement(post.id)
+      setPosts((prev) => prev.filter((p) => p.id !== post.id))
+    } catch (err) {
+      alert(err.message || 'Ẩn thất bại.')
+    }
+  }
+
   const startEditExpiry = (post) => {
-    if (!isAdmin) return
+    if (!canEdit(role, post.section)) return
     setEditingExpiryId(post.id)
     setEditExpiresAt(
       post.expires_at ? new Date(post.expires_at).toISOString().slice(0, 16) : ''
@@ -164,7 +415,6 @@ export default function AnnouncementsBoard({
   }
 
   const handleUpdateExpiry = async (id) => {
-    if (!isAdmin) return
     if (editExpiresAt && new Date(editExpiresAt) <= new Date()) {
       return alert('Thời gian tự xóa phải lớn hơn thời gian hiện tại!')
     }
@@ -182,8 +432,50 @@ export default function AnnouncementsBoard({
     }
   }
 
-  const hasAny =
-    (tkbNotice && tkbNotice.active) || posts.length > 0
+  const loadArchive = useCallback(async () => {
+    if (!canArchive) return
+    setArchiveLoading(true)
+    setArchiveError('')
+    try {
+      const data = await classroomService.getAnnouncementsArchive()
+      setArchiveItems(Array.isArray(data?.items) ? data.items : [])
+    } catch (err) {
+      setArchiveError(err.message || 'Không tải được kho lưu trữ.')
+    } finally {
+      setArchiveLoading(false)
+    }
+  }, [canArchive])
+
+  const openArchive = async () => {
+    setShowArchive(true)
+    await loadArchive()
+  }
+
+  const handleUnhide = async (post) => {
+    if (!canArchive) return
+    try {
+      await classroomService.unhideAnnouncement(post.id)
+      setArchiveItems((prev) => prev.filter((p) => p.id !== post.id))
+      await fetchPosts()
+    } catch (err) {
+      alert(err.message || 'Bỏ ẩn thất bại.')
+    }
+  }
+
+  const cardProps = {
+    role,
+    onHide: handleHide,
+    onDelete: handleDelete,
+    onStartEditExpiry: startEditExpiry,
+    editingExpiryId,
+    editExpiresAt,
+    setEditExpiresAt,
+    onSaveExpiry: handleUpdateExpiry,
+    onCancelExpiry: cancelEditExpiry,
+  }
+
+  const focusing = Boolean(expandedSection)
+  const hasTkb = Boolean(tkbNotice && tkbNotice.active)
 
   return (
     <div className="ann-board">
@@ -196,12 +488,17 @@ export default function AnnouncementsBoard({
         <div className="ann-state ann-state--error">
           <p>{error}</p>
         </div>
-      ) : !hasAny ? (
-        <p className="ann-empty">Chưa có thông báo nào.</p>
       ) : (
-        <div className="ann-list">
-          {/* Thông báo thay đổi TKB (nếu còn) */}
-          {tkbNotice?.active ? (
+        <>
+          {canArchive ? (
+            <div className="ann-toolbar">
+              <button type="button" className="ann-btn-archive" onClick={openArchive}>
+                Kho lưu trữ
+              </button>
+            </div>
+          ) : null}
+
+          {hasTkb ? (
             <article
               className={`ann-card ann-card--tkb${tkbNotice.hasChanges ? ' ann-card--changed' : ''}`}
             >
@@ -238,87 +535,83 @@ export default function AnnouncementsBoard({
             </article>
           ) : null}
 
-          {posts.map((post) => (
-            <article
-              key={post.id}
-              className={`ann-card ann-card--${post.notify_type || 'normal'}`}
-            >
-              <div className="ann-body">
-                {post.images?.length > 0 ? (
-                  <div className="ann-images" style={imageGridStyle(post.images.length)}>
-                    {post.images.map((url, i) => (
-                      <a
-                        key={i}
-                        className="ann-image"
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <img src={url} alt={`Ảnh ${i + 1}`} loading="lazy" />
-                      </a>
-                    ))}
-                  </div>
-                ) : null}
+          <div className={`ann-sections${focusing ? ' is-focusing' : ''}`}>
+            {SECTION_META.map((section) => {
+              if (focusing && expandedSection !== section.id) return null
+              const list = bySection[section.id] || []
+              const unseen = unseenBySection[section.id] || []
+              const latestUnseen = unseen[0] || null
+              const showPreview =
+                !focusing && latestUnseen && latestUnseen.id !== openedPreviewId
+              const showOpened = !focusing && latestUnseen && latestUnseen.id === openedPreviewId
+              const isOpen = expandedSection === section.id
 
-                {post.content ? (
-                  <div className="ann-content-wrap">
-                    <p className="ann-content">{post.content}</p>
-                  </div>
-                ) : null}
-              </div>
+              return (
+                <section
+                  key={section.id}
+                  className={`ann-section ann-section--${section.id}${isOpen ? ' is-expanded' : ''}`}
+                >
+                  <header className="ann-section-header">
+                    <div className="ann-section-heading">
+                      <h2>{section.title}</h2>
+                      <p>{section.hint}</p>
+                    </div>
+                    {list.length > 0 ? (
+                      <span className="ann-section-count">{list.length}</span>
+                    ) : null}
+                  </header>
 
-              <div className="ann-meta">
-                <span className={`ann-badge ann-badge--${post.notify_type || 'normal'}`}>
-                  {NOTIFY_LABELS[post.notify_type] || 'Thông thường'}
-                </span>
-                <span className="ann-meta-info">
-                  {post.created_by_name || 'Admin'} ·{' '}
-                  {new Date(post.created_at).toLocaleString('vi-VN')}
-                </span>
-
-                {post.expires_at && editingExpiryId !== post.id ? (
-                  <span className="ann-meta-info">
-                    Tự xóa: {new Date(post.expires_at).toLocaleString('vi-VN')}
-                  </span>
-                ) : null}
-
-                {isAdmin && editingExpiryId === post.id ? (
-                  <span className="ann-expire-edit">
-                    <input
-                      type="datetime-local"
-                      value={editExpiresAt}
-                      onChange={(e) => setEditExpiresAt(e.target.value)}
-                    />
-                    <button type="button" className="ann-btn-save-expiry" onClick={() => handleUpdateExpiry(post.id)}>
-                      Lưu
-                    </button>
-                    <button type="button" className="ann-btn-cancel-expiry" onClick={cancelEditExpiry}>
-                      Hủy
-                    </button>
-                  </span>
-                ) : isAdmin ? (
                   <button
                     type="button"
-                    className="ann-btn-expiry"
-                    onClick={() => startEditExpiry(post)}
-                    title="Đổi thời gian tự xóa"
+                    className="ann-btn-detail-toggle"
+                    onClick={() => toggleSection(section.id)}
+                    aria-expanded={isOpen}
                   >
-                    Đổi giờ tự xóa
+                    {isOpen ? 'Đóng chi tiết' : 'Xem chi tiết các sự kiện'}
                   </button>
-                ) : null}
 
-                {isAdmin ? (
-                  <button type="button" className="ann-btn-delete" onClick={() => handleDelete(post.id)}>
-                    Xóa
-                  </button>
-                ) : null}
-              </div>
-            </article>
-          ))}
-        </div>
+                  {showPreview || showOpened ? (
+                    <div className="ann-section-preview">
+                      <p className="ann-section-preview-label">Mới nhất chưa xem</p>
+                      <PostCard
+                        post={latestUnseen}
+                        compact={!showOpened}
+                        onOpen={handleOpenPreview}
+                        {...cardProps}
+                      />
+                    </div>
+                  ) : !isOpen ? (
+                    <p className="ann-section-empty">
+                      {list.length === 0
+                        ? 'Chưa có bài trong mục này.'
+                        : 'Bạn đã xem hết bài mới. Mở chi tiết để xem kho lưu trữ của mục.'}
+                    </p>
+                  ) : null}
+
+                  {isOpen ? (
+                    <div className="ann-section-archive">
+                      {list.length === 0 ? (
+                        <p className="ann-section-empty">Chưa có sự kiện nào được lưu.</p>
+                      ) : (
+                        list.map((post) => (
+                          <PostCard
+                            key={post.id}
+                            post={post}
+                            onOpen={handleOpenInList}
+                            {...cardProps}
+                          />
+                        ))
+                      )}
+                    </div>
+                  ) : null}
+                </section>
+              )
+            })}
+          </div>
+        </>
       )}
 
-      {isAdmin ? (
+      {canPost ? (
         <button
           type="button"
           className="ann-fab"
@@ -394,6 +687,26 @@ export default function AnnouncementsBoard({
               </div>
 
               <div className="ann-composer-right">
+                {allowedSections.length > 1 ? (
+                  <label className="ann-section-field">
+                    Đăng vào mục
+                    <select
+                      value={composerSection}
+                      onChange={(e) => setComposerSection(e.target.value)}
+                    >
+                      {allowedSections.map((id) => (
+                        <option key={id} value={id}>
+                          {SECTION_LABELS[id]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <p className="ann-section-locked">
+                    Đăng vào: <strong>{SECTION_LABELS[composerSection]}</strong>
+                  </p>
+                )}
+
                 <textarea
                   className="ann-textarea"
                   placeholder="Nội dung thông báo..."
@@ -447,6 +760,63 @@ export default function AnnouncementsBoard({
                 {posting ? 'Đang đăng...' : 'Đăng thông báo'}
               </button>
             </footer>
+          </div>
+        </div>
+      ) : null}
+
+      {showArchive ? (
+        <div className="ann-composer-overlay" onClick={() => setShowArchive(false)} role="presentation">
+          <div
+            className="ann-composer-modal ann-archive-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ann-archive-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="ann-composer-header">
+              <h2 id="ann-archive-title">Kho lưu trữ — bài đã ẩn</h2>
+              <button type="button" className="ann-composer-close" onClick={() => setShowArchive(false)}>
+                ✕
+              </button>
+            </header>
+            <div className="ann-archive-body">
+              <p className="ann-archive-note">
+                Bài LPHT / LPKL (và bài bạn đã ẩn) nằm đây. Bỏ ẩn để hiện lại cho cả lớp.
+                Bài hết hạn tự biến mất khỏi kho, không khôi phục được.
+              </p>
+              {archiveLoading ? (
+                <div className="ann-state">
+                  <span className="ann-spinner" aria-hidden="true" />
+                  <p>Đang tải kho lưu trữ...</p>
+                </div>
+              ) : archiveError ? (
+                <p className="ann-state ann-state--error">{archiveError}</p>
+              ) : archiveItems.length === 0 ? (
+                <p className="ann-empty">Kho lưu trữ trống.</p>
+              ) : (
+                archiveItems.map((post) => (
+                  <article key={post.id} className={`ann-card ann-card--${post.section || 'main'}`}>
+                    <div className="ann-body">
+                      <span className="ann-badge">{SECTION_LABELS[post.section] || post.section}</span>
+                      {post.content ? <p className="ann-content">{post.content}</p> : null}
+                    </div>
+                    <div className="ann-meta">
+                      <span className="ann-meta-info">
+                        Ẩn {post.hidden_at ? new Date(post.hidden_at).toLocaleString('vi-VN') : ''}
+                        {post.hidden_by_name ? ` · ${post.hidden_by_name}` : ''}
+                      </span>
+                      <button
+                        type="button"
+                        className="ann-btn-unhide"
+                        onClick={() => handleUnhide(post)}
+                      >
+                        Bỏ ẩn
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
           </div>
         </div>
       ) : null}

@@ -2,7 +2,11 @@ import { Router } from 'express'
 import * as classroomController from '../controllers/classroom.controller.js'
 import { requireAuth } from '../middlewares/auth.middleware.js'
 import { requireMember } from '../middlewares/member.middleware.js'
-import { requireAdmin, requireCapability } from '../middlewares/admin.middleware.js'
+import {
+  requireAdmin,
+  requireAnnouncementAction,
+  requireCapability,
+} from '../middlewares/admin.middleware.js'
 
 const router = Router()
 
@@ -17,9 +21,36 @@ router.put('/timetable', requireAdmin, classroomController.putTimetable)
 router.delete('/timetable/notice', requireAdmin, classroomController.dismissTimetableNotice)
 
 router.get('/announcements', classroomController.listAnnouncements)
-router.post('/announcements', requireCapability('announcements'), classroomController.createAnnouncement)
-router.delete('/announcements/:id', requireCapability('announcements'), classroomController.deleteAnnouncement)
-router.patch('/announcements/:id/expiry', requireCapability('announcements'), classroomController.updateAnnouncementExpiry)
+router.get(
+  '/announcements/archive',
+  requireAnnouncementAction('archive'),
+  classroomController.listAnnouncementsArchive
+)
+router.post(
+  '/announcements',
+  requireAnnouncementAction('create'),
+  classroomController.createAnnouncement
+)
+router.delete(
+  '/announcements/:id',
+  requireAnnouncementAction('delete'),
+  classroomController.deleteAnnouncement
+)
+router.patch(
+  '/announcements/:id/expiry',
+  requireAnnouncementAction('expiry'),
+  classroomController.updateAnnouncementExpiry
+)
+router.patch(
+  '/announcements/:id/hide',
+  requireAnnouncementAction('hide'),
+  classroomController.hideAnnouncement
+)
+router.patch(
+  '/announcements/:id/unhide',
+  requireAnnouncementAction('unhide'),
+  classroomController.unhideAnnouncement
+)
 
 router.get('/homework', classroomController.listHomework)
 router.post('/homework', requireCapability('homework'), classroomController.createHomework)

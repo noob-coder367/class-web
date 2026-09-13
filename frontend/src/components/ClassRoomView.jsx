@@ -4,8 +4,9 @@ import TimetableBoard from './TimetableBoard.jsx'
 import RulesBoard from './RulesBoard.jsx'
 import AnnouncementsBoard from './AnnouncementsBoard.jsx'
 import HomeworkBoard from './HomeworkBoard.jsx'
-import { markSeen, countNewer } from '../lib/unreadStore.js'
+import { markSeen, countNewer, countUnseenPosts } from '../lib/unreadStore.js'
 import { capabilitiesFor } from '../lib/roles.js'
+import { useAuth } from '../context/AuthContext.jsx'
 import './ClassRoomView.css'
 
 function IconBell() {
@@ -65,6 +66,7 @@ const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework'])
 const EMPTY_CAPS = capabilitiesFor('user')
 
 export default function ClassRoomView({ onClose, initialTab = 'announcements' }) {
+  const { profile } = useAuth()
   const [activeTab, setActiveTab] = useState(initialTab || 'announcements')
   const [access, setAccess] = useState('ok')
   const [accessError, setAccessError] = useState('')
@@ -76,6 +78,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [members, setMembers] = useState([])
   const [directory, setDirectory] = useState([])
   const [caps, setCaps] = useState(EMPTY_CAPS)
+  const [role, setRole] = useState(profile?.role || 'user')
   const [loadingTab, setLoadingTab] = useState(true)
   const [tabError, setTabError] = useState('')
   const [dismissingNotice, setDismissingNotice] = useState(false)
@@ -109,6 +112,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         const data = await classroomService.checkAccess()
         if (cancelled) return
         setAccess('ok')
+        if (data?.role) setRole(data.role)
         if (data?.capabilities) {
           setCaps({ ...EMPTY_CAPS, ...data.capabilities })
         } else {
@@ -144,7 +148,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         if (cancelled) return
         const violationsList = viol?.violations || []
         setTabBadges({
-          announcements: Math.min(99, countNewer(ann?.items || [], 'announcements')),
+          announcements: Math.min(99, countUnseenPosts(ann?.items || [], profile?.id)),
           homework: Math.min(99, countNewer(hw?.items || [], 'homework')),
           rules: Math.min(99, countNewer(violationsList, 'rules', (item) => item.createdAt)),
           // Badge riêng cho pane "Danh sách vi phạm": dùng key riêng
@@ -180,10 +184,12 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [access])
+  }, [access, profile?.id])
 
   useEffect(() => {
-    if (access === 'ok' && activeTab) markSeen(activeTab)
+    // Tab thông báo dùng đã-xem theo từng bài (localStorage per-user),
+    // không đánh dấu cả tab khi mở — nếu không badge sẽ về 0 dù chưa bấm bài.
+    if (access === 'ok' && activeTab && activeTab !== 'announcements') markSeen(activeTab)
   }, [access, activeTab])
 
   useEffect(() => {
@@ -359,9 +365,12 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     }
 
     if (activeTab === 'announcements') {
+      // Cố ý unmount khi đổi tab: state "đã xem" nằm localStorage theo từng bài,
+      // mount lại sẽ re-tính ô preview (bài vừa xem biến mất khỏi mặt ngoài).
       return (
         <AnnouncementsBoard
-          isAdmin={!!caps.announcements}
+          role={role}
+          caps={caps}
           canDismissTkb={!!caps.timetable}
           tkbNotice={tkbNotice}
           onDismissTkbNotice={handleDismissNotice}

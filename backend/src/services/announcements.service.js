@@ -14,6 +14,7 @@ const ALLOWED_MIME = {
   'image/gif': 'gif',
 }
 const NOTIFY_TYPES = new Set(['normal', 'hot', 'urgent'])
+const SECTIONS = new Set(['main', 'important', 'discipline'])
 
 let memoryCache = null
 
@@ -84,6 +85,12 @@ function isExpired(item, now = Date.now()) {
   return Number.isFinite(t) && t <= now
 }
 
+function parseSection(raw) {
+  const value = String(raw || '').trim().toLowerCase()
+  // Bài cũ chưa có field section → coi là thông báo chính.
+  return SECTIONS.has(value) ? value : 'main'
+}
+
 function normalizeItem(raw) {
   if (!raw || typeof raw !== 'object') return null
   const id = String(raw.id || '').trim()
@@ -93,17 +100,28 @@ function normalizeItem(raw) {
   const images = Array.isArray(raw.images)
     ? raw.images.map((u) => String(u || '').trim()).filter(Boolean)
     : []
+  const hidden = raw.hidden === true
   return {
     id,
     content: String(raw.content || '').trim(),
     images,
     notify_type: notify,
+    section: parseSection(raw.section),
     expires_at: raw.expires_at ? String(raw.expires_at) : null,
     created_at: String(raw.created_at || new Date().toISOString()),
     created_by: raw.created_by ? String(raw.created_by) : null,
     created_by_name: String(raw.created_by_name || 'Admin').trim() || 'Admin',
     source_homework_id: raw.source_homework_id ? String(raw.source_homework_id) : null,
     is_exam_reminder: raw.is_exam_reminder === true,
+    is_system: raw.is_system === true,
+    hidden,
+    hidden_at: hidden && raw.hidden_at ? String(raw.hidden_at) : null,
+    hidden_by: hidden && raw.hidden_by ? String(raw.hidden_by) : null,
+    hidden_by_name: hidden ? String(raw.hidden_by_name || '').trim() || null : null,
+    subject_user_id: raw.subject_user_id ? String(raw.subject_user_id) : null,
+    subject_user_name: raw.subject_user_name ? String(raw.subject_user_name) : null,
+    from_level: raw.from_level ? String(raw.from_level) : null,
+    to_level: raw.to_level ? String(raw.to_level) : null,
   }
 }
 
@@ -184,11 +202,13 @@ async function notifyPush(item) {
       .trim()
       .slice(0, 120)
     const title =
-      item.is_exam_reminder || item.notify_type === 'urgent'
-        ? '🚨 Thông báo quan trọng — 10A4'
-        : item.notify_type === 'hot'
-          ? '🔥 Thông báo mới — 10A4'
-          : 'Thông báo mới — 10A4'
+      item.section === 'discipline'
+        ? '⚠️ Vi phạm kỷ luật cao — 10A4'
+        : item.is_exam_reminder || item.notify_type === 'urgent'
+          ? '🚨 Thông báo quan trọng — 10A4'
+          : item.notify_type === 'hot'
+            ? '🔥 Thông báo mới — 10A4'
+            : 'Thông báo mới — 10A4'
     await broadcastPush({
       title,
       body: preview || 'Có thông báo mới trong lớp.',
@@ -201,8 +221,16 @@ async function notifyPush(item) {
   }
 }
 
-/** Danh sách thông báo còn hiệu lực, mới nhất trước. Tự dọn hết hạn. */
-export async function listAnnouncements() {
+function sortNewest(items) {
+  return items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+}
+
+/**
+ * Dọn bài hết hạn khỏi storage (kể cả bài đang ẩn).
+ * Bài hết hạn biến mất luôn khỏi kho lưu trữ — đúng yêu cầu.
+ * Mọi list/archive/get-by-id đều đi qua đây để không viết trùng logic dọn hạn.
+ */
+export async function purgeExpired() {
   const data = await loadAll()
   const now = Date.now()
   const alive = []
@@ -217,17 +245,53 @@ export async function listAnnouncements() {
     for (const item of expired) {
       await removeImages(item.images)
     }
-    alive.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     await saveAll(alive)
-    return alive
   }
 
-  return alive.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  return sortNewest(alive)
+}
+
+/** Danh sách thông báo còn hiệu lực, chưa ẩn, mới nhất trước. */
+export async function listAnnouncements() {
+  const alive = await purgeExpired()
+  return alive.filter((item) => item.hidden !== true)
 }
 
 /**
- * Tạo bài đăng mới.
- * payload: { content, notify_type, expires_at, images: [{ mimeType, contentBase64 }] }
+ * Kho lưu trữ: bài đã ẩn (chưa hết hạn). Chỉ LPSK/Admin gọi qua route.
+ * @param {string} [section]
+ */
+export async function listArchive(section) {
+  const alive = await purgeExpired()
+  const hidden = alive.filter((item) => item.hidden === true)
+  if (!section) return hidden
+  const key = parseSection(section)
+  return hidden.filter((item) => item.section === key)
+}
+
+export async function getAnnouncementById(id) {
+  const targetId = String(id || '').trim()
+  if (!targetId) return null
+  const alive = await purgeExpired()
+  return alive.find((row) => row.id === targetId) || null
+}
+
+function parseExpiresAt(raw, { requiredFuture = true } = {}) {
+  if (!raw) return null
+  const t = new Date(raw)
+  if (Number.isNaN(t.getTime())) {
+    throw new AppError('Thời gian tự xóa không hợp lệ.')
+  }
+  if (requiredFuture && t.getTime() <= Date.now()) {
+    throw new AppError('Thời gian tự xóa phải lớn hơn thời gian hiện tại.')
+  }
+  return t.toISOString()
+}
+
+/**
+ * Tạo bài đăng mới (API công khai).
+ * payload: { content, notify_type, section, expires_at, images: [{ mimeType, contentBase64 }] }
+ * section: 'main' | 'important' — KHÔNG nhận 'discipline' (chỉ hệ thống).
  */
 export async function createAnnouncement(payload, profile) {
   const content = String(payload?.content || '').trim()
@@ -236,21 +300,19 @@ export async function createAnnouncement(payload, profile) {
     throw new AppError('Vui lòng nhập nội dung hoặc chọn ít nhất 1 ảnh.')
   }
 
+  const requested = String(payload?.section || '').trim().toLowerCase()
+  if (requested === 'discipline') {
+    throw new AppError('Mục vi phạm kỷ luật cao do hệ thống tự đăng, không đăng tay được.', 403)
+  }
+  const section = requested === 'important' ? 'important' : 'main'
+
   const notifyType = NOTIFY_TYPES.has(payload?.notify_type)
     ? payload.notify_type
-    : 'normal'
+    : section === 'important'
+      ? 'hot'
+      : 'normal'
 
-  let expiresAt = null
-  if (payload?.expires_at) {
-    const t = new Date(payload.expires_at)
-    if (Number.isNaN(t.getTime())) {
-      throw new AppError('Thời gian tự xóa không hợp lệ.')
-    }
-    if (t.getTime() <= Date.now()) {
-      throw new AppError('Thời gian tự xóa phải lớn hơn thời gian hiện tại.')
-    }
-    expiresAt = t.toISOString()
-  }
+  const expiresAt = parseExpiresAt(payload?.expires_at)
 
   const imageUrls = []
   for (const file of files) {
@@ -262,12 +324,18 @@ export async function createAnnouncement(payload, profile) {
     content,
     images: imageUrls,
     notify_type: notifyType,
+    section,
     expires_at: expiresAt,
     created_at: new Date().toISOString(),
     created_by: profile?.id || null,
     created_by_name: String(profile?.username || 'Admin').trim() || 'Admin',
     source_homework_id: null,
     is_exam_reminder: false,
+    is_system: false,
+    hidden: false,
+    hidden_at: null,
+    hidden_by: null,
+    hidden_by_name: null,
   }
 
   const data = await loadAll()
@@ -278,7 +346,7 @@ export async function createAnnouncement(payload, profile) {
 }
 
 /**
- * Thông báo nhắc kiểm tra (từ báo bài BTVN).
+ * Thông báo nhắc kiểm tra (từ báo bài BTVN) → ô "Báo bài quan trọng".
  * Nền cảnh báo urgent, tự xóa sau ngày kiểm tra.
  */
 export async function createExamReminderAnnouncement(payload, profile) {
@@ -298,6 +366,7 @@ export async function createExamReminderAnnouncement(payload, profile) {
     content,
     images: [],
     notify_type: 'urgent',
+    section: 'important',
     expires_at: expiresAt,
     created_at: new Date().toISOString(),
     created_by: profile?.id || null,
@@ -306,6 +375,11 @@ export async function createExamReminderAnnouncement(payload, profile) {
       ? String(payload.source_homework_id)
       : null,
     is_exam_reminder: true,
+    is_system: false,
+    hidden: false,
+    hidden_at: null,
+    hidden_by: null,
+    hidden_by_name: null,
   }
 
   const data = await loadAll()
@@ -313,6 +387,136 @@ export async function createExamReminderAnnouncement(payload, profile) {
   await saveAll(next)
   void notifyPush(item)
   return item
+}
+
+/**
+ * Báo bài thường (không phải nhắc kiểm tra) → ô "Báo bài quan trọng".
+ * Gắn source_homework_id để xóa đồng bộ khi LPHT xóa báo bài.
+ */
+export async function createImportantHomeworkAnnouncement(payload, profile) {
+  const content = String(payload?.content || '').trim()
+  if (!content) throw new AppError('Thiếu nội dung báo bài quan trọng.')
+
+  let expiresAt = null
+  if (payload?.expires_at) {
+    const t = new Date(payload.expires_at)
+    if (!Number.isNaN(t.getTime()) && t.getTime() > Date.now()) {
+      expiresAt = t.toISOString()
+    }
+  }
+
+  const item = {
+    id: randomUUID(),
+    content,
+    images: [],
+    notify_type: NOTIFY_TYPES.has(payload?.notify_type) ? payload.notify_type : 'hot',
+    section: 'important',
+    expires_at: expiresAt,
+    created_at: new Date().toISOString(),
+    created_by: profile?.id || null,
+    created_by_name: String(profile?.username || 'Admin').trim() || 'Admin',
+    source_homework_id: payload?.source_homework_id
+      ? String(payload.source_homework_id)
+      : null,
+    is_exam_reminder: false,
+    is_system: false,
+    hidden: false,
+    hidden_at: null,
+    hidden_by: null,
+    hidden_by_name: null,
+  }
+
+  const data = await loadAll()
+  const next = [item, ...data.items.filter((row) => !isExpired(row))]
+  await saveAll(next)
+  void notifyPush(item)
+  return item
+}
+
+/**
+ * Hệ thống tự đăng khi thành viên tụt bậc uy tín. Không expose qua route công khai.
+ */
+export async function createSystemDisciplineAnnouncement(payload) {
+  const name = String(payload?.name || 'Thành viên').trim() || 'Thành viên'
+  const fromLabel = String(payload?.fromLabel || payload?.fromLevel || '').trim()
+  const toLabel = String(payload?.toLabel || payload?.toLevel || '').trim()
+  const content = String(payload?.content || '').trim()
+    || `⚠️ ${name} đã tụt 1 bậc trạng thái uy tín`
+      + (fromLabel && toLabel ? `: ${fromLabel} → ${toLabel}.` : '.')
+
+  const item = {
+    id: randomUUID(),
+    content,
+    images: [],
+    notify_type: 'urgent',
+    section: 'discipline',
+    expires_at: null,
+    created_at: new Date().toISOString(),
+    created_by: null,
+    created_by_name: 'Hệ thống',
+    source_homework_id: null,
+    is_exam_reminder: false,
+    is_system: true,
+    hidden: false,
+    hidden_at: null,
+    hidden_by: null,
+    hidden_by_name: null,
+    subject_user_id: payload?.userId ? String(payload.userId) : null,
+    subject_user_name: name,
+    from_level: payload?.fromLevel ? String(payload.fromLevel) : null,
+    to_level: payload?.toLevel ? String(payload.toLevel) : null,
+  }
+
+  const data = await loadAll()
+  const next = [item, ...data.items.filter((row) => !isExpired(row))]
+  await saveAll(next)
+  void notifyPush(item)
+  return item
+}
+
+export async function hideAnnouncement(id, profile) {
+  const targetId = String(id || '').trim()
+  if (!targetId) throw new AppError('Thiếu mã thông báo.', 400)
+
+  const data = await loadAll()
+  const idx = data.items.findIndex((row) => row.id === targetId)
+  if (idx === -1) throw new AppError('Không tìm thấy thông báo.', 404)
+
+  const current = data.items[idx]
+  if (isExpired(current)) throw new AppError('Thông báo đã hết hạn.', 404)
+  if (current.hidden === true) return current
+
+  data.items[idx] = {
+    ...current,
+    hidden: true,
+    hidden_at: new Date().toISOString(),
+    hidden_by: profile?.id || null,
+    hidden_by_name: String(profile?.username || '').trim() || null,
+  }
+  await saveAll(data.items)
+  return data.items[idx]
+}
+
+export async function unhideAnnouncement(id) {
+  const targetId = String(id || '').trim()
+  if (!targetId) throw new AppError('Thiếu mã thông báo.', 400)
+
+  const data = await loadAll()
+  const idx = data.items.findIndex((row) => row.id === targetId)
+  if (idx === -1) throw new AppError('Không tìm thấy thông báo.', 404)
+
+  const current = data.items[idx]
+  if (isExpired(current)) throw new AppError('Thông báo đã hết hạn.', 404)
+
+  data.items[idx] = {
+    ...current,
+    hidden: false,
+    hidden_at: null,
+    hidden_by: null,
+    hidden_by_name: null,
+  }
+  await saveAll(data.items)
+  return data.items[idx]
 }
 
 export async function deleteAnnouncement(id) {
@@ -329,7 +533,7 @@ export async function deleteAnnouncement(id) {
   return { id: targetId }
 }
 
-/** Xóa mọi thông báo gắn với một báo bài (khi admin xóa BTVN). */
+/** Xóa mọi thông báo gắn với một báo bài (khi admin/LPHT xóa BTVN). */
 export async function deleteAnnouncementsByHomeworkId(homeworkId) {
   const target = String(homeworkId || '').trim()
   if (!target) return { deleted: 0 }
@@ -350,17 +554,7 @@ export async function updateAnnouncementExpiry(id, expiresAtRaw) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã thông báo.', 400)
 
-  let expiresAt = null
-  if (expiresAtRaw) {
-    const t = new Date(expiresAtRaw)
-    if (Number.isNaN(t.getTime())) {
-      throw new AppError('Thời gian tự xóa không hợp lệ.')
-    }
-    if (t.getTime() <= Date.now()) {
-      throw new AppError('Thời gian tự xóa phải lớn hơn thời gian hiện tại.')
-    }
-    expiresAt = t.toISOString()
-  }
+  const expiresAt = parseExpiresAt(expiresAtRaw)
 
   const data = await loadAll()
   const idx = data.items.findIndex((row) => row.id === targetId)
@@ -370,3 +564,4 @@ export async function updateAnnouncementExpiry(id, expiresAtRaw) {
   await saveAll(data.items)
   return data.items[idx]
 }
+

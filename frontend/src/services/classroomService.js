@@ -44,6 +44,27 @@ export async function updateAnnouncementExpiry(id, expires_at) {
   )
 }
 
+export async function hideAnnouncement(id) {
+  return apiClient.patch(
+    `/classroom/announcements/${encodeURIComponent(id)}/hide`,
+    {},
+    { auth: true }
+  )
+}
+
+export async function unhideAnnouncement(id) {
+  return apiClient.patch(
+    `/classroom/announcements/${encodeURIComponent(id)}/unhide`,
+    {},
+    { auth: true }
+  )
+}
+
+export async function getAnnouncementsArchive(section) {
+  const query = section ? `?section=${encodeURIComponent(section)}` : ''
+  return apiClient.get(`/classroom/announcements/archive${query}`, { auth: true })
+}
+
 export async function getHomework() {
   return apiClient.get('/classroom/homework', { auth: true })
 }
