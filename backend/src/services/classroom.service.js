@@ -12,6 +12,7 @@ export const CLASSROOM_TABS = [
   'timetable',
   'homework',
   'rules',
+  'cleaning-duty',
 ]
 
 export function assertValidTab(tab) {
