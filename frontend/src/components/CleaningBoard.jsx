@@ -7,7 +7,8 @@ import {
   dayLabel,
   effectiveStatus,
   formatDateVN,
-  getWeekEndISO,
+  getActiveWeekEndISO,
+  getActiveWeekStartISO,
   getWeekStartISO,
   statusLabel,
   todayISO,
@@ -38,6 +39,8 @@ function findStatusRow(weekStatus, dateISO) {
 function getAssigneesForDate(schedule, dateISO) {
   const dayId = dayIdFor(dateISO)
   if (!dayId || !schedule?.days) return []
+  // Chỉ lấy assignee nếu ngày thuộc đúng tuần của schedule
+  if (schedule.week_start && getWeekStartISO(dateISO) !== schedule.week_start) return []
   return schedule.days[dayId]?.assignees || []
 }
 
@@ -133,8 +136,9 @@ export default function CleaningBoard({ isAdmin }) {
 
   const todayDate = todayISO()
   const tomorrowDate = tomorrowISO()
-  const currentWeekStart = useMemo(() => getWeekStartISO(new Date()), [])
-  const currentWeekEnd = useMemo(() => getWeekEndISO(new Date()), [])
+  // Chủ nhật → tuần hiệu lực = tuần sau (T2–T7 sắp tới)
+  const currentWeekStart = useMemo(() => getActiveWeekStartISO(new Date()), [])
+  const currentWeekEnd = useMemo(() => getActiveWeekEndISO(new Date()), [])
   const todayWeekStart = useMemo(() => getWeekStartISO(todayDate), [todayDate])
   const tomorrowWeekStart = useMemo(() => getWeekStartISO(tomorrowDate), [tomorrowDate])
 
@@ -179,7 +183,6 @@ export default function CleaningBoard({ isAdmin }) {
 
   const handleSaveSchedule = async (payload) => {
     await classroomService.saveCleaningSchedule(payload)
-    // Reload sau khi settings đóng (settings tự lưu cả 2 tuần)
     await load()
   }
 
@@ -271,7 +274,6 @@ export default function CleaningBoard({ isAdmin }) {
         {schedule?.note ? <p className="cleaning-week-note">Ghi chú tuần: {schedule.note}</p> : null}
       </section>
 
-      {/* Nút cài đặt góc trái dưới — chỉ LPLĐ / Admin */}
       {isAdmin ? (
         <button
           type="button"
