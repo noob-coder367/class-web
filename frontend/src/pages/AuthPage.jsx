@@ -339,7 +339,7 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
             onClick={handleAuthBack}
             disabled={authLoading}
           >
-            <span><</span>
+            <span>{'<'}</span>
             {authStep === 'display-name' ? 'Đăng xuất' : 'Quay lại'}
           </button>
 
