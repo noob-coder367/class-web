@@ -223,7 +223,8 @@
 
 .classroom-body--timetable,
 .classroom-body--rules,
-.classroom-body--announcements {
+.classroom-body--announcements,
+.classroom-body--cleaning-duty {
   display: block;
   padding: 18px 20px 96px;
   overflow-x: auto;
@@ -372,7 +373,8 @@
 
   .classroom-body--timetable,
   .classroom-body--rules,
-  .classroom-body--announcements {
+  .classroom-body--announcements,
+  .classroom-body--cleaning-duty {
     padding: 12px 12px 88px;
   }
 }
