@@ -33,6 +33,9 @@ const SUBJECT_OPTIONS = [
 
 const SUBJECT_OTHER = '__other__'
 
+/** Poll nhanh khi đang mở board (gần realtime). */
+const POLL_MS = 8_000
+
 function todayISO() {
   const d = new Date()
   const y = d.getFullYear()
@@ -79,22 +82,41 @@ export default function HomeworkBoard({ isAdmin }) {
     homework: true,
   })
 
-  const fetchPosts = useCallback(async () => {
+  const fetchPosts = useCallback(async (opts = {}) => {
+    const silent = opts.silent === true
+    if (!silent) setLoading(true)
     try {
       const data = await classroomService.getHomework()
       setPosts(Array.isArray(data?.items) ? data.items : [])
       setError('')
     } catch (err) {
-      setError(err.message || 'Không tải được báo bài.')
+      if (!silent) setError(err.message || 'Không tải được báo bài.')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     fetchPosts()
-    const interval = setInterval(fetchPosts, 60000)
-    return () => clearInterval(interval)
+
+    const tick = () => {
+      if (document.visibilityState === 'visible') fetchPosts({ silent: true })
+    }
+    const interval = setInterval(tick, POLL_MS)
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchPosts({ silent: true })
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
+    const onRefresh = () => fetchPosts({ silent: true })
+    window.addEventListener('classweb-class-refresh', onRefresh)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('classweb-class-refresh', onRefresh)
+    }
   }, [fetchPosts])
 
   useEffect(() => {
@@ -153,7 +175,7 @@ export default function HomeworkBoard({ isAdmin }) {
         homework_content: hw,
       })
       closeComposer()
-      setLoading(true)
+      window.dispatchEvent(new CustomEvent('classweb-class-refresh'))
       await fetchPosts()
     } catch (err) {
       alert(err.message || 'Đăng báo bài thất bại.')
@@ -169,6 +191,7 @@ export default function HomeworkBoard({ isAdmin }) {
     try {
       await classroomService.deleteHomework(id)
       setPosts((prev) => prev.filter((p) => p.id !== id))
+      window.dispatchEvent(new CustomEvent('classweb-class-refresh'))
     } catch (err) {
       alert(err.message || 'Xóa thất bại.')
     }
