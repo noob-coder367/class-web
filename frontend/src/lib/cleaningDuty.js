@@ -72,6 +72,27 @@ export function getWeekStartISO(dateLike) {
   return toISODate(getWeekStart(dateLike))
 }
 
+/** Thứ 7 (cuối tuần trực) của tuần chứa `dateLike`. */
+export function getWeekEndISO(dateLike = new Date()) {
+  const start = getWeekStart(dateLike)
+  start.setDate(start.getDate() + 5) // T2 + 5 = T7
+  return toISODate(start)
+}
+
+/** Thứ 2 của tuần kế tiếp. */
+export function getNextWeekStartISO(dateLike = new Date()) {
+  const start = getWeekStart(dateLike)
+  start.setDate(start.getDate() + 7)
+  return toISODate(start)
+}
+
+/** Thứ 7 của tuần kế tiếp. */
+export function getNextWeekEndISO(dateLike = new Date()) {
+  const start = getWeekStart(dateLike)
+  start.setDate(start.getDate() + 12) // T2 tuần sau + 5 = T7 tuần sau
+  return toISODate(start)
+}
+
 /** Mã thứ (t2..t7) của `dateLike`, hoặc null nếu là Chủ nhật (không có lịch trực). */
 export function dayIdFor(dateLike) {
   const d = toMidnight(dateLike)
@@ -104,14 +125,13 @@ export function statusLabel(status) {
  * - Từ 17:00 hôm nay trở đi → Đã làm
  * - Ngày mai / tương lai → Chuẩn bị làm
  *
- * Nếu Admin/LPLĐ đã đánh dấu thủ công (có marked_at + status not_clean hoặc done),
+ * Nếu Admin/LPLĐ đã đánh dấu thủ công (có marked_at),
  * ưu tiên status đã lưu (đặc biệt "Chưa sạch!").
  */
 export function effectiveStatus(dutyDateISO, storedRow) {
   const stored = normalizeStatus(storedRow?.status)
   const hasManual = Boolean(storedRow?.marked_at)
 
-  // Ưu tiên override thủ công của LPLĐ/Admin, đặc biệt "Chưa sạch!"
   if (hasManual && (stored === 'not_clean' || stored === 'done' || stored === 'doing' || stored === 'preparing')) {
     return stored
   }
@@ -119,16 +139,9 @@ export function effectiveStatus(dutyDateISO, storedRow) {
   const today = todayISO()
   if (!dutyDateISO) return 'preparing'
 
-  if (dutyDateISO < today) {
-    return 'done' // ngày cũ / hôm qua → Đã làm
-  }
+  if (dutyDateISO < today) return 'done'
+  if (dutyDateISO > today) return 'preparing'
 
-  if (dutyDateISO > today) {
-    return 'preparing' // ngày mai / tương lai → Chuẩn bị làm
-  }
-
-  // dutyDateISO === today
-  // Lấy giờ hiện tại theo Asia/Ho_Chi_Minh
   const nowParts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Ho_Chi_Minh',
     hour: '2-digit',
@@ -139,8 +152,6 @@ export function effectiveStatus(dutyDateISO, storedRow) {
   const minute = Number(nowParts.find((p) => p.type === 'minute')?.value || 0)
   const totalMinutes = hour * 60 + minute
 
-  // Từ 17:00 → Đã làm
   if (totalMinutes >= 17 * 60) return 'done'
-  // Trong ngày trước 17:00 → Đang làm
   return 'doing'
 }

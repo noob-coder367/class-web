@@ -2,7 +2,7 @@
   width: min(820px, 100%);
   max-width: 100%;
   margin: 0 auto;
-  padding-bottom: 28px;
+  padding-bottom: 72px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -40,6 +40,7 @@
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
+  margin-bottom: 14px;
 }
 
 .cleaning-card-title {
@@ -51,16 +52,17 @@
 
 .cleaning-card-head .cleaning-card-title {
   margin-bottom: 0;
+  font-size: 15.5px;
+  line-height: 1.35;
 }
 
 .cleaning-card-week {
   font-size: 12.5px;
   font-weight: 700;
   color: #64748b;
-  margin-bottom: 14px;
 }
 
-/* Ô 1: Tình trạng vệ sinh — Hôm nay / Ngày mai */
+/* Ô 1 */
 .cleaning-status-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -117,7 +119,6 @@
   color: #64748b;
 }
 
-/* Người trực trong Ô 1 */
 .cleaning-status-assignees {
   display: flex;
   flex-wrap: wrap;
@@ -211,7 +212,7 @@
   cursor: default;
 }
 
-/* Ô 2: Bảng phân công trực */
+/* Ô 2 */
 .cleaning-table-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -280,6 +281,7 @@
   color: #64748b;
 }
 
+/* Nút cài đặt — góc trái dưới */
 .cleaning-fab {
   position: fixed;
   right: 22px;
@@ -298,6 +300,11 @@
   z-index: 20;
 }
 
+.cleaning-fab--left {
+  right: auto;
+  left: 22px;
+}
+
 .cleaning-fab svg {
   width: 22px;
   height: 22px;
@@ -306,5 +313,10 @@
 @media (max-width: 560px) {
   .cleaning-status-grid {
     grid-template-columns: 1fr;
+  }
+
+  .cleaning-fab--left {
+    left: 16px;
+    bottom: 16px;
   }
 }

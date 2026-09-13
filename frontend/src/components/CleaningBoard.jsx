@@ -7,6 +7,7 @@ import {
   dayLabel,
   effectiveStatus,
   formatDateVN,
+  getWeekEndISO,
   getWeekStartISO,
   statusLabel,
   todayISO,
@@ -30,12 +31,10 @@ function statusDotClass(status) {
   return 'cleaning-dot cleaning-dot--preparing'
 }
 
-/** Tìm hàng trạng thái của 1 ngày cụ thể trong danh sách trả về từ API tuần. */
 function findStatusRow(weekStatus, dateISO) {
   return (weekStatus?.days || []).find((row) => row.duty_date === dateISO) || null
 }
 
-/** Lấy danh sách người trực từ schedule theo ngày ISO. */
 function getAssigneesForDate(schedule, dateISO) {
   const dayId = dayIdFor(dateISO)
   if (!dayId || !schedule?.days) return []
@@ -57,7 +56,6 @@ function DutyStatusCard({ title, dateISO, statusRow, assignees, isAdmin, onUpdat
         <p className="cleaning-status-card-empty">Chủ nhật — không có lịch trực vệ sinh.</p>
       ) : (
         <>
-          {/* Người trực (lấy từ bảng phân công Ô 2) */}
           <div className="cleaning-status-assignees">
             {assignees.length > 0 ? (
               assignees.map((name) => (
@@ -68,7 +66,6 @@ function DutyStatusCard({ title, dateISO, statusRow, assignees, isAdmin, onUpdat
             )}
           </div>
 
-          {/* Tình trạng */}
           <div className="cleaning-status-row">
             <span className={statusDotClass(displayStatus)} aria-hidden="true" />
             <span className="cleaning-status-text">{statusLabel(displayStatus)}</span>
@@ -82,7 +79,6 @@ function DutyStatusCard({ title, dateISO, statusRow, assignees, isAdmin, onUpdat
           ) : null}
           {statusRow?.note ? <p className="cleaning-status-note">Ghi chú: {statusRow.note}</p> : null}
 
-          {/* Chỉ Admin / LPLĐ được đổi trạng thái, đặc biệt tick "Chưa sạch!" */}
           {isAdmin ? (
             <div className="cleaning-status-actions">
               <button
@@ -138,6 +134,7 @@ export default function CleaningBoard({ isAdmin }) {
   const todayDate = todayISO()
   const tomorrowDate = tomorrowISO()
   const currentWeekStart = useMemo(() => getWeekStartISO(new Date()), [])
+  const currentWeekEnd = useMemo(() => getWeekEndISO(new Date()), [])
   const todayWeekStart = useMemo(() => getWeekStartISO(todayDate), [todayDate])
   const tomorrowWeekStart = useMemo(() => getWeekStartISO(tomorrowDate), [tomorrowDate])
 
@@ -181,8 +178,8 @@ export default function CleaningBoard({ isAdmin }) {
   }
 
   const handleSaveSchedule = async (payload) => {
-    const data = await classroomService.saveCleaningSchedule(payload)
-    setSchedule(data?.schedule || payload)
+    await classroomService.saveCleaningSchedule(payload)
+    // Reload sau khi settings đóng (settings tự lưu cả 2 tuần)
     await load()
   }
 
@@ -190,6 +187,9 @@ export default function CleaningBoard({ isAdmin }) {
   const tomorrowStatusRow = findStatusRow(tomorrowWeekStatus, tomorrowDate)
   const todayAssignees = getAssigneesForDate(schedule, todayDate)
   const tomorrowAssignees = getAssigneesForDate(schedule, tomorrowDate)
+
+  const weekTitleFrom = formatDateVN(schedule?.week_start || currentWeekStart)
+  const weekTitleTo = formatDateVN(currentWeekEnd)
 
   return (
     <div className="cleaning-board">
@@ -225,12 +225,9 @@ export default function CleaningBoard({ isAdmin }) {
 
       <section className="cleaning-card">
         <div className="cleaning-card-head">
-          <h2 className="cleaning-card-title">Bảng phân công trực</h2>
-          {schedule?.week_start ? (
-            <span className="cleaning-card-week">
-              Tuần từ {formatDateVN(schedule.week_start)}
-            </span>
-          ) : null}
+          <h2 className="cleaning-card-title">
+            Danh sách trực từ ngày {weekTitleFrom} đến ngày {weekTitleTo}
+          </h2>
         </div>
 
         {loading ? (
@@ -274,13 +271,14 @@ export default function CleaningBoard({ isAdmin }) {
         {schedule?.note ? <p className="cleaning-week-note">Ghi chú tuần: {schedule.note}</p> : null}
       </section>
 
+      {/* Nút cài đặt góc trái dưới — chỉ LPLĐ / Admin */}
       {isAdmin ? (
         <button
           type="button"
-          className="cleaning-fab"
+          className="cleaning-fab cleaning-fab--left"
           onClick={() => setOpenSettings(true)}
-          aria-label="Sửa phân công trực"
-          title="Sửa phân công trực"
+          aria-label="Cài đặt lịch trực"
+          title="Cài đặt lịch trực (tuần này & tuần sau)"
         >
           <IconGear />
         </button>
@@ -288,8 +286,6 @@ export default function CleaningBoard({ isAdmin }) {
 
       {openSettings ? (
         <CleaningDutySettings
-          weekStart={currentWeekStart}
-          schedule={schedule}
           onClose={() => setOpenSettings(false)}
           onSave={handleSaveSchedule}
         />

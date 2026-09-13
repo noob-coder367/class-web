@@ -5,13 +5,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 16px;
   background: rgba(10, 20, 30, 0.55);
 }
 
 .cleaning-settings {
-  width: min(680px, 100%);
-  max-height: min(88vh, 780px);
+  width: min(720px, 100%);
+  max-height: min(90vh, 860px);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -24,13 +24,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 14px 18px;
   border-bottom: 1.5px solid #e2ecf1;
+  flex-shrink: 0;
 }
 
 .cleaning-settings-head h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
   color: #14324a;
 }
@@ -45,14 +46,54 @@
   padding: 4px 8px;
 }
 
+.cleaning-settings-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1.5px solid #e2ecf1;
+  flex-shrink: 0;
+}
+
+.cleaning-settings-tab {
+  flex: 1;
+  border: none;
+  background: #f8fafc;
+  padding: 12px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #64748b;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -1.5px;
+}
+
+.cleaning-settings-tab.is-active {
+  background: #fff;
+  color: #14324a;
+  border-bottom-color: #14324a;
+}
+
+.cleaning-settings-tab-range {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.cleaning-settings-tab.is-active .cleaning-settings-tab-range {
+  color: #64748b;
+}
+
 .cleaning-settings-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 18px 20px 20px;
+  padding: 16px 18px 18px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .cleaning-settings-error {
@@ -65,9 +106,22 @@
   font-weight: 600;
 }
 
+.cleaning-settings-loading {
+  margin: 12px 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.cleaning-settings-hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.45;
+}
+
 .cleaning-settings-days {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .cleaning-settings-day {
@@ -79,17 +133,61 @@
   background: #f8fbfd;
 }
 
-.cleaning-settings-day label,
+.cleaning-settings-day-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #14324a;
+}
+
+.cleaning-settings-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 28px;
+  align-items: center;
+}
+
+.cleaning-settings-empty-chip {
+  font-size: 12.5px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.cleaning-settings-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #e0f2fe;
+  color: #0c4a6e;
+  border-radius: 999px;
+  padding: 4px 8px 4px 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.cleaning-settings-chip-remove {
+  border: none;
+  background: transparent;
+  color: #0369a1;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  font-weight: 700;
+}
+
+.cleaning-settings-select-label,
+.cleaning-settings-note-label,
 .cleaning-settings-weeknote {
   display: grid;
-  gap: 6px;
-  font-size: 12.5px;
+  gap: 5px;
+  font-size: 12px;
   font-weight: 700;
   color: #14324a;
 }
 
-.cleaning-settings-day textarea,
-.cleaning-settings-day input,
+.cleaning-settings-select,
+.cleaning-settings-note-label input,
 .cleaning-settings-weeknote input {
   font-family: inherit;
   font-size: 13.5px;
@@ -98,7 +196,7 @@
   border: 1.5px solid #cbd8e0;
   border-radius: 8px;
   padding: 8px 10px;
-  resize: vertical;
+  background: #fff;
 }
 
 .cleaning-settings-actions {
@@ -106,6 +204,7 @@
   justify-content: flex-end;
   gap: 10px;
   padding-top: 4px;
+  flex-shrink: 0;
 }
 
 .cleaning-settings-cancel,
