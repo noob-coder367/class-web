@@ -416,7 +416,7 @@ export default function HomePage() {
                     border: '1px solid var(--primary)',
                     boxShadow: 'none',
                   }}
-                  onClick={() => openAuth('register')}
+                  onClick={() => alert('Nút đăng ký đang bảo trì')}
                 >
                   Đăng ký
                 </button>
