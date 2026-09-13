@@ -63,6 +63,20 @@ router.put('/rules', requireCapability('rules'), classroomController.putRules)
 router.get('/violations', classroomController.getViolations)
 router.post('/violations', requireCapability('rules'), classroomController.postViolation)
 router.delete('/violations/:id', requireCapability('rules'), classroomController.deleteViolation)
+router.get('/cleaning-duty/schedule', classroomController.getCleaningSchedule)
+router.get('/cleaning-duty/schedules', classroomController.listCleaningSchedules)
+router.put(
+  '/cleaning-duty/schedule',
+  requireCapability('cleaningDuty'),
+  classroomController.putCleaningSchedule
+)
+router.get('/cleaning-duty/status', classroomController.getCleaningStatus)
+router.patch(
+  '/cleaning-duty/status/:date',
+  requireCapability('cleaningDuty'),
+  classroomController.patchCleaningStatus
+)
+
 router.get('/members', classroomController.getMembers)
 router.get('/directory', requireCapability('directory'), classroomController.getDirectory)
 router.get('/leaderboard', classroomController.getLeaderboard)
