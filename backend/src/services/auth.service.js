@@ -131,6 +131,7 @@ export async function registerUser({
   const existing = await findProfileByUsername(cleanUsername)
   if (existing) throw new AppError('Username này đã được sử dụng!')
 
+  let user = null
   const { data: created, error: createError } =
     await supabaseAdmin.auth.admin.createUser({
       email: cleanEmail,
@@ -139,25 +140,77 @@ export async function registerUser({
     })
 
   if (createError) {
-    throw new AppError(createError.message || 'Không thể tạo tài khoản!', 400)
+    // Lần đăng ký trước có thể đã tạo auth user nhưng fail ở profiles
+    const msg = String(createError.message || '')
+    if (/already|registered|exists/i.test(msg)) {
+      const { data: listed, error: listErr } = await supabaseAdmin.auth.admin.listUsers({
+        page: 1,
+        perPage: 200,
+      })
+      if (listErr) throw new AppError(createError.message || 'Không thể tạo tài khoản!', 400)
+      const found = (listed?.users || []).find(
+        (u) => String(u.email || '').toLowerCase() === cleanEmail
+      )
+      if (!found) throw new AppError('Email này đã được sử dụng!', 400)
+      // Cập nhật mật khẩu cho user dở dang rồi tiếp tục ghi profile
+      const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(found.id, {
+        password,
+        email_confirm: false,
+      })
+      if (pwErr) throw new AppError('Email này đã được sử dụng!', 400)
+      user = found
+    } else {
+      throw new AppError(createError.message || 'Không thể tạo tài khoản!', 400)
+    }
+  } else {
+    user = created?.user
   }
 
-  const user = created?.user
   if (!user) throw new AppError('Không thể tạo tài khoản!')
 
-  const { error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .insert([
-      {
-        id: user.id,
+  // Có thể đã có hàng profiles do trigger on auth.users → update/insert thay vì insert thuần
+  const profilePayload = {
+    id: user.id,
+    username: cleanUsername,
+    email: cleanEmail,
+    is_member: isMember === true,
+  }
+
+  const existingProfile = await findProfileById(user.id)
+  let profileError = null
+  if (existingProfile) {
+    const { error } = await supabaseAdmin
+      .from('profiles')
+      .update({
         username: cleanUsername,
         email: cleanEmail,
         is_member: isMember === true,
-      },
-    ])
+      })
+      .eq('id', user.id)
+    profileError = error
+  } else {
+    const { error } = await supabaseAdmin.from('profiles').insert([profilePayload])
+    profileError = error
+    // Race với trigger: insert lần 2 → pkey → thử update
+    if (profileError && /duplicate key|profiles_pkey/i.test(profileError.message || '')) {
+      const { error: upErr } = await supabaseAdmin
+        .from('profiles')
+        .update({
+          username: cleanUsername,
+          email: cleanEmail,
+          is_member: isMember === true,
+        })
+        .eq('id', user.id)
+      profileError = upErr
+    }
+  }
 
   if (profileError) {
-    await supabaseAdmin.auth.admin.deleteUser(user.id)
+    // Chỉ xóa auth user nếu hồ sơ vẫn không ghi được (tránh orphan)
+    const still = await findProfileById(user.id)
+    if (!still) {
+      await supabaseAdmin.auth.admin.deleteUser(user.id)
+    }
     throw new AppError(
       'Tạo hồ sơ thất bại: ' + profileError.message,
       500
