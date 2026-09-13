@@ -18,8 +18,17 @@ export async function saveTimetable(timetable) {
   return apiClient.put('/classroom/timetable', { timetable }, { auth: true })
 }
 
+/** Ẩn thông báo thay đổi TKB. Ưu tiên POST để tránh host/proxy chặn DELETE. */
 export async function dismissTimetableNotice() {
-  return apiClient.delete('/classroom/timetable/notice', { auth: true })
+  try {
+    return await apiClient.post('/classroom/timetable/notice/dismiss', {}, { auth: true })
+  } catch (err) {
+    // Fallback DELETE nếu backend cũ chưa có POST
+    if (err?.status === 404) {
+      return apiClient.delete('/classroom/timetable/notice', { auth: true })
+    }
+    throw err
+  }
 }
 
 export async function getAnnouncements() {

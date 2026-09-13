@@ -10,6 +10,9 @@ const NOTIFY_LABELS = {
   urgent: '🚨 Khẩn cấp',
 }
 
+/** Poll nhanh khi đang mở board (gần realtime). */
+const POLL_MS = 8_000
+
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -52,23 +55,44 @@ export default function AnnouncementsBoard({
   const [editExpiresAt, setEditExpiresAt] = useState('')
 
   const fileInputRef = useRef(null)
+  const silentRef = useRef(false)
 
-  const fetchPosts = useCallback(async () => {
+  const fetchPosts = useCallback(async (opts = {}) => {
+    const silent = opts.silent === true
+    if (!silent) setLoading(true)
     try {
       const data = await classroomService.getAnnouncements()
       setPosts(Array.isArray(data?.items) ? data.items : [])
       setError('')
     } catch (err) {
-      setError(err.message || 'Không tải được thông báo.')
+      if (!silent) setError(err.message || 'Không tải được thông báo.')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     fetchPosts()
-    const interval = setInterval(fetchPosts, 60000)
-    return () => clearInterval(interval)
+
+    const tick = () => {
+      if (document.visibilityState === 'visible') fetchPosts({ silent: true })
+    }
+    const interval = setInterval(tick, POLL_MS)
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchPosts({ silent: true })
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
+    // Khi nhận push / sự kiện CLASS_REFRESH → tải lại ngay (không chờ poll)
+    const onRefresh = () => fetchPosts({ silent: true })
+    window.addEventListener('classweb-class-refresh', onRefresh)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('classweb-class-refresh', onRefresh)
+    }
   }, [fetchPosts])
 
   const handleFilesChange = (e) => {
@@ -130,7 +154,8 @@ export default function AnnouncementsBoard({
       })
 
       closeComposer()
-      setLoading(true)
+      // Báo các client khác (cùng máy / tab) refresh ngay nếu có
+      window.dispatchEvent(new CustomEvent('classweb-class-refresh'))
       await fetchPosts()
     } catch (err) {
       alert(err.message || 'Đăng thông báo thất bại.')
@@ -145,6 +170,7 @@ export default function AnnouncementsBoard({
     try {
       await classroomService.deleteAnnouncement(id)
       setPosts((prev) => prev.filter((p) => p.id !== id))
+      window.dispatchEvent(new CustomEvent('classweb-class-refresh'))
     } catch (err) {
       alert(err.message || 'Xóa thất bại.')
     }
@@ -177,6 +203,7 @@ export default function AnnouncementsBoard({
         setPosts((prev) => prev.map((p) => (p.id === id ? data.item : p)))
       }
       cancelEditExpiry()
+      window.dispatchEvent(new CustomEvent('classweb-class-refresh'))
     } catch (err) {
       alert(err.message || 'Cập nhật thất bại.')
     }

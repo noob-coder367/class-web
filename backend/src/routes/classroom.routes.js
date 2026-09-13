@@ -14,7 +14,9 @@ router.get('/tabs', classroomController.getTabs)
 router.get('/tabs/:tab', classroomController.getTab)
 router.get('/timetable', classroomController.getTimetable)
 router.put('/timetable', requireAdmin, classroomController.putTimetable)
-router.delete('/timetable/notice', requireAdmin, classroomController.dismissTimetableNotice)
+// DELETE có thể bị một số proxy/host chặn → thêm POST tương đương.
+router.delete('/timetable/notice', requireCapability('timetable'), classroomController.dismissTimetableNotice)
+router.post('/timetable/notice/dismiss', requireCapability('timetable'), classroomController.dismissTimetableNotice)
 
 router.get('/announcements', classroomController.listAnnouncements)
 router.post('/announcements', requireCapability('announcements'), classroomController.createAnnouncement)
