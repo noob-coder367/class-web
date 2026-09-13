@@ -74,7 +74,7 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
     }
   }, [authStep])
 
-
+  const getAuthTitle = () => {
     switch (authStep) {
       case 'login': return 'Đăng nhập'
       case 'register': return 'Đăng ký'
