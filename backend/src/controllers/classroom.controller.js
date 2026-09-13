@@ -3,6 +3,7 @@ import * as timetableService from '../services/timetable.service.js'
 import * as rulesService from '../services/rules.service.js'
 import * as announcementsService from '../services/announcements.service.js'
 import * as homeworkService from '../services/homework.service.js'
+import * as cleaningDutyService from '../services/cleaningDuty.service.js'
 import { capabilitiesFor, normalizeRole } from '../lib/roles.js'
 
 function noStore(res) {
@@ -245,6 +246,60 @@ export async function getDirectory(req, res, next) {
     noStore(res)
     const members = await classroomService.listClassMembers({ membersOnly: false })
     res.json({ members })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getCleaningSchedule(req, res, next) {
+  try {
+    noStore(res)
+    const schedule = await cleaningDutyService.getSchedule(req.query?.week_start)
+    res.json({ schedule })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function listCleaningSchedules(req, res, next) {
+  try {
+    noStore(res)
+    const schedules = await cleaningDutyService.listSchedules(req.query?.limit)
+    res.json({ schedules })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function putCleaningSchedule(req, res, next) {
+  try {
+    noStore(res)
+    const schedule = await cleaningDutyService.saveSchedule(req.body || {}, req.profile)
+    res.json({ message: 'Đã lưu lịch trực vệ sinh.', schedule })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getCleaningStatus(req, res, next) {
+  try {
+    noStore(res)
+    const status = await cleaningDutyService.getWeekStatus(req.query?.week_start)
+    res.json(status)
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function patchCleaningStatus(req, res, next) {
+  try {
+    noStore(res)
+    const item = await cleaningDutyService.updateDayStatus(
+      req.params.date,
+      req.body || {},
+      req.profile
+    )
+    res.json({ message: 'Đã cập nhật trạng thái vệ sinh.', item })
   } catch (err) {
     next(err)
   }
