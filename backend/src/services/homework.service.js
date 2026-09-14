@@ -64,6 +64,8 @@ function normalizeItem(raw) {
     experiment_content: String(raw.experiment_content || '').trim(),
     homework_content: String(raw.homework_content || '').trim(),
     exam_announcement_id: raw.exam_announcement_id ? String(raw.exam_announcement_id) : null,
+    exam_today_notified_at: raw.exam_today_notified_at ? String(raw.exam_today_notified_at) : null,
+    exam_cleared_at: raw.exam_cleared_at ? String(raw.exam_cleared_at) : null,
     created_at: String(raw.created_at || new Date().toISOString()),
     created_by: raw.created_by ? String(raw.created_by) : null,
     created_by_name: String(raw.created_by_name || 'Admin').trim() || 'Admin',
@@ -272,4 +274,22 @@ export async function deleteHomework(id) {
   const next = data.items.filter((row) => row.id !== targetId)
   await saveAll(next)
   return { id: targetId }
+}
+
+const PATCHABLE = new Set(['exam_announcement_id', 'exam_today_notified_at', 'exam_cleared_at'])
+
+/** Cập nhật vài field hệ thống trên báo bài (scheduler nhắc kiểm tra). Không đụng nội dung bài. */
+export async function patchHomework(id, fields) {
+  const targetId = String(id || '').trim()
+  if (!targetId) throw new AppError('Thiếu mã báo bài.', 400)
+  const data = await loadAll()
+  const idx = data.items.findIndex((row) => row.id === targetId)
+  if (idx === -1) throw new AppError('Không tìm thấy báo bài.', 404)
+  const nextFields = {}
+  for (const [key, value] of Object.entries(fields || {})) {
+    if (PATCHABLE.has(key)) nextFields[key] = value == null ? null : String(value)
+  }
+  data.items[idx] = { ...data.items[idx], ...nextFields }
+  await saveAll(data.items)
+  return data.items[idx]
 }

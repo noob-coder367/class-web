@@ -469,6 +469,23 @@ export async function deleteAnnouncementsByHomeworkId(homeworkId) {
   return { deleted: toRemove.length }
 }
 
+/** Chỉ xóa thông báo kiểm tra (is_exam_reminder) gắn với báo bài — giữ bài báo bài thường. */
+export async function deleteExamRemindersByHomeworkId(homeworkId) {
+  const target = String(homeworkId || '').trim()
+  if (!target) return { deleted: 0 }
+  const data = await loadAll()
+  const toRemove = data.items.filter(
+    (row) => row.source_homework_id === target && row.is_exam_reminder === true
+  )
+  if (!toRemove.length) return { deleted: 0 }
+  for (const item of toRemove) await removeImages(item.images)
+  const next = data.items.filter(
+    (row) => !(row.source_homework_id === target && row.is_exam_reminder === true)
+  )
+  await saveAll(next)
+  return { deleted: toRemove.length }
+}
+
 export async function updateAnnouncementExpiry(id, expiresAtRaw) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã thông báo.', 400)

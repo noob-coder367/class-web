@@ -1,6 +1,7 @@
 import { createApp } from './app.js'
 import { env } from './config/env.js'
 import { startCleaningDutyPushScheduler } from './services/cleaningDutyPush.service.js'
+import { startExamReminderScheduler } from './services/examReminder.service.js'
 
 const app = createApp()
 
@@ -11,6 +12,12 @@ const server = app.listen(env.PORT, () => {
     startCleaningDutyPushScheduler()
   } catch (err) {
     console.warn('[server] không khởi động cleaningDutyPush scheduler:', err?.message || err)
+  }
+  // Nhắc kiểm tra: 00:00 đẩy thông báo hôm nay, 17:00 gỡ khỏi Thông báo chung
+  try {
+    startExamReminderScheduler()
+  } catch (err) {
+    console.warn('[server] không khởi động examReminder scheduler:', err?.message || err)
   }
 })
 
