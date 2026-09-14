@@ -8,6 +8,51 @@ import { isKnownRole, normalizeRole, ROLES } from '../lib/roles.js'
  * Role mới chỉ nhận giá trị trong allowlist — client không thể bịa 'superadmin'.
  */
 
+function extractGoogleEmail(authUser) {
+  if (!authUser) return null
+
+  const identities = Array.isArray(authUser.identities) ? authUser.identities : []
+  const google = identities.find((i) => i.provider === 'google')
+  if (google) {
+    const email = google.identity_data?.email || authUser.email || null
+    return email ? String(email).trim() : null
+  }
+
+  const providers = authUser.app_metadata?.providers
+  const usedGoogle =
+    (Array.isArray(providers) && providers.includes('google')) ||
+    authUser.app_metadata?.provider === 'google'
+  if (!usedGoogle) return null
+
+  return authUser.email ? String(authUser.email).trim() : null
+}
+
+async function loadGoogleEmailsByUserId() {
+  const map = new Map()
+  let page = 1
+  const perPage = 200
+  const maxPages = 20
+
+  while (page <= maxPages) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+      page,
+      perPage,
+    })
+    if (error) break
+
+    const users = data?.users || []
+    for (const user of users) {
+      const email = extractGoogleEmail(user)
+      if (email) map.set(user.id, email)
+    }
+
+    if (users.length < perPage) break
+    page += 1
+  }
+
+  return map
+}
+
 export async function listUsers() {
   const { data, error } = await supabaseAdmin
     .from('profiles')
@@ -15,7 +60,18 @@ export async function listUsers() {
     .order('created_at', { ascending: false })
 
   if (error) throw new AppError('Không thể tải danh sách tài khoản!', 500)
-  return (data || []).map(toPublicProfile)
+
+  let googleByUserId = new Map()
+  try {
+    googleByUserId = await loadGoogleEmailsByUserId()
+  } catch {
+    googleByUserId = new Map()
+  }
+
+  return (data || []).map((profile) => ({
+    ...toPublicProfile(profile),
+    google_email: googleByUserId.get(profile.id) || null,
+  }))
 }
 
 export async function updateUsername(targetUserId, rawName) {

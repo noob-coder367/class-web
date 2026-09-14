@@ -21,7 +21,7 @@
   background: #1a2b3c;
   color: #fff;
   width: 100%;
-  max-width: 860px;
+  max-width: 1080px;
   max-height: 90vh;
   border-radius: 16px;
   display: flex;
@@ -96,7 +96,7 @@
 .admin-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 720px; /* Đảm bảo bảng không bị ép quá nhỏ */
+  min-width: 920px; /* Đảm bảo bảng không bị ép quá nhỏ */
   text-align: left;
 }
 
@@ -112,6 +112,23 @@
   color: #94a3b8;
   font-weight: 600;
   background: rgba(255, 255, 255, 0.02);
+}
+
+.google-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.google-account-icon {
+  flex-shrink: 0;
+}
+
+.google-account-empty {
+  color: #64748b;
 }
 
 /* Cụm Nút bấm thao tác */
