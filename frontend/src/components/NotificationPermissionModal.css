@@ -1,7 +1,7 @@
 .np-overlay {
   position: fixed;
   inset: 0;
-  z-index: 500;
+  z-index: 8000;
   background: rgba(8, 18, 28, 0.55);
   backdrop-filter: blur(6px);
   display: flex;

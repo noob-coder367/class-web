@@ -17,12 +17,11 @@ import {
 import * as adminService from '../services/adminService.js'
 import * as classroomService from '../services/classroomService.js'
 import {
-  hasPromptedPermission,
-  markPrompted,
   isPushEnabledPref,
   requestPermissionAndSubscribe,
   registerServiceWorker,
   getNotificationPermission,
+  needsPushPrompt,
 } from '../services/pushService.js'
 import { countNewer } from '../lib/unreadStore.js'
 
@@ -112,8 +111,9 @@ export default function HomePage() {
     }
   }, [authReady, profile?.needs_display_name])
 
-  // Push + SW: mọi user đã đăng nhập (kể cả chưa là thành viên A4, Google/email).
-  // Unread badge: chỉ thành viên — giữ nguyên logic cũ.
+  // Push + SW: đăng ký SW cho mọi user đã login.
+  // Bảng hỏi bật thông báo: CHỈ thành viên A4 đã xác minh, và hiện lại
+  // mỗi lần vào web nếu chưa bật. Đã bật (permission granted) thì thôi.
   useEffect(() => {
     if (!authReady || !session) return
 
@@ -128,15 +128,9 @@ export default function HomePage() {
 
     const perm = getNotificationPermission()
     let promptTimer = null
-    if (
-      !hasPromptedPermission() &&
-      isPushEnabledPref() &&
-      perm !== 'granted' &&
-      perm !== 'denied' &&
-      perm !== 'unsupported'
-    ) {
-      promptTimer = setTimeout(() => setShowPushPrompt(true), 1200)
-    } else if (perm === 'granted' && isPushEnabledPref()) {
+    if (profile?.is_member && needsPushPrompt()) {
+      promptTimer = setTimeout(() => setShowPushPrompt(true), 600)
+    } else if (perm === 'granted' && (profile?.is_member || isPushEnabledPref())) {
       requestPermissionAndSubscribe().catch(() => {})
     }
 
@@ -303,16 +297,20 @@ export default function HomePage() {
   }
 
   const handleAllowPush = async () => {
-    setShowPushPrompt(false)
     try {
       await requestPermissionAndSubscribe()
+      setShowPushPrompt(false)
     } catch (err) {
       console.warn('Push subscribe:', err?.message || err)
+      alert(
+        err?.message ||
+          'Không bật được thông báo. Hãy cho phép quyền thông báo trong cài đặt trình duyệt, rồi thử lại.'
+      )
     }
   }
 
   const handleDenyPush = () => {
-    markPrompted()
+    // Chỉ ẩn trong phiên này. Lần vào web sau, nếu chưa bật thì hỏi lại.
     setShowPushPrompt(false)
   }
 
@@ -345,6 +343,7 @@ export default function HomePage() {
 
       {showPushPrompt && (
         <NotificationPermissionModal
+          blocked={getNotificationPermission() === 'denied'}
           onAllow={handleAllowPush}
           onDeny={handleDenyPush}
         />

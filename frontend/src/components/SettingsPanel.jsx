@@ -370,7 +370,8 @@ export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
                   <div>
                     <p className="settings-toggle-title">Thông báo đẩy (Web Push)</p>
                     <p className="settings-hint">
-                      Nhận thông báo khi có tin mới trong lớp. Chỉ hỏi quyền trình duyệt một lần.
+                      Nhận thông báo khi có tin mới trong lớp. Thành viên 10A4 nên
+                      để bật để không bỏ lỡ kiểm tra và báo bài.
                     </p>
                   </div>
                   <button

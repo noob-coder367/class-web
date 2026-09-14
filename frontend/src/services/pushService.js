@@ -24,6 +24,12 @@ export function getNotificationPermission() {
   return Notification.permission
 }
 
+/** Thành viên A4 chưa được trình duyệt cấp quyền → cần hiện bảng hỏi. */
+export function needsPushPrompt() {
+  const perm = getNotificationPermission()
+  return perm !== 'granted' && perm !== 'unsupported'
+}
+
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
