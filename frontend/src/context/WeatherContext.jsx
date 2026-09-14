@@ -56,8 +56,10 @@ async function fetchWeather(lat, lon) {
 }
 
 export function WeatherProvider({ children }) {
-  const { session, authReady } = useAuth()
+  const { session, authReady, profile } = useAuth()
   const isLoggedIn = !!session?.user
+  // Chưa xong tên hiển thị (Google lần đầu) → chưa hỏi vị trí
+  const profileReady = isLoggedIn && profile && !profile.needs_display_name
 
   const [permission, setPermission] = useState(() => {
     try {
@@ -74,14 +76,14 @@ export function WeatherProvider({ children }) {
 
   useEffect(() => {
     if (!authReady) return
-    if (!isLoggedIn) {
+    if (!isLoggedIn || !profileReady) {
       setShowPrompt(false)
       return
     }
     if (permission === 'granted' || permission === 'denied') return
     const t = setTimeout(() => setShowPrompt(true), 1200)
     return () => clearTimeout(t)
-  }, [authReady, isLoggedIn, permission])
+  }, [authReady, isLoggedIn, profileReady, permission])
 
   useEffect(() => {
     if (!isLoggedIn) {
