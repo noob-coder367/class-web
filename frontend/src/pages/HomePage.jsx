@@ -22,6 +22,8 @@ import {
   registerServiceWorker,
   getNotificationPermission,
   needsPushPrompt,
+  hasPromptedPermission,
+  markPrompted,
 } from '../services/pushService.js'
 import { countNewer } from '../lib/unreadStore.js'
 
@@ -112,10 +114,17 @@ export default function HomePage() {
   }, [authReady, profile?.needs_display_name])
 
   // Push + SW: đăng ký SW cho mọi user đã login.
-  // Bảng hỏi bật thông báo: CHỈ thành viên A4 đã xác minh, và hiện lại
-  // mỗi lần vào web nếu chưa bật. Đã bật (permission granted) thì thôi.
+  // - Đang nhập tên hiển thị (Google lần đầu): KHÔNG hỏi thông báo / không che form tên.
+  // - Sau khi có tên: thành viên A4 hỏi liên tục đến khi permission = granted.
+  // - Tài khoản lần đầu (chưa member): hỏi một lần sau khi nhập tên nếu trình duyệt chưa cấp quyền.
+  // - Đã granted: tự subscribe.
   useEffect(() => {
     if (!authReady || !session) return
+    // Chưa xong tên → chờ, không hiện bảng push (tránh chỉ thấy form tên).
+    if (profile?.needs_display_name) {
+      setShowPushPrompt(false)
+      return
+    }
 
     let onUnread = null
     if (profile?.is_member) {
@@ -128,7 +137,15 @@ export default function HomePage() {
 
     const perm = getNotificationPermission()
     let promptTimer = null
-    if (profile?.is_member && needsPushPrompt()) {
+
+    const shouldAskMember = profile?.is_member && needsPushPrompt()
+    // Lần đầu (sau set tên, chưa member): hỏi 1 lần nếu chưa prompted và chưa granted
+    const shouldAskFirstTime =
+      !profile?.is_member &&
+      needsPushPrompt() &&
+      !hasPromptedPermission()
+
+    if (shouldAskMember || shouldAskFirstTime) {
       promptTimer = setTimeout(() => setShowPushPrompt(true), 600)
     } else if (perm === 'granted' && (profile?.is_member || isPushEnabledPref())) {
       requestPermissionAndSubscribe().catch(() => {})
@@ -138,7 +155,13 @@ export default function HomePage() {
       if (promptTimer) clearTimeout(promptTimer)
       if (onUnread) window.removeEventListener('classweb-unread-updated', onUnread)
     }
-  }, [authReady, session, profile?.is_member, refreshUnread])
+  }, [
+    authReady,
+    session,
+    profile?.is_member,
+    profile?.needs_display_name,
+    refreshUnread,
+  ])
 
   useEffect(() => {
     if (!authReady || !profile?.is_member || showClassRoom) return
@@ -291,6 +314,7 @@ export default function HomePage() {
       setShowAuth(false)
       setShowClassRoom(false)
       setUnreadTotal(0)
+      setShowPushPrompt(false)
     } finally {
       setAuthLoading(false)
     }
@@ -302,6 +326,8 @@ export default function HomePage() {
       setShowPushPrompt(false)
     } catch (err) {
       console.warn('Push subscribe:', err?.message || err)
+      // Vẫn đánh dấu đã hỏi (lần đầu) để không spam user non-member
+      markPrompted()
       alert(
         err?.message ||
           'Không bật được thông báo. Hãy cho phép quyền thông báo trong cài đặt trình duyệt, rồi thử lại.'
@@ -310,7 +336,8 @@ export default function HomePage() {
   }
 
   const handleDenyPush = () => {
-    // Chỉ ẩn trong phiên này. Lần vào web sau, nếu chưa bật thì hỏi lại.
+    // Non-member: đánh dấu đã hỏi 1 lần. Member: chỉ ẩn phiên này, lần sau hỏi lại.
+    if (!profile?.is_member) markPrompted()
     setShowPushPrompt(false)
   }
 
@@ -341,7 +368,7 @@ export default function HomePage() {
         />
       )}
 
-      {showPushPrompt && (
+      {showPushPrompt && !profile?.needs_display_name && (
         <NotificationPermissionModal
           blocked={getNotificationPermission() === 'denied'}
           onAllow={handleAllowPush}
@@ -565,93 +592,17 @@ export default function HomePage() {
                       alt={photo.caption || `Ảnh lớp ${i + 1}`}
                     />
                   ) : (
-                    'Ảnh lớp'
+                    'Ảnh'
                   )}
                 </div>
-                {photo.caption ? (
-                  <span className="polaroid-caption">{photo.caption}</span>
-                ) : null}
+                <span className="polaroid-caption">
+                  {photo.caption || `Kỷ niệm ${i + 1}`}
+                </span>
               </div>
             ))}
           </div>
         </div>
       </section>
-
-      <section id="thong-bao" className="zone zone--abyss">
-        <Glow count={7} />
-        <Jellyfish style={{ top: '18%', right: '12%', width: 52, opacity: 0.45 }} />
-        <Anglerfish style={{ bottom: '12%', left: '8%', width: 64, opacity: 0.5 }} />
-        <div className="section-inner">
-          <p className="eyebrow">Cộng đồng</p>
-          <h2>Trò chuyện lớp</h2>
-          <p className="section-desc">
-            Gửi lời chào, thông báo nhanh hoặc chia sẻ khoảnh khắc — mọi người
-            trong lớp đều có thể xem.
-          </p>
-
-          <form className="announcement-form" onSubmit={handleSubmit}>
-            <input
-              type="text"
-              placeholder="Tiêu đề"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-            <textarea
-              placeholder="Nội dung..."
-              rows={3}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-            />
-            <input
-              type="text"
-              placeholder="Người gửi (tuỳ chọn)"
-              value={sender}
-              onChange={(e) => setSender(e.target.value)}
-            />
-            <button type="submit" disabled={submitting}>
-              {submitting ? 'Đang gửi...' : 'Gửi thông báo'}
-            </button>
-          </form>
-
-          <div className="announcement-list">
-            {announcements.length === 0 ? (
-              <p className="announcement-empty">Chưa có tin nhắn nào.</p>
-            ) : (
-              announcements.map((item) => (
-                <article key={item.id} className="announcement-card">
-                  <div className="announcement-card-header">
-                    <h3>{item.title}</h3>
-                    {profile?.role === 'admin' && (
-                      <button
-                        type="button"
-                        className="btn-delete-announcement"
-                        onClick={() => handleDeleteAnnouncement(item.id)}
-                      >
-                        Xóa
-                      </button>
-                    )}
-                  </div>
-                  <p>{item.content}</p>
-                  <div className="announcement-meta">
-                    <span>{item.sender || 'Ẩn danh'}</span>
-                    <span>
-                      {item.created_at
-                        ? new Date(item.created_at).toLocaleString('vi-VN')
-                        : ''}
-                    </span>
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        </div>
-      </section>
-
-      <footer className="site-footer zone zone--floor">
-        <div className="section-inner">
-          <p>Lớp 10A4 · THPT Nguyễn Hữu Huân · Niên khoá 2026 – 2027</p>
-        </div>
-      </footer>
 
       {showAdminPanel && (
         <AdminPanel onClose={() => setShowAdminPanel(false)} />
