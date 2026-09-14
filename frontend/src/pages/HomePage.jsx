@@ -592,17 +592,93 @@ export default function HomePage() {
                       alt={photo.caption || `Ảnh lớp ${i + 1}`}
                     />
                   ) : (
-                    'Ảnh'
+                    'Ảnh lớp'
                   )}
                 </div>
-                <span className="polaroid-caption">
-                  {photo.caption || `Kỷ niệm ${i + 1}`}
-                </span>
+                {photo.caption ? (
+                  <span className="polaroid-caption">{photo.caption}</span>
+                ) : null}
               </div>
             ))}
           </div>
         </div>
       </section>
+
+      <section id="thong-bao" className="zone zone--abyss">
+        <Glow count={7} />
+        <Jellyfish style={{ top: '18%', right: '12%', width: 52, opacity: 0.45 }} />
+        <Anglerfish style={{ bottom: '12%', left: '8%', width: 64, opacity: 0.5 }} />
+        <div className="section-inner">
+          <p className="eyebrow">Cộng đồng</p>
+          <h2>Trò chuyện lớp</h2>
+          <p className="section-desc">
+            Gửi lời chào, thông báo nhanh hoặc chia sẻ khoảnh khắc — mọi người
+            trong lớp đều có thể xem.
+          </p>
+
+          <form className="announcement-form" onSubmit={handleSubmit}>
+            <input
+              type="text"
+              placeholder="Tiêu đề"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <textarea
+              placeholder="Nội dung..."
+              rows={3}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Người gửi (tuỳ chọn)"
+              value={sender}
+              onChange={(e) => setSender(e.target.value)}
+            />
+            <button type="submit" disabled={submitting}>
+              {submitting ? 'Đang gửi...' : 'Gửi thông báo'}
+            </button>
+          </form>
+
+          <div className="announcement-list">
+            {announcements.length === 0 ? (
+              <p className="announcement-empty">Chưa có tin nhắn nào.</p>
+            ) : (
+              announcements.map((item) => (
+                <article key={item.id} className="announcement-card">
+                  <div className="announcement-card-header">
+                    <h3>{item.title}</h3>
+                    {profile?.role === 'admin' && (
+                      <button
+                        type="button"
+                        className="btn-delete-announcement"
+                        onClick={() => handleDeleteAnnouncement(item.id)}
+                      >
+                        Xóa
+                      </button>
+                    )}
+                  </div>
+                  <p>{item.content}</p>
+                  <div className="announcement-meta">
+                    <span>{item.sender || 'Ẩn danh'}</span>
+                    <span>
+                      {item.created_at
+                        ? new Date(item.created_at).toLocaleString('vi-VN')
+                        : ''}
+                    </span>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
+
+      <footer className="site-footer zone zone--floor">
+        <div className="section-inner">
+          <p>Lớp 10A4 · THPT Nguyễn Hữu Huân · Niên khoá 2026 – 2027</p>
+        </div>
+      </footer>
 
       {showAdminPanel && (
         <AdminPanel onClose={() => setShowAdminPanel(false)} />
