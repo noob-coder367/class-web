@@ -446,15 +446,66 @@ async function forcePendingIfAutoNamed(user, profile) {
   return updated
 }
 
-export async function getUserFromAccessToken(accessToken) {
-  const { data, error } = await supabaseAdmin.auth.getUser(accessToken)
-  if (error || !data?.user) return null
+const AUTH_USER_CACHE_TTL_MS = 60 * 1000
+const AUTH_USER_CACHE_MAX = 400
+const authUserCache = new Map()
+const authUserInflight = new Map()
 
-  let profile = await findProfileById(data.user.id)
-  if (!profile) {
-    profile = await ensureProfile(data.user)
-  } else {
-    profile = await forcePendingIfAutoNamed(data.user, profile)
+function getCachedAuthUser(token) {
+  const hit = authUserCache.get(token)
+  if (!hit) return null
+  if (hit.exp <= Date.now()) {
+    authUserCache.delete(token)
+    return null
   }
-  return { user: data.user, profile }
+  return hit.user
+}
+
+function setCachedAuthUser(token, user) {
+  authUserCache.set(token, { user, exp: Date.now() + AUTH_USER_CACHE_TTL_MS })
+  if (authUserCache.size <= AUTH_USER_CACHE_MAX) return
+  const now = Date.now()
+  for (const [key, val] of authUserCache) {
+    if (val.exp <= now) authUserCache.delete(key)
+  }
+  while (authUserCache.size > AUTH_USER_CACHE_MAX) {
+    const oldest = authUserCache.keys().next().value
+    if (oldest === undefined) break
+    authUserCache.delete(oldest)
+  }
+}
+
+async function getAuthUserByAccessToken(accessToken) {
+  const cached = getCachedAuthUser(accessToken)
+  if (cached) return cached
+
+  const pending = authUserInflight.get(accessToken)
+  if (pending) return pending
+
+  const task = (async () => {
+    const { data, error } = await supabaseAdmin.auth.getUser(accessToken)
+    if (error || !data?.user) return null
+    setCachedAuthUser(accessToken, data.user)
+    return data.user
+  })()
+
+  authUserInflight.set(accessToken, task)
+  try {
+    return await task
+  } finally {
+    authUserInflight.delete(accessToken)
+  }
+}
+
+export async function getUserFromAccessToken(accessToken) {
+  const user = await getAuthUserByAccessToken(accessToken)
+  if (!user) return null
+
+  let profile = await findProfileById(user.id)
+  if (!profile) {
+    profile = await ensureProfile(user)
+  } else {
+    profile = await forcePendingIfAutoNamed(user, profile)
+  }
+  return { user, profile }
 }

@@ -4,7 +4,7 @@ import { startCleaningDutyPushScheduler } from './services/cleaningDutyPush.serv
 
 const app = createApp()
 
-app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, () => {
   console.log(`[class-web backend] listening on port ${env.PORT} (${env.NODE_ENV})`)
   // Web Push nhắc lịch trực vệ sinh: 17:00 hôm trước + 05:45 sáng ngày trực
   try {
@@ -13,3 +13,10 @@ app.listen(env.PORT, () => {
     console.warn('[server] không khởi động cleaningDutyPush scheduler:', err?.message || err)
   }
 })
+
+// Render / proxy cắt kết nối ~60s. Giữ keep-alive lâu hơn một chút
+// để tránh đóng nhầm khi cả lớp cùng poll.
+server.keepAliveTimeout = 65_000
+server.headersTimeout = 66_000
+server.timeout = 30_000
+server.requestTimeout = 30_000
