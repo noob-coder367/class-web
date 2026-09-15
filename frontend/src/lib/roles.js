@@ -50,7 +50,7 @@ export const SECTION_LABELS = {
 const CAPABILITY_ROLES = {
   adminPanel: [ROLES.ADMIN],
   assignRoles: [ROLES.ADMIN],
-  timetable: [ROLES.ADMIN],
+  timetable: [ROLES.ADMIN, ROLES.VP_EVENTS],
   siteImages: [ROLES.ADMIN],
   homework: [ROLES.ADMIN, ROLES.VP_ACADEMIC],
   rules: [ROLES.ADMIN, ROLES.VP_DISCIPLINE],
