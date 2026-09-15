@@ -114,6 +114,19 @@
   background: rgba(255, 255, 255, 0.02);
 }
 
+.admin-table .col-stt {
+  width: 48px;
+  min-width: 48px;
+  max-width: 56px;
+  text-align: center;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-table th.col-stt {
+  color: #94a3b8;
+}
+
 .google-account {
   display: inline-flex;
   align-items: center;
