@@ -14,10 +14,10 @@ tác, bao gồm cả thao tác nhạy cảm:
 | Toàn bộ thao tác Admin (list/toggle role/xóa user) gọi thẳng `supabase.from('profiles')` bằng anon key | Chỉ được chặn bởi RLS (nếu cấu hình đúng); nút "Admin" trên UI chỉ ẩn/hiện, không chặn được request thật |
 | Đăng ký/đăng nhập/OTP xử lý hoàn toàn ở client | Không có nơi tập trung để audit, rate-limit, hay validate nghiệp vụ trước khi chạm DB |
 
-## Kiến trúc mới
+## Kiến trúc hiện tại
 
 ```
-class-web-monorepo/
+class-web/
 ├── .gitignore
 ├── README.md
 ├── backend/                  # Node.js + Express (service role key sống ở đây)
@@ -28,140 +28,71 @@ class-web-monorepo/
 │       ├── app.js
 │       ├── config/
 │       │   ├── env.js
-│       │   └── supabaseClient.js     # client dùng SERVICE_ROLE_KEY
-│       ├── controllers/
-│       │   ├── auth.controller.js
-│       │   └── admin.controller.js
+│       │   └── supabaseClient.js
+│       ├── controllers/      # auth, admin, classroom, events, images, push
 │       ├── routes/
-│       │   ├── auth.routes.js
-│       │   ├── admin.routes.js
-│       │   └── index.js
-│       ├── services/
-│       │   ├── auth.service.js       # SECRET_CODE, OTP, login/register logic
-│       │   └── admin.service.js      # quản lý user (bypass RLS an toàn)
-│       └── middlewares/
-│           ├── auth.middleware.js    # requireAuth (verify access_token)
-│           ├── admin.middleware.js   # requireAdmin (role === 'admin')
-│           ├── validate.middleware.js
-│           └── error.middleware.js
+│       ├── services/         # auth (tên hiển thị, login, OTP…), admin, classroom, …
+│       ├── middlewares/
+│       ├── data/             # timetable.default.json, rules.default.json
+│       └── lib/              # roles, reputationStatus
 └── frontend/                 # React + Vite (chỉ dùng anon key)
     ├── .env.example
     ├── package.json
     └── src/
-        ├── App.jsx
-        ├── main.jsx
-        ├── lib/
-        │   └── supabaseClient.js     # client dùng ANON_KEY (public reads, session)
-        ├── services/
-        │   ├── apiClient.js          # fetch wrapper gọi backend
-        │   ├── authService.js
-        │   └── adminService.js
-        ├── context/
-        │   └── AuthContext.jsx       # session/profile toàn app
-        ├── pages/
-        │   ├── AuthPage.jsx          # login/register/otp/forgot/reset
-        │   └── HomePage.jsx          # landing page + điều hướng modal
-        └── components/
-            ├── AdminPanel.jsx        # gọi adminService, không gọi supabase trực tiếp
-            ├── EventsSection.jsx
-            └── decor/SeaDecor.jsx    # component trang trí thuần UI
+        ├── App.jsx / main.jsx / App.css / index.css
+        ├── lib/supabaseClient.js
+        ├── services/         # apiClient, authService, adminService, push, …
+        ├── context/          # AuthContext, WeatherContext
+        ├── pages/            # AuthPage (login/OTP/display-name), HomePage
+        └── components/       # ProfileMenu, SettingsPanel, AdminPanel,
+                              # ClassRoomView, Events, Homework, Rules, …
 ```
+
+## Tên hiển thị (display name)
+
+- Tài khoản Google mới có thể được gán username tạm `pending:<userId>`.
+- Frontend hiện form **Tên hiển thị** khi `profile.needs_display_name === true`.
+- User đặt tên lần đầu: `POST /api/auth/display-name`.
+- User đổi tên sau đó: `POST /api/auth/change-username` (tối đa **2 lần / 7 ngày**).
+- Admin đổi tên hộ: `PATCH /api/admin/users/:id/username` (không tính hạn mức user).
+- Backend luôn ghi `updated_at` khi lưu tên; `forcePendingIfAutoNamed` **không** reset tên đã được user/admin đặt (chỉ xử lý username auto từ Google ngay sau khi tạo hồ sơ).
 
 ## Những gì đã chuyển từ Frontend sang Backend
 
-- **`SECRET_CODE`**: không còn tồn tại ở frontend. Nằm trong
-  `backend/.env` (`SECRET_CODE=...`), chỉ được so sánh trong
-  `auth.service.js::registerUser`.
-- **Đăng ký**: `POST /api/auth/register` — backend tạo user bằng
-  `supabase.auth.admin.createUser` (service role), tự kiểm tra
-  username trùng, tự set `is_member` dựa trên kết quả kiểm tra
-  `SECRET_CODE` ở server (không tin dữ liệu client gửi lên).
-- **OTP**: `POST /api/auth/verify-otp`, `POST /api/auth/resend-otp` —
-  backend gọi `supabase.auth.verifyOtp` / `signInWithOtp` bằng service
-  role key.
-- **Đăng nhập bằng username**: `POST /api/auth/login` — backend tra
-  email từ username rồi gọi `signInWithPassword`, trả `session` thật
-  của Supabase về cho frontend.
-- **Quên/đổi mật khẩu**: `POST /api/auth/forgot-password`,
-  `POST /api/auth/reset-password`.
-- **Toàn bộ Admin Panel**: `GET/PATCH/DELETE /api/admin/users/...` —
-  được canh gác bởi `requireAuth` + `requireAdmin`, chạy bằng service
-  role key nên **không phụ thuộc RLS** để đảm bảo an toàn. Chỉ **Admin**
-  mới truyền được chức (dropdown): Admin / Lớp phó học tập / Lớp phó kỷ luật
-  / Lớp phó sự kiện / Lớp phó Lao động / Thành viên. Lớp phó **không** vào
-  được `/api/admin`.
-- **Quyền lớp phó (enforce ở backend, không chỉ ẩn nút UI)**:
-  - Lớp phó học tập (`vp_academic`) — ghi tab Bài tập về nhà
-  - Lớp phó kỷ luật (`vp_discipline`) — ghi tab Nội quy lớp (nội quy + vi phạm)
-  - Lớp phó sự kiện (`vp_events`) — ghi EventSection + tab Thông báo chung
-  - Lớp phó Lao động (`vp_labor`) — quản lý lịch trực vệ sinh theo tuần
-    (T2–T7) + cập nhật trạng thái vệ sinh từng ngày (`cleaning_duty_*`)
-  - Thời khoá biểu, ảnh website, duyệt thành viên, xóa user: **chỉ Admin**
-- **Sự kiện**: `POST/PATCH/DELETE /api/events` — `requireAuth` + capability
-  `events`. Client không còn insert/delete thẳng bảng `events`.
-- **Lịch trực vệ sinh**: `GET /api/classroom/cleaning-duty/schedule|status`
-  (mọi thành viên đọc được), `PUT /api/classroom/cleaning-duty/schedule` +
-  `PATCH /api/classroom/cleaning-duty/status/:date` — `requireAuth` +
-  capability `cleaningDuty` (Admin / LPLĐ). Dữ liệu ở 2 bảng Postgres
-  `cleaning_duty_schedule` (lịch theo tuần T2–T7) và `cleaning_duty_status`
-  (trạng thái từng ngày) — xem `supabase/cleaning-duty-schema.sql`.
-- **Khu vực lớp 10A4**: `GET /api/classroom/access`,
-  `GET /api/classroom/tabs/:tab` — `requireAuth` + `requireMember`.
-  Nội dung tab (thông báo chung, TKB, bài tập, nội quy) **không** nằm
-  trong JS frontend; ai mở F12 cũng không đọc được nếu chưa là thành viên.
+- **`SECRET_CODE`**: chỉ trong `backend/.env`, so sánh ở `auth.service.js::registerUser`.
+- **Đăng ký / OTP / login username / quên mật khẩu**: qua `/api/auth/*`.
+- **Tên hiển thị**: `/api/auth/display-name`, `/api/auth/change-username`, `/api/auth/username-change-status`.
+- **Admin Panel**: `GET/PATCH/DELETE /api/admin/...` — `requireAuth` + `requireAdmin`.
+- **Quyền lớp phó** (enforce backend): học tập, kỷ luật, sự kiện, lao động (trực vệ sinh).
+- **Sự kiện, lịch trực, khu vực lớp 10A4, TKB, bài tập, nội quy, thông báo**: API classroom/events tương ứng, không tin client.
 
-Điều **vẫn giữ ở frontend** (vì không nhạy cảm, đúng mô hình khuyến nghị
-của Supabase): đọc `announcements`, đọc/đăng `events`, realtime
-subscriptions, đăng nhập Google OAuth — dùng client anon key +
-RLS như bình thường. Nếu muốn siết chặt hơn nữa, có thể chuyển tiếp
-`handleSubmit` / `handleDeleteAnnouncement` trong `HomePage.jsx` và các
-thao tác ghi trong `EventsSection.jsx` sang backend theo đúng khuôn mẫu
-`admin.routes.js`.
+Điều **vẫn giữ ở frontend** (không nhạy cảm): đọc public, realtime, Google OAuth (anon key + RLS).
 
 ## Khu vực lớp (Vô Lớp 10A4)
 
-Thành viên bấm **Vô Lớp 10A4** sẽ vào màn hình nội bộ với 4 mục cạnh nút thoát:
+Thành viên bấm **Vô Lớp 10A4** vào màn nội bộ (thông báo, TKB, bài tập, nội quy, trực vệ sinh…). Chỉ trả dữ liệu sau khi backend xác thực token + `is_member` (hoặc admin).
 
-1. Thông báo chung (mặc định)
-2. Thời khoá biểu
-3. Bài tập về nhà
-4. Nội quy lớp
+## Cài đặt / Settings (Profile)
 
-Hiện các mục **Thông báo chung / Bài tập / Nội quy** đang trống ("Chưa có nội dung"). Tab **Thời khoá biểu** hiển thị TKB lớp 10A4 (buổi sáng + buổi chiều, gồm Thứ 7). Admin thấy nút cài đặt góc dưới phải để đổi môn (dropdown) và giờ học. Dữ liệu mặc định nằm ở `backend/src/data/timetable.default.json`, bản chỉnh của admin lưu vào Supabase Storage bucket `classroom-data` (`timetable.json`) qua:
-
-- `GET /api/classroom/timetable` — thành viên / admin
-- `PUT /api/classroom/timetable` — **chỉ admin**
-
-
-## Ảnh website (giáo viên, ảnh lớp)
-
-Admin mở **Quản lý Admin → tab Ảnh website** để thêm/xóa:
-
-- Ảnh giáo viên
-- Ảnh lớp trên banner trang chủ
-- Ảnh gallery (kỷ niệm)
-
-Ảnh được lưu trên **Supabase Storage** (bucket `site-images`), nên trang chủ
-hiện ảnh mới ngay, không cần token GitHub. Admin thêm/xóa từ
-**Quản lý Admin → tab Ảnh website**.
-
-Bảng đăng nhập/đăng ký: bấm ra ngoài khung (hoặc phím Esc) để đóng.
+- Đổi ảnh đại diện (local, tối đa 3 lần/24h).
+- Đổi tên hiển thị (hạn mức 2 lần/7 ngày).
+- Đổi mật khẩu (tài khoản email/password).
+- Bật/tắt chia sẻ vị trí (nền đại dương theo thời tiết) và Web Push.
 
 ## Cách chạy
 
 ### 1. Cấu hình Supabase
 
-Trong Supabase Dashboard, lấy 3 giá trị:
 - Project URL
-- `anon` / `publishable` key → dùng cho **frontend**
-- `service_role` key → dùng cho **backend**, tuyệt đối không lộ ra ngoài
+- `anon` key → **frontend**
+- `service_role` key → **backend** (không lộ ra ngoài)
 
 ### 2. Backend
 
 ```bash
 cd backend
 cp .env.example .env
-# điền SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SECRET_CODE thật vào .env
+# SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SECRET_CODE
 npm install
 npm run dev
 ```
@@ -171,22 +102,14 @@ npm run dev
 ```bash
 cd frontend
 cp .env.example .env
-# điền VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_BASE_URL vào .env
+# VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_BASE_URL
 npm install
 npm run dev
 ```
 
 ## Ghi chú bảo mật
 
-- `.env` (cả hai thư mục) đã bị chặn bởi `.gitignore` gốc — không commit.
-- Không bao giờ đưa `SUPABASE_SERVICE_ROLE_KEY` hay `SECRET_CODE` vào
-  bất kỳ file nào trong `frontend/`.
-- Bảng `profiles` trên Supabase nên có RLS bật (người dùng chỉ đọc/sửa
-  hồ sơ của chính mình) như một lớp phòng thủ bổ sung — dù giờ đây các
-  thao tác quan trọng đã được backend enforce độc lập với RLS.
-- **Bắt buộc chạy** `supabase/secure-roles.sql` trên SQL Editor: chặn user
-  tự `update({ role: 'admin' })` từ DevTools, cho phép 3 vai trò lớp phó,
-  và khóa ghi bảng `events` từ anon/authenticated (chỉ backend ghi).
-- Nội dung khu vực lớp (thông báo, TKB, bài tập, nội quy) chỉ trả về
-  sau khi backend xác thực token + `is_member` (hoặc admin). Ẩn nút trên
-  UI không đủ — request thật vẫn bị 403 nếu giả lập F12.
+- `.env` đã bị `.gitignore` — không commit.
+- Không đưa `SUPABASE_SERVICE_ROLE_KEY` / `SECRET_CODE` vào `frontend/`.
+- Bảng `profiles` nên bật RLS; thao tác quan trọng vẫn enforce ở backend.
+- Chạy `supabase/secure-roles.sql` nếu có trong repo để khóa role/events từ client.
