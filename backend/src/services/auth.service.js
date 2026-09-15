@@ -422,8 +422,8 @@ async function ensureProfile(user) {
  * Chỉ ép về pending:… **một lần** ngay sau khi hồ sơ mới tạo.
  *
  * Guard cứng (tránh hiện form tên lại sau khi user/admin đã đặt tên):
- * 1. Hồ sơ đã tồn tại > 2 phút → không bao giờ reset (kể cả updated_at hỏng).
- * 2. updated_at lệch created_at > 5s → coi như đã qua bước đặt/đổi tên.
+ * 1. Hồ sơ đã tồn tại > 30 giây → không bao giờ reset.
+ * 2. updated_at lệch created_at > 1s → coi như đã qua bước đặt/đổi tên.
  * 3. Chỉ reset khi username vẫn "trông như" tên auto từ Google metadata.
  *
  * setDisplayName luôn ghi updated_at tường minh để guard (2) hoạt động.
@@ -438,16 +438,16 @@ async function forcePendingIfAutoNamed(user, profile) {
   const updatedMs = Date.parse(profile.updated_at || profile.created_at || '')
   const now = Date.now()
 
-  // Hồ sơ đã cũ (>2 phút) → chắc chắn đã qua bước đặt tên / admin rename
-  if (Number.isFinite(createdMs) && now - createdMs > 2 * 60 * 1000) {
+  // Hồ sơ đã cũ (>30s) → chắc chắn đã qua bước đặt tên / admin rename
+  if (Number.isFinite(createdMs) && now - createdMs > 30 * 1000) {
     return profile
   }
 
-  // Hồ sơ đã được cập nhật sau lúc tạo (>5s) → đã đặt/đổi tên
+  // Hồ sơ đã được cập nhật sau lúc tạo (>1s) → đã đặt/đổi tên (user hoặc admin)
   if (
     Number.isFinite(createdMs) &&
     Number.isFinite(updatedMs) &&
-    updatedMs - createdMs > 5000
+    updatedMs - createdMs > 1000
   ) {
     return profile
   }
