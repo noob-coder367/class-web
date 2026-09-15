@@ -75,7 +75,8 @@ export async function listUsers() {
 }
 
 export async function updateUsername(targetUserId, rawName) {
-  return setDisplayName(targetUserId, rawName)
+  // Admin đổi tên hộ: không check hạn mức, không ghi vào lịch sử đổi tên của user
+  return setDisplayName(targetUserId, rawName, { skipLimit: true })
 }
 
 export async function toggleMember(targetUserId, currentStatus) {
