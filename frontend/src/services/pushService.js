@@ -24,7 +24,7 @@ export function getNotificationPermission() {
   return Notification.permission
 }
 
-/** Thành viên A4 chưa được trình duyệt cấp quyền → cần hiện bảng hỏi. */
+/** Trình duyệt chưa cấp quyền thông báo → cần hiện bảng hỏi (mọi tài khoản). */
 export function needsPushPrompt() {
   const perm = getNotificationPermission()
   return perm !== 'granted' && perm !== 'unsupported'
