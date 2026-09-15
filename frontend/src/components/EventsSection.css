@@ -188,7 +188,8 @@
   border-radius: 16px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* visible để dropdown notify không bị cắt */
+  overflow: visible;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
 }
 
@@ -231,6 +232,7 @@
 
 .event-composer-body {
   padding: 16px;
+  overflow-x: visible;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   display: flex;
@@ -347,6 +349,7 @@
   flex-shrink: 0;
   position: relative;
   z-index: 2;
+  overflow: visible;
 }
 
 .composer-textarea {
@@ -375,12 +378,14 @@
   gap: 12px;
   position: relative;
   z-index: 5;
+  overflow: visible;
 }
 
 .notify-dropdown {
   position: relative;
-  z-index: 30;
+  z-index: 40;
   width: 100%;
+  overflow: visible;
 }
 
 .btn-notify-toggle {
@@ -407,18 +412,20 @@
   border-color: var(--primary);
 }
 
+/* Mở menu hướng lên để không bị footer/modal cắt */
 .notify-menu {
   position: absolute !important;
-  top: calc(100% + 4px);
+  bottom: calc(100% + 6px);
+  top: auto;
   left: 0;
   right: 0;
   width: 100%;
   background: #fff !important;
   border: 1.5px solid var(--line);
   border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22);
-  z-index: 60 !important;
-  overflow: hidden;
+  box-shadow: 0 -8px 28px rgba(15, 23, 42, 0.18), 0 12px 32px rgba(15, 23, 42, 0.12);
+  z-index: 80 !important;
+  overflow: visible;
   display: flex !important;
   flex-direction: column !important;
   padding: 4px;
@@ -440,6 +447,7 @@
   font-family: inherit;
   font-weight: 500;
   box-sizing: border-box;
+  white-space: nowrap;
 }
 
 .notify-menu-item:hover,
@@ -487,6 +495,8 @@
   flex-shrink: 0;
   background: var(--paper-raised);
   border-radius: 0 0 16px 16px;
+  position: relative;
+  z-index: 1;
 }
 
 .btn-post-event {
@@ -588,5 +598,10 @@
     bottom: 14px;
     width: 50px;
     height: 50px;
+  }
+
+  /* Body không cắt dropdown trên mobile */
+  .event-composer-body {
+    overflow: visible;
   }
 }
