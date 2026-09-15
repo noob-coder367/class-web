@@ -274,15 +274,15 @@ export default function HomePage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!title || !content) return alert('Vui long nhap du tieu de va noi dung!')
+    if (!title || !content) return alert('Vui lòng nhập đủ tiêu đề và nội dung!')
 
     setSubmitting(true)
     const { error } = await supabase
       .from('announcements')
-      .insert([{ title, content, sender: sender || 'An danh' }])
+      .insert([{ title, content, sender: sender || 'Ẩn danh' }])
     setSubmitting(false)
 
-    if (error) return alert('Loi dang thong bao: ' + error.message)
+    if (error) return alert('Lỗi đăng thông báo: ' + error.message)
 
     setTitle('')
     setContent('')
@@ -290,10 +290,10 @@ export default function HomePage() {
   }
 
   const handleDeleteAnnouncement = async (id) => {
-    if (!window.confirm('Ban co chac muon xoa thong bao nay?')) return
+    if (!window.confirm('Bạn có chắc muốn xóa thông báo này?')) return
 
     const { error } = await supabase.from('announcements').delete().eq('id', id)
-    if (error) return alert('Xoa thong bao that bai: ' + error.message)
+    if (error) return alert('Xóa thông báo thất bại: ' + error.message)
 
     setAnnouncements((prev) => prev.filter((a) => a.id !== id))
   }
@@ -321,7 +321,7 @@ export default function HomePage() {
       markPrompted()
       alert(
         err?.message ||
-          'Khong bat duoc thong bao. Hay cho phep quyen thong bao trong cai dat trinh duyet, roi thu lai.'
+          'Không bật được thông báo. Hãy cho phép quyền thông báo trong cài đặt trình duyệt, rồi thử lại.'
       )
     }
   }
@@ -394,9 +394,9 @@ export default function HomePage() {
                 className="btn-class btn-class--badge"
                 onClick={() => openClassRoom('announcements')}
               >
-                Vo Lop 10A4
+                Vô Lớp 10A4
                 {unreadTotal > 0 ? (
-                  <span className="nav-unread-badge" aria-label={`${unreadTotal} thong bao moi`}>
+                  <span className="nav-unread-badge" aria-label={`${unreadTotal} thông báo mới`}>
                     {unreadTotal > 99 ? '99+' : unreadTotal}
                   </span>
                 ) : null}
@@ -409,20 +409,20 @@ export default function HomePage() {
                 style={{ background: '#e0a640' }}
                 onClick={() => setShowAdminPanel(true)}
               >
-                Quan ly Admin
+                Quản lý Admin
               </button>
             )}
 
             {!authReady ? (
               <button className="btn-verify" disabled>
-                Dang kiem tra...
+                Đang kiểm tra...
               </button>
             ) : session ? (
               <ProfileMenu onLogout={handleSignOut} />
             ) : (
               <>
                 <button className="btn-verify" onClick={() => openAuth('login')}>
-                  Dang nhap
+                  Đăng nhập
                 </button>
                 <button
                   className="btn-verify"
@@ -432,9 +432,9 @@ export default function HomePage() {
                     border: '1px solid var(--primary)',
                     boxShadow: 'none',
                   }}
-                  onClick={() => alert('Nut dang ky dang bao tri')}
+                  onClick={() => alert('Nút đăng ký đang bảo trì')}
                 >
-                  Dang ky
+                  Đăng ký
                 </button>
               </>
             )}
@@ -445,26 +445,26 @@ export default function HomePage() {
       <section id="trang-chu" className="hero">
         <div className="hero-inner">
           <div className="hero-text">
-            <p className="eyebrow">Truong THPT Nguyen Huu Huan</p>
+            <p className="eyebrow">Trường THPT Nguyễn Hữu Huân</p>
             <h1>
-              Lop <span className="highlight">10A4</span>
+              Lớp <span className="highlight">10A4</span>
             </h1>
             <p className="hero-desc">
-              Mot khoa hoc, mot tap the — noi luu lai nhung gio hoc, nhung tam
-              anh va tin tuc cua ca lop trong suot nam hoc.
+              Một khóa học, một tập thể — nơi lưu lại những giờ học, những tấm
+              ảnh và tin tức của cả lớp trong suốt năm học.
             </p>
             <div className="hero-stats">
               <div className="stat-card">
-                <span className="stat-label">Giao vien chu nhiem</span>
-                <span className="stat-value">Co Le Thi Ut</span>
+                <span className="stat-label">Giáo viên chủ nhiệm</span>
+                <span className="stat-value">Cô Lê Thị Út</span>
               </div>
               <div className="stat-card">
-                <span className="stat-label">Nien khoa</span>
+                <span className="stat-label">Niên khóa</span>
                 <span className="stat-value">2026 – 2027</span>
               </div>
               <div className="stat-card">
-                <span className="stat-label">Truong</span>
-                <span className="stat-value">THPT Nguyen Huu Huan</span>
+                <span className="stat-label">Trường</span>
+                <span className="stat-value">THPT Nguyễn Hữu Huân</span>
               </div>
             </div>
           </div>
@@ -475,14 +475,14 @@ export default function HomePage() {
                 {heroPhoto ? (
                   <img
                     src={heroPhoto.url}
-                    alt={heroPhoto.caption || 'Anh lop 10A4'}
+                    alt={heroPhoto.caption || 'Ảnh lớp 10A4'}
                   />
                 ) : (
-                  'Anh lop'
+                  'Ảnh lớp'
                 )}
               </div>
               <span className="polaroid-caption">
-                {heroPhoto?.caption || 'Lop 10A4'}
+                {heroPhoto?.caption || 'Lớp 10A4'}
               </span>
             </div>
           </div>
@@ -499,13 +499,13 @@ export default function HomePage() {
           flip
         />
         <div className="section-inner">
-          <p className="eyebrow">Gioi thieu</p>
-          <h2>Ve lop chung minh</h2>
+          <p className="eyebrow">Giới thiệu</p>
+          <h2>Về lớp chúng mình</h2>
           <p className="section-desc">
-            Day la trang thong tin chung cua lop 10A4, truong THPT Nguyen Huu
-            Huan — noi ca lop cung luu giu hinh anh, theo doi thong bao va tim
-            hieu ve giao vien chu nhiem. Noi dung o day se duoc cap nhat theo
-            tung hoc ky.
+            Đây là trang thông tin chung của lớp 10A4, trường THPT Nguyễn Hữu
+            Huân — nơi cả lớp cùng lưu giữ hình ảnh, theo dõi thông báo và tìm
+            hiểu về giáo viên chủ nhiệm. Nội dung ở đây sẽ được cập nhật theo
+            từng học kỳ.
           </p>
         </div>
       </section>
@@ -519,10 +519,10 @@ export default function HomePage() {
               {teacherPhoto ? (
                 <img
                   src={teacherPhoto.url}
-                  alt={teacherPhoto.caption || 'Anh giao vien chu nhiem'}
+                  alt={teacherPhoto.caption || 'Ảnh giáo viên chủ nhiệm'}
                 />
               ) : (
-                'Anh co Ut'
+                'Ảnh cô Út'
               )}
             </div>
             {siteImages.teacher.length > 1 && (
@@ -531,19 +531,19 @@ export default function HomePage() {
                   <img
                     key={photo.path}
                     src={photo.url}
-                    alt={photo.caption || 'Giao vien'}
+                    alt={photo.caption || 'Giáo viên'}
                   />
                 ))}
               </div>
             )}
           </div>
           <div className="teacher-info">
-            <p className="eyebrow">Giao vien chu nhiem</p>
-            <h2>Co Le Thi Ut</h2>
+            <p className="eyebrow">Giáo viên chủ nhiệm</p>
+            <h2>Cô Lê Thị Út</h2>
             <p className="section-desc">
-              Co Le Thi Ut la giao vien chu nhiem cua lop 10A4, dong hanh cung
-              lop trong cac hoat dong hoc tap va phong trao cua truong THPT
-              Nguyen Huu Huan.
+              Cô Lê Thị Út là giáo viên chủ nhiệm của lớp 10A4, đồng hành cùng
+              lớp trong các hoạt động học tập và phong trào của trường THPT
+              Nguyễn Hữu Huân.
             </p>
           </div>
         </div>
@@ -557,10 +557,10 @@ export default function HomePage() {
           flip
         />
         <div className="section-inner">
-          <p className="eyebrow">Ky niem</p>
-          <h2>Anh lop</h2>
+          <p className="eyebrow">Kỷ niệm</p>
+          <h2>Ảnh lớp</h2>
           <p className="section-desc">
-            Nhung khoanh khac cua lop 10A4 se duoc cap nhat tai day.
+            Những khoảnh khắc của lớp 10A4 sẽ được cập nhật tại đây.
           </p>
           <div className="gallery-grid">
             {(galleryPhotos.length
@@ -579,10 +579,10 @@ export default function HomePage() {
                   {photo.url ? (
                     <img
                       src={photo.url}
-                      alt={photo.caption || `Anh lop ${i + 1}`}
+                      alt={photo.caption || `Ảnh lớp ${i + 1}`}
                     />
                   ) : (
-                    'Anh lop'
+                    'Ảnh lớp'
                   )}
                 </div>
                 {photo.caption ? (
@@ -599,40 +599,40 @@ export default function HomePage() {
         <Jellyfish style={{ top: '18%', right: '12%', width: 52, opacity: 0.45 }} />
         <Anglerfish style={{ bottom: '12%', left: '8%', width: 64, opacity: 0.5 }} />
         <div className="section-inner">
-          <p className="eyebrow">Cong dong</p>
-          <h2>Tro chuyen lop</h2>
+          <p className="eyebrow">Cộng đồng</p>
+          <h2>Trò chuyện lớp</h2>
           <p className="section-desc">
-            Gui loi chao, thong bao nhanh hoac chia se khoanh khac — moi nguoi
-            trong lop deu co the xem.
+            Gửi lời chào, thông báo nhanh hoặc chia sẻ khoảnh khắc — mọi người
+            trong lớp đều có thể xem.
           </p>
 
           <form className="announcement-form" onSubmit={handleSubmit}>
             <input
               type="text"
-              placeholder="Tieu de"
+              placeholder="Tiêu đề"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
             <textarea
-              placeholder="Noi dung..."
+              placeholder="Nội dung..."
               rows={3}
               value={content}
               onChange={(e) => setContent(e.target.value)}
             />
             <input
               type="text"
-              placeholder="Nguoi gui (tuy chon)"
+              placeholder="Người gửi (tùy chọn)"
               value={sender}
               onChange={(e) => setSender(e.target.value)}
             />
             <button type="submit" disabled={submitting}>
-              {submitting ? 'Dang gui...' : 'Gui thong bao'}
+              {submitting ? 'Đang gửi...' : 'Gửi thông báo'}
             </button>
           </form>
 
           <div className="announcement-list">
             {announcements.length === 0 ? (
-              <p className="announcement-empty">Chua co tin nhan nao.</p>
+              <p className="announcement-empty">Chưa có tin nhắn nào.</p>
             ) : (
               announcements.map((item) => (
                 <article key={item.id} className="announcement-card">
@@ -644,13 +644,13 @@ export default function HomePage() {
                         className="btn-delete-announcement"
                         onClick={() => handleDeleteAnnouncement(item.id)}
                       >
-                        Xoa
+                        Xóa
                       </button>
                     )}
                   </div>
                   <p>{item.content}</p>
                   <div className="announcement-meta">
-                    <span>{item.sender || 'An danh'}</span>
+                    <span>{item.sender || 'Ẩn danh'}</span>
                     <span>
                       {item.created_at
                         ? new Date(item.created_at).toLocaleString('vi-VN')
@@ -666,7 +666,7 @@ export default function HomePage() {
 
       <footer className="site-footer zone zone--floor">
         <div className="section-inner">
-          <p>Lop 10A4 · THPT Nguyen Huu Huan · Nien khoa 2026 – 2027</p>
+          <p>Lớp 10A4 · THPT Nguyễn Hữu Huân · Niên khóa 2026 – 2027</p>
         </div>
       </footer>
 
