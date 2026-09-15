@@ -345,7 +345,7 @@ export async function resetPassword({ email, otp, newPassword }) {
   }
 }
 
-export async function setDisplayName(userId, rawName, { countAsChange = false } = {}) {
+export async function setDisplayName(userId, rawName, { countAsChange = false, skipLimit = false } = {}) {
   const cleanUsername = normalizeDisplayName(rawName)
   const existing = await findProfileByUsername(cleanUsername)
   if (existing && existing.id !== userId) {
@@ -357,7 +357,8 @@ export async function setDisplayName(userId, rawName, { countAsChange = false } 
 
   const wasPending = isPendingUsername(current.username)
   // Đổi tên sau lần đặt tên đầu: giới hạn 2 lần / 7 ngày
-  if (countAsChange || !wasPending) {
+  // skipLimit = true khi admin đổi tên hộ → không check / không ghi hạn mức
+  if (!skipLimit && (countAsChange || !wasPending)) {
     if (!wasPending) {
       const status = await getUsernameChangeStatus(userId)
       if (status.remaining <= 0) {
@@ -378,7 +379,8 @@ export async function setDisplayName(userId, rawName, { countAsChange = false } 
   }
   if (!data) throw new AppError('Không tìm thấy hồ sơ.', 404)
 
-  if (!wasPending) {
+  // Chỉ ghi lịch sử đổi tên khi user tự đổi (không phải admin) và không phải lần đặt tên đầu
+  if (!skipLimit && !wasPending) {
     const map = await readUsernameChanges()
     const weekAgo = Date.now() - WEEK_MS
     const recent = (Array.isArray(map[userId]) ? map[userId] : []).filter((t) => Number(t) > weekAgo)
