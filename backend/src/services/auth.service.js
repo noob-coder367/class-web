@@ -10,7 +10,7 @@ export class AppError extends Error {
 }
 
 const PENDING_USERNAME_PREFIX = 'pending:'
-const PROFILE_COLUMNS = 'id, username, email, is_member, role, created_at'
+const PROFILE_COLUMNS = 'id, username, email, is_member, role, created_at, updated_at'
 const DATA_BUCKET = 'classroom-data'
 const USERNAME_CHANGES_PATH = 'username-changes.json'
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
@@ -140,7 +140,6 @@ export async function registerUser({
     })
 
   if (createError) {
-    // Lần đăng ký trước có thể đã tạo auth user nhưng fail ở profiles
     const msg = String(createError.message || '')
     if (/already|registered|exists/i.test(msg)) {
       const { data: listed, error: listErr } = await supabaseAdmin.auth.admin.listUsers({
@@ -152,7 +151,6 @@ export async function registerUser({
         (u) => String(u.email || '').toLowerCase() === cleanEmail
       )
       if (!found) throw new AppError('Email này đã được sử dụng!', 400)
-      // Cập nhật mật khẩu cho user dở dang rồi tiếp tục ghi profile
       const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(found.id, {
         password,
         email_confirm: false,
@@ -168,7 +166,6 @@ export async function registerUser({
 
   if (!user) throw new AppError('Không thể tạo tài khoản!')
 
-  // Có thể đã có hàng profiles do trigger on auth.users → update/insert thay vì insert thuần
   const profilePayload = {
     id: user.id,
     username: cleanUsername,
@@ -191,7 +188,6 @@ export async function registerUser({
   } else {
     const { error } = await supabaseAdmin.from('profiles').insert([profilePayload])
     profileError = error
-    // Race với trigger: insert lần 2 → pkey → thử update
     if (profileError && /duplicate key|profiles_pkey/i.test(profileError.message || '')) {
       const { error: upErr } = await supabaseAdmin
         .from('profiles')
@@ -206,7 +202,6 @@ export async function registerUser({
   }
 
   if (profileError) {
-    // Chỉ xóa auth user nếu hồ sơ vẫn không ghi được (tránh orphan)
     const still = await findProfileById(user.id)
     if (!still) {
       await supabaseAdmin.auth.admin.deleteUser(user.id)
@@ -356,8 +351,6 @@ export async function setDisplayName(userId, rawName, { countAsChange = false, s
   if (!current) throw new AppError('Không tìm thấy hồ sơ.', 404)
 
   const wasPending = isPendingUsername(current.username)
-  // Đổi tên sau lần đặt tên đầu: giới hạn 2 lần / 7 ngày
-  // skipLimit = true khi admin đổi tên hộ → không check / không ghi hạn mức
   if (!skipLimit && (countAsChange || !wasPending)) {
     if (!wasPending) {
       const status = await getUsernameChangeStatus(userId)
@@ -379,7 +372,6 @@ export async function setDisplayName(userId, rawName, { countAsChange = false, s
   }
   if (!data) throw new AppError('Không tìm thấy hồ sơ.', 404)
 
-  // Chỉ ghi lịch sử đổi tên khi user tự đổi (không phải admin) và không phải lần đặt tên đầu
   if (!skipLimit && !wasPending) {
     const map = await readUsernameChanges()
     const weekAgo = Date.now() - WEEK_MS
@@ -417,11 +409,27 @@ async function ensureProfile(user) {
   return created
 }
 
+/**
+ * Google OAuth đôi khi ghi sẵn full_name / email làm username qua trigger.
+ * Chỉ ép về pending:… **một lần** ngay sau khi hồ sơ mới tạo (updated_at ≈ created_at).
+ * Sau khi user hoặc admin đã đặt/đổi tên (updated_at lệch created_at), KHÔNG được
+ * reset lại — tránh hiện form tên oan dù đã có tên hiển thị.
+ */
 async function forcePendingIfAutoNamed(user, profile) {
   if (!profile || isPendingUsername(profile.username)) return profile
 
   const isGoogle = (user.identities || []).some((i) => i.provider === 'google')
   if (!isGoogle) return profile
+
+  const createdMs = Date.parse(profile.created_at || '')
+  const updatedMs = Date.parse(profile.updated_at || profile.created_at || '')
+  if (
+    Number.isFinite(createdMs) &&
+    Number.isFinite(updatedMs) &&
+    updatedMs - createdMs > 5000
+  ) {
+    return profile
+  }
 
   const metaName = String(
     user.user_metadata?.full_name || user.user_metadata?.name || ''
