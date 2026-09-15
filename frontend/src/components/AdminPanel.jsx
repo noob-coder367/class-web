@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
 import * as adminService from '../services/adminService.js'
 import SiteImagesPanel from './SiteImagesPanel.jsx'
@@ -13,6 +13,24 @@ import {
   roleLabel,
 } from '../lib/roles.js'
 import './AdminPanel.css'
+
+/** Lấy phần tên (chữ cuối) để sắp xếp A-Z kiểu Việt: Phạm Thanh Tùng → Tùng */
+function nameSortKey(displayName) {
+  const parts = String(displayName || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (!parts.length) return ''
+  return parts[parts.length - 1].toLocaleLowerCase('vi')
+}
+
+function compareByGivenName(a, b) {
+  const ka = nameSortKey(a)
+  const kb = nameSortKey(b)
+  const byGiven = ka.localeCompare(kb, 'vi', { sensitivity: 'base' })
+  if (byGiven !== 0) return byGiven
+  return String(a || '').localeCompare(String(b || ''), 'vi', { sensitivity: 'base' })
+}
 
 function GoogleMark() {
   return (
@@ -77,6 +95,12 @@ export default function AdminPanel({ onClose }) {
       setLoading(false)
     }
   }
+
+  const sortedUsers = useMemo(() => {
+    return [...(users || [])].sort((a, b) =>
+      compareByGivenName(a?.username, b?.username)
+    )
+  }, [users])
 
   const handleToggleMember = async (userId, currentStatus) => {
     if (deletingId) return
@@ -227,6 +251,7 @@ export default function AdminPanel({ onClose }) {
                 <table className="admin-table">
                   <thead>
                     <tr>
+                      <th className="col-stt">STT</th>
                       <th>Tên hiển thị</th>
                       <th>Tài khoản Google</th>
                       <th>Vai trò</th>
@@ -235,7 +260,7 @@ export default function AdminPanel({ onClose }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((u) => {
+                    {sortedUsers.map((u, index) => {
                       const isMe = u.id === currentUserId
                       const isDeleting = deletingId === u.id
                       const role = normalizeRole(u.role)
@@ -243,6 +268,7 @@ export default function AdminPanel({ onClose }) {
 
                       return (
                         <tr key={u.id} className={isMe ? 'highlight-me' : ''}>
+                          <td className="col-stt">{index + 1}</td>
                           <td>
                             <strong className={u.needs_display_name ? 'username-pending' : ''}>
                               {u.username || 'Chưa đặt tên'}
