@@ -20,7 +20,7 @@ tác, bao gồm cả thao tác nhạy cảm:
 class-web/
 ├── .gitignore
 ├── README.md
-├── backend/                  # Node.js + Express (service role key sống ở đây)
+├── backend/                        # Node.js + Express (service role key sống ở đây)
 │   ├── .env.example
 │   ├── package.json
 │   └── src/
@@ -29,23 +29,33 @@ class-web/
 │       ├── config/
 │       │   ├── env.js
 │       │   └── supabaseClient.js
-│       ├── controllers/      # auth, admin, classroom, events, images, push
-│       ├── routes/
-│       ├── services/         # auth (tên hiển thị, login, OTP…), admin, classroom, …
-│       ├── middlewares/
-│       ├── data/             # timetable.default.json, rules.default.json
-│       └── lib/              # roles, reputationStatus
-└── frontend/                 # React + Vite (chỉ dùng anon key)
+│       ├── controllers/            # auth, admin, classroom, events, images, push
+│       ├── routes/                 # admin, auth, classroom, events, images, push
+│       ├── services/               # auth, admin, classRoster, classroom,
+│       │                           # cleaningDuty, events, homework, rules,
+│       │                           # timetable, announcements, push, …
+│       ├── middlewares/            # auth, admin, member, validate, error
+│       ├── data/                   # timetable.default.json, rules.default.json
+│       ├── lib/                    # roles, reputationStatus
+│       └── utils/
+└── frontend/                       # React + Vite (chỉ dùng anon key)
     ├── .env.example
+    ├── index.html
     ├── package.json
+    ├── public/                     # favicon, icons, sw.js, images
     └── src/
         ├── App.jsx / main.jsx / App.css / index.css
-        ├── lib/supabaseClient.js
-        ├── services/         # apiClient, authService, adminService, push, …
-        ├── context/          # AuthContext, WeatherContext
-        ├── pages/            # AuthPage (login/OTP/display-name), HomePage
-        └── components/       # ProfileMenu, SettingsPanel, AdminPanel,
-                              # ClassRoomView, Events, Homework, Rules, …
+        ├── assets/
+        ├── lib/                    # supabaseClient, roles, cleaningDuty, unreadStore
+        ├── services/               # apiClient, authService, adminService,
+        │                           # classroomService, eventsService, pushService
+        ├── context/                # AuthContext, WeatherContext
+        ├── pages/                  # AuthPage, HomePage
+        ├── hooks/
+        └── components/             # AdminPanel, ClassListPanel, ClassRoomView,
+                                    # AnnouncementsBoard, EventsSection,
+                                    # HomeworkBoard, RulesBoard, CleaningBoard,
+                                    # ProfileMenu, OceanScrollBackground, …
 ```
 
 ## Tên hiển thị (display name)
