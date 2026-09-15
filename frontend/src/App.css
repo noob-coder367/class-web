@@ -1,9 +1,55 @@
-@import url('./app_s0.css');
-@import url('./app_s1.css');
-@import url('./app_s2.css');
-@import url('./app_s3.css');
-@import url('./app_s4.css');
-@import url('./app_s5.css');
-@import url('./app_s6.css');
-@import url('./app_s7.css');
-@import url('./app_s8.css');
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap');
+
+/* =====================================================
+   1. GLOBAL & SMOOTH SCROLL
+===================================================== */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Khoảng lùi để thanh Nav không che tiêu đề khi bấm Menu */
+section, article, [id] {
+  scroll-margin-top: 100px;
+}
+
+:root {
+  --ink: #1c2438;
+  --ink-soft: #4d5670;
+  --paper: #eaf6fb;
+  --paper-raised: #ffffff;
+  --line: #cfe6ef;
+  --primary: #14324a;
+  --primary-soft: #eaf3f7;
+  --accent: #e0a640;
+  --accent-deep: #c98a1e;
+  --accent-soft: #fbecc9;
+  --shadow: 0 10px 24px rgba(4, 22, 32, 0.18);
+  --radius: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #041620;
+}
+
+.page {
+  font-family: 'Be Vietnam Pro', 'Segoe UI', sans-serif;
+  color: var(--ink);
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-weight: 800;
+  margin: 0;
+  color: var(--zone-heading, var(--primary));
+}
