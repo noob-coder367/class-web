@@ -5,7 +5,7 @@
  * admin              — toàn quyền, gồm truyền chức + full 3 ô thông báo
  * vp_academic        — Lớp phó học tập (LPHT): tab Bài tập + ô "Báo bài quan trọng" (đăng/sửa/ẩn, không xóa cứng)
  * vp_discipline      — Lớp phó kỷ luật (LPKL): tab Nội quy + ẩn bài ô "Vi phạm kỷ luật cao"
- * vp_events          — Lớp phó sự kiện (LPSK): EventSection + ô "Thông báo chính" (đăng/ẩn/xóa cứng) + kho lưu trữ
+ * vp_events          — Lớp phó sự kiện (LPSK): EventSection + ô "Thông báo chính" (đăng/ẩn/xóa cứng) + kho lưu trữ + quản lý thời khóa biểu
  * vp_labor           — Lớp phó Lao động (LPLĐ): quản lý lịch trực vệ sinh theo tuần (T2–T7) + cập nhật trạng thái vệ sinh từng ngày
  * user               — thành viên thường
  */
@@ -65,7 +65,7 @@ export const SECTION_LABELS = Object.freeze({
 const CAPABILITY_ROLES = Object.freeze({
   adminPanel: [ROLES.ADMIN],
   assignRoles: [ROLES.ADMIN],
-  timetable: [ROLES.ADMIN],
+  timetable: [ROLES.ADMIN, ROLES.VP_EVENTS],
   siteImages: [ROLES.ADMIN],
   homework: [ROLES.ADMIN, ROLES.VP_ACADEMIC],
   rules: [ROLES.ADMIN, ROLES.VP_DISCIPLINE],
