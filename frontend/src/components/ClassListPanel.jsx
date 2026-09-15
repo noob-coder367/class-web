@@ -2,6 +2,24 @@ import { useEffect, useMemo, useState } from 'react'
 import * as adminService from '../services/adminService.js'
 import { ROLES, roleLabel } from '../lib/roles.js'
 
+/** Lấy phần tên (chữ cuối) để sắp xếp A-Z kiểu Việt: Phạm Thanh Tùng → Tùng */
+function nameSortKey(displayName) {
+  const parts = String(displayName || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (!parts.length) return ''
+  return parts[parts.length - 1].toLocaleLowerCase('vi')
+}
+
+function compareByGivenName(a, b) {
+  const ka = nameSortKey(a)
+  const kb = nameSortKey(b)
+  const byGiven = ka.localeCompare(kb, 'vi', { sensitivity: 'base' })
+  if (byGiven !== 0) return byGiven
+  return String(a || '').localeCompare(String(b || ''), 'vi', { sensitivity: 'base' })
+}
+
 function GoogleMark() {
   return (
     <svg
@@ -75,6 +93,12 @@ export default function ClassListPanel({ users = [] }) {
     [accounts]
   )
 
+  const sortedItems = useMemo(() => {
+    return [...(items || [])].sort((a, b) =>
+      compareByGivenName(a?.username, b?.username)
+    )
+  }, [items])
+
   const connectChoices = useMemo(() => {
     const q = connectQuery.trim().toLowerCase()
     const list = realAccounts.filter((u) => {
@@ -89,7 +113,7 @@ export default function ClassListPanel({ users = [] }) {
       const ap = preferred.has(a.id) ? 0 : 1
       const bp = preferred.has(b.id) ? 0 : 1
       if (ap !== bp) return ap - bp
-      return String(a.username || '').localeCompare(String(b.username || ''), 'vi')
+      return compareByGivenName(a.username, b.username)
     })
   }, [realAccounts, connectQuery, connectTarget])
 
@@ -177,6 +201,7 @@ export default function ClassListPanel({ users = [] }) {
         <table className="admin-table class-list-table">
           <thead>
             <tr>
+              <th className="col-stt">STT</th>
               <th>Tên hiển thị</th>
               <th>Trạng thái</th>
               <th>Vai trò</th>
@@ -184,18 +209,19 @@ export default function ClassListPanel({ users = [] }) {
             </tr>
           </thead>
           <tbody>
-            {items.length === 0 ? (
+            {sortedItems.length === 0 ? (
               <tr>
-                <td colSpan={4} className="empty-state">
+                <td colSpan={5} className="empty-state">
                   Chưa có tên nào. Bấm Thêm để nhập học sinh chưa đăng ký.
                 </td>
               </tr>
             ) : (
-              items.map((row) => {
+              sortedItems.map((row, index) => {
                 const isFake = row.is_placeholder === true
                 const hasMatch = isFake && (row.match_user_ids || []).length > 0
                 return (
                   <tr key={row.id} className={isFake ? 'class-list-row-fake' : ''}>
+                    <td className="col-stt">{index + 1}</td>
                     <td>
                       <strong>{row.username || 'Chưa đặt tên'}</strong>
                       {hasMatch ? (
