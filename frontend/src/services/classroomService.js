@@ -117,6 +117,10 @@ export async function getDirectory() {
   return apiClient.get('/classroom/directory', { auth: true })
 }
 
+export async function getClassList() {
+  return apiClient.get('/classroom/class-list', { auth: true })
+}
+
 export async function getLeaderboard() {
   return apiClient.get('/classroom/leaderboard', { auth: true })
 }

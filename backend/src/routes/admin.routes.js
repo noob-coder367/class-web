@@ -15,6 +15,11 @@ router.patch('/users/:id/member', adminController.patchMember)
 router.patch('/users/:id/role', adminController.patchRole)
 router.delete('/users/:id', adminController.removeUser)
 
+router.get('/class-list', adminController.getClassList)
+router.post('/class-list', adminController.postClassList)
+router.delete('/class-list/:id', adminController.deleteClassListItem)
+router.post('/class-list/:id/connect', adminController.connectClassListItem)
+
 router.get('/images', imagesController.getAdminImages)
 router.post('/images', imagesController.postAdminImage)
 router.delete('/images', imagesController.deleteAdminImage)

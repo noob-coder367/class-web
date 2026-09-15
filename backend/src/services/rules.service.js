@@ -36,6 +36,20 @@ function asText(value, fallback = '') {
   return String(value ?? fallback).trim()
 }
 
+function foldName(value) {
+  return asText(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+function namesEqual(a, b) {
+  const x = foldName(a)
+  const y = foldName(b)
+  return Boolean(x) && x === y
+}
+
 function clampInt(value, min, max, fallback) {
   const n = Number(value)
   if (!Number.isFinite(n)) return fallback
@@ -192,12 +206,17 @@ function normalizeViolation(raw, { createId = false, rules } = {}) {
   const fallbackPoints = map.get(offense) ?? inferPoints(offense)
   const points = clampInt(src.points, 0, 100, fallbackPoints)
 
+  const rawUserId = asText(src.userId)
+  const rosterId = asText(src.rosterId) || (rawUserId.startsWith('roster:') ? rawUserId.slice(7) : '')
+  const userId = rosterId ? '' : rawUserId
+
   return {
     id,
     date,
     period: asText(src.period).slice(0, 24),
     name: name.slice(0, 80),
-    userId: asText(src.userId).slice(0, 64),
+    userId: userId.slice(0, 64),
+    rosterId: rosterId.slice(0, 64),
     offense: offense.slice(0, 160),
     warning: asText(src.warning).slice(0, 400),
     points,
@@ -423,10 +442,7 @@ export function buildLeaderboard(members, violations, rules) {
   const items = Array.isArray(violations) ? violations : []
 
   const rows = list.map((member) => {
-    const mine = items.filter((row) => {
-      if (row.userId && member.id) return row.userId === member.id
-      return !row.userId && row.name === member.username
-    })
+    const mine = items.filter((row) => violationBelongsToMember(row, member))
     let deducted = 0
     for (const row of mine) {
       const pts = Number.isFinite(Number(row.points))
@@ -438,6 +454,7 @@ export function buildLeaderboard(members, violations, rules) {
       id: member.id,
       username: member.username,
       role: member.role,
+      is_placeholder: member.is_placeholder === true,
       score: Math.max(0, starting - deducted),
       deducted,
       violations: mine.length,
@@ -463,14 +480,28 @@ export function buildLeaderboard(members, violations, rules) {
   return { startingPoints: starting, total: rows.length, rows }
 }
 
-function memberScore({ userId, name }, items, rules) {
+function violationBelongsToMember(row, member) {
+  if (!row || !member) return false
+  if (member.is_placeholder) {
+    if (row.rosterId && member.roster_id) return row.rosterId === member.roster_id
+    return !row.userId && namesEqual(row.name, member.username)
+  }
+  if (row.userId && member.id && !String(member.id).startsWith('roster:')) {
+    return row.userId === member.id
+  }
+  return !row.userId && namesEqual(row.name, member.username)
+}
+
+function memberScore({ userId, name, rosterId }, items, rules) {
   const starting = clampInt(rules?.startingPoints, 1, 200, 100)
   const map = offensePointsMap(rules)
   const uid = asText(userId)
   const display = asText(name)
+  const rid = asText(rosterId)
   const mine = (Array.isArray(items) ? items : []).filter((row) => {
-    if (uid && row.userId) return row.userId === uid
-    return !row.userId && display && row.name === display
+    if (rid && row.rosterId) return row.rosterId === rid
+    if (uid && row.userId && !uid.startsWith('roster:')) return row.userId === uid
+    return !row.userId && display && namesEqual(row.name, display)
   })
   let deducted = 0
   for (const row of mine) {
@@ -480,6 +511,32 @@ function memberScore({ userId, name }, items, rules) {
     deducted += pts
   }
   return Math.max(0, starting - deducted)
+}
+
+export async function remapViolationsToUser({ fromName, fromRosterId, toUserId, toName }) {
+  const targetName = asText(toName)
+  const targetUserId = asText(toUserId)
+  if (!targetName || !targetUserId) return { changed: 0 }
+
+  const current = await getViolations()
+  let changed = 0
+  current.items = current.items.map((row) => {
+    const matchRoster = fromRosterId && row.rosterId === fromRosterId
+    const matchName = namesEqual(row.name, fromName) && !row.userId
+    if (!matchRoster && !matchName) return row
+    changed += 1
+    return {
+      ...row,
+      userId: targetUserId,
+      name: targetName,
+      rosterId: '',
+    }
+  })
+  if (!changed) return { changed: 0 }
+  current.updatedAt = new Date().toISOString()
+  await writeJson(VIOLATIONS_FILE, current, 'danh sách vi phạm')
+  violationsCache = current
+  return { changed }
 }
 
 async function announceIfStatusDropped(member, oldScore, newScore) {

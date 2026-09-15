@@ -79,6 +79,7 @@ router.patch(
 
 router.get('/members', classroomController.getMembers)
 router.get('/directory', requireCapability('directory'), classroomController.getDirectory)
+router.get('/class-list', classroomController.getClassList)
 router.get('/leaderboard', classroomController.getLeaderboard)
 
 export default router

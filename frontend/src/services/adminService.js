@@ -56,3 +56,23 @@ export async function uploadSiteImage(payload) {
 export async function deleteSiteImage(path) {
   return apiClient.delete('/admin/images', { auth: true, body: { path } })
 }
+
+export async function getClassList() {
+  return apiClient.get('/admin/class-list', { auth: true })
+}
+
+export async function addClassListName(name) {
+  return apiClient.post('/admin/class-list', { name }, { auth: true })
+}
+
+export async function deleteClassListName(id) {
+  return apiClient.delete(`/admin/class-list/${encodeURIComponent(id)}`, { auth: true })
+}
+
+export async function connectClassListName(id, userId) {
+  return apiClient.post(
+    `/admin/class-list/${encodeURIComponent(id)}/connect`,
+    { userId },
+    { auth: true }
+  )
+}

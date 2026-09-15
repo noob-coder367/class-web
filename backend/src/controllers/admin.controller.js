@@ -1,9 +1,55 @@
 import * as adminService from '../services/admin.service.js'
+import * as classRosterService from '../services/classRoster.service.js'
 
 export async function getUsers(req, res, next) {
   try {
     const users = await adminService.listUsers()
     res.json({ users })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getClassList(req, res, next) {
+  try {
+    const items = await classRosterService.listClassRoster()
+    res.json({ items })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function postClassList(req, res, next) {
+  try {
+    const items = await classRosterService.addPlaceholder(req.body?.name, req.profile)
+    res.status(201).json({ message: 'Đã thêm tên vào danh sách lớp.', items })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function deleteClassListItem(req, res, next) {
+  try {
+    const items = await classRosterService.removePlaceholder(req.params.id)
+    res.json({ message: 'Đã xoá tên chờ kết nối.', items })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function connectClassListItem(req, res, next) {
+  try {
+    const result = await classRosterService.connectPlaceholder(
+      req.params.id,
+      req.body?.userId || req.body?.user_id
+    )
+    const moved = result.connected || {}
+    res.json({
+      message:
+        `Đã kết nối "${moved.from_name}" với ${moved.username}. `
+        + `Đồng bộ ${moved.violations || 0} vi phạm và ${moved.cleaning_weeks || 0} tuần trực.`,
+      ...result,
+    })
   } catch (err) {
     next(err)
   }

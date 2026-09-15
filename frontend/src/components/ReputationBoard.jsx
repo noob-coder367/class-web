@@ -103,7 +103,7 @@ export default function ReputationBoard({
         <header className="rank-hero">
           <p className="rank-kicker">Lớp 10A4</p>
           <h2>Bảng xếp hạng uy tín</h2>
-          <p>Chưa có thành viên 10A4 nào. Khi admin duyệt tài khoản vào lớp, tên sẽ xuất hiện tại đây.</p>
+          <p>Chưa có tên nào trong danh sách lớp. Admin thêm tên ở Quản lý Admin → Danh sách lớp.</p>
         </header>
       </div>
     )
@@ -210,6 +210,9 @@ export default function ReputationBoard({
                         <div>
                           <strong>
                             {row.username}
+                            {row.is_placeholder ? (
+                              <span className="rank-placeholder-tag"> chưa kết nối</span>
+                            ) : null}
                             {isMe ? <em className="rank-you">Bạn</em> : null}
                           </strong>
                           <small>

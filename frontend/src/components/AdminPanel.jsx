@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
 import * as adminService from '../services/adminService.js'
 import SiteImagesPanel from './SiteImagesPanel.jsx'
+import ClassListPanel from './ClassListPanel.jsx'
 import {
   ASSIGNABLE_ROLES,
   ROLE_LABELS,
@@ -190,6 +191,15 @@ export default function AdminPanel({ onClose }) {
           <button
             type="button"
             role="tab"
+            aria-selected={tab === 'classlist'}
+            className={tab === 'classlist' ? 'active' : ''}
+            onClick={() => setTab('classlist')}
+          >
+            Danh sách lớp
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={tab === 'images'}
             className={tab === 'images' ? 'active' : ''}
             onClick={() => setTab('images')}
@@ -201,6 +211,8 @@ export default function AdminPanel({ onClose }) {
         <div className="admin-body">
           {tab === 'images' ? (
             <SiteImagesPanel />
+          ) : tab === 'classlist' ? (
+            <ClassListPanel users={users} />
           ) : loading ? (
             <p className="loading-text">Đang tải danh sách người dùng...</p>
           ) : users.length === 0 ? (

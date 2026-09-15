@@ -330,3 +330,182 @@
   text-align: center;
   padding: 24px 8px;
 }
+
+.class-list-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.class-list-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  font-size: 0.85rem;
+}
+
+.class-list-table {
+  min-width: 640px;
+}
+
+.class-list-row-fake td {
+  background: rgba(251, 191, 36, 0.04);
+}
+
+.class-list-match {
+  color: #fbbf24;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-pending-link {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fbbf24;
+}
+
+.btn-connect {
+  background: #10b981;
+  color: #fff;
+}
+
+.btn-add-class {
+  background: #38bdf8;
+  color: #0f172a;
+  font-size: 0.9rem;
+  padding: 8px 16px;
+}
+
+.class-list-add-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 0 4px;
+}
+
+.class-list-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 0 4px;
+}
+
+.class-list-add-input {
+  flex: 1;
+  min-width: 180px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #0f1d2a;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.class-list-connect-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.class-list-connect-modal {
+  width: min(520px, 100%);
+  max-height: min(82vh, 640px);
+  background: #1a2b3c;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.class-list-connect-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #0f1d2a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.class-list-connect-head p {
+  margin: 0 0 4px;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.class-list-connect-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #f8fafc;
+}
+
+.class-list-connect-hint {
+  margin: 0;
+  padding: 12px 16px 0;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.class-list-connect-modal > .class-list-add-input {
+  margin: 12px 16px 0;
+  width: calc(100% - 32px);
+  flex: none;
+}
+
+.class-list-connect-list {
+  margin: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow-y: auto;
+  max-height: 280px;
+  background: rgba(15, 29, 42, 0.55);
+}
+
+.class-list-connect-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.class-list-connect-item:last-child {
+  border-bottom: none;
+}
+
+.class-list-connect-item:hover,
+.class-list-connect-item.is-selected {
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.class-list-connect-name {
+  font-size: 0.9rem;
+}
+
+.class-list-connect-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 16px 16px;
+}

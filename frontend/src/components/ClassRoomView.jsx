@@ -192,17 +192,17 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           setViolations([])
           setItems([])
         } else if (activeTab === 'rules') {
-          const [rulesData, violationData, membersData, directoryData] = await Promise.all([
+          const [rulesData, violationData, classListData] = await Promise.all([
             classroomService.getRules(),
             classroomService.getViolations(),
-            classroomService.getMembers(),
-            classroomService.getDirectory().catch(() => ({ members: [] })),
+            classroomService.getClassList().catch(() => ({ items: [] })),
           ])
           if (cancelled) return
           setRules(rulesData?.rules || null)
           setViolations(Array.isArray(violationData?.violations) ? violationData.violations : [])
-          setMembers(Array.isArray(membersData?.members) ? membersData.members : [])
-          setDirectory(Array.isArray(directoryData?.members) ? directoryData.members : [])
+          const classItems = Array.isArray(classListData?.items) ? classListData.items : []
+          setMembers(classItems)
+          setDirectory(classItems)
           setTimetable(null)
           setItems([])
         } else if (activeTab === 'announcements') {
@@ -293,12 +293,10 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
 
   const handleRefreshMembers = useCallback(async () => {
     try {
-      const [data, dir] = await Promise.all([
-        classroomService.getMembers(),
-        classroomService.getDirectory().catch(() => ({ members: [] })),
-      ])
-      setMembers(Array.isArray(data?.members) ? data.members : [])
-      setDirectory(Array.isArray(dir?.members) ? dir.members : [])
+      const data = await classroomService.getClassList()
+      const classItems = Array.isArray(data?.items) ? data.items : []
+      setMembers(classItems)
+      setDirectory(classItems)
     } catch { /* keep */ }
   }, [])
 

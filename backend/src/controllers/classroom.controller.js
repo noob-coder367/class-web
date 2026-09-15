@@ -4,6 +4,7 @@ import * as rulesService from '../services/rules.service.js'
 import * as announcementsService from '../services/announcements.service.js'
 import * as homeworkService from '../services/homework.service.js'
 import * as cleaningDutyService from '../services/cleaningDuty.service.js'
+import * as classRosterService from '../services/classRoster.service.js'
 import { capabilitiesFor, normalizeRole } from '../lib/roles.js'
 
 function noStore(res) {
@@ -251,6 +252,16 @@ export async function getDirectory(req, res, next) {
   }
 }
 
+export async function getClassList(req, res, next) {
+  try {
+    noStore(res)
+    const items = await classRosterService.listClassRoster()
+    res.json({ items })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export async function getCleaningSchedule(req, res, next) {
   try {
     noStore(res)
@@ -309,7 +320,7 @@ export async function getLeaderboard(req, res, next) {
   try {
     noStore(res)
     const [members, violationData, rules] = await Promise.all([
-      classroomService.listClassMembers(),
+      classRosterService.listClassRoster(),
       rulesService.getViolations(),
       rulesService.getRules(),
     ])

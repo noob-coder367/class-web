@@ -639,6 +639,12 @@
   border-bottom: none;
 }
 
+.rank-placeholder-tag {
+  color: #b45309;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .rules-add-form button[type='submit'] {
   margin-top: 12px;
   border: none;

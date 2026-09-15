@@ -55,13 +55,13 @@ export default function CleaningDutySettings({ onClose, onSave }) {
       setLoading(true)
       setError('')
       try {
-        const [membersData, thisSchedule, nextSchedule] = await Promise.all([
-          classroomService.getMembers().catch(() => ({ members: [] })),
+        const [classListData, thisSchedule, nextSchedule] = await Promise.all([
+          classroomService.getClassList().catch(() => ({ items: [] })),
           classroomService.getCleaningSchedule(thisWeekStart),
           classroomService.getCleaningSchedule(nextWeekStart),
         ])
         if (cancelled) return
-        setMembers(Array.isArray(membersData?.members) ? membersData.members : [])
+        setMembers(Array.isArray(classListData?.items) ? classListData.items : [])
         setThisDays(daysFromSchedule(thisSchedule?.schedule))
         setThisNote(thisSchedule?.schedule?.note || '')
         setNextDays(daysFromSchedule(nextSchedule?.schedule))
@@ -153,7 +153,13 @@ export default function CleaningDutySettings({ onClose, onSave }) {
     }
   }
 
-  const memberNames = members.map((m) => m.username).filter(Boolean)
+  const memberNames = members
+    .map((m) => m.username)
+    .filter(Boolean)
+
+  const memberByName = new Map(
+    members.filter((m) => m.username).map((m) => [m.username, m])
+  )
 
   return (
     <div className="cleaning-settings-overlay" role="dialog" aria-modal="true" aria-label="Cài đặt lịch trực vệ sinh">
@@ -198,7 +204,8 @@ export default function CleaningDutySettings({ onClose, onSave }) {
           ) : (
             <>
               <p className="cleaning-settings-hint">
-                Chọn học sinh từ danh sách tài khoản đã đăng ký. Một người có thể trực nhiều ngày. Không giới hạn số lượng mỗi ngày.
+                Chọn học sinh từ danh sách lớp do Admin quản lý (gồm tài khoản đã đăng ký và tên thêm trước).
+                Một người có thể trực nhiều ngày. Không giới hạn số lượng mỗi ngày.
               </p>
 
               <div className="cleaning-settings-days">
@@ -239,10 +246,16 @@ export default function CleaningDutySettings({ onClose, onSave }) {
                             e.target.value = ''
                           }}
                         >
-                          <option value="">— Chọn tài khoản —</option>
-                          {available.map((name) => (
-                            <option key={name} value={name}>{name}</option>
-                          ))}
+                          <option value="">— Chọn từ danh sách lớp —</option>
+                          {available.map((name) => {
+                            const member = memberByName.get(name)
+                            return (
+                              <option key={name} value={name}>
+                                {name}
+                                {member?.is_placeholder ? ' (chưa kết nối)' : ''}
+                              </option>
+                            )
+                          })}
                           {available.length === 0 && memberNames.length > 0 ? (
                             <option value="" disabled>Đã chọn hết danh sách</option>
                           ) : null}

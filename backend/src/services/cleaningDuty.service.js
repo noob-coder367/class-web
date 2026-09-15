@@ -33,6 +33,20 @@ function asText(value, fallback = '') {
   return String(value ?? fallback).trim()
 }
 
+function namesEqual(a, b) {
+  const x = asText(a)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+  const y = asText(b)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+  return Boolean(x) && x === y
+}
+
 /** Chuẩn hoá 1 ngày bất kỳ về Date lúc 00:00 local. */
 function toMidnight(date) {
   const d = new Date(date)
@@ -301,4 +315,54 @@ export async function updateDayStatus(dutyDateRaw, payload, profile) {
     ...data,
     status: normalizeStatus(data?.status),
   }
+}
+
+/**
+ * Đổi tên người trực (tài khoản giả → tài khoản thật) trên mọi tuần đã lưu.
+ * Nếu ngày đã có tên mới thì gộp, không tạo bản trùng.
+ */
+export async function remapAssigneeName(oldName, newName) {
+  const from = asText(oldName)
+  const to = asText(newName)
+  if (!from || !to) return { changed: 0 }
+
+  const { data, error } = await supabaseAdmin
+    .from('cleaning_duty_schedule')
+    .select('id, days')
+
+  if (error) throw new AppError('Không tải được lịch trực để đồng bộ: ' + error.message, 500)
+
+  let changed = 0
+  for (const row of data || []) {
+    const days = normalizeDays(row.days)
+    let dirty = false
+    for (const dayId of DAY_IDS) {
+      const current = days[dayId].assignees || []
+      if (!current.some((name) => namesEqual(name, from))) continue
+      const next = []
+      const seen = new Set()
+      for (const name of current) {
+        const mapped = namesEqual(name, from) ? to : name
+        const key = mapped.toLowerCase()
+        if (seen.has(key)) continue
+        seen.add(key)
+        next.push(mapped)
+      }
+      if (JSON.stringify(next) !== JSON.stringify(current)) {
+        days[dayId].assignees = next
+        dirty = true
+      }
+    }
+    if (!dirty) continue
+    const { error: updateError } = await supabaseAdmin
+      .from('cleaning_duty_schedule')
+      .update({ days })
+      .eq('id', row.id)
+    if (updateError) {
+      throw new AppError('Không đồng bộ được lịch trực vệ sinh: ' + updateError.message, 500)
+    }
+    changed += 1
+  }
+
+  return { changed }
 }

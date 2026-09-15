@@ -74,8 +74,14 @@ function buildLocalLeaderboard(members, violations, rules) {
   const map = new Map(offenseOptions(rules).map((row) => [row.name, row.points]))
   const rows = (members || []).map((member) => {
     const mine = (violations || []).filter((row) => {
-      if (row.userId && member.id) return row.userId === member.id
-      return !row.userId && row.name === member.username
+      if (member.is_placeholder) {
+        if (row.rosterId && member.roster_id) return row.rosterId === member.roster_id
+        return !row.userId && String(row.name || '').trim() === String(member.username || '').trim()
+      }
+      if (row.userId && member.id && !String(member.id).startsWith('roster:')) {
+        return row.userId === member.id
+      }
+      return !row.userId && String(row.name || '').trim() === String(member.username || '').trim()
     })
     const deducted = mine.reduce((sum, row) => {
       const pts = Number(row.points)
@@ -86,6 +92,7 @@ function buildLocalLeaderboard(members, violations, rules) {
       id: member.id,
       username: member.username,
       role: member.role,
+      is_placeholder: member.is_placeholder === true,
       score: starting - deducted,
       deducted,
       violations: mine.length,
@@ -267,7 +274,7 @@ export default function RulesBoard({
     const member = nameOptions.find((row) => row.id === form.userId)
     const offense = form.offense === '__other__' ? customOffense.trim() : form.offense.trim()
     if (!member) {
-      setError('Hãy chọn họ và tên từ danh sách tài khoản đã đăng ký.')
+      setError('Hãy chọn họ và tên từ danh sách lớp.')
       return
     }
     if (!offense) {
@@ -293,7 +300,8 @@ export default function RulesBoard({
       await onAddViolation?.({
         date: form.date || todayISO(),
         period: form.period,
-        userId: member.id,
+        userId: member.is_placeholder ? '' : member.id,
+        rosterId: member.is_placeholder ? member.roster_id : '',
         name: member.username,
         offense,
         warning: form.warning.trim(),
@@ -434,14 +442,16 @@ export default function RulesBoard({
                     onChange={(e) => setForm((prev) => ({ ...prev, userId: e.target.value }))}
                     required
                   >
-                    <option value="">Chọn tài khoản đã đăng ký</option>
+                    <option value="">Chọn từ danh sách lớp</option>
                     {(nameOptions).map((member) => (
                       <option key={member.id} value={member.id}>
                         {member.username}
-                        {member.role && member.role !== ROLES.USER
-                          ? ` (${roleLabel(member.role)})`
-                          : ''}
-                        {member.is_member === false ? ' (chưa 10A4)' : ''}
+                        {member.is_placeholder
+                          ? ' (chưa kết nối)'
+                          : member.role && member.role !== ROLES.USER
+                            ? ` (${roleLabel(member.role)})`
+                            : ''}
+                        {!member.is_placeholder && member.is_member === false ? ' (chưa 10A4)' : ''}
                       </option>
                     ))}
                   </select>
