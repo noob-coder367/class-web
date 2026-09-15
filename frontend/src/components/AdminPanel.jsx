@@ -245,7 +245,8 @@ export default function AdminPanel({ onClose }) {
             <>
               <p className="admin-role-hint">
                 Chỉ Admin mới truyền được chức. Lớp phó học tập — Bài tập về nhà;
-                Lớp phó kỷ luật — Nội quy lớp; Lớp phó sự kiện — Sự kiện & Thông báo chung.
+                Lớp phó kỷ luật — Nội quy lớp; Lớp phó sự kiện — Sự kiện, Thông báo chung & Thời khóa biểu;
+                Lớp phó Lao động — Vệ sinh lớp.
               </p>
               <div className="table-wrapper">
                 <table className="admin-table">
