@@ -56,6 +56,11 @@ function IconChevron({ open }) {
   )
 }
 
+function tiedLabel(totalAtRank, rank) {
+  if (totalAtRank <= 1) return `Top ${rank}`
+  return `Top ${rank} · +${totalAtRank - 1} đồng hạng`
+}
+
 export default function ReputationBoard({
   rows = [],
   startingPoints = 100,
@@ -66,10 +71,17 @@ export default function ReputationBoard({
   const [expandedId, setExpandedId] = useState(null)
 
   const podium = useMemo(() => {
-    const firsts = rows.filter((row) => row.rank === 1).slice(0, 3)
-    const seconds = rows.filter((row) => row.rank === 2).slice(0, 2)
-    const thirds = rows.filter((row) => row.rank === 3).slice(0, 2)
-    return { firsts, seconds, thirds }
+    const firstsAll = rows.filter((row) => row.rank === 1)
+    const secondsAll = rows.filter((row) => row.rank === 2)
+    const thirdsAll = rows.filter((row) => row.rank === 3)
+    return {
+      firsts: firstsAll.slice(0, 3),
+      seconds: secondsAll.slice(0, 2),
+      thirds: thirdsAll.slice(0, 2),
+      firstCount: firstsAll.length,
+      secondCount: secondsAll.length,
+      thirdCount: thirdsAll.length,
+    }
   }, [rows])
 
   const violationsByUser = useMemo(() => {
@@ -140,7 +152,7 @@ export default function ReputationBoard({
                 <span className="rank-podium-medal">🥈</span>
                 <strong>{podium.seconds[0].username}</strong>
                 <em>{podium.seconds[0].score} đ</em>
-                <span>Top {podium.seconds[0].rank}</span>
+                <span>{tiedLabel(podium.secondCount, podium.seconds[0].rank)}</span>
               </>
             ) : (
               <span className="rank-podium-empty">Chưa có Top 2</span>
@@ -150,9 +162,7 @@ export default function ReputationBoard({
             <span className="rank-podium-medal">🥇</span>
             <strong>{podium.firsts[0].username}</strong>
             <em>{podium.firsts[0].score} đ</em>
-            <span>
-              Top 1{podium.firsts.length > 1 ? ` · +${podium.firsts.length - 1} đồng hạng` : ''}
-            </span>
+            <span>{tiedLabel(podium.firstCount, 1)}</span>
           </div>
           <div className="rank-podium-col is-bronze">
             {podium.thirds[0] ? (
@@ -160,7 +170,7 @@ export default function ReputationBoard({
                 <span className="rank-podium-medal">🥉</span>
                 <strong>{podium.thirds[0].username}</strong>
                 <em>{podium.thirds[0].score} đ</em>
-                <span>Top {podium.thirds[0].rank}</span>
+                <span>{tiedLabel(podium.thirdCount, podium.thirds[0].rank)}</span>
               </>
             ) : (
               <span className="rank-podium-empty">Chưa có Top 3</span>
