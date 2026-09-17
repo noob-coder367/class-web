@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
 import TimetableBoard from './TimetableBoard.jsx'
 import RulesBoard from './RulesBoard.jsx'
@@ -65,13 +65,44 @@ function IconBack() {
   )
 }
 
+function IconDoor() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 21h16" />
+      <path d="M6.5 21V4.5A1.5 1.5 0 0 1 8 3h5a1.5 1.5 0 0 1 1.5 1.5V21" />
+      <path d="M14.5 10.5H17a1.5 1.5 0 0 1 1.5 1.5v9" />
+      <circle cx="10.5" cy="12" r="0.9" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function IconChevronLeft() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M14.5 5 L8 12 L14.5 19" />
+    </svg>
+  )
+}
+
+function IconChevronRight() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9.5 5 L16 12 L9.5 19" />
+    </svg>
+  )
+}
+
 const TABS = [
   { id: 'announcements', label: 'Thông báo chung', icon: IconBell },
   { id: 'timetable', label: 'Thời khoá biểu', icon: IconCalendar },
   { id: 'homework', label: 'Bài tập về nhà', icon: IconBook },
   { id: 'rules', label: 'Nội quy lớp', icon: IconShield },
   { id: 'cleaning-duty', label: 'Vệ sinh lớp', icon: IconBroom },
+  { id: 'class-space', label: 'Lớp học', icon: IconDoor },
 ]
+
+// Số nút hiện cùng lúc trong thanh menu trước khi phải kéo/cuộn để xem thêm
+const TABS_PER_VIEW = 3
 
 const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty'])
 const EMPTY_CAPS = capabilitiesFor('user')
@@ -94,6 +125,60 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [tabError, setTabError] = useState('')
   const [dismissingNotice, setDismissingNotice] = useState(false)
   const [tabBadges, setTabBadges] = useState({ announcements: 0, homework: 0, rules: 0, rulesViolations: 0 })
+  const navRef = useRef(null)
+  const [navScroll, setNavScroll] = useState({ atStart: true, atEnd: false })
+
+  const updateNavScroll = useCallback(() => {
+    const el = navRef.current
+    if (!el) return
+    const max = el.scrollWidth - el.clientWidth
+    setNavScroll({
+      atStart: el.scrollLeft <= 2,
+      atEnd: el.scrollLeft >= max - 2,
+    })
+  }, [])
+
+  // Cuộn chuột dọc (PC) cũng kéo thanh menu theo chiều ngang, từ từ như cuộn bình thường
+  useEffect(() => {
+    const el = navRef.current
+    if (!el) return
+    updateNavScroll()
+    const onScroll = () => updateNavScroll()
+    const onResize = () => updateNavScroll()
+    const onWheel = (e) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+      el.scrollLeft += e.deltaY
+      e.preventDefault()
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onResize)
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onResize)
+      el.removeEventListener('wheel', onWheel)
+    }
+  }, [updateNavScroll])
+
+  // Khi đổi tab (kể cả mở thẳng vào 1 tab ở "trang" sau), tự cuộn cho nút đó lộ ra
+  useEffect(() => {
+    const el = navRef.current
+    if (!el) return
+    const btn = el.querySelector(`#classroom-tab-${activeTab}`)
+    if (btn && typeof btn.scrollIntoView === 'function') {
+      btn.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+    }
+  }, [activeTab])
+
+  const scrollNavToStart = useCallback(() => {
+    navRef.current?.scrollTo({ left: 0, behavior: 'smooth' })
+  }, [])
+
+  const scrollNavForward = useCallback(() => {
+    const el = navRef.current
+    if (!el) return
+    el.scrollBy({ left: el.clientWidth, behavior: 'smooth' })
+  }, [])
 
   useEffect(() => {
     const onKey = (e) => {
@@ -223,6 +308,11 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           setRules(null)
           setViolations([])
           setItems([])
+        } else if (activeTab === 'class-space') {
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
+          setItems([])
         } else {
           const data = await classroomService.getTabContent(activeTab)
           if (cancelled) return
@@ -308,7 +398,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         </div>
       )
     }
-    if (loadingTab && activeTab !== 'announcements' && activeTab !== 'homework' && activeTab !== 'cleaning-duty') {
+    if (loadingTab && activeTab !== 'announcements' && activeTab !== 'homework' && activeTab !== 'cleaning-duty' && activeTab !== 'class-space') {
       return (
         <div className="classroom-state">
           <span className="classroom-spinner" aria-hidden="true" />
@@ -338,6 +428,15 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     }
     if (activeTab === 'homework') return <HomeworkBoard isAdmin={!!caps.homework} />
     if (activeTab === 'cleaning-duty') return <CleaningBoard isAdmin={!!caps.cleaningDuty} />
+    if (activeTab === 'class-space') {
+      return (
+        <div className="classroom-state classroom-state--soon">
+          <IconDoor />
+          <p>Mục "Lớp học" đang được xây dựng.</p>
+          <p className="classroom-state-sub">Sẽ sớm ra mắt, mọi người chờ nhé!</p>
+        </div>
+      )
+    }
     if (activeTab === 'timetable') {
       if (!timetable) return <p className="classroom-empty">Chưa có thời khoá biểu</p>
       return (
@@ -390,7 +489,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           <span className="classroom-iso-end" aria-hidden="true" />
           <div className="classroom-iso-main">
             <span className="classroom-iso-lid" aria-hidden="true" />
-            <nav className="classroom-iso-front" role="tablist" aria-label="Mục lớp 10A4">
+            <nav className="classroom-iso-front" role="tablist" aria-label="Mục lớp 10A4" ref={navRef}>
               {TABS.map((tab) => {
                 const Icon = tab.icon
                 const selected = activeTab === tab.id
@@ -419,6 +518,28 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                 )
               })}
             </nav>
+            {!navScroll.atStart ? (
+              <button
+                type="button"
+                className="classroom-nav-btn classroom-nav-btn--prev"
+                onClick={scrollNavToStart}
+                aria-label="Về các mục đầu"
+                title="Về các mục đầu"
+              >
+                <IconChevronLeft />
+              </button>
+            ) : null}
+            {!navScroll.atEnd ? (
+              <button
+                type="button"
+                className="classroom-nav-btn classroom-nav-btn--next"
+                onClick={scrollNavForward}
+                aria-label="Xem thêm mục"
+                title="Xem thêm mục"
+              >
+                <IconChevronRight />
+              </button>
+            ) : null}
           </div>
         </div>
       </header>
