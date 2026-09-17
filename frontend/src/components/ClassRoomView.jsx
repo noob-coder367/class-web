@@ -8,6 +8,7 @@ import CleaningBoard from './CleaningBoard.jsx'
 import { markSeen, countNewer, countUnseenPosts } from '../lib/unreadStore.js'
 import { capabilitiesFor } from '../lib/roles.js'
 import { useAuth } from '../context/AuthContext.jsx'
+import CreateClassPage from './CreateClassPage.jsx'
 import './ClassRoomView.css'
 
 function IconBell() {
@@ -76,6 +77,14 @@ function IconDoor() {
   )
 }
 
+function IconPlus() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}
+
 function IconChevronLeft() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -127,6 +136,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [tabBadges, setTabBadges] = useState({ announcements: 0, homework: 0, rules: 0, rulesViolations: 0 })
   const navRef = useRef(null)
   const [navScroll, setNavScroll] = useState({ atStart: true, atEnd: false })
+  const [showCreateClass, setShowCreateClass] = useState(false)
 
   const updateNavScroll = useCallback(() => {
     const el = navRef.current
@@ -183,7 +193,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return
-      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox, .ann-composer-overlay, .hw-composer-overlay')) return
+      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox, .ann-composer-overlay, .hw-composer-overlay, .create-class-page')) return
       onClose?.()
     }
     window.addEventListener('keydown', onKey)
@@ -546,6 +556,20 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       <div className={`classroom-body${bodyMod}`} id="classroom-panel" role="tabpanel" aria-labelledby={`classroom-tab-${activeTab}`}>
         {renderBody()}
       </div>
+      {access === 'ok' && activeTab === 'class-space' && !showCreateClass ? (
+        <button
+          type="button"
+          className="classroom-fab"
+          onClick={() => setShowCreateClass(true)}
+          aria-label="Tạo lớp học"
+          title="Tạo lớp học"
+        >
+          <IconPlus />
+        </button>
+      ) : null}
+      {showCreateClass ? (
+        <CreateClassPage onBack={() => setShowCreateClass(false)} />
+      ) : null}
     </div>
   )
 }
