@@ -182,8 +182,6 @@ export default function CreateClassPage({ onBack }) {
                 id="create-class-pin"
                 type="text"
                 inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength={6}
                 autoComplete="off"
                 value={password}
                 onChange={handlePassword}
