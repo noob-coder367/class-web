@@ -19,14 +19,14 @@ const ANSWER_COLORS = [
   { id: 'ink', label: 'Đen', bg: '#0f172a', fg: '#f8fafc' },
 ]
 
-const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS = {
   layout: 'row',
   allowAnswerImages: false,
   countdownSeconds: 0,
   answerColor: 'transparent',
 }
 
-function uid() {
+export function uid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
   return `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
@@ -89,7 +89,7 @@ function IconImage() {
   )
 }
 
-function emptyQuestion() {
+export function emptyQuestion() {
   return {
     id: uid(),
     title: '',
@@ -189,7 +189,7 @@ function AnswerImageDrop({ answer, onPick, onClear }) {
   )
 }
 
-function QuestionCard({ index, question, onChange, onRemove, onOpenSettings }) {
+export function QuestionCard({ index, question, onChange, onRemove, onOpenSettings }) {
   const color = colorOf(question.settings.answerColor)
   const isQuiz = question.settings.layout === 'quiz'
   const showImages = isQuiz && question.settings.allowAnswerImages
@@ -326,7 +326,7 @@ function QuestionCard({ index, question, onChange, onRemove, onOpenSettings }) {
   )
 }
 
-function SettingsModal({ question, onClose, onSave }) {
+export function SettingsModal({ question, onClose, onSave }) {
   const [draft, setDraft] = useState(() => ({ ...DEFAULT_SETTINGS, ...question.settings }))
   const titleId = `quiz-settings-title-${question.id}`
 
