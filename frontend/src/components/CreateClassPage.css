@@ -1,0 +1,66 @@
+.create-class-page {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: #ffffff;
+  font-family: 'Be Vietnam Pro', 'Segoe UI', sans-serif;
+  color: #0f172a;
+}
+
+.create-class-back {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 16px 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.create-class-back svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.create-class-back:hover {
+  background: #e2e8f0;
+  transform: scale(1.03);
+}
+
+.create-class-back:active {
+  transform: scale(0.97);
+}
+
+@media (max-width: 640px) {
+  .create-class-back {
+    top: 12px;
+    left: 12px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 16px 0 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .create-class-back {
+    transition: none;
+  }
+
+  .create-class-back:hover,
+  .create-class-back:active {
+    transform: none;
+  }
+}

@@ -482,13 +482,62 @@
   }
 }
 
+.classroom-fab {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: 5;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 50%;
+  background: #14324a;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(20, 50, 74, 0.28);
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+.classroom-fab svg {
+  width: 24px;
+  height: 24px;
+}
+
+.classroom-fab:hover {
+  background: #1c4564;
+  transform: scale(1.06);
+  box-shadow: 0 12px 28px rgba(20, 50, 74, 0.34);
+}
+
+.classroom-fab:active {
+  transform: scale(0.96);
+}
+
+@media (max-width: 640px) {
+  .classroom-fab {
+    right: 16px;
+    bottom: 20px;
+    width: 52px;
+    height: 52px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .classroom-back,
   .classroom-tab,
   .classroom-nav-btn,
-  .classroom-spinner {
+  .classroom-spinner,
+  .classroom-fab {
     transition: none;
     animation: none;
+  }
+
+  .classroom-fab:hover,
+  .classroom-fab:active {
+    transform: none;
   }
 
   .classroom-iso-front {
