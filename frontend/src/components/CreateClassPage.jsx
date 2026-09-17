@@ -11,30 +11,12 @@ function IconBack() {
   )
 }
 
-function IconClose() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-      <path d="M6 6l12 12M18 6L6 18" />
-    </svg>
-  )
-}
-
 function IconImage() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <rect x="3" y="5" width="18" height="14" rx="2.5" />
       <circle cx="8.5" cy="10" r="1.4" />
       <path d="M21 16.5 16 12l-3.2 3.2L10 13l-7 6" />
-    </svg>
-  )
-}
-
-function IconArchive() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="5" rx="1.4" />
-      <path d="M5 9v10.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V9" />
-      <path d="M10 13h4" />
     </svg>
   )
 }
@@ -46,11 +28,7 @@ export default function CreateClassPage({ onBack }) {
   const [coverError, setCoverError] = useState('')
   const [isPublic, setIsPublic] = useState(true)
   const [password, setPassword] = useState('')
-  const [archiveOpen, setArchiveOpen] = useState(false)
-  const [archiveTitle, setArchiveTitle] = useState('')
-  const [archiveTab, setArchiveTab] = useState('quiz')
   const fileInputRef = useRef(null)
-  const archiveTitleRef = useRef(null)
 
   useEffect(() => {
     return () => {
@@ -59,25 +37,15 @@ export default function CreateClassPage({ onBack }) {
   }, [coverPreview])
 
   useEffect(() => {
-    if (!archiveOpen) return
-    const id = window.requestAnimationFrame(() => archiveTitleRef.current?.focus())
-    return () => window.cancelAnimationFrame(id)
-  }, [archiveOpen])
-
-  useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return
       e.preventDefault()
       e.stopPropagation()
-      if (archiveOpen) {
-        setArchiveOpen(false)
-        return
-      }
       onBack?.()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [onBack, archiveOpen])
+  }, [onBack])
 
   const handleCoverChange = (e) => {
     const file = e.target.files?.[0]
@@ -110,11 +78,6 @@ export default function CreateClassPage({ onBack }) {
 
   const handlePassword = (e) => {
     setPassword(e.target.value.replace(/\D/g, '').slice(0, 6))
-  }
-
-  const openArchive = () => {
-    setArchiveTab('quiz')
-    setArchiveOpen(true)
   }
 
   return (
@@ -235,85 +198,7 @@ export default function CreateClassPage({ onBack }) {
             </div>
           ) : null}
         </div>
-
-        <button type="button" className="create-class-archive-btn" onClick={openArchive}>
-          <IconArchive />
-          Kho lưu trữ
-        </button>
       </div>
-
-      {archiveOpen ? (
-        <div
-          className="archive-overlay"
-          onClick={() => setArchiveOpen(false)}
-        >
-          <div
-            className="archive-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Kho lưu trữ"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="archive-head">
-              <h2>Kho lưu trữ</h2>
-              <button
-                type="button"
-                className="archive-close"
-                onClick={() => setArchiveOpen(false)}
-                aria-label="Đóng kho lưu trữ"
-              >
-                <IconClose />
-              </button>
-            </div>
-
-            <div className="archive-title-wrap">
-              <label htmlFor="archive-title">Tiêu đề chỉnh sửa</label>
-              <input
-                ref={archiveTitleRef}
-                id="archive-title"
-                type="text"
-                value={archiveTitle}
-                onChange={(e) => setArchiveTitle(e.target.value)}
-                placeholder="Đặt tiêu đề cho nội dung chỉnh sửa"
-                autoComplete="off"
-              />
-            </div>
-
-            <div className="archive-chrome">
-              <div className="archive-tabstrip" role="tablist" aria-label="Loại câu hỏi">
-                <button
-                  type="button"
-                  role="tab"
-                  id="archive-tab-quiz"
-                  aria-selected={archiveTab === 'quiz'}
-                  aria-controls="archive-panel-quiz"
-                  className={`archive-tab${archiveTab === 'quiz' ? ' is-active' : ''}`}
-                  onClick={() => setArchiveTab('quiz')}
-                >
-                  Trắc nghiệm
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  id="archive-tab-essay"
-                  aria-selected={archiveTab === 'essay'}
-                  aria-controls="archive-panel-essay"
-                  className={`archive-tab${archiveTab === 'essay' ? ' is-active' : ''}`}
-                  onClick={() => setArchiveTab('essay')}
-                >
-                  Tự luận
-                </button>
-              </div>
-              <div
-                className="archive-panel"
-                role="tabpanel"
-                id={archiveTab === 'quiz' ? 'archive-panel-quiz' : 'archive-panel-essay'}
-                aria-labelledby={archiveTab === 'quiz' ? 'archive-tab-quiz' : 'archive-tab-essay'}
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }
