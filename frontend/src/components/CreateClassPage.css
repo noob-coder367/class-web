@@ -639,7 +639,17 @@
 }
 
 .quiz-answers--row {
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.quiz-answers--row .quiz-empty-hint {
+  flex: 1 1 100%;
+}
+
+.quiz-answers--row .quiz-answer {
+  flex: 1 1 180px;
 }
 
 .quiz-answers--tiles {
