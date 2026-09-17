@@ -220,8 +220,8 @@
 
 .classroom-nav-btn {
   position: absolute;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   border-radius: 50%;
   border: 2px solid var(--iso-ink);
@@ -237,8 +237,8 @@
 }
 
 .classroom-nav-btn svg {
-  width: 13px;
-  height: 13px;
+  width: 16px;
+  height: 16px;
 }
 
 .classroom-nav-btn:hover {
@@ -251,15 +251,16 @@
 
 .classroom-nav-btn--prev {
   left: 6px;
-  top: -22px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .classroom-nav-btn--prev:hover {
-  transform: scale(1.08);
+  transform: translateY(-50%) scale(1.08);
 }
 
 .classroom-nav-btn--prev:active {
-  transform: scale(0.92);
+  transform: translateY(-50%) scale(0.92);
 }
 
 .classroom-nav-btn--next {
@@ -463,17 +464,16 @@
   }
 
   .classroom-nav-btn {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
   }
 
   .classroom-nav-btn svg {
-    width: 11px;
-    height: 11px;
+    width: 13px;
+    height: 13px;
   }
 
   .classroom-nav-btn--prev {
-    top: -18px;
     left: 2px;
   }
 
