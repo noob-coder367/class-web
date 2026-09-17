@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import QuizArchivePanel from './QuizArchivePanel.jsx'
+import EssayArchivePanel from './EssayArchivePanel.jsx'
+import AddQuestionPanel from './AddQuestionPanel.jsx'
 import './CreateClassPage.css'
 
 const MAX_COVER_BYTES = 10 * 1024 * 1024
@@ -56,6 +58,8 @@ export default function CreateClassPage({ onBack }) {
   const [archiveTitle, setArchiveTitle] = useState('')
   const [archiveTab, setArchiveTab] = useState('quiz')
   const [quizQuestions, setQuizQuestions] = useState([])
+  const [essayQuestions, setEssayQuestions] = useState([])
+  const [classQuestions, setClassQuestions] = useState([])
   const fileInputRef = useRef(null)
   const archiveTitleRef = useRef(null)
 
@@ -90,7 +94,7 @@ export default function CreateClassPage({ onBack }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return
-      if (document.querySelector('.quiz-settings-overlay')) return
+      if (document.querySelector('.quiz-settings-overlay, .custom-editor-overlay, .archive-picker-overlay')) return
       e.preventDefault()
       e.stopPropagation()
       if (archiveOpen) {
@@ -262,6 +266,13 @@ export default function CreateClassPage({ onBack }) {
           <IconArchive />
           Kho lưu trữ
         </button>
+
+        <AddQuestionPanel
+          quizArchive={quizQuestions}
+          essayArchive={essayQuestions}
+          questions={classQuestions}
+          onQuestionsChange={setClassQuestions}
+        />
       </div>
 
       {archiveOpen ? (
@@ -335,6 +346,9 @@ export default function CreateClassPage({ onBack }) {
                   >
                     {tab.id === 'quiz' ? (
                       <QuizArchivePanel questions={quizQuestions} onQuestionsChange={setQuizQuestions} />
+                    ) : null}
+                    {tab.id === 'essay' ? (
+                      <EssayArchivePanel questions={essayQuestions} onQuestionsChange={setEssayQuestions} />
                     ) : null}
                   </div>
                 )
