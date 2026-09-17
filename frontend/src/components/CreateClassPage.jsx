@@ -11,6 +11,14 @@ function IconBack() {
   )
 }
 
+function IconClose() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  )
+}
+
 function IconImage() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -21,6 +29,21 @@ function IconImage() {
   )
 }
 
+function IconArchive() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="5" rx="1.4" />
+      <path d="M5 9v10.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V9" />
+      <path d="M10 13h4" />
+    </svg>
+  )
+}
+
+const ARCHIVE_TABS = [
+  { id: 'quiz', label: 'Trắc nghiệm' },
+  { id: 'essay', label: 'Tự luận' },
+]
+
 export default function CreateClassPage({ onBack }) {
   const [title, setTitle] = useState('')
   const [coverName, setCoverName] = useState('')
@@ -28,7 +51,11 @@ export default function CreateClassPage({ onBack }) {
   const [coverError, setCoverError] = useState('')
   const [isPublic, setIsPublic] = useState(true)
   const [password, setPassword] = useState('')
+  const [archiveOpen, setArchiveOpen] = useState(false)
+  const [archiveTitle, setArchiveTitle] = useState('')
+  const [archiveTab, setArchiveTab] = useState('quiz')
   const fileInputRef = useRef(null)
+  const archiveTitleRef = useRef(null)
 
   useEffect(() => {
     return () => {
@@ -37,15 +64,30 @@ export default function CreateClassPage({ onBack }) {
   }, [coverPreview])
 
   useEffect(() => {
+    if (!archiveOpen) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const id = window.requestAnimationFrame(() => archiveTitleRef.current?.focus())
+    return () => {
+      document.body.style.overflow = prevOverflow
+      window.cancelAnimationFrame(id)
+    }
+  }, [archiveOpen])
+
+  useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return
       e.preventDefault()
       e.stopPropagation()
+      if (archiveOpen) {
+        setArchiveOpen(false)
+        return
+      }
       onBack?.()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [onBack])
+  }, [onBack, archiveOpen])
 
   const handleCoverChange = (e) => {
     const file = e.target.files?.[0]
@@ -80,14 +122,19 @@ export default function CreateClassPage({ onBack }) {
     setPassword(e.target.value.replace(/\D/g, '').slice(0, 6))
   }
 
+  const openArchive = () => {
+    setArchiveTab('quiz')
+    setArchiveOpen(true)
+  }
+
   return (
-    <div className="create-class-page" role="dialog" aria-modal="true" aria-label="Tạo lớp học">
+    <div className="create-class-page" role="dialog" aria-modal={!archiveOpen} aria-label="Tạo lớp học">
       <button type="button" className="create-class-back" onClick={onBack}>
         <IconBack />
         Quay về
       </button>
 
-      <div className="create-class-sheet">
+      <div className="create-class-sheet" aria-hidden={archiveOpen || undefined}>
         <header className="create-class-heading">
           <p className="create-class-kicker">Lớp học 10A4</p>
           <h1>Tạo lớp học</h1>
@@ -196,7 +243,88 @@ export default function CreateClassPage({ onBack }) {
             </div>
           ) : null}
         </div>
+
+        <button type="button" className="create-class-archive-btn" onClick={openArchive}>
+          <IconArchive />
+          Kho lưu trữ
+        </button>
       </div>
+
+      {archiveOpen ? (
+        <div
+          className="archive-overlay"
+          onClick={() => setArchiveOpen(false)}
+        >
+          <div
+            className="archive-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="archive-heading"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="archive-head">
+              <h2 id="archive-heading">Kho lưu trữ</h2>
+              <button
+                type="button"
+                className="archive-close"
+                onClick={() => setArchiveOpen(false)}
+                aria-label="Đóng kho lưu trữ"
+              >
+                <IconClose />
+              </button>
+            </div>
+
+            <div className="archive-title-wrap">
+              <label htmlFor="archive-title">Tiêu đề chỉnh sửa</label>
+              <input
+                ref={archiveTitleRef}
+                id="archive-title"
+                type="text"
+                value={archiveTitle}
+                onChange={(e) => setArchiveTitle(e.target.value)}
+                placeholder="Đặt tiêu đề cho nội dung chỉnh sửa"
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="archive-chrome">
+              <div className="archive-tabstrip" role="tablist" aria-label="Loại câu hỏi">
+                {ARCHIVE_TABS.map((tab) => {
+                  const selected = archiveTab === tab.id
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      id={`archive-tab-${tab.id}`}
+                      aria-selected={selected}
+                      aria-controls={`archive-panel-${tab.id}`}
+                      tabIndex={selected ? 0 : -1}
+                      className={`archive-tab${selected ? ' is-active' : ''}`}
+                      onClick={() => setArchiveTab(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {ARCHIVE_TABS.map((tab) => {
+                const selected = archiveTab === tab.id
+                return (
+                  <div
+                    key={tab.id}
+                    className="archive-panel"
+                    role="tabpanel"
+                    id={`archive-panel-${tab.id}`}
+                    aria-labelledby={`archive-tab-${tab.id}`}
+                    hidden={!selected}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
