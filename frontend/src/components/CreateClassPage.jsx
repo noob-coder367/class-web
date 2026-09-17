@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import QuizArchivePanel from './QuizArchivePanel.jsx'
 import './CreateClassPage.css'
 
 const MAX_COVER_BYTES = 10 * 1024 * 1024
@@ -54,6 +55,7 @@ export default function CreateClassPage({ onBack }) {
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [archiveTitle, setArchiveTitle] = useState('')
   const [archiveTab, setArchiveTab] = useState('quiz')
+  const [quizQuestions, setQuizQuestions] = useState([])
   const fileInputRef = useRef(null)
   const archiveTitleRef = useRef(null)
 
@@ -62,6 +64,17 @@ export default function CreateClassPage({ onBack }) {
       if (coverPreview) URL.revokeObjectURL(coverPreview)
     }
   }, [coverPreview])
+
+  useEffect(() => {
+    return () => {
+      quizQuestions.forEach((q) => {
+        q.answers.forEach((a) => {
+          if (a.imagePreview) URL.revokeObjectURL(a.imagePreview)
+        })
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!archiveOpen) return
@@ -77,6 +90,7 @@ export default function CreateClassPage({ onBack }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return
+      if (document.querySelector('.quiz-settings-overlay')) return
       e.preventDefault()
       e.stopPropagation()
       if (archiveOpen) {
@@ -318,7 +332,11 @@ export default function CreateClassPage({ onBack }) {
                     id={`archive-panel-${tab.id}`}
                     aria-labelledby={`archive-tab-${tab.id}`}
                     hidden={!selected}
-                  />
+                  >
+                    {tab.id === 'quiz' ? (
+                      <QuizArchivePanel questions={quizQuestions} onQuestionsChange={setQuizQuestions} />
+                    ) : null}
+                  </div>
                 )
               })}
             </div>
