@@ -48,6 +48,12 @@ export function colorOf(id) {
   return ANSWER_COLORS.find((c) => c.id === id) || ANSWER_COLORS[0]
 }
 
+// Dữ liệu cũ lưu 1 màu dùng chung cho cả câu (question.settings.answerColor).
+// Nếu đáp án chưa có màu riêng, lấy tạm màu chung cũ đó để không bị mất màu.
+export function answerColorOf(answer, settings) {
+  return colorOf(answer?.color || settings?.answerColor)
+}
+
 function IconPlus() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
@@ -109,6 +115,7 @@ function emptyAnswer(index) {
     imageName: '',
     imagePreview: '',
     isCorrect: false,
+    color: 'transparent',
   }
 }
 
@@ -207,7 +214,6 @@ function AnswerImageDrop({ answer, onPick, onClear }) {
 }
 
 export function QuestionCard({ index, question, onChange, onRemove, onOpenSettings }) {
-  const color = colorOf(question.settings.answerColor)
   const isQuiz = question.settings.layout === 'quiz'
   const showImages = isQuiz && question.settings.allowAnswerImages
   const layoutClass = isQuiz ? 'quiz-answers--tiles' : 'quiz-answers--row'
@@ -282,7 +288,9 @@ export function QuestionCard({ index, question, onChange, onRemove, onOpenSettin
         {question.answers.length === 0 ? (
           <p className="quiz-empty-hint">Chưa có đáp án. Bấm “Thêm đáp án” để tạo A, B, C…</p>
         ) : (
-          question.answers.map((answer) => (
+          question.answers.map((answer) => {
+            const color = answerColorOf(answer, question.settings)
+            return (
             <div
               key={answer.id}
               className={`quiz-answer${isQuiz ? ' is-tile' : ''}${answer.isCorrect ? ' is-marked-correct' : ''}`}
@@ -328,6 +336,27 @@ export function QuestionCard({ index, question, onChange, onRemove, onOpenSettin
                 />
                 <span>Đáp án đúng</span>
               </label>
+              <div className="quiz-answer-color">
+                <span className="quiz-answer-color-label">Màu nền: {color.label}</span>
+                <div className="quiz-swatches quiz-swatches--sm" role="radiogroup" aria-label={`Màu nền đáp án ${answer.label || ''}`.trim()}>
+                  {ANSWER_COLORS.map((c) => {
+                    const selected = (answer.color || 'transparent') === c.id
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        className={`quiz-swatch quiz-swatch--sm${selected ? ' is-active' : ''}${c.id === 'transparent' ? ' is-clear' : ''}`}
+                        style={c.id === 'transparent' ? undefined : { background: c.bg }}
+                        onClick={() => patchAnswer(answer.id, { color: c.id })}
+                        title={c.label}
+                        aria-label={c.label}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
               {showImages ? (
                 <AnswerImageDrop
                   answer={answer}
@@ -336,7 +365,8 @@ export function QuestionCard({ index, question, onChange, onRemove, onOpenSettin
                 />
               ) : null}
             </div>
-          ))
+            )
+          })
         )}
       </div>
 
@@ -466,30 +496,6 @@ export function SettingsModal({ question, onClose, onSave }) {
                 : 'Để 0 nếu không tự chuyển câu.'}
             </p>
           </label>
-
-          <fieldset className="quiz-fieldset">
-            <legend>Màu nền đáp án</legend>
-            <p className="create-class-hint">Mặc định trong suốt. Không dùng xanh lá và đỏ (dành cho đúng/sai khi làm bài).</p>
-            <div className="quiz-swatches" role="radiogroup" aria-label="Màu nền đáp án">
-              {ANSWER_COLORS.map((c) => {
-                const selected = draft.answerColor === c.id
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    className={`quiz-swatch${selected ? ' is-active' : ''}${c.id === 'transparent' ? ' is-clear' : ''}`}
-                    style={c.id === 'transparent' ? undefined : { background: c.bg }}
-                    onClick={() => setDraft((prev) => ({ ...prev, answerColor: c.id }))}
-                    title={c.label}
-                    aria-label={c.label}
-                  />
-                )
-              })}
-            </div>
-            <p className="quiz-swatch-label">{colorOf(draft.answerColor).label}</p>
-          </fieldset>
         </div>
 
         <footer className="quiz-settings-foot">
