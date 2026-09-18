@@ -26,6 +26,11 @@ function IconChevronRight() {
   )
 }
 
+// Sau khi chọn đáp án trắc nghiệm, đợi 1 chút để người học thấy đúng/sai rồi mới tự chuyển câu.
+const AUTO_ADVANCE_DELAY_MS = 900
+// Khi hiện bảng "Đã hoàn thành", tự đóng phòng sau 3 giây.
+const AUTO_CLOSE_DELAY_MS = 3000
+
 // Xáo trộn kiểu Fisher–Yates, không đổi mảng gốc.
 function shuffleArray(arr) {
   const next = [...arr]
@@ -121,6 +126,27 @@ export default function ClassPlayView({ classData, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, done])
 
+  // Trắc nghiệm: sau khi chọn đáp án (đúng hay sai), tự chuyển qua câu tiếp theo.
+  useEffect(() => {
+    if (done || !isQuiz || !current) return
+    const chosenId = selections[current.id]
+    if (!chosenId) return
+    const timer = setTimeout(() => {
+      goNext()
+    }, AUTO_ADVANCE_DELAY_MS)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selections[current?.id], index, done])
+
+  // Hết câu hỏi: hiện bảng "Đã hoàn thành" rồi tự tắt sau 3 giây.
+  useEffect(() => {
+    if (!done) return
+    const timer = setTimeout(() => {
+      onClose?.()
+    }, AUTO_CLOSE_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [done, onClose])
+
   const answerLayoutClass = isQuiz && q?.settings?.layout === 'quiz' ? 'quiz-answers--tiles' : 'quiz-answers--row'
 
   if (!classData) return null
@@ -203,6 +229,7 @@ export default function ClassPlayView({ classData, onClose }) {
                       <button
                         key={answer.id}
                         type="button"
+                        disabled={!!chosenId}
                         className={`class-play-answer${answerLayoutClass === 'quiz-answers--tiles' ? ' is-tile' : ''}${selected ? ' is-selected' : ''}${resultClass}`}
                         onClick={() => setSelections((prev) => ({ ...prev, [current.id]: answer.id }))}
                         style={{
