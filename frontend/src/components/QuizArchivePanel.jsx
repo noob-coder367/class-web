@@ -19,6 +19,8 @@ const ANSWER_COLORS = [
   { id: 'ink', label: 'Đen', bg: '#0f172a', fg: '#f8fafc' },
 ]
 
+export { ANSWER_COLORS }
+
 export const DEFAULT_SETTINGS = {
   layout: 'row',
   allowAnswerImages: false,
@@ -42,7 +44,7 @@ function answerLabel(index) {
   return label
 }
 
-function colorOf(id) {
+export function colorOf(id) {
   return ANSWER_COLORS.find((c) => c.id === id) || ANSWER_COLORS[0]
 }
 
