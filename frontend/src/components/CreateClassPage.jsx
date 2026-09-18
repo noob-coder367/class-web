@@ -190,7 +190,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const handleCreateClass = async () => {
     const trimmedTitle = title.trim()
     if (!trimmedTitle) {
-      setSubmitError('Vui lòng nhập tiêu đề lớp học.')
+      setSubmitError('Vui lòng nhập tiêu đề phòng.')
       return
     }
     // Lớp đang chỉnh sửa mà TRƯỚC ĐÓ đã riêng tư thì được để trống mật khẩu
@@ -241,14 +241,14 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
 
       onSaved?.(item)
     } catch (err) {
-      setSubmitError(err?.message || 'Không lưu được lớp học, vui lòng thử lại.')
+      setSubmitError(err?.message || 'Không lưu được phòng, vui lòng thử lại.')
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <div className="create-class-page" role="dialog" aria-modal={!archiveOpen} aria-label="Tạo lớp học">
+    <div className="create-class-page" role="dialog" aria-modal={!archiveOpen} aria-label="Tạo phòng">
       <button type="button" className="create-class-back" onClick={onBack}>
         <IconBack />
         Quay về
@@ -256,12 +256,12 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
 
       <div className="create-class-sheet" aria-hidden={archiveOpen || undefined}>
         <header className="create-class-heading">
-          <p className="create-class-kicker">Lớp học 10A4</p>
-          <h1>{isEditing ? 'Chỉnh sửa lớp học' : 'Tạo lớp học'}</h1>
+          <p className="create-class-kicker">Phòng · 10A4</p>
+          <h1>{isEditing ? 'Chỉnh sửa phòng' : 'Tạo phòng'}</h1>
         </header>
 
         <div className="create-class-field">
-          <label htmlFor="create-class-title">Tiêu đề lớp học</label>
+          <label htmlFor="create-class-title">Tiêu đề phòng</label>
           <input
             id="create-class-title"
             type="text"
@@ -320,7 +320,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
         <div className="create-class-privacy">
           <div className="create-class-privacy-row">
             <div>
-              <p className="create-class-privacy-q">Để lớp học ở chế độ công khai hay riêng tư?</p>
+              <p className="create-class-privacy-q">Để phòng ở chế độ công khai hay riêng tư?</p>
               <p className="create-class-hint">
                 {isPublic
                   ? 'Công khai: ai cũng bấm vào được.'
@@ -385,7 +385,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
             onClick={() => setSettingsOpen(true)}
           >
             <IconGear />
-            Cài đặt lớp học
+            Cài đặt phòng
           </button>
 
           {submitError ? <p className="create-class-error">{submitError}</p> : null}
@@ -396,7 +396,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
             onClick={handleCreateClass}
             disabled={submitting}
           >
-            {submitting ? 'Đang lưu...' : isEditing ? 'Lưu thay đổi' : 'Tạo lớp học'}
+            {submitting ? 'Đang lưu...' : isEditing ? 'Lưu thay đổi' : 'Tạo phòng'}
           </button>
         </div>
       </div>
@@ -418,14 +418,14 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
           >
             <header className="quiz-settings-head">
               <div>
-                <p className="quiz-card-kicker">Lớp học</p>
-                <h3 id="class-settings-title">Cài đặt lớp học</h3>
+                <p className="quiz-card-kicker">Phòng</p>
+                <h3 id="class-settings-title">Cài đặt phòng</h3>
               </div>
               <button
                 type="button"
                 className="archive-close"
                 onClick={() => setSettingsOpen(false)}
-                aria-label="Đóng cài đặt lớp học"
+                aria-label="Đóng cài đặt phòng"
               >
                 <IconClose />
               </button>
@@ -437,7 +437,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
                   <p className="create-class-privacy-q">Xáo trộn các câu hỏi</p>
                   <p className="create-class-hint">
                     {shuffleQuestions
-                      ? 'Bật: mỗi lần vào lớp học, câu hỏi hiển thị không theo thứ tự ban đầu.'
+                      ? 'Bật: mỗi lần vào phòng, câu hỏi hiển thị không theo thứ tự ban đầu.'
                       : 'Tắt: câu hỏi hiển thị đúng theo thứ tự đã sắp xếp ở trên.'}
                   </p>
                 </div>
