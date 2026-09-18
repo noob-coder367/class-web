@@ -94,6 +94,7 @@ function normalizeItem(raw) {
     isPublic,
     passwordHash: isPublic ? '' : String(raw.passwordHash || ''),
     shuffle: raw.shuffle === true,
+    allowRetry: raw.allowRetry !== false,
     questions: Array.isArray(raw.questions) ? raw.questions : [],
     ownerId: raw.ownerId ? String(raw.ownerId) : '',
     ownerName: String(raw.ownerName || 'Ẩn danh').trim() || 'Ẩn danh',
@@ -212,6 +213,7 @@ export async function createClassSpace(payload, profile) {
     isPublic,
     passwordHash: isPublic ? '' : hashPassword(payload.password),
     shuffle: !!payload?.shuffle,
+    allowRetry: payload?.allowRetry !== false,
     questions: Array.isArray(payload?.questions) ? payload.questions : [],
     ownerId: profile?.id || '',
     ownerName: profile?.username || 'Ẩn danh',
@@ -254,6 +256,7 @@ export async function updateClassSpace(id, payload, profile) {
     isPublic,
     passwordHash,
     shuffle: !!payload?.shuffle,
+    allowRetry: payload?.allowRetry !== false,
     questions: Array.isArray(payload?.questions) ? payload.questions : current.questions,
     updatedAt: new Date().toISOString(),
   })
