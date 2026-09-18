@@ -55,6 +55,19 @@ export default function ClassPlayView({ classData, onClose }) {
   const isQuiz = current?.kind === 'quiz'
   const q = current?.question
 
+  // Chấm điểm trắc nghiệm dựa trên đáp án đã đánh dấu "Đáp án đúng" khi soạn câu hỏi.
+  const gradedQuizTotal = questions.filter(
+    (entry) => entry.kind === 'quiz' && (entry.question?.answers || []).some((a) => a.isCorrect)
+  ).length
+  const gradedQuizCorrect = questions.filter((entry) => {
+    if (entry.kind !== 'quiz') return false
+    const answers = entry.question?.answers || []
+    if (!answers.some((a) => a.isCorrect)) return false
+    const chosenId = selections[entry.id]
+    if (!chosenId) return false
+    return !!answers.find((a) => a.id === chosenId)?.isCorrect
+  }).length
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') onClose?.()
@@ -134,6 +147,11 @@ export default function ClassPlayView({ classData, onClose }) {
       ) : done ? (
         <div className="class-play-empty">
           <p>Bạn đã hoàn thành {total} câu hỏi của lớp học này. 🎉</p>
+          {gradedQuizTotal > 0 ? (
+            <p className="class-play-score">
+              Trắc nghiệm đã chấm điểm: <strong>{gradedQuizCorrect}/{gradedQuizTotal}</strong> câu đúng
+            </p>
+          ) : null}
           <div className="class-play-done-actions">
             <button
               type="button"
@@ -170,13 +188,22 @@ export default function ClassPlayView({ classData, onClose }) {
               <div className={`quiz-answers ${answerLayoutClass}`}>
                 {(() => {
                   const color = colorOf(q?.settings?.answerColor)
-                  return (q?.answers || []).map((answer) => {
-                    const selected = selections[current.id] === answer.id
+                  const answers = q?.answers || []
+                  const hasKey = answers.some((a) => a.isCorrect)
+                  const chosenId = selections[current.id]
+                  const revealed = hasKey && !!chosenId
+                  return answers.map((answer) => {
+                    const selected = chosenId === answer.id
+                    let resultClass = ''
+                    if (revealed) {
+                      if (answer.isCorrect) resultClass = ' is-correct-answer'
+                      else if (selected) resultClass = ' is-wrong-answer'
+                    }
                     return (
                       <button
                         key={answer.id}
                         type="button"
-                        className={`class-play-answer${answerLayoutClass === 'quiz-answers--tiles' ? ' is-tile' : ''}${selected ? ' is-selected' : ''}`}
+                        className={`class-play-answer${answerLayoutClass === 'quiz-answers--tiles' ? ' is-tile' : ''}${selected ? ' is-selected' : ''}${resultClass}`}
                         onClick={() => setSelections((prev) => ({ ...prev, [current.id]: answer.id }))}
                         style={{
                           background: color.bg === 'transparent' ? undefined : color.bg,
@@ -211,7 +238,10 @@ export default function ClassPlayView({ classData, onClose }) {
                       {(q?.answers || [])
                         .filter((a) => a.content.trim())
                         .map((a) => (
-                          <li key={a.id}>{a.content}</li>
+                          <li key={a.id}>
+                            {a.content}
+                            {a.isCorrect ? <span className="class-play-correct-tag"> · đáp án đúng</span> : null}
+                          </li>
                         ))}
                     </ul>
                   </details>
