@@ -375,6 +375,16 @@ export async function updateClassSpace(req, res, next) {
   }
 }
 
+export async function deleteClassSpace(req, res, next) {
+  try {
+    noStore(res)
+    const result = await classSpaceService.deleteClassSpace(req.params.id, req.profile)
+    res.json({ message: 'Đã xoá phòng.', ...result })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export async function uploadClassSpaceImage(req, res, next) {
   try {
     noStore(res)
