@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import QuizArchivePanel from './QuizArchivePanel.jsx'
 import EssayArchivePanel from './EssayArchivePanel.jsx'
 import AddQuestionPanel from './AddQuestionPanel.jsx'
+import * as classroomService from '../services/classroomService.js'
 import './CreateClassPage.css'
 
 const MAX_COVER_BYTES = 10 * 1024 * 1024
 
-// Đọc file ảnh thành chuỗi base64 (data URL) để lưu bền trong localStorage —
-// khác với blob URL (URL.createObjectURL), base64 không "chết" sau khi tải lại
-// trang thật (ví dụ khi deploy lên Vercel rồi mở lại từ đầu).
+// Đọc file ảnh thành chuỗi base64 (data URL) để hiển thị xem trước ngay lập
+// tức trong lúc soạn. Khi bấm "Tạo lớp học"/"Lưu thay đổi", các ảnh base64 này
+// mới thực sự được tải lên server (xem uploadIfDataUrl) để LƯU CHUNG cho mọi
+// máy — nếu chỉ giữ base64 mà không tải lên, ảnh sẽ rất nặng và không đồng bộ
+// được giữa các thiết bị khác nhau.
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -16,6 +19,20 @@ function readFileAsDataUrl(file) {
     reader.onerror = () => reject(reader.error || new Error('Không đọc được ảnh.'))
     reader.readAsDataURL(file)
   })
+}
+
+// Nếu `value` đang là ảnh base64 (mới chọn, chưa từng lưu), tải lên server để
+// lấy URL thật; nếu đã là URL (ảnh cũ, không đổi) thì giữ nguyên, không tải lại.
+async function uploadIfDataUrl(value, filename) {
+  if (!value || !value.startsWith('data:')) return value || ''
+  const match = value.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/)
+  const mimeType = match ? match[1] : 'image/png'
+  const { url } = await classroomService.uploadClassSpaceImage({
+    contentBase64: value,
+    mimeType,
+    filename: filename || 'image',
+  })
+  return url
 }
 
 function IconBack() {
@@ -68,7 +85,7 @@ const ARCHIVE_TABS = [
   { id: 'essay', label: 'Tự luận' },
 ]
 
-export default function CreateClassPage({ onBack, editingClass, ownerId, ownerName, onSaved }) {
+export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const isEditing = !!editingClass
   const [title, setTitle] = useState(editingClass?.title || '')
   const [coverName, setCoverName] = useState('')
@@ -85,6 +102,7 @@ export default function CreateClassPage({ onBack, editingClass, ownerId, ownerNa
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [shuffleQuestions, setShuffleQuestions] = useState(!!editingClass?.shuffle)
   const [submitError, setSubmitError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const fileInputRef = useRef(null)
   const archiveTitleRef = useRef(null)
 
@@ -169,31 +187,63 @@ export default function CreateClassPage({ onBack, editingClass, ownerId, ownerNa
     setArchiveOpen(true)
   }
 
-  const handleCreateClass = () => {
+  const handleCreateClass = async () => {
     const trimmedTitle = title.trim()
     if (!trimmedTitle) {
       setSubmitError('Vui lòng nhập tiêu đề lớp học.')
       return
     }
-    if (!isPublic && password.length !== 6) {
-      setSubmitError('Lớp riêng tư cần đặt mật khẩu đủ 6 chữ số.')
-      return
+    // Lớp đang chỉnh sửa mà TRƯỚC ĐÓ đã riêng tư thì được để trống mật khẩu
+    // (giữ nguyên mật khẩu cũ) — chỉ bắt buộc nhập đủ 6 số khi tạo mới hoặc
+    // khi vừa chuyển từ công khai sang riêng tư.
+    const wasPrivateBefore = isEditing && editingClass.isPublic === false
+    if (!isPublic) {
+      if (password && password.length !== 6) {
+        setSubmitError('Mật khẩu cần đủ 6 chữ số.')
+        return
+      }
+      if (!password && !wasPrivateBefore) {
+        setSubmitError('Lớp riêng tư cần đặt mật khẩu đủ 6 chữ số.')
+        return
+      }
     }
+
     setSubmitError('')
+    setSubmitting(true)
+    try {
+      const uploadedCover = await uploadIfDataUrl(coverPreview, coverName || 'cover')
+      const uploadedQuestions = await Promise.all(
+        classQuestions.map(async (entry) => {
+          if (entry.kind !== 'quiz' || !entry.question?.answers?.length) return entry
+          const answers = await Promise.all(
+            entry.question.answers.map(async (answer) => {
+              if (!answer.imagePreview || !answer.imagePreview.startsWith('data:')) return answer
+              const url = await uploadIfDataUrl(answer.imagePreview, answer.imageName || 'answer')
+              return { ...answer, imagePreview: url }
+            })
+          )
+          return { ...entry, question: { ...entry.question, answers } }
+        })
+      )
 
-    const payload = {
-      title: trimmedTitle,
-      cover: coverPreview,
-      isPublic,
-      password,
-      shuffle: shuffleQuestions,
-      questions: classQuestions,
-    }
+      const payload = {
+        title: trimmedTitle,
+        cover: uploadedCover,
+        isPublic,
+        password,
+        shuffle: shuffleQuestions,
+        questions: uploadedQuestions,
+      }
 
-    if (isEditing) {
-      onSaved?.({ mode: 'update', id: editingClass.id, patch: payload })
-    } else {
-      onSaved?.({ mode: 'create', payload: { ...payload, ownerId, ownerName } })
+      const { item } = isEditing
+        ? await classroomService.updateClassSpace(editingClass.id, payload)
+        : await classroomService.createClassSpace(payload)
+
+      onSaved?.(item)
+    } catch (err) {
+      setSubmitError(err?.message || 'Không lưu được lớp học, vui lòng thử lại.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -302,13 +352,15 @@ export default function CreateClassPage({ onBack, editingClass, ownerId, ownerNa
                 autoComplete="off"
                 value={password}
                 onChange={handlePassword}
-                placeholder="••••••"
+                placeholder={isEditing && editingClass.isPublic === false ? 'Để trống nếu giữ nguyên' : '••••••'}
                 aria-describedby="create-class-pin-hint"
               />
               <p id="create-class-pin-hint" className="create-class-hint">
                 {password.length === 6
                   ? 'Mật khẩu đã đủ 6 chữ số.'
-                  : 'Chỉ nhập số. Học sinh cần đúng mật khẩu này mới vào được lớp.'}
+                  : isEditing && editingClass.isPublic === false
+                    ? 'Để trống để giữ mật khẩu cũ, hoặc nhập 6 số mới để đổi mật khẩu.'
+                    : 'Chỉ nhập số. Học sinh cần đúng mật khẩu này mới vào được lớp.'}
               </p>
             </div>
           ) : null}
@@ -338,8 +390,13 @@ export default function CreateClassPage({ onBack, editingClass, ownerId, ownerNa
 
           {submitError ? <p className="create-class-error">{submitError}</p> : null}
 
-          <button type="button" className="create-class-submit-btn" onClick={handleCreateClass}>
-            {isEditing ? 'Lưu thay đổi' : 'Tạo lớp học'}
+          <button
+            type="button"
+            className="create-class-submit-btn"
+            onClick={handleCreateClass}
+            disabled={submitting}
+          >
+            {submitting ? 'Đang lưu...' : isEditing ? 'Lưu thay đổi' : 'Tạo lớp học'}
           </button>
         </div>
       </div>
