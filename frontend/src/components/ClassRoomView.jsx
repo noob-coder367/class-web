@@ -87,6 +87,17 @@ function IconPencil() {
   )
 }
 
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  )
+}
+
 function IconArrowRight() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -506,6 +517,19 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     }
   }
 
+  // Chủ phòng hoặc admin có thể xoá hẳn một phòng khỏi danh sách chung.
+  const handleDeleteClass = async (cls) => {
+    if (!cls?.id) return
+    const ok = window.confirm(`Xoá phòng "${cls.title}"? Hành động này không thể hoàn tác.`)
+    if (!ok) return
+    try {
+      await classroomService.deleteClassSpace(cls.id)
+      setClassSpaceItems((prev) => prev.filter((row) => row.id !== cls.id))
+    } catch (err) {
+      setClassSpaceError(err?.message || 'Không xoá được phòng.')
+    }
+  }
+
   const renderBody = () => {
     if (access === 'denied') {
       return (
@@ -604,17 +628,30 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                         Vào phòng
                         <IconArrowRight />
                       </button>
-                      {isOwner ? (
-                        <button
-                          type="button"
-                          className="class-space-edit-icon-btn"
-                          onClick={() => startEditClass(cls)}
-                          aria-label={`Chỉnh sửa phòng ${cls.title}`}
-                          title="Chỉnh sửa"
-                        >
-                          <IconPencil />
-                        </button>
-                      ) : null}
+                      <div className="class-space-footer-actions">
+                        {isOwner ? (
+                          <button
+                            type="button"
+                            className="class-space-edit-icon-btn"
+                            onClick={() => startEditClass(cls)}
+                            aria-label={`Chỉnh sửa phòng ${cls.title}`}
+                            title="Chỉnh sửa"
+                          >
+                            <IconPencil />
+                          </button>
+                        ) : null}
+                        {isOwner || isAdminRole(role) ? (
+                          <button
+                            type="button"
+                            className="class-space-delete-icon-btn"
+                            onClick={() => handleDeleteClass(cls)}
+                            aria-label={`Xoá phòng ${cls.title}`}
+                            title="Xoá phòng"
+                          >
+                            <IconTrash />
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 )
@@ -791,7 +828,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                 onClick={submitClassPassword}
                 disabled={passwordSubmitting || passwordInput.length !== 6}
               >
-                {passwordSubmitting ? 'Đang kiểm tra...' : 'Vào lớp'}
+                {passwordSubmitting ? 'Đang kiểm tra...' : 'Ok'}
               </button>
             </div>
           </div>
