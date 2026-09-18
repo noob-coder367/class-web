@@ -742,6 +742,31 @@
   gap: 8px;
 }
 
+.quiz-answer.is-marked-correct {
+  box-shadow: 0 0 0 2px #16a34a inset;
+}
+
+.quiz-answer-correct {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f7a3d;
+  cursor: pointer;
+}
+
+.quiz-answer-correct input {
+  width: 16px;
+  height: 16px;
+  accent-color: #16a34a;
+  cursor: pointer;
+}
+
+.quiz-answer.is-tile .quiz-answer-correct {
+  color: inherit;
+}
+
 .quiz-answer-label {
   width: 56px;
   flex: 0 0 56px;
@@ -1173,10 +1198,17 @@
   flex-direction: column;
   gap: 8px;
   margin-bottom: 10px;
+
 }
 
 .essay-answer-row .quiz-answer-content {
   flex: 1;
+}
+
+.essay-answer-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .essay-add-answer {
