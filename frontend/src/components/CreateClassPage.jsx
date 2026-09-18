@@ -6,6 +6,18 @@ import './CreateClassPage.css'
 
 const MAX_COVER_BYTES = 10 * 1024 * 1024
 
+// Đọc file ảnh thành chuỗi base64 (data URL) để lưu bền trong localStorage —
+// khác với blob URL (URL.createObjectURL), base64 không "chết" sau khi tải lại
+// trang thật (ví dụ khi deploy lên Vercel rồi mở lại từ đầu).
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(reader.error || new Error('Không đọc được ảnh.'))
+    reader.readAsDataURL(file)
+  })
+}
+
 function IconBack() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -76,11 +88,8 @@ export default function CreateClassPage({ onBack, editingClass, ownerId, ownerNa
   const fileInputRef = useRef(null)
   const archiveTitleRef = useRef(null)
 
-  // Lưu ý: KHÔNG tự thu hồi (revokeObjectURL) ảnh nền khi component này unmount.
-  // Ảnh nền dùng chung một blob url với ô lớp học hiển thị ở danh sách "Lớp học"
-  // sau khi tạo/lưu — thu hồi ở đây sẽ làm ảnh trong ô đó biến mất ngay khi đóng
-  // trang tạo/chỉnh sửa. Việc thu hồi khi đổi/xóa ảnh vẫn diễn ra bình thường ở
-  // handleCoverChange/clearCover bên dưới.
+  // Lưu ý: ảnh nền được lưu dạng base64 (xem readFileAsDataUrl), nên không cần
+  // (và không được) revokeObjectURL ở đây — chuỗi base64 không phải blob URL.
 
   useEffect(() => {
     return () => {
@@ -123,7 +132,7 @@ export default function CreateClassPage({ onBack, editingClass, ownerId, ownerNa
   // "Cài đặt lớp học" dùng chung class .quiz-settings-overlay nên ESC ở effect
   // phía trên đã tự bỏ qua khi bảng này đang mở (không đóng nhầm cả trang).
 
-  const handleCoverChange = (e) => {
+  const handleCoverChange = async (e) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
@@ -137,19 +146,18 @@ export default function CreateClassPage({ onBack, editingClass, ownerId, ownerNa
     }
     setCoverError('')
     setCoverName(file.name)
-    setCoverPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev)
-      return URL.createObjectURL(file)
-    })
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      setCoverPreview(dataUrl)
+    } catch {
+      setCoverError('Không đọc được ảnh, vui lòng thử lại.')
+    }
   }
 
   const clearCover = () => {
     setCoverName('')
     setCoverError('')
-    setCoverPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev)
-      return ''
-    })
+    setCoverPreview('')
   }
 
   const handlePassword = (e) => {
