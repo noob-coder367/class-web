@@ -82,4 +82,11 @@ router.get('/directory', requireCapability('directory'), classroomController.get
 router.get('/class-list', classroomController.getClassList)
 router.get('/leaderboard', classroomController.getLeaderboard)
 
+// Mục "Lớp học" (bộ câu hỏi tự tạo) — dùng chung cho mọi thiết bị/thành viên.
+router.get('/class-space', classroomController.listClassSpace)
+router.get('/class-space/:id', classroomController.getClassSpaceById)
+router.post('/class-space', classroomController.createClassSpace)
+router.put('/class-space/:id', classroomController.updateClassSpace)
+router.post('/class-space/upload-image', classroomController.uploadClassSpaceImage)
+
 export default router
