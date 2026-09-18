@@ -680,3 +680,67 @@
     scroll-behavior: auto;
   }
 }
+
+.class-password-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 360;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.class-password-modal {
+  width: 100%;
+  max-width: 320px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.3);
+  font-family: 'Be Vietnam Pro', 'Segoe UI', sans-serif;
+}
+
+.class-password-modal h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 800;
+  color: #14324a;
+}
+
+.class-password-modal p {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: #4d5670;
+}
+
+.class-password-modal input {
+  width: 100%;
+  height: 46px;
+  border: 1px solid #d5e2ea;
+  border-radius: 10px;
+  padding: 0 14px;
+  font-size: 18px;
+  letter-spacing: 4px;
+  text-align: center;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.class-password-error {
+  margin: 8px 0 0 !important;
+  color: #dc2626 !important;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.class-password-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.class-password-actions button {
+  flex: 1;
+}
