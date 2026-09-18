@@ -101,6 +101,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const [classQuestions, setClassQuestions] = useState(editingClass?.questions || [])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [shuffleQuestions, setShuffleQuestions] = useState(!!editingClass?.shuffle)
+  const [allowRetry, setAllowRetry] = useState(editingClass ? editingClass.allowRetry !== false : true)
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const fileInputRef = useRef(null)
@@ -232,6 +233,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
         isPublic,
         password,
         shuffle: shuffleQuestions,
+        allowRetry,
         questions: uploadedQuestions,
       }
 
@@ -448,6 +450,27 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
                   aria-checked={shuffleQuestions}
                   aria-label="Xáo trộn các câu hỏi"
                   onClick={() => setShuffleQuestions((v) => !v)}
+                >
+                  <span className="create-class-switch-knob" />
+                </button>
+              </div>
+
+              <div className="create-class-privacy-row">
+                <div>
+                  <p className="create-class-privacy-q">Cho phép làm lại</p>
+                  <p className="create-class-hint">
+                    {allowRetry
+                      ? 'Bật: sau khi hoàn thành, học sinh thấy nút "Làm lại" để làm lại từ đầu.'
+                      : 'Tắt: sau khi hoàn thành, học sinh không thấy nút "Làm lại".'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={`create-class-switch${allowRetry ? ' is-on' : ''}`}
+                  role="switch"
+                  aria-checked={allowRetry}
+                  aria-label="Cho phép làm lại"
+                  onClick={() => setAllowRetry((v) => !v)}
                 >
                   <span className="create-class-switch-knob" />
                 </button>
