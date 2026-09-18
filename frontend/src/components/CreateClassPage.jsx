@@ -42,32 +42,45 @@ function IconArchive() {
   )
 }
 
+function IconGear() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.7.9 1.2 1.6 1.3H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+    </svg>
+  )
+}
+
 const ARCHIVE_TABS = [
   { id: 'quiz', label: 'Trắc nghiệm' },
   { id: 'essay', label: 'Tự luận' },
 ]
 
-export default function CreateClassPage({ onBack }) {
-  const [title, setTitle] = useState('')
+export default function CreateClassPage({ onBack, editingClass, ownerId, ownerName, onSaved }) {
+  const isEditing = !!editingClass
+  const [title, setTitle] = useState(editingClass?.title || '')
   const [coverName, setCoverName] = useState('')
-  const [coverPreview, setCoverPreview] = useState('')
+  const [coverPreview, setCoverPreview] = useState(editingClass?.cover || '')
   const [coverError, setCoverError] = useState('')
-  const [isPublic, setIsPublic] = useState(true)
-  const [password, setPassword] = useState('')
+  const [isPublic, setIsPublic] = useState(editingClass ? editingClass.isPublic !== false : true)
+  const [password, setPassword] = useState(editingClass?.password || '')
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [archiveTitle, setArchiveTitle] = useState('')
   const [archiveTab, setArchiveTab] = useState('quiz')
   const [quizQuestions, setQuizQuestions] = useState([])
   const [essayQuestions, setEssayQuestions] = useState([])
-  const [classQuestions, setClassQuestions] = useState([])
+  const [classQuestions, setClassQuestions] = useState(editingClass?.questions || [])
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [shuffleQuestions, setShuffleQuestions] = useState(!!editingClass?.shuffle)
+  const [submitError, setSubmitError] = useState('')
   const fileInputRef = useRef(null)
   const archiveTitleRef = useRef(null)
 
-  useEffect(() => {
-    return () => {
-      if (coverPreview) URL.revokeObjectURL(coverPreview)
-    }
-  }, [coverPreview])
+  // Lưu ý: KHÔNG tự thu hồi (revokeObjectURL) ảnh nền khi component này unmount.
+  // Ảnh nền dùng chung một blob url với ô lớp học hiển thị ở danh sách "Lớp học"
+  // sau khi tạo/lưu — thu hồi ở đây sẽ làm ảnh trong ô đó biến mất ngay khi đóng
+  // trang tạo/chỉnh sửa. Việc thu hồi khi đổi/xóa ảnh vẫn diễn ra bình thường ở
+  // handleCoverChange/clearCover bên dưới.
 
   useEffect(() => {
     return () => {
@@ -107,6 +120,9 @@ export default function CreateClassPage({ onBack }) {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [onBack, archiveOpen])
 
+  // "Cài đặt lớp học" dùng chung class .quiz-settings-overlay nên ESC ở effect
+  // phía trên đã tự bỏ qua khi bảng này đang mở (không đóng nhầm cả trang).
+
   const handleCoverChange = (e) => {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -145,6 +161,34 @@ export default function CreateClassPage({ onBack }) {
     setArchiveOpen(true)
   }
 
+  const handleCreateClass = () => {
+    const trimmedTitle = title.trim()
+    if (!trimmedTitle) {
+      setSubmitError('Vui lòng nhập tiêu đề lớp học.')
+      return
+    }
+    if (!isPublic && password.length !== 6) {
+      setSubmitError('Lớp riêng tư cần đặt mật khẩu đủ 6 chữ số.')
+      return
+    }
+    setSubmitError('')
+
+    const payload = {
+      title: trimmedTitle,
+      cover: coverPreview,
+      isPublic,
+      password,
+      shuffle: shuffleQuestions,
+      questions: classQuestions,
+    }
+
+    if (isEditing) {
+      onSaved?.({ mode: 'update', id: editingClass.id, patch: payload })
+    } else {
+      onSaved?.({ mode: 'create', payload: { ...payload, ownerId, ownerName } })
+    }
+  }
+
   return (
     <div className="create-class-page" role="dialog" aria-modal={!archiveOpen} aria-label="Tạo lớp học">
       <button type="button" className="create-class-back" onClick={onBack}>
@@ -155,7 +199,7 @@ export default function CreateClassPage({ onBack }) {
       <div className="create-class-sheet" aria-hidden={archiveOpen || undefined}>
         <header className="create-class-heading">
           <p className="create-class-kicker">Lớp học 10A4</p>
-          <h1>Tạo lớp học</h1>
+          <h1>{isEditing ? 'Chỉnh sửa lớp học' : 'Tạo lớp học'}</h1>
         </header>
 
         <div className="create-class-field">
@@ -273,7 +317,86 @@ export default function CreateClassPage({ onBack }) {
           questions={classQuestions}
           onQuestionsChange={setClassQuestions}
         />
+
+        <div className="create-class-settings">
+          <button
+            type="button"
+            className="create-class-archive-btn create-class-settings-btn"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <IconGear />
+            Cài đặt lớp học
+          </button>
+
+          {submitError ? <p className="create-class-error">{submitError}</p> : null}
+
+          <button type="button" className="create-class-submit-btn" onClick={handleCreateClass}>
+            {isEditing ? 'Lưu thay đổi' : 'Tạo lớp học'}
+          </button>
+        </div>
       </div>
+
+      {settingsOpen ? (
+        <div
+          className="quiz-settings-overlay"
+          onClick={(e) => {
+            e.stopPropagation()
+            setSettingsOpen(false)
+          }}
+        >
+          <div
+            className="quiz-settings-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="class-settings-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="quiz-settings-head">
+              <div>
+                <p className="quiz-card-kicker">Lớp học</p>
+                <h3 id="class-settings-title">Cài đặt lớp học</h3>
+              </div>
+              <button
+                type="button"
+                className="archive-close"
+                onClick={() => setSettingsOpen(false)}
+                aria-label="Đóng cài đặt lớp học"
+              >
+                <IconClose />
+              </button>
+            </header>
+
+            <div className="quiz-settings-body">
+              <div className="create-class-privacy-row">
+                <div>
+                  <p className="create-class-privacy-q">Xáo trộn các câu hỏi</p>
+                  <p className="create-class-hint">
+                    {shuffleQuestions
+                      ? 'Bật: mỗi lần vào lớp học, câu hỏi hiển thị không theo thứ tự ban đầu.'
+                      : 'Tắt: câu hỏi hiển thị đúng theo thứ tự đã sắp xếp ở trên.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={`create-class-switch${shuffleQuestions ? ' is-on' : ''}`}
+                  role="switch"
+                  aria-checked={shuffleQuestions}
+                  aria-label="Xáo trộn các câu hỏi"
+                  onClick={() => setShuffleQuestions((v) => !v)}
+                >
+                  <span className="create-class-switch-knob" />
+                </button>
+              </div>
+            </div>
+
+            <footer className="quiz-settings-foot">
+              <button type="button" className="quiz-primary-btn" onClick={() => setSettingsOpen(false)}>
+                Xong
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
 
       {archiveOpen ? (
         <div
