@@ -482,6 +482,142 @@
   }
 }
 
+.class-space-grid {
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 20px;
+  align-self: flex-start;
+}
+
+.class-space-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.class-space-box {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  padding: 0;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.class-space-box:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+}
+
+.class-space-cover {
+  position: relative;
+  height: 130px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #14324a, #1a6b8a);
+  background-size: cover;
+  background-position: center;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.class-space-cover svg {
+  width: 34px;
+  height: 34px;
+}
+
+.class-space-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.class-space-info {
+  padding: 12px 14px 14px;
+}
+
+.class-space-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #14324a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.class-space-sub {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7a8694;
+}
+
+.class-space-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.class-space-enter-btn,
+.class-space-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.class-space-enter-btn {
+  border: none;
+  background: #14324a;
+  color: #fff;
+  flex: 1;
+}
+
+.class-space-enter-btn:hover {
+  background: #0f2740;
+}
+
+.class-space-edit-btn {
+  border: 1px solid #d5e2ea;
+  background: #ffffff;
+  color: #14324a;
+}
+
+.class-space-edit-btn:hover {
+  background: #eef3f7;
+}
+
+@media (max-width: 640px) {
+  .class-space-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
 .classroom-fab {
   position: absolute;
   right: 24px;
