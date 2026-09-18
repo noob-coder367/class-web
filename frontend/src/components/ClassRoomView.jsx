@@ -6,7 +6,7 @@ import AnnouncementsBoard from './AnnouncementsBoard.jsx'
 import HomeworkBoard from './HomeworkBoard.jsx'
 import CleaningBoard from './CleaningBoard.jsx'
 import { markSeen, countNewer, countUnseenPosts } from '../lib/unreadStore.js'
-import { capabilitiesFor, isAdminRole } from '../lib/roles.js'
+import { capabilitiesFor } from '../lib/roles.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import CreateClassPage from './CreateClassPage.jsx'
 import ClassPlayView from './ClassPlayView.jsx'
@@ -87,17 +87,6 @@ function IconPencil() {
   )
 }
 
-function IconTrash() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 6h18" />
-      <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-      <path d="M10 11v6M14 11v6" />
-    </svg>
-  )
-}
-
 function IconArrowRight() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -140,6 +129,7 @@ const TABS = [
   { id: 'class-space', label: 'Lớp học', icon: IconDoor },
 ]
 
+// Số nút hiện cùng lúc trong thanh menu trước khi phải kéo/cuộn để xem thêm
 const TABS_PER_VIEW = 3
 
 const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty'])
@@ -175,6 +165,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [passwordSubmitting, setPasswordSubmitting] = useState(false)
+  // Ảnh nền lỗi (404/hết hạn...) thì hiện icon cửa thay vì ô trắng.
   const [coverFailed, setCoverFailed] = useState({})
 
   const updateNavScroll = useCallback(() => {
@@ -187,6 +178,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     })
   }, [])
 
+  // Cuộn chuột dọc (PC) cũng kéo thanh menu theo chiều ngang, từ từ như cuộn bình thường
   useEffect(() => {
     const el = navRef.current
     if (!el) return
@@ -208,6 +200,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     }
   }, [updateNavScroll])
 
+  // Khi đổi tab (kể cả mở thẳng vào 1 tab ở "trang" sau), tự cuộn cho nút đó lộ ra
   useEffect(() => {
     const el = navRef.current
     if (!el) return
@@ -259,6 +252,551 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     return () => { cancelled = true }
   }, [])
 
-  // CONTINUED IN NEXT - THIS IS INCOMPLETE PLACEHOLDER TO AVOID BREAKING - DO NOT USE
-  return null
+  useEffect(() => {
+    if (access !== 'ok') return
+    let cancelled = false
+    const loadBadges = async () => {
+      try {
+        const [ann, hw, viol] = await Promise.all([
+          classroomService.getAnnouncements().catch(() => ({ items: [] })),
+          classroomService.getHomework().catch(() => ({ items: [] })),
+          classroomService.getViolations().catch(() => ({ violations: [] })),
+        ])
+        if (cancelled) return
+        const violationsList = viol?.violations || []
+        setTabBadges({
+          announcements: Math.min(99, countUnseenPosts(ann?.items || [], profile?.id)),
+          homework: Math.min(99, countNewer(hw?.items || [], 'homework')),
+          rules: Math.min(99, countNewer(violationsList, 'rules', (item) => item.createdAt)),
+          rulesViolations: Math.min(99, countNewer(violationsList, 'rules-violations', (item) => item.createdAt)),
+        })
+      } catch { /* ignore */ }
+    }
+    loadBadges()
+    const onUnread = () => loadBadges()
+    window.addEventListener('classweb-unread-updated', onUnread)
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') loadBadges() }, 15000)
+    const onVisible = () => { if (document.visibilityState === 'visible') loadBadges() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      window.removeEventListener('classweb-unread-updated', onUnread)
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [access, profile?.id])
+
+  useEffect(() => {
+    if (access === 'ok' && activeTab && activeTab !== 'announcements') markSeen(activeTab)
+  }, [access, activeTab])
+
+  useEffect(() => {
+    if (access === 'denied') {
+      setLoadingTab(false)
+      setItems([])
+      setTimetable(null)
+      setTkbNotice(null)
+      setRules(null)
+      setViolations([])
+      setMembers([])
+      setDirectory([])
+      return
+    }
+    let cancelled = false
+    setLoadingTab(true)
+    setTabError('')
+    setItems([])
+    const load = async () => {
+      try {
+        if (activeTab === 'timetable') {
+          const data = await classroomService.getTimetable()
+          if (cancelled) return
+          setTimetable(data?.timetable || null)
+          setTkbNotice(data?.timetable?.changeNotice || null)
+          setRules(null)
+          setViolations([])
+          setItems([])
+        } else if (activeTab === 'rules') {
+          const [rulesData, violationData, classListData] = await Promise.all([
+            classroomService.getRules(),
+            classroomService.getViolations(),
+            classroomService.getClassList().catch(() => ({ items: [] })),
+          ])
+          if (cancelled) return
+          setRules(rulesData?.rules || null)
+          setViolations(Array.isArray(violationData?.violations) ? violationData.violations : [])
+          const classItems = Array.isArray(classListData?.items) ? classListData.items : []
+          setMembers(classItems)
+          setDirectory(classItems)
+          setTimetable(null)
+          setItems([])
+        } else if (activeTab === 'announcements') {
+          const tkbData = await classroomService.getTimetable().catch(() => null)
+          if (cancelled) return
+          setTkbNotice(tkbData?.timetable?.changeNotice || null)
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
+          setItems([])
+        } else if (activeTab === 'homework') {
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
+          setItems([])
+        } else if (activeTab === 'cleaning-duty') {
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
+          setItems([])
+        } else if (activeTab === 'class-space') {
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
+          setItems([])
+        } else {
+          const data = await classroomService.getTabContent(activeTab)
+          if (cancelled) return
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
+          setItems(Array.isArray(data?.items) ? data.items : [])
+        }
+      } catch (err) {
+        if (cancelled) return
+        if (err.status === 401 || err.status === 403) {
+          setAccess('denied')
+          setAccessError(err.message || 'Bạn không có quyền vào lớp.')
+        } else {
+          setTabError(err.message || 'Không tải được nội dung.')
+        }
+        setItems([])
+        setTimetable(null)
+        setRules(null)
+        setViolations([])
+        setMembers([])
+        setDirectory([])
+      } finally {
+        if (!cancelled) setLoadingTab(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [access, activeTab])
+
+  const handleSaveTimetable = async (next) => {
+    const data = await classroomService.saveTimetable(next)
+    setTimetable(data?.timetable || next)
+    setTkbNotice(data?.timetable?.changeNotice || null)
+  }
+
+  const handleDismissNotice = async () => {
+    setDismissingNotice(true)
+    try {
+      const data = await classroomService.dismissTimetableNotice()
+      if (data?.timetable) {
+        setTimetable(data.timetable)
+        setTkbNotice(data.timetable.changeNotice || null)
+      } else {
+        setTkbNotice((prev) => (prev ? { ...prev, active: false } : null))
+      }
+    } finally {
+      setDismissingNotice(false)
+    }
+  }
+
+  const handleSaveRules = async (next) => {
+    const data = await classroomService.saveRules(next)
+    setRules(data?.rules || next)
+  }
+
+  const handleAddViolation = async (payload) => {
+    const data = await classroomService.addViolation(payload)
+    if (data?.violation) {
+      setViolations((prev) => [data.violation, ...prev.filter((row) => row.id !== data.violation.id)])
+    }
+  }
+
+  const handleDeleteViolation = async (id) => {
+    await classroomService.deleteViolation(id)
+    setViolations((prev) => prev.filter((row) => row.id !== id))
+  }
+
+  const handleRefreshMembers = useCallback(async () => {
+    try {
+      const data = await classroomService.getClassList()
+      const classItems = Array.isArray(data?.items) ? data.items : []
+      setMembers(classItems)
+      setDirectory(classItems)
+    } catch { /* keep */ }
+  }, [])
+
+  const refreshClassSpace = useCallback(async () => {
+    setClassSpaceLoading(true)
+    setClassSpaceError('')
+    try {
+      const data = await classroomService.listClassSpace()
+      setClassSpaceItems(Array.isArray(data?.items) ? data.items : [])
+    } catch (err) {
+      setClassSpaceError(err?.message || 'Không tải được danh sách phòng.')
+    } finally {
+      setClassSpaceLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (access !== 'ok') return
+    refreshClassSpace()
+  }, [access, refreshClassSpace])
+
+  const closeClassEditor = () => {
+    setShowCreateClass(false)
+    setEditingClass(null)
+  }
+
+  // CreateClassPage tự gọi API tạo/lưu (kèm tải ảnh lên) rồi trả về bản ghi đã
+  // lưu — ở đây chỉ cần đóng trang soạn và tải lại danh sách chung từ server.
+  const handleClassSaved = () => {
+    closeClassEditor()
+    refreshClassSpace()
+  }
+
+  // Mở lớp học để làm bài. Lớp riêng tư (không phải chủ lớp) sẽ được hỏi mật
+  // khẩu trước — server là nơi kiểm tra mật khẩu, không tự chấm ở client.
+  const enterClass = async (cls, passwordAttempt) => {
+    const isOwner = !!profile?.id && cls.ownerId === profile.id
+    if (!cls.isPublic && !isOwner && !passwordAttempt) {
+      setPasswordPromptClass(cls)
+      setPasswordInput('')
+      setPasswordError('')
+      return
+    }
+    try {
+      const { item } = await classroomService.getClassSpace(cls.id, passwordAttempt)
+      setPlayingClass(item)
+      setPasswordPromptClass(null)
+      setPasswordInput('')
+    } catch (err) {
+      if (passwordAttempt) {
+        setPasswordError(err?.message || 'Mật khẩu không đúng.')
+      } else {
+        setClassSpaceError(err?.message || 'Không mở được phòng.')
+      }
+    }
+  }
+
+  const submitClassPassword = async () => {
+    if (!passwordPromptClass || passwordInput.length !== 6) return
+    setPasswordSubmitting(true)
+    setPasswordError('')
+    try {
+      await enterClass(passwordPromptClass, passwordInput)
+    } finally {
+      setPasswordSubmitting(false)
+    }
+  }
+
+  // Chủ lớp bấm "Chỉnh sửa": danh sách lưới chỉ có metadata (không có câu
+  // hỏi), nên cần lấy lại bản ghi đầy đủ trước khi mở trang soạn.
+  const startEditClass = async (cls) => {
+    try {
+      const { item } = await classroomService.getClassSpace(cls.id)
+      setEditingClass(item)
+    } catch (err) {
+      setClassSpaceError(err?.message || 'Không mở được phòng để chỉnh sửa.')
+    }
+  }
+
+  const renderBody = () => {
+    if (access === 'denied') {
+      return (
+        <div className="classroom-state classroom-state--denied">
+          <p>{accessError || 'Bạn không có quyền vào khu vực lớp.'}</p>
+        </div>
+      )
+    }
+    if (loadingTab && activeTab !== 'announcements' && activeTab !== 'homework' && activeTab !== 'cleaning-duty' && activeTab !== 'class-space') {
+      return (
+        <div className="classroom-state">
+          <span className="classroom-spinner" aria-hidden="true" />
+          <p>Đang tải...</p>
+        </div>
+      )
+    }
+    if (tabError) {
+      return (
+        <div className="classroom-state classroom-state--denied">
+          <p>{tabError}</p>
+        </div>
+      )
+    }
+    if (activeTab === 'announcements') {
+      return (
+        <AnnouncementsBoard
+          role={role}
+          caps={caps}
+          canDismissTkb={!!caps.timetable}
+          tkbNotice={tkbNotice}
+          onDismissTkbNotice={handleDismissNotice}
+          dismissingTkb={dismissingNotice}
+          onOpenTimetable={() => setActiveTab('timetable')}
+        />
+      )
+    }
+    if (activeTab === 'homework') return <HomeworkBoard isAdmin={!!caps.homework} />
+    if (activeTab === 'cleaning-duty') return <CleaningBoard isAdmin={!!caps.cleaningDuty} />
+    if (activeTab === 'class-space') {
+      if (classSpaceLoading && !classSpaceItems.length) {
+        return <p className="classroom-empty">Đang tải danh sách phòng...</p>
+      }
+      return (
+        <>
+          {classSpaceError ? <p className="classroom-state classroom-state--denied">{classSpaceError}</p> : null}
+          {!classSpaceItems.length ? (
+            <div className="classroom-state classroom-state--soon">
+              <IconDoor />
+              <p>Chưa có phòng nào được tạo.</p>
+              <p className="classroom-state-sub">Bấm nút + ở góc dưới để tạo phòng đầu tiên.</p>
+            </div>
+          ) : (
+            <div className="class-space-grid">
+              {classSpaceItems.map((cls) => {
+                const isOwner = !!profile?.id && cls.ownerId === profile.id
+                return (
+                  <div key={cls.id} className="class-space-card">
+                    {/* Dùng <div role="button"> thay cho <button>: Safari trên iOS/iPadOS
+                        không xử lý đúng phần tử con có position/flex bên trong <button>,
+                        khiến ảnh nền và nhãn "Riêng tư" không hiển thị. */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="class-space-box"
+                      onClick={() => enterClass(cls)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          enterClass(cls)
+                        }
+                      }}
+                      aria-label={`Vào phòng ${cls.title}`}
+                    >
+                      <div className="class-space-cover">
+                        {cls.cover && !coverFailed[cls.id] ? (
+                          <img
+                            className="class-space-cover-img"
+                            src={cls.cover}
+                            alt=""
+                            decoding="async"
+                            onError={() => setCoverFailed((prev) => ({ ...prev, [cls.id]: true }))}
+                          />
+                        ) : (
+                          <IconDoor />
+                        )}
+                        {!cls.isPublic ? <span className="class-space-badge">Riêng tư</span> : null}
+                      </div>
+                      <div className="class-space-info">
+                        <h3 className="class-space-title">{cls.title}</h3>
+                        <span className="class-space-code">{cls.questionCount} câu hỏi</span>
+                        <p className="class-space-owner">Chủ phòng: {cls.ownerName || 'Ẩn danh'}</p>
+                      </div>
+                    </div>
+                    <div className="class-space-footer">
+                      <button type="button" className="class-space-link-btn" onClick={() => enterClass(cls)}>
+                        Vào phòng
+                        <IconArrowRight />
+                      </button>
+                      {isOwner ? (
+                        <button
+                          type="button"
+                          className="class-space-edit-icon-btn"
+                          onClick={() => startEditClass(cls)}
+                          aria-label={`Chỉnh sửa phòng ${cls.title}`}
+                          title="Chỉnh sửa"
+                        >
+                          <IconPencil />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )
+    }
+    if (activeTab === 'timetable') {
+      if (!timetable) return <p className="classroom-empty">Chưa có thời khoá biểu</p>
+      return (
+        <TimetableBoard
+          data={timetable}
+          isAdmin={!!caps.timetable}
+          onSave={handleSaveTimetable}
+          onDismissNotice={handleDismissNotice}
+        />
+      )
+    }
+    if (activeTab === 'rules') {
+      return (
+        <RulesBoard
+          rules={rules}
+          violations={violations}
+          members={members}
+          directory={directory}
+          isAdmin={!!caps.rules}
+          violationsBadge={tabBadges.rulesViolations}
+          onSaveRules={handleSaveRules}
+          onAddViolation={handleAddViolation}
+          onDeleteViolation={handleDeleteViolation}
+          onRefreshMembers={handleRefreshMembers}
+        />
+      )
+    }
+    if (!items.length) return <p className="classroom-empty">Chưa có nội dung</p>
+    return (
+      <ul className="classroom-list">
+        {items.map((item) => (
+          <li key={item.id} className="classroom-item">
+            {item.title ? <h3>{item.title}</h3> : null}
+            {item.body ? <p>{item.body}</p> : null}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  const bodyMod = WIDE_TABS.has(activeTab) ? ` classroom-body--${activeTab}` : ''
+
+  return (
+    <div className="classroom-view" role="dialog" aria-modal="true" aria-label="Khu vực lớp 10A4">
+      <header className="classroom-topbar">
+        <button type="button" className="classroom-back" onClick={onClose} aria-label="Quay về trang chính" title="Quay về">
+          <IconBack />
+        </button>
+        <div className="classroom-iso">
+          <span className="classroom-iso-end" aria-hidden="true" />
+          <div className="classroom-iso-main">
+            <span className="classroom-iso-lid" aria-hidden="true" />
+            <nav className="classroom-iso-front" role="tablist" aria-label="Mục lớp 10A4" ref={navRef}>
+              {TABS.map((tab) => {
+                const Icon = tab.icon
+                const selected = activeTab === tab.id
+                const badge = tab.id === 'timetable' ? 0 : tabBadges[tab.id] || 0
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    id={`classroom-tab-${tab.id}`}
+                    aria-selected={selected}
+                    aria-controls="classroom-panel"
+                    tabIndex={selected ? 0 : -1}
+                    className={`classroom-tab${selected ? ' is-active' : ''}`}
+                    onClick={() => setActiveTab(tab.id)}
+                    disabled={access === 'denied'}
+                  >
+                    <span className="classroom-tab-inner">
+                      <span className="classroom-tab-icon">
+                        <Icon />
+                        {badge > 0 ? <span className="classroom-tab-badge">{badge > 99 ? '99+' : badge}</span> : null}
+                      </span>
+                      <span className="classroom-tab-label">{tab.label}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </nav>
+            {!navScroll.atStart ? (
+              <button
+                type="button"
+                className="classroom-nav-btn classroom-nav-btn--prev"
+                onClick={scrollNavToStart}
+                aria-label="Về các mục đầu"
+                title="Về các mục đầu"
+              >
+                <IconChevronLeft />
+              </button>
+            ) : null}
+            {!navScroll.atEnd ? (
+              <button
+                type="button"
+                className="classroom-nav-btn classroom-nav-btn--next"
+                onClick={scrollNavForward}
+                aria-label="Xem thêm mục"
+                title="Xem thêm mục"
+              >
+                <IconChevronRight />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </header>
+      <div className={`classroom-body${bodyMod}`} id="classroom-panel" role="tabpanel" aria-labelledby={`classroom-tab-${activeTab}`}>
+        {renderBody()}
+      </div>
+      {access === 'ok' && activeTab === 'class-space' && !showCreateClass && !editingClass ? (
+        <button
+          type="button"
+          className="classroom-fab"
+          onClick={() => setShowCreateClass(true)}
+          aria-label="Tạo phòng"
+          title="Tạo phòng"
+        >
+          <IconPlus />
+        </button>
+      ) : null}
+      {showCreateClass || editingClass ? (
+        <CreateClassPage
+          key={editingClass?.id || 'new-class'}
+          editingClass={editingClass}
+          onBack={closeClassEditor}
+          onSaved={handleClassSaved}
+        />
+      ) : null}
+      {playingClass ? (
+        <ClassPlayView classData={playingClass} onClose={() => setPlayingClass(null)} />
+      ) : null}
+      {passwordPromptClass ? (
+        <div className="class-password-overlay" onClick={() => setPasswordPromptClass(null)}>
+          <div
+            className="class-password-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="class-password-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="class-password-title">Phòng riêng tư</h3>
+            <p>Nhập mật khẩu 6 chữ số để vào "{passwordPromptClass.title}".</p>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoFocus
+              value={passwordInput}
+              onChange={(e) => {
+                setPasswordInput(e.target.value.replace(/\D/g, '').slice(0, 6))
+                setPasswordError('')
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitClassPassword()
+              }}
+              placeholder="••••••"
+            />
+            {passwordError ? <p className="class-password-error">{passwordError}</p> : null}
+            <div className="class-password-actions">
+              <button type="button" className="quiz-ghost-btn" onClick={() => setPasswordPromptClass(null)}>
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="quiz-primary-btn"
+                onClick={submitClassPassword}
+                disabled={passwordSubmitting || passwordInput.length !== 6}
+              >
+                {passwordSubmitting ? 'Đang kiểm tra...' : 'Vào lớp'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
 }
