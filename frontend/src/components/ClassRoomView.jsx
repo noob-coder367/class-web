@@ -9,6 +9,8 @@ import { markSeen, countNewer, countUnseenPosts } from '../lib/unreadStore.js'
 import { capabilitiesFor } from '../lib/roles.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import CreateClassPage from './CreateClassPage.jsx'
+import ClassPlayView from './ClassPlayView.jsx'
+import * as classSpaceStore from '../lib/classSpaceStore.js'
 import './ClassRoomView.css'
 
 function IconBell() {
@@ -137,6 +139,9 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const navRef = useRef(null)
   const [navScroll, setNavScroll] = useState({ atStart: true, atEnd: false })
   const [showCreateClass, setShowCreateClass] = useState(false)
+  const [editingClass, setEditingClass] = useState(null)
+  const [playingClass, setPlayingClass] = useState(null)
+  const [classSpaceItems, setClassSpaceItems] = useState([])
 
   const updateNavScroll = useCallback(() => {
     const el = navRef.current
@@ -193,7 +198,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return
-      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox, .ann-composer-overlay, .hw-composer-overlay, .create-class-page')) return
+      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox, .ann-composer-overlay, .hw-composer-overlay, .create-class-page, .class-play-view')) return
       onClose?.()
     }
     window.addEventListener('keydown', onKey)
@@ -400,6 +405,32 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     } catch { /* keep */ }
   }, [])
 
+  const refreshClassSpace = useCallback(() => {
+    setClassSpaceItems(classSpaceStore.listClasses())
+  }, [])
+
+  useEffect(() => {
+    refreshClassSpace()
+    const onUpdate = () => refreshClassSpace()
+    window.addEventListener('classweb-class-space-updated', onUpdate)
+    return () => window.removeEventListener('classweb-class-space-updated', onUpdate)
+  }, [refreshClassSpace])
+
+  const closeClassEditor = () => {
+    setShowCreateClass(false)
+    setEditingClass(null)
+  }
+
+  const handleClassSaved = (result) => {
+    if (result.mode === 'create') {
+      classSpaceStore.createClass(result.payload)
+    } else if (result.mode === 'update') {
+      classSpaceStore.updateClass(result.id, result.patch)
+    }
+    refreshClassSpace()
+    closeClassEditor()
+  }
+
   const renderBody = () => {
     if (access === 'denied') {
       return (
@@ -439,11 +470,60 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     if (activeTab === 'homework') return <HomeworkBoard isAdmin={!!caps.homework} />
     if (activeTab === 'cleaning-duty') return <CleaningBoard isAdmin={!!caps.cleaningDuty} />
     if (activeTab === 'class-space') {
+      if (!classSpaceItems.length) {
+        return (
+          <div className="classroom-state classroom-state--soon">
+            <IconDoor />
+            <p>Chưa có lớp học nào được tạo.</p>
+            <p className="classroom-state-sub">Bấm nút + ở góc dưới để tạo lớp học đầu tiên.</p>
+          </div>
+        )
+      }
       return (
-        <div className="classroom-state classroom-state--soon">
-          <IconDoor />
-          <p>Mục "Lớp học" đang được xây dựng.</p>
-          <p className="classroom-state-sub">Sẽ sớm ra mắt, mọi người chờ nhé!</p>
+        <div className="class-space-grid">
+          {classSpaceItems.map((cls) => {
+            const isOwner = !!profile?.id && cls.ownerId === profile.id
+            return (
+              <div key={cls.id} className="class-space-card">
+                <button
+                  type="button"
+                  className="class-space-box"
+                  onClick={() => setPlayingClass(cls)}
+                  aria-label={`Vào lớp học ${cls.title}`}
+                >
+                  <div
+                    className="class-space-cover"
+                    style={cls.cover ? { backgroundImage: `url(${cls.cover})` } : undefined}
+                  >
+                    {!cls.cover ? <IconDoor /> : null}
+                    {!cls.isPublic ? <span className="class-space-badge">Riêng tư</span> : null}
+                  </div>
+                  <div className="class-space-info">
+                    <h3 className="class-space-title">{cls.title}</h3>
+                    <p className="class-space-sub">{cls.questions.length} câu hỏi</p>
+                  </div>
+                </button>
+                <div className="class-space-footer">
+                  <button
+                    type="button"
+                    className="class-space-enter-btn"
+                    onClick={() => setPlayingClass(cls)}
+                  >
+                    Vào lớp học
+                  </button>
+                  {isOwner ? (
+                    <button
+                      type="button"
+                      className="class-space-edit-btn"
+                      onClick={() => setEditingClass(cls)}
+                    >
+                      Chỉnh sửa
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            )
+          })}
         </div>
       )
     }
@@ -556,7 +636,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       <div className={`classroom-body${bodyMod}`} id="classroom-panel" role="tabpanel" aria-labelledby={`classroom-tab-${activeTab}`}>
         {renderBody()}
       </div>
-      {access === 'ok' && activeTab === 'class-space' && !showCreateClass ? (
+      {access === 'ok' && activeTab === 'class-space' && !showCreateClass && !editingClass ? (
         <button
           type="button"
           className="classroom-fab"
@@ -567,8 +647,18 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           <IconPlus />
         </button>
       ) : null}
-      {showCreateClass ? (
-        <CreateClassPage onBack={() => setShowCreateClass(false)} />
+      {showCreateClass || editingClass ? (
+        <CreateClassPage
+          key={editingClass?.id || 'new-class'}
+          editingClass={editingClass}
+          ownerId={profile?.id}
+          ownerName={profile?.username}
+          onBack={closeClassEditor}
+          onSaved={handleClassSaved}
+        />
+      ) : null}
+      {playingClass ? (
+        <ClassPlayView classData={playingClass} onClose={() => setPlayingClass(null)} />
       ) : null}
     </div>
   )
