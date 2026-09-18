@@ -1,19 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { QuestionCard, SettingsModal, emptyQuestion } from './QuizArchivePanel.jsx'
-import { EssayQuestionFields, emptyEssayDraft } from './EssayArchivePanel.jsx'
-
-function uid() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
-  return `cq-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-}
-
-function IconPlus() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  )
-}
+import { useEffect, useState } from 'react'
+import { colorOf } from './QuizArchivePanel.jsx'
+import './ClassPlayView.css'
 
 function IconClose() {
   return (
@@ -23,509 +10,258 @@ function IconClose() {
   )
 }
 
-function IconChevron({ className }) {
+function IconChevronLeft() {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M6 9l6 6 6-6" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M14.5 5 L8 12 L14.5 19" />
     </svg>
   )
 }
 
-function IconTrash() {
+function IconChevronRight() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 7h16M9 7V5h6v2M10 11v6M14 11v6M6 7l1 13h10l1-13" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9.5 5 L16 12 L9.5 19" />
     </svg>
   )
 }
 
-function IconGear() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.7.9 1.2 1.6 1.3H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-    </svg>
-  )
+// Xáo trộn kiểu Fisher–Yates, không đổi mảng gốc.
+function shuffleArray(arr) {
+  const next = [...arr]
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[next[i], next[j]] = [next[j], next[i]]
+  }
+  return next
 }
 
-function IconBack() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M15 5 L8 12 L15 19" />
-    </svg>
-  )
-}
+export default function ClassPlayView({ classData, onClose }) {
+  const questions = classData?.questions || []
 
-const CUSTOM_TABS = [
-  { id: 'quiz', label: 'Trắc nghiệm' },
-  { id: 'essay', label: 'Tự luận' },
-]
+  // Chỉ xáo trộn 1 lần khi mở lớp học (mỗi lần vào lại sẽ xáo trộn lại).
+  const [order] = useState(() => {
+    const base = questions.map((_, i) => i)
+    return classData?.shuffle ? shuffleArray(base) : base
+  })
+  const [index, setIndex] = useState(0)
+  const [selections, setSelections] = useState({})
+  const [essayDrafts, setEssayDrafts] = useState({})
+  const [timeLeft, setTimeLeft] = useState(null)
+  const [done, setDone] = useState(questions.length === 0)
 
-function badgeLabel(kind) {
-  return kind === 'quiz' ? 'Trắc nghiệm' : 'Tự luận'
-}
+  const total = order.length
+  const current = total ? questions[order[index]] : null
+  const isQuiz = current?.kind === 'quiz'
+  const q = current?.question
 
-// "Tự chỉnh sửa" — full editor giống hệt Trắc nghiệm/Tự luận trong Kho lưu trữ,
-// nhưng kết quả CHỈ được thêm vào lớp học hiện tại, không lưu vào Kho lưu trữ.
-function CustomEditorModal({ onClose, onSave }) {
-  const [tab, setTab] = useState('quiz')
-  const [quizDraft, setQuizDraft] = useState(() => emptyQuestion())
-  const [essayDraft, setEssayDraft] = useState(() => emptyEssayDraft())
-  const [showQuizSettings, setShowQuizSettings] = useState(false)
-  const titleId = 'custom-editor-title'
+  // Chấm điểm trắc nghiệm dựa trên đáp án đã đánh dấu "Đáp án đúng" khi soạn câu hỏi.
+  const gradedQuizTotal = questions.filter(
+    (entry) => entry.kind === 'quiz' && (entry.question?.answers || []).some((a) => a.isCorrect)
+  ).length
+  const gradedQuizCorrect = questions.filter((entry) => {
+    if (entry.kind !== 'quiz') return false
+    const answers = entry.question?.answers || []
+    if (!answers.some((a) => a.isCorrect)) return false
+    const chosenId = selections[entry.id]
+    if (!chosenId) return false
+    return !!answers.find((a) => a.id === chosenId)?.isCorrect
+  }).length
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key !== 'Escape') return
-      if (document.querySelector('.quiz-settings-overlay')) return
-      e.preventDefault()
-      e.stopPropagation()
-      onClose()
+      if (e.key === 'Escape') onClose?.()
     }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [onClose])
-
-  const handleSave = () => {
-    if (tab === 'quiz') {
-      onSave({ id: uid(), kind: 'quiz', source: 'custom', question: quizDraft })
-    } else {
-      onSave({ id: uid(), kind: 'essay', source: 'custom', question: essayDraft })
-    }
-  }
-
-  return (
-    <>
-      <div
-        className="custom-editor-overlay"
-        onClick={(e) => {
-          e.stopPropagation()
-          onClose()
-        }}
-      >
-        <div
-          className="custom-editor-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <header className="quiz-settings-head">
-            <div>
-              <p className="quiz-card-kicker">Thêm câu hỏi</p>
-              <h3 id={titleId}>Tự chỉnh sửa</h3>
-            </div>
-            <button type="button" className="archive-close" onClick={onClose} aria-label="Đóng">
-              <IconClose />
-            </button>
-          </header>
-
-          <div className="archive-tabstrip custom-editor-tabstrip" role="tablist" aria-label="Loại câu hỏi">
-            {CUSTOM_TABS.map((t) => {
-              const selected = tab === t.id
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  tabIndex={selected ? 0 : -1}
-                  className={`archive-tab${selected ? ' is-active' : ''}`}
-                  onClick={() => setTab(t.id)}
-                >
-                  {t.label}
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="quiz-settings-body">
-            <p className="create-class-hint custom-editor-hint">
-              Nội dung này chỉ dùng cho phòng hiện tại và sẽ không được lưu vào Kho lưu trữ.
-            </p>
-            {tab === 'quiz' ? (
-              <QuestionCard
-                index={0}
-                question={quizDraft}
-                onChange={setQuizDraft}
-                onRemove={() => setQuizDraft(emptyQuestion())}
-                onOpenSettings={() => setShowQuizSettings(true)}
-              />
-            ) : (
-              <EssayQuestionFields draft={essayDraft} onChange={setEssayDraft} />
-            )}
-          </div>
-
-          <footer className="quiz-settings-foot">
-            <button type="button" className="quiz-ghost-btn" onClick={onClose}>
-              Hủy
-            </button>
-            <button type="button" className="quiz-primary-btn" onClick={handleSave}>
-              Lưu vào phòng
-            </button>
-          </footer>
-        </div>
-      </div>
-
-      {showQuizSettings ? (
-        <SettingsModal
-          question={quizDraft}
-          onClose={() => setShowQuizSettings(false)}
-          onSave={(settings) => {
-            setQuizDraft((q) => ({ ...q, settings }))
-            setShowQuizSettings(false)
-          }}
-        />
-      ) : null}
-    </>
-  )
-}
-
-// "Chọn từ kho" — chọn 1 bản chỉnh sửa đã lưu, xem trước nội dung, có thể
-// "Cài đặt lại" (chỉ áp dụng cục bộ, không tính vào Kho lưu trữ).
-function ArchivePickerModal({ quizArchive, essayArchive, onClose, onConfirm }) {
-  const [selected, setSelected] = useState(null)
-  const [localQuestion, setLocalQuestion] = useState(null)
-  const [showQuizSettings, setShowQuizSettings] = useState(false)
-  const [showEssayReset, setShowEssayReset] = useState(false)
-  const titleId = 'archive-picker-title'
-
-  const items = useMemo(
-    () => [
-      ...quizArchive.map((q) => ({
-        id: q.id,
-        kind: 'quiz',
-        title: q.title || 'Câu hỏi trắc nghiệm',
-        subtitle: q.content || 'Chưa có nội dung',
-        question: q,
-      })),
-      ...essayArchive.map((q) => ({
-        id: q.id,
-        kind: 'essay',
-        title: q.title || 'Bản chỉnh sửa tự luận',
-        subtitle: q.questionTitle || q.content || 'Chưa có nội dung',
-        question: q,
-      })),
-    ],
-    [quizArchive, essayArchive]
-  )
-
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== 'Escape') return
-      if (document.querySelector('.quiz-settings-overlay')) return
-      e.preventDefault()
-      e.stopPropagation()
-      if (selected) {
-        setSelected(null)
-        return
-      }
-      onClose()
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [onClose, selected])
-
-  const pick = (item) => {
-    setSelected(item)
-    setLocalQuestion(item.question)
-    setShowEssayReset(false)
-  }
-
-  const back = () => {
-    setSelected(null)
-    setLocalQuestion(null)
-    setShowEssayReset(false)
-  }
-
-  const isQuiz = selected?.kind === 'quiz'
-
-  return (
-    <>
-      <div
-        className="archive-picker-overlay"
-        onClick={(e) => {
-          e.stopPropagation()
-          onClose()
-        }}
-      >
-        <div
-          className="archive-picker-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <header className="quiz-settings-head">
-            <div>
-              <p className="quiz-card-kicker">Thêm câu hỏi</p>
-              <h3 id={titleId}>Chọn từ kho</h3>
-            </div>
-            <button type="button" className="archive-close" onClick={onClose} aria-label="Đóng">
-              <IconClose />
-            </button>
-          </header>
-
-          <div className="quiz-settings-body">
-            {!selected ? (
-              <div className="archive-picker-list">
-                {items.length === 0 ? (
-                  <p className="quiz-empty-hint">
-                    Kho lưu trữ chưa có bản chỉnh sửa nào. Hãy thêm ở tab “Kho lưu trữ” trước.
-                  </p>
-                ) : (
-                  items.map((item) => (
-                    <button
-                      key={`${item.kind}-${item.id}`}
-                      type="button"
-                      className="archive-picker-item"
-                      onClick={() => pick(item)}
-                    >
-                      <span className={`archive-picker-badge is-${item.kind}`}>{badgeLabel(item.kind)}</span>
-                      <span className="archive-picker-item-title">{item.title}</span>
-                      <span className="archive-picker-item-sub">{item.subtitle}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : (
-              <div className="archive-picker-preview">
-                <button type="button" className="quiz-ghost-btn archive-picker-back" onClick={back}>
-                  <IconBack />
-                  Quay lại danh sách
-                </button>
-
-                <article className="quiz-card essay-card">
-                  <header className="quiz-card-head">
-                    <div className="essay-card-heading">
-                      <p className="quiz-card-kicker">{badgeLabel(selected.kind)}</p>
-                      <h4 className="essay-card-title">
-                        {isQuiz
-                          ? localQuestion.title || 'Câu hỏi trắc nghiệm'
-                          : localQuestion.questionTitle || 'Câu hỏi tự luận'}
-                      </h4>
-                    </div>
-                  </header>
-                  {localQuestion.content ? <p className="essay-card-content">{localQuestion.content}</p> : null}
-
-                  {!isQuiz ? (
-                    <ul className="essay-preview-answers">
-                      {localQuestion.answers
-                        .filter((a) => a.content.trim())
-                        .map((a) => (
-                          <li key={a.id}>{a.content}</li>
-                        ))}
-                    </ul>
-                  ) : null}
-
-                  <div className="essay-card-meta">
-                    {isQuiz ? (
-                      <span>{localQuestion.answers.length} đáp án</span>
-                    ) : (
-                      <span>{localQuestion.answers.filter((a) => a.content.trim()).length} đáp án</span>
-                    )}
-                    <span>
-                      {(isQuiz ? localQuestion.settings.countdownSeconds : localQuestion.countdownSeconds) > 0
-                        ? `${isQuiz ? localQuestion.settings.countdownSeconds : localQuestion.countdownSeconds}s đếm ngược`
-                        : 'Không đếm ngược'}
-                    </span>
-                  </div>
-
-                  {!isQuiz && showEssayReset ? (
-                    <label className="quiz-field archive-picker-inline-setting">
-                      <span>Thời gian đếm ngược (giây)</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        inputMode="numeric"
-                        value={localQuestion.countdownSeconds}
-                        onChange={(e) => {
-                          const n = Number(e.target.value)
-                          setLocalQuestion((q) => ({
-                            ...q,
-                            countdownSeconds: Number.isFinite(n) ? Math.max(0, Math.min(3600, Math.round(n))) : 0,
-                          }))
-                        }}
-                      />
-                      <p className="create-class-hint">Thay đổi này chỉ áp dụng cho phòng hiện tại, không lưu vào kho.</p>
-                    </label>
-                  ) : null}
-                </article>
-
-                <div className="archive-picker-actions">
-                  <button
-                    type="button"
-                    className="quiz-settings-btn"
-                    onClick={() => (isQuiz ? setShowQuizSettings(true) : setShowEssayReset((v) => !v))}
-                  >
-                    <IconGear />
-                    Cài đặt lại
-                  </button>
-                  <button
-                    type="button"
-                    className="quiz-primary-btn"
-                    onClick={() => onConfirm({ id: selected.id, kind: selected.kind, question: localQuestion })}
-                  >
-                    Thêm vào phòng
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {isQuiz && showQuizSettings ? (
-        <SettingsModal
-          question={localQuestion}
-          onClose={() => setShowQuizSettings(false)}
-          onSave={(settings) => {
-            setLocalQuestion((q) => ({ ...q, settings }))
-            setShowQuizSettings(false)
-          }}
-        />
-      ) : null}
-    </>
-  )
-}
-
-export default function AddQuestionPanel({ quizArchive, essayArchive, questions, onQuestionsChange }) {
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [customOpen, setCustomOpen] = useState(false)
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const wrapRef = useRef(null)
-
-  useEffect(() => {
-    if (!menuOpen) return
-    const onDocClick = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setMenuOpen(false)
-    }
-    const onKey = (e) => {
-      if (e.key === 'Escape') setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', onDocClick)
     window.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDocClick)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [menuOpen])
-
-  useEffect(() => {
-    if (!customOpen && !pickerOpen) return
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
+      window.removeEventListener('keydown', onKey)
       document.body.style.overflow = prevOverflow
     }
-  }, [customOpen, pickerOpen])
+  }, [onClose])
 
-  const addFromCustom = (entry) => {
-    onQuestionsChange((prev) => [...prev, entry])
-    setCustomOpen(false)
+  const goNext = () => {
+    if (index >= total - 1) {
+      setDone(true)
+      return
+    }
+    setIndex((i) => i + 1)
   }
 
-  const addFromArchive = (entry) => {
-    onQuestionsChange((prev) => [
-      ...prev,
-      { id: uid(), kind: entry.kind, source: 'archive', archiveId: entry.id, question: entry.question },
-    ])
-    setPickerOpen(false)
+  const goPrev = () => {
+    if (index <= 0) return
+    setIndex((i) => i - 1)
   }
 
-  const removeQuestion = (id) => {
-    onQuestionsChange((prev) => prev.filter((q) => q.id !== id))
-  }
+  // Đếm ngược riêng cho từng câu (nếu người tạo có đặt trong Cài đặt chỉnh sửa).
+  useEffect(() => {
+    if (!current || done) {
+      setTimeLeft(null)
+      return
+    }
+    const seconds = isQuiz ? q?.settings?.countdownSeconds : q?.countdownSeconds
+    if (!seconds || seconds <= 0) {
+      setTimeLeft(null)
+      return
+    }
+    setTimeLeft(seconds)
+    const timer = setInterval(() => {
+      setTimeLeft((t) => {
+        if (t === null) return null
+        if (t <= 1) {
+          clearInterval(timer)
+          goNext()
+          return 0
+        }
+        return t - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, done])
+
+  const answerLayoutClass = isQuiz && q?.settings?.layout === 'quiz' ? 'quiz-answers--tiles' : 'quiz-answers--row'
+
+  if (!classData) return null
 
   return (
-    <div className="add-question-wrap" ref={wrapRef}>
-      <button
-        type="button"
-        className="create-class-archive-btn add-question-btn"
-        onClick={() => setMenuOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-      >
-        <IconPlus />
-        Thêm câu hỏi
-        <IconChevron className={`add-question-chevron${menuOpen ? ' is-open' : ''}`} />
-      </button>
+    <div className="class-play-view" role="dialog" aria-modal="true" aria-label={`Làm bài: ${classData.title}`}>
+      <header className="class-play-topbar">
+        <div className="class-play-heading">
+          <p className="class-play-kicker">Phòng</p>
+          <h2>{classData.title}</h2>
+        </div>
+        <button type="button" className="class-play-close" onClick={onClose} aria-label="Đóng">
+          <IconClose />
+        </button>
+      </header>
 
-      {menuOpen ? (
-        <div className="add-question-menu" role="menu">
-          <button
-            type="button"
-            role="menuitem"
-            className="add-question-menu-item"
-            onClick={() => {
-              setCustomOpen(true)
-              setMenuOpen(false)
-            }}
-          >
-            <span className="add-question-menu-title">Tự chỉnh sửa</span>
-            <span className="add-question-menu-desc">Soạn câu hỏi mới, không lưu vào kho</span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="add-question-menu-item"
-            onClick={() => {
-              setPickerOpen(true)
-              setMenuOpen(false)
-            }}
-          >
-            <span className="add-question-menu-title">Chọn từ kho</span>
-            <span className="add-question-menu-desc">Dùng lại bản chỉnh sửa đã lưu</span>
+      {total === 0 ? (
+        <div className="class-play-empty">
+          <p>Phòng này chưa có câu hỏi nào.</p>
+          <button type="button" className="quiz-primary-btn" onClick={onClose}>
+            Quay lại
           </button>
         </div>
-      ) : null}
+      ) : done ? (
+        <div className="class-play-empty">
+          <p>Bạn đã hoàn thành {total} câu hỏi của phòng này. 🎉</p>
+          {gradedQuizTotal > 0 ? (
+            <p className="class-play-score">
+              Trắc nghiệm đã chấm điểm: <strong>{gradedQuizCorrect}/{gradedQuizTotal}</strong> câu đúng
+            </p>
+          ) : null}
+          <div className="class-play-done-actions">
+            <button
+              type="button"
+              className="quiz-ghost-btn"
+              onClick={() => {
+                setIndex(0)
+                setDone(false)
+              }}
+            >
+              Làm lại
+            </button>
+            <button type="button" className="quiz-primary-btn" onClick={onClose}>
+              Xong
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="class-play-body">
+          <div className="class-play-progress">
+            <span>
+              Câu {index + 1}/{total}
+            </span>
+            {timeLeft !== null ? <span className="class-play-timer">⏱ {timeLeft}s</span> : null}
+          </div>
 
-      {questions.length > 0 ? (
-        <div className="class-questions-list">
-          {questions.map((q, idx) => (
-            <div key={q.id} className="class-question-card">
-              <div className="class-question-info">
-                <span className={`archive-picker-badge is-${q.kind}`}>{badgeLabel(q.kind)}</span>
-                <span className="class-question-title">
-                  {idx + 1}.{' '}
-                  {q.kind === 'quiz'
-                    ? q.question.title || 'Câu hỏi trắc nghiệm'
-                    : q.question.questionTitle || q.question.title || 'Câu hỏi tự luận'}
-                </span>
-                <span className="class-question-source">{q.source === 'archive' ? 'Từ kho' : 'Tự chỉnh sửa'}</span>
+          <article className="quiz-card class-play-card">
+            <p className="quiz-card-kicker">{isQuiz ? 'Trắc nghiệm' : 'Tự luận'}</p>
+            <h3 className="essay-card-title">
+              {isQuiz ? q?.title || 'Câu hỏi trắc nghiệm' : q?.questionTitle || q?.title || 'Câu hỏi tự luận'}
+            </h3>
+            {q?.content ? <p className="essay-card-content">{q.content}</p> : null}
+
+            {isQuiz ? (
+              <div className={`quiz-answers ${answerLayoutClass}`}>
+                {(() => {
+                  const color = colorOf(q?.settings?.answerColor)
+                  const answers = q?.answers || []
+                  const hasKey = answers.some((a) => a.isCorrect)
+                  const chosenId = selections[current.id]
+                  const revealed = hasKey && !!chosenId
+                  return answers.map((answer) => {
+                    const selected = chosenId === answer.id
+                    let resultClass = ''
+                    if (revealed) {
+                      if (answer.isCorrect) resultClass = ' is-correct-answer'
+                      else if (selected) resultClass = ' is-wrong-answer'
+                    }
+                    return (
+                      <button
+                        key={answer.id}
+                        type="button"
+                        className={`class-play-answer${answerLayoutClass === 'quiz-answers--tiles' ? ' is-tile' : ''}${selected ? ' is-selected' : ''}${resultClass}`}
+                        onClick={() => setSelections((prev) => ({ ...prev, [current.id]: answer.id }))}
+                        style={{
+                          background: color.bg === 'transparent' ? undefined : color.bg,
+                          color: color.fg,
+                        }}
+                      >
+                        {answer.imagePreview ? (
+                          <img src={answer.imagePreview} alt={answer.imageName || 'Ảnh đáp án'} />
+                        ) : null}
+                        <span className="class-play-answer-label">{answer.label}</span>
+                        <span className="class-play-answer-content">{answer.content}</span>
+                      </button>
+                    )
+                  })
+                })()}
               </div>
-              <button
-                type="button"
-                className="quiz-icon-btn"
-                onClick={() => removeQuestion(q.id)}
-                aria-label="Xóa câu hỏi khỏi phòng"
-              >
-                <IconTrash />
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
+            ) : (
+              <div className="class-play-essay">
+                <label className="quiz-field">
+                  <span>Câu trả lời của bạn</span>
+                  <textarea
+                    rows={5}
+                    value={essayDrafts[current.id] || ''}
+                    onChange={(e) => setEssayDrafts((prev) => ({ ...prev, [current.id]: e.target.value }))}
+                    placeholder="Nhập câu trả lời để tự ôn tập..."
+                  />
+                </label>
+                {(q?.answers || []).some((a) => a.content.trim()) ? (
+                  <details className="class-play-essay-key">
+                    <summary>Xem gợi ý đáp án</summary>
+                    <ul className="essay-preview-answers">
+                      {(q?.answers || [])
+                        .filter((a) => a.content.trim())
+                        .map((a) => (
+                          <li key={a.id}>
+                            {a.content}
+                            {a.isCorrect ? <span className="class-play-correct-tag"> · đáp án đúng</span> : null}
+                          </li>
+                        ))}
+                    </ul>
+                  </details>
+                ) : null}
+              </div>
+            )}
+          </article>
 
-      {customOpen ? <CustomEditorModal onClose={() => setCustomOpen(false)} onSave={addFromCustom} /> : null}
-      {pickerOpen ? (
-        <ArchivePickerModal
-          quizArchive={quizArchive}
-          essayArchive={essayArchive}
-          onClose={() => setPickerOpen(false)}
-          onConfirm={addFromArchive}
-        />
-      ) : null}
+          <footer className="class-play-nav">
+            <button type="button" className="class-play-nav-btn" onClick={goPrev} disabled={index === 0}>
+              <IconChevronLeft />
+              Câu trước
+            </button>
+            <button type="button" className="quiz-primary-btn class-play-next" onClick={goNext}>
+              {index >= total - 1 ? 'Hoàn thành' : 'Câu tiếp theo'}
+              {index < total - 1 ? <IconChevronRight /> : null}
+            </button>
+          </footer>
+        </div>
+      )}
     </div>
   )
 }
