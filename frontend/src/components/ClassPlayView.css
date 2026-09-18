@@ -136,6 +136,28 @@
   transform: translateY(-1px);
 }
 
+.class-play-answer.is-correct-answer {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.25);
+}
+
+.class-play-answer.is-wrong-answer {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2);
+}
+
+.class-play-correct-tag {
+  color: #0f7a3d;
+  font-weight: 700;
+}
+
+.class-play-score {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #14324a;
+}
+
 .class-play-essay textarea {
   width: 100%;
   min-height: 120px;
