@@ -1075,6 +1075,34 @@
   accent-color: var(--cc-accent);
 }
 
+.quiz-answer-color {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(15, 23, 42, 0.14);
+}
+
+.quiz-answer-color-label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.quiz-swatches--sm {
+  gap: 6px;
+}
+
+.quiz-swatch--sm {
+  width: 22px;
+  height: 22px;
+}
+
+.quiz-swatch--sm.is-active {
+  outline-width: 2px;
+  outline-offset: 1px;
+}
+
 .quiz-swatches {
   display: flex;
   flex-wrap: wrap;
