@@ -147,6 +147,8 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [passwordSubmitting, setPasswordSubmitting] = useState(false)
+  // Ảnh nền lỗi (404/hết hạn...) thì hiện icon cửa thay vì ô trắng.
+  const [coverFailed, setCoverFailed] = useState({})
 
   const updateNavScroll = useCallback(() => {
     const el = navRef.current
@@ -543,21 +545,30 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                 const isOwner = !!profile?.id && cls.ownerId === profile.id
                 return (
                   <div key={cls.id} className="class-space-card">
-                    <button
-                      type="button"
+                    {/* Dùng <div role="button"> thay cho <button>: Safari trên iOS/iPadOS
+                        không xử lý đúng phần tử con có position/flex bên trong <button>,
+                        khiến ảnh nền và nhãn "Riêng tư" không hiển thị. */}
+                    <div
+                      role="button"
+                      tabIndex={0}
                       className="class-space-box"
                       onClick={() => enterClass(cls)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          enterClass(cls)
+                        }
+                      }}
                       aria-label={`Vào lớp học ${cls.title}`}
                     >
                       <div className="class-space-cover">
-                        {cls.cover ? (
+                        {cls.cover && !coverFailed[cls.id] ? (
                           <img
                             className="class-space-cover-img"
                             src={cls.cover}
                             alt=""
-                            loading="lazy"
                             decoding="async"
-                            referrerPolicy="no-referrer"
+                            onError={() => setCoverFailed((prev) => ({ ...prev, [cls.id]: true }))}
                           />
                         ) : (
                           <IconDoor />
@@ -568,7 +579,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                         <h3 className="class-space-title">{cls.title}</h3>
                         <p className="class-space-sub">{cls.questionCount} câu hỏi</p>
                       </div>
-                    </button>
+                    </div>
                     <div className="class-space-footer">
                       <button type="button" className="class-space-enter-btn" onClick={() => enterClass(cls)}>
                         Vào lớp học
