@@ -78,6 +78,24 @@ function IconDoor() {
   )
 }
 
+function IconPencil() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7.5 18.5 3 20l1.5-4.5Z" />
+      <path d="M14.5 5.5 18 9" />
+    </svg>
+  )
+}
+
+function IconArrowRight() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4.5 12h14.5" />
+      <path d="M13 6.5 19 12l-6 5.5" />
+    </svg>
+  )
+}
+
 function IconPlus() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
@@ -419,7 +437,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       const data = await classroomService.listClassSpace()
       setClassSpaceItems(Array.isArray(data?.items) ? data.items : [])
     } catch (err) {
-      setClassSpaceError(err?.message || 'Không tải được danh sách lớp học.')
+      setClassSpaceError(err?.message || 'Không tải được danh sách phòng.')
     } finally {
       setClassSpaceLoading(false)
     }
@@ -461,7 +479,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       if (passwordAttempt) {
         setPasswordError(err?.message || 'Mật khẩu không đúng.')
       } else {
-        setClassSpaceError(err?.message || 'Không mở được lớp học.')
+        setClassSpaceError(err?.message || 'Không mở được phòng.')
       }
     }
   }
@@ -484,7 +502,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       const { item } = await classroomService.getClassSpace(cls.id)
       setEditingClass(item)
     } catch (err) {
-      setClassSpaceError(err?.message || 'Không mở được lớp học để chỉnh sửa.')
+      setClassSpaceError(err?.message || 'Không mở được phòng để chỉnh sửa.')
     }
   }
 
@@ -528,7 +546,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     if (activeTab === 'cleaning-duty') return <CleaningBoard isAdmin={!!caps.cleaningDuty} />
     if (activeTab === 'class-space') {
       if (classSpaceLoading && !classSpaceItems.length) {
-        return <p className="classroom-empty">Đang tải danh sách lớp học...</p>
+        return <p className="classroom-empty">Đang tải danh sách phòng...</p>
       }
       return (
         <>
@@ -536,8 +554,8 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           {!classSpaceItems.length ? (
             <div className="classroom-state classroom-state--soon">
               <IconDoor />
-              <p>Chưa có lớp học nào được tạo.</p>
-              <p className="classroom-state-sub">Bấm nút + ở góc dưới để tạo lớp học đầu tiên.</p>
+              <p>Chưa có phòng nào được tạo.</p>
+              <p className="classroom-state-sub">Bấm nút + ở góc dưới để tạo phòng đầu tiên.</p>
             </div>
           ) : (
             <div className="class-space-grid">
@@ -559,7 +577,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                           enterClass(cls)
                         }
                       }}
-                      aria-label={`Vào lớp học ${cls.title}`}
+                      aria-label={`Vào phòng ${cls.title}`}
                     >
                       <div className="class-space-cover">
                         {cls.cover && !coverFailed[cls.id] ? (
@@ -577,20 +595,24 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                       </div>
                       <div className="class-space-info">
                         <h3 className="class-space-title">{cls.title}</h3>
-                        <p className="class-space-sub">{cls.questionCount} câu hỏi</p>
+                        <span className="class-space-code">{cls.questionCount} câu hỏi</span>
+                        <p className="class-space-owner">Chủ phòng: {cls.ownerName || 'Ẩn danh'}</p>
                       </div>
                     </div>
                     <div className="class-space-footer">
-                      <button type="button" className="class-space-enter-btn" onClick={() => enterClass(cls)}>
-                        Vào lớp học
+                      <button type="button" className="class-space-link-btn" onClick={() => enterClass(cls)}>
+                        Vào phòng
+                        <IconArrowRight />
                       </button>
                       {isOwner ? (
                         <button
                           type="button"
-                          className="class-space-edit-btn"
+                          className="class-space-edit-icon-btn"
                           onClick={() => startEditClass(cls)}
+                          aria-label={`Chỉnh sửa phòng ${cls.title}`}
+                          title="Chỉnh sửa"
                         >
-                          Chỉnh sửa
+                          <IconPencil />
                         </button>
                       ) : null}
                     </div>
@@ -716,8 +738,8 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           type="button"
           className="classroom-fab"
           onClick={() => setShowCreateClass(true)}
-          aria-label="Tạo lớp học"
-          title="Tạo lớp học"
+          aria-label="Tạo phòng"
+          title="Tạo phòng"
         >
           <IconPlus />
         </button>
@@ -742,7 +764,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
             aria-labelledby="class-password-title"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 id="class-password-title">Lớp học riêng tư</h3>
+            <h3 id="class-password-title">Phòng riêng tư</h3>
             <p>Nhập mật khẩu 6 chữ số để vào "{passwordPromptClass.title}".</p>
             <input
               type="text"
