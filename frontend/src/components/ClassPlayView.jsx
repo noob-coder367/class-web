@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { colorOf } from './QuizArchivePanel.jsx'
+import { answerColorOf } from './QuizArchivePanel.jsx'
 import './ClassPlayView.css'
 
 function IconClose() {
@@ -14,6 +14,17 @@ function IconChevronLeft() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M14.5 5 L8 12 L14.5 19" />
+    </svg>
+  )
+}
+
+function IconRefresh() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 4v6h6" />
+      <path d="M20 20v-6h-6" />
+      <path d="M4.5 15a8 8 0 0 0 13.9 3.2L20 20" />
+      <path d="M19.5 9a8 8 0 0 0-13.9-3.2L4 4" />
     </svg>
   )
 }
@@ -59,6 +70,16 @@ export default function ClassPlayView({ classData, onClose }) {
   const current = total ? questions[order[index]] : null
   const isQuiz = current?.kind === 'quiz'
   const q = current?.question
+  // Mặc định cho làm lại nếu chủ phòng chưa đặt gì (giữ hành vi cũ).
+  const allowRetry = classData?.allowRetry !== false
+
+  // Làm lại từ đầu: về câu 1 và xoá sạch mọi lựa chọn/đáp án đã nhập trước đó.
+  const handleRetry = () => {
+    setIndex(0)
+    setSelections({})
+    setEssayDrafts({})
+    setDone(false)
+  }
 
   // Chấm điểm trắc nghiệm dựa trên đáp án đã đánh dấu "Đáp án đúng" khi soạn câu hỏi.
   const gradedQuizTotal = questions.filter(
@@ -178,19 +199,16 @@ export default function ClassPlayView({ classData, onClose }) {
               Trắc nghiệm đã chấm điểm: <strong>{gradedQuizCorrect}/{gradedQuizTotal}</strong> câu đúng
             </p>
           ) : null}
+          <p className="class-play-autoclose-hint">Tự động về lớp sau vài giây...</p>
           <div className="class-play-done-actions">
-            <button
-              type="button"
-              className="quiz-ghost-btn"
-              onClick={() => {
-                setIndex(0)
-                setDone(false)
-              }}
-            >
-              Làm lại
-            </button>
+            {allowRetry ? (
+              <button type="button" className="class-play-retry-btn" onClick={handleRetry}>
+                <IconRefresh />
+                Làm lại
+              </button>
+            ) : null}
             <button type="button" className="quiz-primary-btn" onClick={onClose}>
-              Xong
+              Về lớp
             </button>
           </div>
         </div>
@@ -213,12 +231,12 @@ export default function ClassPlayView({ classData, onClose }) {
             {isQuiz ? (
               <div className={`quiz-answers ${answerLayoutClass}`}>
                 {(() => {
-                  const color = colorOf(q?.settings?.answerColor)
                   const answers = q?.answers || []
                   const hasKey = answers.some((a) => a.isCorrect)
                   const chosenId = selections[current.id]
                   const revealed = hasKey && !!chosenId
                   return answers.map((answer) => {
+                    const color = answerColorOf(answer, q?.settings)
                     const selected = chosenId === answer.id
                     let resultClass = ''
                     if (revealed) {
