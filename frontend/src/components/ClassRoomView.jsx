@@ -10,7 +10,6 @@ import { capabilitiesFor } from '../lib/roles.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import CreateClassPage from './CreateClassPage.jsx'
 import ClassPlayView from './ClassPlayView.jsx'
-import * as classSpaceStore from '../lib/classSpaceStore.js'
 import './ClassRoomView.css'
 
 function IconBell() {
@@ -142,6 +141,12 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [editingClass, setEditingClass] = useState(null)
   const [playingClass, setPlayingClass] = useState(null)
   const [classSpaceItems, setClassSpaceItems] = useState([])
+  const [classSpaceLoading, setClassSpaceLoading] = useState(true)
+  const [classSpaceError, setClassSpaceError] = useState('')
+  const [passwordPromptClass, setPasswordPromptClass] = useState(null)
+  const [passwordInput, setPasswordInput] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false)
 
   const updateNavScroll = useCallback(() => {
     const el = navRef.current
@@ -198,7 +203,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return
-      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox, .ann-composer-overlay, .hw-composer-overlay, .create-class-page, .class-play-view')) return
+      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox, .ann-composer-overlay, .hw-composer-overlay, .create-class-page, .class-play-view, .class-password-overlay')) return
       onClose?.()
     }
     window.addEventListener('keydown', onKey)
@@ -405,30 +410,80 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     } catch { /* keep */ }
   }, [])
 
-  const refreshClassSpace = useCallback(() => {
-    setClassSpaceItems(classSpaceStore.listClasses())
+  const refreshClassSpace = useCallback(async () => {
+    setClassSpaceLoading(true)
+    setClassSpaceError('')
+    try {
+      const data = await classroomService.listClassSpace()
+      setClassSpaceItems(Array.isArray(data?.items) ? data.items : [])
+    } catch (err) {
+      setClassSpaceError(err?.message || 'Không tải được danh sách lớp học.')
+    } finally {
+      setClassSpaceLoading(false)
+    }
   }, [])
 
   useEffect(() => {
+    if (access !== 'ok') return
     refreshClassSpace()
-    const onUpdate = () => refreshClassSpace()
-    window.addEventListener('classweb-class-space-updated', onUpdate)
-    return () => window.removeEventListener('classweb-class-space-updated', onUpdate)
-  }, [refreshClassSpace])
+  }, [access, refreshClassSpace])
 
   const closeClassEditor = () => {
     setShowCreateClass(false)
     setEditingClass(null)
   }
 
-  const handleClassSaved = (result) => {
-    if (result.mode === 'create') {
-      classSpaceStore.createClass(result.payload)
-    } else if (result.mode === 'update') {
-      classSpaceStore.updateClass(result.id, result.patch)
-    }
-    refreshClassSpace()
+  // CreateClassPage tự gọi API tạo/lưu (kèm tải ảnh lên) rồi trả về bản ghi đã
+  // lưu — ở đây chỉ cần đóng trang soạn và tải lại danh sách chung từ server.
+  const handleClassSaved = () => {
     closeClassEditor()
+    refreshClassSpace()
+  }
+
+  // Mở lớp học để làm bài. Lớp riêng tư (không phải chủ lớp) sẽ được hỏi mật
+  // khẩu trước — server là nơi kiểm tra mật khẩu, không tự chấm ở client.
+  const enterClass = async (cls, passwordAttempt) => {
+    const isOwner = !!profile?.id && cls.ownerId === profile.id
+    if (!cls.isPublic && !isOwner && !passwordAttempt) {
+      setPasswordPromptClass(cls)
+      setPasswordInput('')
+      setPasswordError('')
+      return
+    }
+    try {
+      const { item } = await classroomService.getClassSpace(cls.id, passwordAttempt)
+      setPlayingClass(item)
+      setPasswordPromptClass(null)
+      setPasswordInput('')
+    } catch (err) {
+      if (passwordAttempt) {
+        setPasswordError(err?.message || 'Mật khẩu không đúng.')
+      } else {
+        setClassSpaceError(err?.message || 'Không mở được lớp học.')
+      }
+    }
+  }
+
+  const submitClassPassword = async () => {
+    if (!passwordPromptClass || passwordInput.length !== 6) return
+    setPasswordSubmitting(true)
+    setPasswordError('')
+    try {
+      await enterClass(passwordPromptClass, passwordInput)
+    } finally {
+      setPasswordSubmitting(false)
+    }
+  }
+
+  // Chủ lớp bấm "Chỉnh sửa": danh sách lưới chỉ có metadata (không có câu
+  // hỏi), nên cần lấy lại bản ghi đầy đủ trước khi mở trang soạn.
+  const startEditClass = async (cls) => {
+    try {
+      const { item } = await classroomService.getClassSpace(cls.id)
+      setEditingClass(item)
+    } catch (err) {
+      setClassSpaceError(err?.message || 'Không mở được lớp học để chỉnh sửa.')
+    }
   }
 
   const renderBody = () => {
@@ -470,61 +525,62 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     if (activeTab === 'homework') return <HomeworkBoard isAdmin={!!caps.homework} />
     if (activeTab === 'cleaning-duty') return <CleaningBoard isAdmin={!!caps.cleaningDuty} />
     if (activeTab === 'class-space') {
-      if (!classSpaceItems.length) {
-        return (
-          <div className="classroom-state classroom-state--soon">
-            <IconDoor />
-            <p>Chưa có lớp học nào được tạo.</p>
-            <p className="classroom-state-sub">Bấm nút + ở góc dưới để tạo lớp học đầu tiên.</p>
-          </div>
-        )
+      if (classSpaceLoading && !classSpaceItems.length) {
+        return <p className="classroom-empty">Đang tải danh sách lớp học...</p>
       }
       return (
-        <div className="class-space-grid">
-          {classSpaceItems.map((cls) => {
-            const isOwner = !!profile?.id && cls.ownerId === profile.id
-            return (
-              <div key={cls.id} className="class-space-card">
-                <button
-                  type="button"
-                  className="class-space-box"
-                  onClick={() => setPlayingClass(cls)}
-                  aria-label={`Vào lớp học ${cls.title}`}
-                >
-                  <div
-                    className="class-space-cover"
-                    style={cls.cover ? { backgroundImage: `url(${cls.cover})` } : undefined}
-                  >
-                    {!cls.cover ? <IconDoor /> : null}
-                    {!cls.isPublic ? <span className="class-space-badge">Riêng tư</span> : null}
-                  </div>
-                  <div className="class-space-info">
-                    <h3 className="class-space-title">{cls.title}</h3>
-                    <p className="class-space-sub">{cls.questions.length} câu hỏi</p>
-                  </div>
-                </button>
-                <div className="class-space-footer">
-                  <button
-                    type="button"
-                    className="class-space-enter-btn"
-                    onClick={() => setPlayingClass(cls)}
-                  >
-                    Vào lớp học
-                  </button>
-                  {isOwner ? (
+        <>
+          {classSpaceError ? <p className="classroom-state classroom-state--denied">{classSpaceError}</p> : null}
+          {!classSpaceItems.length ? (
+            <div className="classroom-state classroom-state--soon">
+              <IconDoor />
+              <p>Chưa có lớp học nào được tạo.</p>
+              <p className="classroom-state-sub">Bấm nút + ở góc dưới để tạo lớp học đầu tiên.</p>
+            </div>
+          ) : (
+            <div className="class-space-grid">
+              {classSpaceItems.map((cls) => {
+                const isOwner = !!profile?.id && cls.ownerId === profile.id
+                return (
+                  <div key={cls.id} className="class-space-card">
                     <button
                       type="button"
-                      className="class-space-edit-btn"
-                      onClick={() => setEditingClass(cls)}
+                      className="class-space-box"
+                      onClick={() => enterClass(cls)}
+                      aria-label={`Vào lớp học ${cls.title}`}
                     >
-                      Chỉnh sửa
+                      <div
+                        className="class-space-cover"
+                        style={cls.cover ? { backgroundImage: `url(${cls.cover})` } : undefined}
+                      >
+                        {!cls.cover ? <IconDoor /> : null}
+                        {!cls.isPublic ? <span className="class-space-badge">Riêng tư</span> : null}
+                      </div>
+                      <div className="class-space-info">
+                        <h3 className="class-space-title">{cls.title}</h3>
+                        <p className="class-space-sub">{cls.questionCount} câu hỏi</p>
+                      </div>
                     </button>
-                  ) : null}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+                    <div className="class-space-footer">
+                      <button type="button" className="class-space-enter-btn" onClick={() => enterClass(cls)}>
+                        Vào lớp học
+                      </button>
+                      {isOwner ? (
+                        <button
+                          type="button"
+                          className="class-space-edit-btn"
+                          onClick={() => startEditClass(cls)}
+                        >
+                          Chỉnh sửa
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
       )
     }
     if (activeTab === 'timetable') {
@@ -651,14 +707,54 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         <CreateClassPage
           key={editingClass?.id || 'new-class'}
           editingClass={editingClass}
-          ownerId={profile?.id}
-          ownerName={profile?.username}
           onBack={closeClassEditor}
           onSaved={handleClassSaved}
         />
       ) : null}
       {playingClass ? (
         <ClassPlayView classData={playingClass} onClose={() => setPlayingClass(null)} />
+      ) : null}
+      {passwordPromptClass ? (
+        <div className="class-password-overlay" onClick={() => setPasswordPromptClass(null)}>
+          <div
+            className="class-password-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="class-password-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="class-password-title">Lớp học riêng tư</h3>
+            <p>Nhập mật khẩu 6 chữ số để vào "{passwordPromptClass.title}".</p>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoFocus
+              value={passwordInput}
+              onChange={(e) => {
+                setPasswordInput(e.target.value.replace(/\D/g, '').slice(0, 6))
+                setPasswordError('')
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitClassPassword()
+              }}
+              placeholder="••••••"
+            />
+            {passwordError ? <p className="class-password-error">{passwordError}</p> : null}
+            <div className="class-password-actions">
+              <button type="button" className="quiz-ghost-btn" onClick={() => setPasswordPromptClass(null)}>
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="quiz-primary-btn"
+                onClick={submitClassPassword}
+                disabled={passwordSubmitting || passwordInput.length !== 6}
+              >
+                {passwordSubmitting ? 'Đang kiểm tra...' : 'Vào lớp'}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   )
