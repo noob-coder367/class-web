@@ -108,10 +108,14 @@ function emptyAnswer(index) {
     content: '',
     imageName: '',
     imagePreview: '',
+    isCorrect: false,
   }
 }
 
 function revokePreview(url) {
+  // Ảnh đáp án giờ lưu dạng base64 (data URL), không còn là blob URL nữa nên
+  // revokeObjectURL ở đây thực chất là no-op an toàn — giữ lại hàm để các nơi
+  // gọi cũ (removeAnswer, removeQuestion...) không phải sửa thêm.
   if (url) URL.revokeObjectURL(url)
 }
 
@@ -120,6 +124,17 @@ function readImageFile(file) {
   if (!file.type.startsWith('image/')) return { error: 'Vui lòng chọn một tập tin ảnh.' }
   if (file.size > MAX_IMAGE_BYTES) return { error: 'Ảnh vượt quá 10MB. Vui lòng chọn ảnh nhỏ hơn.' }
   return { file }
+}
+
+// Đọc file ảnh thành base64 để lưu bền qua localStorage (xem giải thích tương
+// tự ở CreateClassPage.jsx — blob URL sẽ mất ảnh sau khi tải lại trang thật).
+function readImageAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(reader.error || new Error('Không đọc được ảnh.'))
+    reader.readAsDataURL(file)
+  })
 }
 
 function AnswerImageDrop({ answer, onPick, onClear }) {
@@ -219,10 +234,13 @@ export function QuestionCard({ index, question, onChange, onRemove, onOpenSettin
     })
   }
 
-  const setAnswerImage = (answer, file) => {
-    const next = URL.createObjectURL(file)
-    revokePreview(answer.imagePreview)
-    patchAnswer(answer.id, { imagePreview: next, imageName: file.name })
+  const setAnswerImage = async (answer, file) => {
+    try {
+      const dataUrl = await readImageAsDataUrl(file)
+      patchAnswer(answer.id, { imagePreview: dataUrl, imageName: file.name })
+    } catch {
+      // Người dùng có thể bấm chọn lại ảnh nếu đọc file thất bại.
+    }
   }
 
   const clearAnswerImage = (answer) => {
@@ -267,7 +285,7 @@ export function QuestionCard({ index, question, onChange, onRemove, onOpenSettin
           question.answers.map((answer) => (
             <div
               key={answer.id}
-              className={`quiz-answer${isQuiz ? ' is-tile' : ''}`}
+              className={`quiz-answer${isQuiz ? ' is-tile' : ''}${answer.isCorrect ? ' is-marked-correct' : ''}`}
               style={{
                 background: color.bg === 'transparent' ? undefined : color.bg,
                 color: color.fg,
@@ -302,6 +320,14 @@ export function QuestionCard({ index, question, onChange, onRemove, onOpenSettin
                   <IconTrash />
                 </button>
               </div>
+              <label className="quiz-answer-correct">
+                <input
+                  type="checkbox"
+                  checked={!!answer.isCorrect}
+                  onChange={(e) => patchAnswer(answer.id, { isCorrect: e.target.checked })}
+                />
+                <span>Đáp án đúng</span>
+              </label>
               {showImages ? (
                 <AnswerImageDrop
                   answer={answer}
