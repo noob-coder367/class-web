@@ -809,9 +809,16 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
               autoFocus
               value={passwordInput}
               onChange={(e) => {
-                setPasswordInput(e.target.value.replace(/\D/g, '').slice(0, 6))
-                setPasswordError('')
-              }}
+  const v = e.target.value.replace(/\D/g, '').slice(0, 6)
+  setPasswordInput(v)
+  setPasswordError('')
+  if (v.length === 6) {
+    // Đợi state cập nhật xíu rồi submit
+    setTimeout(() => {
+      // gọi trực tiếp logic submit với v
+    }, 0)
+  }
+}}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') submitClassPassword()
               }}
