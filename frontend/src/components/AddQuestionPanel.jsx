@@ -150,7 +150,7 @@ function CustomEditorModal({ onClose, onSave }) {
 
           <div className="quiz-settings-body">
             <p className="create-class-hint custom-editor-hint">
-              Nội dung này chỉ dùng cho lớp học hiện tại và sẽ không được lưu vào Kho lưu trữ.
+              Nội dung này chỉ dùng cho phòng hiện tại và sẽ không được lưu vào Kho lưu trữ.
             </p>
             {tab === 'quiz' ? (
               <QuestionCard
@@ -170,7 +170,7 @@ function CustomEditorModal({ onClose, onSave }) {
               Hủy
             </button>
             <button type="button" className="quiz-primary-btn" onClick={handleSave}>
-              Lưu vào lớp học
+              Lưu vào phòng
             </button>
           </footer>
         </div>
@@ -357,7 +357,7 @@ function ArchivePickerModal({ quizArchive, essayArchive, onClose, onConfirm }) {
                           }))
                         }}
                       />
-                      <p className="create-class-hint">Thay đổi này chỉ áp dụng cho lớp học hiện tại, không lưu vào kho.</p>
+                      <p className="create-class-hint">Thay đổi này chỉ áp dụng cho phòng hiện tại, không lưu vào kho.</p>
                     </label>
                   ) : null}
                 </article>
@@ -376,7 +376,7 @@ function ArchivePickerModal({ quizArchive, essayArchive, onClose, onConfirm }) {
                     className="quiz-primary-btn"
                     onClick={() => onConfirm({ id: selected.id, kind: selected.kind, question: localQuestion })}
                   >
-                    Thêm vào lớp học
+                    Thêm vào phòng
                   </button>
                 </div>
               </div>
@@ -508,7 +508,7 @@ export default function AddQuestionPanel({ quizArchive, essayArchive, questions,
                 type="button"
                 className="quiz-icon-btn"
                 onClick={() => removeQuestion(q.id)}
-                aria-label="Xóa câu hỏi khỏi lớp học"
+                aria-label="Xóa câu hỏi khỏi phòng"
               >
                 <IconTrash />
               </button>
