@@ -144,6 +144,10 @@ export async function updateClassSpace(id, payload) {
   return apiClient.put(`/classroom/class-space/${encodeURIComponent(id)}`, payload, { auth: true })
 }
 
+export async function deleteClassSpace(id) {
+  return apiClient.delete(`/classroom/class-space/${encodeURIComponent(id)}`, { auth: true })
+}
+
 export async function uploadClassSpaceImage({ contentBase64, mimeType, filename }) {
   return apiClient.post(
     '/classroom/class-space/upload-image',
