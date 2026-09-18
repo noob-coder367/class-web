@@ -87,6 +87,7 @@ router.get('/class-space', classroomController.listClassSpace)
 router.get('/class-space/:id', classroomController.getClassSpaceById)
 router.post('/class-space', classroomController.createClassSpace)
 router.put('/class-space/:id', classroomController.updateClassSpace)
+router.delete('/class-space/:id', classroomController.deleteClassSpace)
 router.post('/class-space/upload-image', classroomController.uploadClassSpaceImage)
 
 export default router
