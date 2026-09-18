@@ -125,6 +125,33 @@ export async function getLeaderboard() {
   return apiClient.get('/classroom/leaderboard', { auth: true })
 }
 
+// Mục "Lớp học" (bộ câu hỏi tự tạo) — lưu ở backend nên mọi máy/thành viên
+// đăng nhập vào đều thấy chung một danh sách, không còn phụ thuộc localStorage.
+export async function listClassSpace() {
+  return apiClient.get('/classroom/class-space', { auth: true })
+}
+
+export async function getClassSpace(id, password) {
+  const query = password ? `?password=${encodeURIComponent(password)}` : ''
+  return apiClient.get(`/classroom/class-space/${encodeURIComponent(id)}${query}`, { auth: true })
+}
+
+export async function createClassSpace(payload) {
+  return apiClient.post('/classroom/class-space', payload, { auth: true })
+}
+
+export async function updateClassSpace(id, payload) {
+  return apiClient.put(`/classroom/class-space/${encodeURIComponent(id)}`, payload, { auth: true })
+}
+
+export async function uploadClassSpaceImage({ contentBase64, mimeType, filename }) {
+  return apiClient.post(
+    '/classroom/class-space/upload-image',
+    { contentBase64, mimeType, filename },
+    { auth: true }
+  )
+}
+
 export async function getCleaningSchedule(weekStart) {
   const query = weekStart ? `?week_start=${encodeURIComponent(weekStart)}` : ''
   return apiClient.get(`/classroom/cleaning-duty/schedule${query}`, { auth: true })
