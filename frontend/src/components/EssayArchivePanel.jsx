@@ -39,7 +39,7 @@ function IconPencil() {
 }
 
 export function emptyEssayAnswer() {
-  return { id: uid(), content: '' }
+  return { id: uid(), content: '', isCorrect: false }
 }
 
 export function emptyEssayDraft() {
@@ -56,8 +56,8 @@ export function emptyEssayDraft() {
 // Shared body fields, reused both by the archive's own editor modal and by
 // the "Tự chỉnh sửa" flow outside the archive.
 export function EssayQuestionFields({ draft, onChange, titleInputRef }) {
-  const patchAnswer = (id, content) => {
-    onChange({ ...draft, answers: draft.answers.map((a) => (a.id === id ? { ...a, content } : a)) })
+  const patchAnswer = (id, patch) => {
+    onChange({ ...draft, answers: draft.answers.map((a) => (a.id === id ? { ...a, ...patch } : a)) })
   }
 
   const addAnswer = () => {
@@ -108,25 +108,35 @@ export function EssayQuestionFields({ draft, onChange, titleInputRef }) {
         <legend>Đáp án</legend>
         <div className="essay-answers">
           {draft.answers.map((answer, idx) => (
-            <div key={answer.id} className="quiz-answer-row essay-answer-row">
-              <input
-                className="quiz-answer-content"
-                type="text"
-                value={answer.content}
-                onChange={(e) => patchAnswer(answer.id, e.target.value)}
-                placeholder={`Đáp án ${idx + 1}`}
-                aria-label={`Đáp án ${idx + 1}`}
-                autoComplete="off"
-              />
-              <button
-                type="button"
-                className="quiz-icon-btn"
-                onClick={() => removeAnswer(answer.id)}
-                disabled={draft.answers.length <= 1}
-                aria-label={`Xóa đáp án ${idx + 1}`}
-              >
-                <IconTrash />
-              </button>
+            <div key={answer.id} className="essay-answer-item">
+              <div className="quiz-answer-row essay-answer-row">
+                <input
+                  className="quiz-answer-content"
+                  type="text"
+                  value={answer.content}
+                  onChange={(e) => patchAnswer(answer.id, { content: e.target.value })}
+                  placeholder={`Đáp án ${idx + 1}`}
+                  aria-label={`Đáp án ${idx + 1}`}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  className="quiz-icon-btn"
+                  onClick={() => removeAnswer(answer.id)}
+                  disabled={draft.answers.length <= 1}
+                  aria-label={`Xóa đáp án ${idx + 1}`}
+                >
+                  <IconTrash />
+                </button>
+              </div>
+              <label className="quiz-answer-correct">
+                <input
+                  type="checkbox"
+                  checked={!!answer.isCorrect}
+                  onChange={(e) => patchAnswer(answer.id, { isCorrect: e.target.checked })}
+                />
+                <span>Đáp án đúng</span>
+              </label>
             </div>
           ))}
         </div>
