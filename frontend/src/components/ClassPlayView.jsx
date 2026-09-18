@@ -129,7 +129,7 @@ export default function ClassPlayView({ classData, onClose }) {
     <div className="class-play-view" role="dialog" aria-modal="true" aria-label={`Làm bài: ${classData.title}`}>
       <header className="class-play-topbar">
         <div className="class-play-heading">
-          <p className="class-play-kicker">Lớp học</p>
+          <p className="class-play-kicker">Phòng</p>
           <h2>{classData.title}</h2>
         </div>
         <button type="button" className="class-play-close" onClick={onClose} aria-label="Đóng">
@@ -139,14 +139,14 @@ export default function ClassPlayView({ classData, onClose }) {
 
       {total === 0 ? (
         <div className="class-play-empty">
-          <p>Lớp học này chưa có câu hỏi nào.</p>
+          <p>Phòng này chưa có câu hỏi nào.</p>
           <button type="button" className="quiz-primary-btn" onClick={onClose}>
             Quay lại
           </button>
         </div>
       ) : done ? (
         <div className="class-play-empty">
-          <p>Bạn đã hoàn thành {total} câu hỏi của lớp học này. 🎉</p>
+          <p>Bạn đã hoàn thành {total} câu hỏi của phòng này. 🎉</p>
           {gradedQuizTotal > 0 ? (
             <p className="class-play-score">
               Trắc nghiệm đã chấm điểm: <strong>{gradedQuizCorrect}/{gradedQuizTotal}</strong> câu đúng
