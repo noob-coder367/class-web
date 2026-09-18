@@ -1,4 +1,4 @@
-.create-class-page {
+:root {
   --cc-ink: #0f172a;
   --cc-muted: #4d5670;
   --cc-primary: #14324a;
@@ -12,6 +12,9 @@
   --cc-out: cubic-bezier(0.22, 1, 0.36, 1);
   --cc-chrome: #d3dee6;
   --cc-chrome-tab: #c3d1db;
+}
+
+.create-class-page {
   position: fixed;
   inset: 0;
   z-index: 300;
