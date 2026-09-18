@@ -496,7 +496,11 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   }
 
   const submitClassPassword = async () => {
-    if (!passwordPromptClass || passwordInput.length !== 6) return
+    if (!passwordPromptClass) return
+    if (passwordInput.length !== 6) {
+      setPasswordError('Vui lòng nhập đủ 6 chữ số.')
+      return
+    }
     setPasswordSubmitting(true)
     setPasswordError('')
     try {
@@ -833,7 +837,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                 type="button"
                 className="quiz-primary-btn"
                 onClick={submitClassPassword}
-                disabled={passwordSubmitting || passwordInput.length !== 6}
+                disabled={passwordSubmitting}
               >
                 {passwordSubmitting ? 'Đang kiểm tra...' : 'Ok'}
               </button>
