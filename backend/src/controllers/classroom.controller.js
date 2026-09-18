@@ -5,6 +5,7 @@ import * as announcementsService from '../services/announcements.service.js'
 import * as homeworkService from '../services/homework.service.js'
 import * as cleaningDutyService from '../services/cleaningDuty.service.js'
 import * as classRosterService from '../services/classRoster.service.js'
+import * as classSpaceService from '../services/classSpace.service.js'
 import { capabilitiesFor, normalizeRole } from '../lib/roles.js'
 
 function noStore(res) {
@@ -326,6 +327,59 @@ export async function getLeaderboard(req, res, next) {
     ])
     const leaderboard = rulesService.buildLeaderboard(members, violationData.items, rules)
     res.json({ leaderboard, members })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function listClassSpace(req, res, next) {
+  try {
+    noStore(res)
+    const items = await classSpaceService.listClassSpace()
+    res.json({ items })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getClassSpaceById(req, res, next) {
+  try {
+    noStore(res)
+    const item = await classSpaceService.getClassSpaceById(req.params.id, {
+      password: req.query?.password || req.body?.password || '',
+      profile: req.profile,
+    })
+    res.json({ item })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function createClassSpace(req, res, next) {
+  try {
+    noStore(res)
+    const item = await classSpaceService.createClassSpace(req.body || {}, req.profile)
+    res.status(201).json({ message: 'Đã tạo lớp học.', item })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function updateClassSpace(req, res, next) {
+  try {
+    noStore(res)
+    const item = await classSpaceService.updateClassSpace(req.params.id, req.body || {}, req.profile)
+    res.json({ message: 'Đã lưu lớp học.', item })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function uploadClassSpaceImage(req, res, next) {
+  try {
+    noStore(res)
+    const url = await classSpaceService.uploadClassSpaceImage(req.body || {})
+    res.status(201).json({ url })
   } catch (err) {
     next(err)
   }
