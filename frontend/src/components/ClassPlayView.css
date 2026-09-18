@@ -255,6 +255,43 @@
   gap: 10px;
 }
 
+.class-play-autoclose-hint {
+  margin: -6px 0 0;
+  font-size: 12.5px;
+  color: #8a93a8;
+}
+
+.class-play-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 18px;
+  border: 1.5px solid #1a6b8a;
+  border-radius: 12px;
+  background: #eaf4f8;
+  color: #14607f;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.class-play-retry-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.class-play-retry-btn:hover {
+  background: #dcedf3;
+  transform: translateY(-1px);
+}
+
+.class-play-retry-btn:active {
+  transform: translateY(0);
+}
+
 @media (max-width: 640px) {
   .class-play-body {
     padding: 14px;
