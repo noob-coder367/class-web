@@ -8,7 +8,7 @@ import routes from './routes/index.js'
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js'
 
 // Các route auth chỉ đọc dữ liệu (cần token hợp lệ, không thể brute-force)
-// nên không tính vào giới hạn chống brute-force login/OTP bên dưới.
+// nên không tính vào giới hạn chống brute-force login bên dưới.
 const AUTH_READ_ONLY_PATHS = new Set(['/me', '/username-change-status', '/ghost-preview'])
 
 function clientKey(req) {
@@ -64,8 +64,8 @@ export function createApp() {
     })
   )
 
-  // Giới hạn số request cho các route auth nhạy cảm (login/register/OTP...)
-  // để hạn chế brute-force / spam OTP. Bỏ qua các route chỉ đọc profile
+  // Giới hạn số request cho các route auth nhạy cảm (login/register/quên mật khẩu...)
+  // để hạn chế brute-force / spam email xác nhận. Bỏ qua các route chỉ đọc profile
   // (vd /auth/me) vì chúng được gọi thường xuyên khi dùng web bình thường
   // (mỗi lần mở trang, refresh, đổi tab) và đã được bảo vệ bằng token qua
   // requireAuth, không phải mục tiêu brute-force.
