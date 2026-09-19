@@ -662,6 +662,18 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                     </div>
 
                     <div className="class-space-footer">
+                      <span
+                        className={`class-space-leaderboard-badge${cls.enableLeaderboard ? ' is-on' : ' is-off'}`}
+                      >
+                        {cls.enableLeaderboard ? (
+                          <>
+                            <span aria-hidden="true">🏆</span> BXH
+                          </>
+                        ) : (
+                          'Không có BXH'
+                        )}
+                      </span>
+
                       {completedLocked ? (
                         <div className="class-space-done-wrap">
                           <span className="class-space-done-label">Đã hoàn thành</span>
