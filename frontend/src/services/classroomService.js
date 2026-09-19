@@ -148,6 +148,10 @@ export async function deleteClassSpace(id) {
   return apiClient.delete(`/classroom/class-space/${encodeURIComponent(id)}`, { auth: true })
 }
 
+export async function startClassSpaceAttempt(id) {
+  return apiClient.post(`/classroom/class-space/${encodeURIComponent(id)}/start`, {}, { auth: true })
+}
+
 export async function submitClassSpaceResult(id, payload) {
   return apiClient.post(`/classroom/class-space/${encodeURIComponent(id)}/result`, payload, { auth: true })
 }
