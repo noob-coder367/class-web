@@ -218,21 +218,23 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
       const uploadedCover = await uploadIfDataUrl(coverPreview, coverName || 'cover')
       const uploadedQuestions = await Promise.all(
         classQuestions.map(async (entry) => {
-          if (entry.kind !== 'quiz' || !entry.question) return entry
+          if (!entry.question) return entry
           let question = entry.question
           if (question.imagePreview && question.imagePreview.startsWith('data:')) {
             const url = await uploadIfDataUrl(question.imagePreview, question.imageName || 'question')
             question = { ...question, imagePreview: url }
           }
-          if (!question.answers?.length) return { ...entry, question }
-          const answers = await Promise.all(
-            question.answers.map(async (answer) => {
-              if (!answer.imagePreview || !answer.imagePreview.startsWith('data:')) return answer
-              const url = await uploadIfDataUrl(answer.imagePreview, answer.imageName || 'answer')
-              return { ...answer, imagePreview: url }
-            })
-          )
-          return { ...entry, question: { ...question, answers } }
+          if (entry.kind === 'quiz' && question.answers?.length) {
+            const answers = await Promise.all(
+              question.answers.map(async (answer) => {
+                if (!answer.imagePreview || !answer.imagePreview.startsWith('data:')) return answer
+                const url = await uploadIfDataUrl(answer.imagePreview, answer.imageName || 'answer')
+                return { ...answer, imagePreview: url }
+              })
+            )
+            question = { ...question, answers }
+          }
+          return { ...entry, question }
         })
       )
 
