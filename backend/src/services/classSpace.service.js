@@ -38,17 +38,14 @@ async function ensureDataBucket() {
 }
 
 async function ensureImageBucket() {
-  const { data } = await supabaseAdmin.storage.getBucket(IMAGE_BUCKET)
-  if (!data) {
-    const { error } = await supabaseAdmin.storage.createBucket(IMAGE_BUCKET, {
-      public: true,
-      fileSizeLimit: MAX_IMAGE_BYTES,
-    })
-    if (error && !/already exists|duplicate|exists/i.test(error.message || '')) {
-      throw new AppError('Không tạo được kho ảnh lớp học: ' + error.message, 502)
-    }
-  } else if (data.public === false) {
-    await supabaseAdmin.storage.updateBucket(IMAGE_BUCKET, { public: true })
+  const { data, error } =
+    await supabaseAdmin.storage.getBucket(IMAGE_BUCKET)
+
+  if (error || !data) {
+    throw new AppError(
+      `Kho ảnh "${IMAGE_BUCKET}" chưa được cấu hình trên Supabase.`,
+      500
+    )
   }
 }
 
