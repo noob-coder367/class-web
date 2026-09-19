@@ -87,6 +87,15 @@ function initialOf(name) {
   return parts[parts.length - 1].slice(0, 1).toUpperCase()
 }
 
+function formatDurationVN(durationMs) {
+  if (durationMs == null || !Number.isFinite(durationMs)) return '—'
+  const totalSeconds = Math.round(durationMs / 1000)
+  if (totalSeconds < 60) return `${totalSeconds} giây`
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return seconds ? `${minutes} phút ${seconds} giây` : `${minutes} phút`
+}
+
 function shuffleArray(arr) {
   const next = [...arr]
   for (let i = next.length - 1; i > 0; i -= 1) {
@@ -142,6 +151,20 @@ export default function ClassPlayView({ classData, onClose }) {
   )
   const submittedRef = useRef(false)
 
+  // Ghi mốc bắt đầu làm bài ở SERVER (không dùng đồng hồ client) để tính thời
+  // gian làm bài một cách đáng tin cậy cho BXH. Gọi lại mỗi khi bấm "Làm lại".
+  const markAttemptStart = () => {
+    const roomId = classData?.id
+    if (!roomId) return
+    classroomService.startClassSpaceAttempt(roomId).catch(() => {})
+  }
+
+  useEffect(() => {
+    if (questions.length === 0) return
+    markAttemptStart()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const total = order.length
   const current = total ? questions[order[index]] : null
   const kind = current?.kind
@@ -170,6 +193,7 @@ export default function ClassPlayView({ classData, onClose }) {
     setEssayResults({})
     setTfSelections({})
     setDone(false)
+    markAttemptStart()
   }
 
   useEffect(() => {
@@ -348,6 +372,32 @@ export default function ClassPlayView({ classData, onClose }) {
       .catch(() => {})
   }
 
+  // Gần real-time: khi bảng BXH đang mở, poll lại mỗi 2 giây để thấy người khác
+  // vừa hoàn thành mà không cần F5 hay đóng/mở lại bảng. Chỉ 1 interval tại 1
+  // thời điểm, luôn clear khi đóng bảng hoặc rời khỏi phòng (unmount).
+  useEffect(() => {
+    if (!rankOpen) return
+    const roomId = classData?.id
+    if (!roomId) return
+    let cancelled = false
+    const poll = () => {
+      if (document.visibilityState !== 'visible') return
+      classroomService
+        .getClassSpaceLeaderboard(roomId)
+        .then((data) => {
+          if (!cancelled && Array.isArray(data?.leaderboard)) setLeaderboard(data.leaderboard)
+        })
+        .catch(() => {
+          // Lỗi tạm thời: giữ nguyên dữ liệu BXH hiện tại, lần poll sau thử lại.
+        })
+    }
+    const interval = setInterval(poll, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [rankOpen, classData?.id])
+
   return (
     <div
       className={playClassName}
@@ -362,7 +412,9 @@ export default function ClassPlayView({ classData, onClose }) {
             <IconTrophy />
             BXH
           </button>
-        ) : null}
+        ) : (
+          <span className="class-play-bxh-off">Không có BXH</span>
+        )}
         <div className="class-play-heading">
           <p className="class-play-kicker">Phòng</p>
           <h2>{classData.title}</h2>
@@ -701,6 +753,7 @@ export default function ClassPlayView({ classData, onClose }) {
                       <th>Top</th>
                       <th>Họ và tên</th>
                       <th>Điểm</th>
+                      <th>Thời gian</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -731,6 +784,7 @@ export default function ClassPlayView({ classData, onClose }) {
                               {row.correct}/{row.total}
                             </b>
                           </td>
+                          <td className="play-rank-duration">{formatDurationVN(row.durationMs)}</td>
                         </tr>
                       )
                     })}
