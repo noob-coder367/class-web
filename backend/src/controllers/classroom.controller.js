@@ -342,6 +342,26 @@ export async function listClassSpace(req, res, next) {
   }
 }
 
+export async function getNextClassSpaceCode(req, res, next) {
+  try {
+    noStore(res)
+    const code = await classSpaceService.previewNextClassSpaceCode()
+    res.json({ code })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getClassSpaceByCode(req, res, next) {
+  try {
+    noStore(res)
+    const item = await classSpaceService.getClassSpaceByCode(req.params.code, req.profile)
+    res.json({ item })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export async function getClassSpaceById(req, res, next) {
   try {
     noStore(res)
