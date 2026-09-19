@@ -1,6 +1,6 @@
 /**
  * Validator nhẹ, không cần thêm thư viện ngoài.
- * Dùng: router.post('/x', validateBody({ email: 'string', otp: 'string' }), ...)
+ * Dùng: router.post('/x', validateBody({ email: 'string', password: 'string' }), ...)
  */
 export function validateBody(schema) {
   return (req, res, next) => {
