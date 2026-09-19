@@ -113,6 +113,38 @@
   white-space: pre-wrap;
 }
 
+.class-play-exam-stem-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.class-play-exam-stem-split {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.class-play-exam-stem-split--left,
+.class-play-exam-stem-split--right {
+  flex-wrap: wrap;
+}
+
+.class-play-exam-stem-split .class-play-exam-stem-media,
+.class-play-exam-stem-split .class-play-exam-stem-text {
+  flex: 1 1 0;
+  min-width: 200px;
+}
+
+.class-play-exam-stem-media img {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #f1f5f9;
+}
+
 .class-play-exam-instruction {
   margin: 4px 0 2px;
   font-size: 13px;
