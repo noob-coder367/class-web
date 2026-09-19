@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { answerColorOf } from './QuizArchivePanel.jsx'
+import { answerColorOf, formatCountdown } from './QuizArchivePanel.jsx'
 import { statementLabel } from './TrueFalseArchivePanel.jsx'
 import './ClassPlayView.css'
 
@@ -352,7 +352,7 @@ export default function ClassPlayView({ classData, onClose }) {
             <span>
               Câu {index + 1}/{total}
             </span>
-            {timeLeft !== null ? <span className="class-play-timer">⏱ {timeLeft}s</span> : null}
+            {timeLeft !== null ? <span className="class-play-timer">⏱ {formatCountdown(timeLeft)}</span> : null}
           </div>
 
           <article className="quiz-card class-play-card class-play-exam">
