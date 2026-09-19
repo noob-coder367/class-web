@@ -89,6 +89,14 @@ function IconBack() {
   )
 }
 
+function IconClose() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  )
+}
+
 function IconDoor() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -171,6 +179,30 @@ function IconChevronRight() {
   )
 }
 
+// Các hàm phụ trợ cho bảng BXH — giữ y hệt bản trong ClassPlayView.jsx để hiển thị giống nhau.
+function medalFor(rank) {
+  if (rank === 1) return '🥇'
+  if (rank === 2) return '🥈'
+  if (rank === 3) return '🥉'
+  return null
+}
+
+function initialOf(name) {
+  const text = String(name || '').trim()
+  if (!text) return '?'
+  const parts = text.split(/\s+/)
+  return parts[parts.length - 1].slice(0, 1).toUpperCase()
+}
+
+function formatDurationVN(durationMs) {
+  if (durationMs == null || !Number.isFinite(durationMs)) return '—'
+  const totalSeconds = Math.round(durationMs / 1000)
+  if (totalSeconds < 60) return `${totalSeconds} giây`
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return seconds ? `${minutes} phút ${seconds} giây` : `${minutes} phút`
+}
+
 const TABS = [
   { id: 'announcements', label: 'Thông báo chung', icon: IconBell },
   { id: 'timetable', label: 'Thời khoá biểu', icon: IconCalendar },
@@ -216,6 +248,10 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [passwordSubmitting, setPasswordSubmitting] = useState(false)
   const [coverFailed, setCoverFailed] = useState({})
   const [resultClass, setResultClass] = useState(null)
+  const [rankClass, setRankClass] = useState(null)
+  const [rankRows, setRankRows] = useState([])
+  const [rankLoading, setRankLoading] = useState(false)
+  const [rankError, setRankError] = useState('')
 
   const updateNavScroll = useCallback(() => {
     const el = navRef.current
@@ -270,7 +306,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return
-      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox, .ann-composer-overlay, .hw-composer-overlay, .create-class-page, .class-play-view, .class-password-overlay')) return
+      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox, .ann-composer-overlay, .hw-composer-overlay, .create-class-page, .class-play-view, .class-password-overlay, .play-rank-overlay')) return
       onClose?.()
     }
     window.addEventListener('keydown', onKey)
@@ -572,6 +608,61 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     }
   }
 
+  const openRoomLeaderboard = (cls) => {
+    if (!cls?.id || cls.enableLeaderboard !== true) return
+    setRankRows([])
+    setRankError('')
+    setRankLoading(true)
+    setRankClass(cls)
+  }
+
+  const closeRoomLeaderboard = () => {
+    setRankClass(null)
+  }
+
+  // BXH mở từ ngoài card: dùng đúng API getClassSpaceLeaderboard như ClassPlayView,
+  // tải ngay khi mở rồi poll mỗi 2 giây (chỉ 1 interval, clear khi đóng bảng).
+  useEffect(() => {
+    const roomId = rankClass?.id
+    if (!roomId) return
+    let cancelled = false
+    const load = (initial) => {
+      classroomService
+        .getClassSpaceLeaderboard(roomId)
+        .then((data) => {
+          if (cancelled) return
+          if (Array.isArray(data?.leaderboard)) setRankRows(data.leaderboard)
+          setRankError('')
+          if (initial) setRankLoading(false)
+        })
+        .catch((err) => {
+          if (cancelled) return
+          if (initial) {
+            setRankLoading(false)
+            setRankError(err?.message || 'Không tải được bảng xếp hạng.')
+          }
+        })
+    }
+    load(true)
+    const interval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      load(false)
+    }, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [rankClass?.id])
+
+  useEffect(() => {
+    if (!rankClass) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') setRankClass(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [rankClass])
+
   const renderBody = () => {
     if (access === 'denied') {
       return (
@@ -683,18 +774,21 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                     </div>
 
                     <div className="class-space-footer">
-                      <span
-                        className={`class-space-leaderboard-badge${cls.enableLeaderboard ? ' is-on' : ' is-off'}`}
-                      >
-                        {cls.enableLeaderboard ? (
-                          <>
-                            <IconTrophy />
-BXH
-                          </>
-                        ) : (
-                          'Không có BXH'
-                        )}
-                      </span>
+                      {cls.enableLeaderboard === true ? (
+                        <button
+                          type="button"
+                          className="class-space-leaderboard-badge is-on"
+                          style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                          onClick={() => openRoomLeaderboard(cls)}
+                          aria-label={`Bảng xếp hạng phòng ${cls.title}`}
+                          title="Xem bảng xếp hạng"
+                        >
+                          <IconTrophy />
+                          BXH
+                        </button>
+                      ) : (
+                        <span className="class-space-leaderboard-badge is-off">Không có BXH</span>
+                      )}
 
                       {completedLocked ? (
                         <div className="class-space-done-wrap">
@@ -915,6 +1009,90 @@ BXH
             refreshClassSpace()
           }}
         />
+      ) : null}
+
+      {rankClass ? (
+        <div
+          className="play-rank-overlay"
+          style={{ position: 'fixed', zIndex: 360 }}
+          onClick={closeRoomLeaderboard}
+        >
+          <div
+            className="play-rank-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="room-rank-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="play-rank-head">
+              <div>
+                <p className="play-rank-kicker">Phòng · Điểm</p>
+                <h3 id="room-rank-title">Bảng xếp hạng</h3>
+              </div>
+              <button
+                type="button"
+                className="class-play-close"
+                onClick={closeRoomLeaderboard}
+                aria-label="Đóng bảng xếp hạng"
+              >
+                <IconClose />
+              </button>
+            </header>
+            {rankRows.length ? (
+              <div className="play-rank-table-wrap">
+                <table className="play-rank-table">
+                  <thead>
+                    <tr>
+                      <th>Top</th>
+                      <th>Họ và tên</th>
+                      <th>Điểm</th>
+                      <th>Thời gian</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rankRows.map((row) => {
+                      const medal = medalFor(row.rank)
+                      const isMe = profile?.id && row.userId === profile.id
+                      return (
+                        <tr key={row.userId} className={isMe ? 'is-me' : ''}>
+                          <td>
+                            <span className={`play-rank-badge is-top-${Math.min(row.rank, 4)}`}>
+                              {medal ? <span aria-hidden="true">{medal}</span> : null}
+                              {row.rank}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="play-rank-name">
+                              <span className="play-rank-avatar" aria-hidden="true">
+                                {initialOf(row.userName)}
+                              </span>
+                              <strong>
+                                {row.userName}
+                                {isMe ? <em className="play-rank-you">Bạn</em> : null}
+                              </strong>
+                            </div>
+                          </td>
+                          <td>
+                            <b>
+                              {row.correct}/{row.total}
+                            </b>
+                          </td>
+                          <td className="play-rank-duration">{formatDurationVN(row.durationMs)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : rankLoading ? (
+              <p className="play-rank-empty">Đang tải bảng xếp hạng...</p>
+            ) : rankError ? (
+              <p className="play-rank-empty">{rankError}</p>
+            ) : (
+              <p className="play-rank-empty">Chưa có ai hoàn thành phòng này.</p>
+            )}
+          </div>
+        </div>
       ) : null}
 
       {resultClass ? (
