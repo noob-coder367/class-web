@@ -7,6 +7,7 @@ import * as classroomService from '../services/classroomService.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import './ClassPlayView.css'
 import './PlayBackdrop.css'
+import './ClassPlayFx.css'
 
 function badgeLabel(kind) {
   if (kind === 'quiz') return 'Trắc nghiệm'
@@ -105,6 +106,66 @@ function shuffleArray(arr) {
   return next
 }
 
+// Âm thanh phản hồi khi chọn đáp án — tổng hợp bằng Web Audio API nên không cần file mp3.
+let audioCtx = null
+
+function getAudioCtx() {
+  if (typeof window === 'undefined') return null
+  const Ctx = window.AudioContext || window.webkitAudioContext
+  if (!Ctx) return null
+  if (!audioCtx) {
+    try {
+      audioCtx = new Ctx()
+    } catch {
+      return null
+    }
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {})
+  return audioCtx
+}
+
+function playTone(ctx, { type, freq, freqEnd, start, duration, gain, lowpass }) {
+  const osc = ctx.createOscillator()
+  const amp = ctx.createGain()
+  osc.type = type
+  osc.frequency.setValueAtTime(freq, start)
+  if (freqEnd) osc.frequency.exponentialRampToValueAtTime(freqEnd, start + duration)
+  amp.gain.setValueAtTime(0.0001, start)
+  amp.gain.exponentialRampToValueAtTime(gain, start + 0.012)
+  amp.gain.exponentialRampToValueAtTime(0.0001, start + duration)
+  let last = osc
+  if (lowpass) {
+    const filter = ctx.createBiquadFilter()
+    filter.type = 'lowpass'
+    filter.frequency.value = lowpass
+    osc.connect(filter)
+    last = filter
+  }
+  last.connect(amp)
+  amp.connect(ctx.destination)
+  osc.start(start)
+  osc.stop(start + duration + 0.03)
+}
+
+// 'correct' = "Ting" (chuông ngắn, cao); 'wrong' = "Ét è" (hai tiếng buzzer trầm, hạ giọng).
+function playAnswerSound(kind) {
+  try {
+    const ctx = getAudioCtx()
+    if (!ctx) return
+    const t = ctx.currentTime + 0.01
+    if (kind === 'correct') {
+      playTone(ctx, { type: 'sine', freq: 1760, start: t, duration: 0.75, gain: 0.22 })
+      playTone(ctx, { type: 'sine', freq: 3520, start: t, duration: 0.4, gain: 0.07 })
+      playTone(ctx, { type: 'sine', freq: 2637, start: t, duration: 0.55, gain: 0.05 })
+      return
+    }
+    playTone(ctx, { type: 'sawtooth', freq: 260, freqEnd: 210, start: t, duration: 0.16, gain: 0.16, lowpass: 900 })
+    playTone(ctx, { type: 'sawtooth', freq: 200, freqEnd: 130, start: t + 0.2, duration: 0.3, gain: 0.16, lowpass: 800 })
+  } catch {
+    // Trình duyệt chặn/không hỗ trợ âm thanh: bỏ qua, không ảnh hưởng làm bài.
+  }
+}
+
 function playStyle(answer, settings, { selected, revealed, wrongTried, showCorrect }) {
   const color = answerColorOf(answer, settings)
   if (showCorrect || (revealed && answer.isCorrect)) {
@@ -146,6 +207,8 @@ export default function ClassPlayView({ classData, onClose }) {
   const [timeLeft, setTimeLeft] = useState(null)
   const [done, setDone] = useState(questions.length === 0)
   const [rankOpen, setRankOpen] = useState(false)
+  // Hiệu ứng đáp án vừa chọn: { key, type: 'correct' | 'wrong' }. Chỉ áp cho đúng nút vừa bấm.
+  const [answerFx, setAnswerFx] = useState(null)
   const [leaderboard, setLeaderboard] = useState(() =>
     Array.isArray(classData?.leaderboard) ? classData.leaderboard : []
   )
@@ -184,8 +247,21 @@ export default function ClassPlayView({ classData, onClose }) {
     allowMultiTry,
   })
 
+  const triggerAnswerFx = (key, isCorrect) => {
+    setAnswerFx({ key, type: isCorrect ? 'correct' : 'wrong' })
+    playAnswerSound(isCorrect ? 'correct' : 'wrong')
+  }
+
+  const fxClassOf = (key) => (answerFx?.key === key ? ` fx-${answerFx.type}` : '')
+
+  // Sang câu khác thì bỏ hiệu ứng cũ, tránh chạy lại khi quay về câu trước.
+  useEffect(() => {
+    setAnswerFx(null)
+  }, [index])
+
   const handleRetry = () => {
     submittedRef.current = false
+    setAnswerFx(null)
     setIndex(0)
     setSelections({})
     setQuizTried({})
@@ -526,7 +602,7 @@ export default function ClassPlayView({ classData, onClose }) {
                           key={answer.id}
                           type="button"
                           disabled={locked || (allowMultiTry && alreadyTried)}
-                          className={`class-play-answer class-play-exam-choice${answerLayoutClass === 'quiz-answers--tiles' ? ' is-tile' : ''}${selected ? ' is-selected' : ''}${resultClass}`}
+                          className={`class-play-answer class-play-exam-choice${answerLayoutClass === 'quiz-answers--tiles' ? ' is-tile' : ''}${selected ? ' is-selected' : ''}${resultClass}${fxClassOf(`quiz:${answer.id}`)}`}
                           onClick={() => {
                             if (allowMultiTry) {
                               setQuizTried((prev) => {
@@ -536,6 +612,7 @@ export default function ClassPlayView({ classData, onClose }) {
                               })
                             }
                             setSelections((prev) => ({ ...prev, [current.id]: answer.id }))
+                            if (hasKey) triggerAnswerFx(`quiz:${answer.id}`, answer.isCorrect === true)
                           }}
                           style={playStyle(answer, q?.settings, {
                             selected,
@@ -617,8 +694,11 @@ export default function ClassPlayView({ classData, onClose }) {
                                   key={String(opt.value)}
                                   type="button"
                                   disabled={revealed}
-                                  className={`class-play-tf-btn${resultClass}`}
-                                  onClick={() => pickTf(statement.id, opt.value)}
+                                  className={`class-play-tf-btn${resultClass}${fxClassOf(`tf:${statement.id}:${String(opt.value)}`)}`}
+                                  onClick={() => {
+                                    pickTf(statement.id, opt.value)
+                                    triggerAnswerFx(`tf:${statement.id}:${String(opt.value)}`, opt.value === correctVal)
+                                  }}
                                 >
                                   {opt.label}
                                 </button>
