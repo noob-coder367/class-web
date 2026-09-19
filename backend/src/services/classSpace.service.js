@@ -142,6 +142,43 @@ function toFullPayload(item) {
   return { ...rest, questions: item.questions }
 }
 
+function answerHasContent(answer) {
+  return !!(String(answer?.content || '').trim() || answer?.imagePreview)
+}
+
+function assertQuestionsHaveCorrectAnswers(questions) {
+  if (!Array.isArray(questions) || !questions.length) return
+  questions.forEach((entry, i) => {
+    const n = i + 1
+    const kind = entry?.kind
+    const q = entry?.question
+    if (kind === 'quiz') {
+      const answers = q?.answers || []
+      const ok = answers.some((a) => a.isCorrect && answerHasContent(a))
+      if (!ok) {
+        throw new AppError(
+          `Câu ${n}: trắc nghiệm phải có ít nhất 1 đáp án đúng (không được để trống).`,
+          400
+        )
+      }
+    } else if (kind === 'essay') {
+      const answers = q?.answers || []
+      const ok = answers.some((a) => a.isCorrect && String(a.content || '').trim())
+      if (!ok) {
+        throw new AppError(
+          `Câu ${n}: tự luận phải có ít nhất 1 đáp án đúng (không được để trống).`,
+          400
+        )
+      }
+    } else if (kind === 'truefalse') {
+      const filled = (q?.statements || []).filter((s) => String(s.content || '').trim())
+      if (!filled.length) {
+        throw new AppError(`Câu ${n}: đúng/sai phải có ít nhất 1 ý (không được để trống).`, 400)
+      }
+    }
+  })
+}
+
 function stripDataUrl(contentBase64) {
   const raw = String(contentBase64 || '').trim()
   const match = raw.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/)
@@ -208,6 +245,8 @@ export async function createClassSpace(payload, profile) {
   if (!isPublic && String(payload?.password || '').length !== 6) {
     throw new AppError('Lớp riêng tư cần mật khẩu đủ 6 chữ số.', 400)
   }
+  const questions = Array.isArray(payload?.questions) ? payload.questions : []
+  assertQuestionsHaveCorrectAnswers(questions)
   const now = new Date().toISOString()
   const item = normalizeItem({
     id: randomUUID(),
@@ -218,7 +257,7 @@ export async function createClassSpace(payload, profile) {
     shuffle: !!payload?.shuffle,
     allowRetry: payload?.allowRetry !== false,
     allowMultiTry: payload?.allowMultiTry === true,
-    questions: Array.isArray(payload?.questions) ? payload.questions : [],
+    questions,
     ownerId: profile?.id || '',
     ownerName: profile?.username || 'Ẩn danh',
     createdAt: now,
@@ -253,6 +292,9 @@ export async function updateClassSpace(id, payload, profile) {
       ? hashPassword(payload.password)
       : current.passwordHash
 
+  const questions = Array.isArray(payload?.questions) ? payload.questions : current.questions
+  assertQuestionsHaveCorrectAnswers(questions)
+
   const updated = normalizeItem({
     ...current,
     title,
@@ -262,7 +304,7 @@ export async function updateClassSpace(id, payload, profile) {
     shuffle: !!payload?.shuffle,
     allowRetry: payload?.allowRetry !== false,
     allowMultiTry: payload?.allowMultiTry === true,
-    questions: Array.isArray(payload?.questions) ? payload.questions : current.questions,
+    questions,
     updatedAt: new Date().toISOString(),
   })
 

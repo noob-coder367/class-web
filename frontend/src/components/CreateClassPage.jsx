@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import QuizArchivePanel from './QuizArchivePanel.jsx'
 import EssayArchivePanel from './EssayArchivePanel.jsx'
 import TrueFalseArchivePanel from './TrueFalseArchivePanel.jsx'
-import AddQuestionPanel from './AddQuestionPanel.jsx'
+import AddQuestionPanel, { classQuestionsKeyError } from './AddQuestionPanel.jsx'
 import * as classroomService from '../services/classroomService.js'
 import './CreateClassPage.css'
 
@@ -211,6 +211,12 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
         setSubmitError('Lớp riêng tư cần đặt mật khẩu đủ 6 chữ số.')
         return
       }
+    }
+
+    const questionsError = classQuestionsKeyError(classQuestions)
+    if (questionsError) {
+      setSubmitError(questionsError)
+      return
     }
 
     setSubmitError('')

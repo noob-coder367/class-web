@@ -93,12 +93,52 @@ function countdownOf(kind, question) {
   return question?.countdownSeconds || 0
 }
 
+function answerHasContent(answer) {
+  return !!(String(answer?.content || '').trim() || answer?.imagePreview)
+}
+
+/** Lỗi nếu câu hỏi chưa có đáp án đúng (không rỗng). Chuỗi rỗng = hợp lệ. */
+export function classQuestionKeyError(kind, question) {
+  if (kind === 'quiz') {
+    const answers = question?.answers || []
+    if (answers.some((a) => a.isCorrect && answerHasContent(a))) return ''
+    if (answers.some((a) => a.isCorrect)) return 'Đáp án đúng không được để trống.'
+    if (!answers.some(answerHasContent)) return 'Phải có ít nhất 1 đáp án, không được để trống.'
+    return 'Phải đánh dấu ít nhất 1 đáp án đúng.'
+  }
+  if (kind === 'essay') {
+    const answers = question?.answers || []
+    if (answers.some((a) => a.isCorrect && String(a.content || '').trim())) return ''
+    if (answers.some((a) => a.isCorrect)) return 'Đáp án đúng không được để trống.'
+    if (!answers.some((a) => String(a.content || '').trim())) {
+      return 'Phải có ít nhất 1 đáp án, không được để trống.'
+    }
+    return 'Phải đánh dấu ít nhất 1 đáp án đúng.'
+  }
+  if (kind === 'truefalse') {
+    const filled = (question?.statements || []).filter((s) => String(s.content || '').trim())
+    if (!filled.length) return 'Phải có ít nhất 1 ý, không được để trống.'
+    return ''
+  }
+  return ''
+}
+
+export function classQuestionsKeyError(questions) {
+  const problems = []
+  ;(questions || []).forEach((entry, i) => {
+    const err = classQuestionKeyError(entry?.kind, entry?.question)
+    if (err) problems.push(`Câu ${i + 1} (${badgeLabel(entry?.kind)}): ${err}`)
+  })
+  return problems.join(' ')
+}
+
 function CustomEditorModal({ onClose, onSave }) {
   const [tab, setTab] = useState('quiz')
   const [quizDraft, setQuizDraft] = useState(() => emptyQuestion())
   const [essayDraft, setEssayDraft] = useState(() => emptyEssayDraft())
   const [trueFalseDraft, setTrueFalseDraft] = useState(() => emptyTrueFalseDraft())
   const [showQuizSettings, setShowQuizSettings] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const titleId = 'custom-editor-title'
 
   useEffect(() => {
@@ -114,9 +154,17 @@ function CustomEditorModal({ onClose, onSave }) {
   }, [onClose])
 
   const handleSave = () => {
-    if (tab === 'quiz') {
+    const kind = tab === 'quiz' ? 'quiz' : tab === 'truefalse' ? 'truefalse' : 'essay'
+    const draft = kind === 'quiz' ? quizDraft : kind === 'truefalse' ? trueFalseDraft : essayDraft
+    const err = classQuestionKeyError(kind, draft)
+    if (err) {
+      setSaveError(err)
+      return
+    }
+    setSaveError('')
+    if (kind === 'quiz') {
       onSave({ id: uid(), kind: 'quiz', source: 'custom', question: quizDraft })
-    } else if (tab === 'truefalse') {
+    } else if (kind === 'truefalse') {
       onSave({ id: uid(), kind: 'truefalse', source: 'custom', question: trueFalseDraft })
     } else {
       onSave({ id: uid(), kind: 'essay', source: 'custom', question: essayDraft })
@@ -160,7 +208,10 @@ function CustomEditorModal({ onClose, onSave }) {
                   aria-selected={selected}
                   tabIndex={selected ? 0 : -1}
                   className={`archive-tab${selected ? ' is-active' : ''}`}
-                  onClick={() => setTab(t.id)}
+                  onClick={() => {
+                    setTab(t.id)
+                    setSaveError('')
+                  }}
                 >
                   {t.label}
                 </button>
@@ -185,6 +236,7 @@ function CustomEditorModal({ onClose, onSave }) {
             {tab === 'truefalse' ? (
               <TrueFalseQuestionFields draft={trueFalseDraft} onChange={setTrueFalseDraft} />
             ) : null}
+            {saveError ? <p className="create-class-error">{saveError}</p> : null}
           </div>
 
           <footer className="quiz-settings-foot">
@@ -217,6 +269,7 @@ function ArchivePickerModal({ quizArchive, essayArchive, trueFalseArchive, onClo
   const [localQuestion, setLocalQuestion] = useState(null)
   const [showQuizSettings, setShowQuizSettings] = useState(false)
   const [showReset, setShowReset] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const titleId = 'archive-picker-title'
 
   const items = useMemo(
@@ -266,12 +319,14 @@ function ArchivePickerModal({ quizArchive, essayArchive, trueFalseArchive, onClo
     setSelected(item)
     setLocalQuestion(item.question)
     setShowReset(false)
+    setSaveError('')
   }
 
   const back = () => {
     setSelected(null)
     setLocalQuestion(null)
     setShowReset(false)
+    setSaveError('')
   }
 
   const isQuiz = selected?.kind === 'quiz'
@@ -414,11 +469,20 @@ function ArchivePickerModal({ quizArchive, essayArchive, trueFalseArchive, onClo
                   <button
                     type="button"
                     className="quiz-primary-btn"
-                    onClick={() => onConfirm({ id: selected.id, kind: selected.kind, question: localQuestion })}
+                    onClick={() => {
+                      const err = classQuestionKeyError(selected.kind, localQuestion)
+                      if (err) {
+                        setSaveError(err)
+                        return
+                      }
+                      setSaveError('')
+                      onConfirm({ id: selected.id, kind: selected.kind, question: localQuestion })
+                    }}
                   >
                     Thêm vào phòng
                   </button>
                 </div>
+                {saveError ? <p className="create-class-error">{saveError}</p> : null}
               </div>
             )}
           </div>
@@ -538,14 +602,17 @@ export default function AddQuestionPanel({
 
       {questions.length > 0 ? (
         <div className="class-questions-list">
-          {questions.map((q, idx) => (
-            <div key={q.id} className="class-question-card">
+          {questions.map((q, idx) => {
+            const keyErr = classQuestionKeyError(q.kind, q.question)
+            return (
+            <div key={q.id} className={`class-question-card${keyErr ? ' is-invalid' : ''}`}>
               <div className="class-question-info">
                 <span className={`archive-picker-badge is-${q.kind}`}>{badgeLabel(q.kind)}</span>
                 <span className="class-question-title">
                   {idx + 1}. {questionHeading(q.kind, q.question)}
                 </span>
                 <span className="class-question-source">{q.source === 'archive' ? 'Từ kho' : 'Tự chỉnh sửa'}</span>
+                {keyErr ? <span className="class-question-error">{keyErr}</span> : null}
               </div>
               <button
                 type="button"
@@ -556,7 +623,8 @@ export default function AddQuestionPanel({
                 <IconTrash />
               </button>
             </div>
-          ))}
+            )
+          })}
         </div>
       ) : null}
 
