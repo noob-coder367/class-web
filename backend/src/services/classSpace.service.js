@@ -82,15 +82,44 @@ async function writeStore(store) {
   }
 }
 
+function normalizeBackdrop(raw) {
+  const type = raw?.backdropType === 'theme' || raw?.backdropType === 'image' ? raw.backdropType : ''
+  const theme = String(raw?.backdropTheme || '').trim()
+  const image = String(raw?.backdropImage || '')
+  const allowedThemes = new Set([
+    'sky',
+    'ocean',
+    'sunset',
+    'night',
+    'forest',
+    'aurora',
+    'sakura',
+    'desert',
+    'lavender',
+    'rain',
+    'galaxy',
+    'meadow',
+  ])
+  if (type === 'theme' && allowedThemes.has(theme)) {
+    return { backdropType: 'theme', backdropTheme: theme, backdropImage: '' }
+  }
+  if (type === 'image' && image) {
+    return { backdropType: 'image', backdropTheme: '', backdropImage: image }
+  }
+  return { backdropType: '', backdropTheme: '', backdropImage: '' }
+}
+
 function normalizeItem(raw) {
   if (!raw || typeof raw !== 'object') return null
   const id = String(raw.id || '').trim()
   if (!id) return null
   const isPublic = raw.isPublic !== false
+  const backdrop = normalizeBackdrop(raw)
   return {
     id,
     title: String(raw.title || '').trim() || 'Lớp học',
     cover: String(raw.cover || ''),
+    ...backdrop,
     isPublic,
     passwordHash: isPublic ? '' : String(raw.passwordHash || ''),
     shuffle: raw.shuffle === true,
@@ -252,6 +281,9 @@ export async function createClassSpace(payload, profile) {
     id: randomUUID(),
     title,
     cover: payload?.cover || '',
+    backdropType: payload?.backdropType,
+    backdropTheme: payload?.backdropTheme,
+    backdropImage: payload?.backdropImage,
     isPublic,
     passwordHash: isPublic ? '' : hashPassword(payload.password),
     shuffle: !!payload?.shuffle,
@@ -299,6 +331,9 @@ export async function updateClassSpace(id, payload, profile) {
     ...current,
     title,
     cover: payload?.cover ?? current.cover,
+    backdropType: payload?.backdropType ?? current.backdropType,
+    backdropTheme: payload?.backdropTheme ?? current.backdropTheme,
+    backdropImage: payload?.backdropImage ?? current.backdropImage,
     isPublic,
     passwordHash,
     shuffle: !!payload?.shuffle,

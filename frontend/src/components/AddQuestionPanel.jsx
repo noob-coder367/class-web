@@ -79,6 +79,19 @@ function IconBack() {
   )
 }
 
+function IconGrip() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="9" cy="6" r="1.6" />
+      <circle cx="15" cy="6" r="1.6" />
+      <circle cx="9" cy="12" r="1.6" />
+      <circle cx="15" cy="12" r="1.6" />
+      <circle cx="9" cy="18" r="1.6" />
+      <circle cx="15" cy="18" r="1.6" />
+    </svg>
+  )
+}
+
 const CUSTOM_TABS = [
   { id: 'quiz', label: 'Trắc nghiệm' },
   { id: 'essay', label: 'Tự luận' },
@@ -527,6 +540,9 @@ export default function AddQuestionPanel({
   const [pickerOpen, setPickerOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState(null)
   const wrapRef = useRef(null)
+  const [dragIndex, setDragIndex] = useState(null)
+  const [overIndex, setOverIndex] = useState(null)
+  const pointerDragRef = useRef({ from: null, pointerId: null })
 
   useEffect(() => {
     if (!menuOpen) return
@@ -585,6 +601,75 @@ export default function AddQuestionPanel({
     setEditingEntry(null)
   }
 
+  const moveQuestion = (from, to) => {
+    if (from == null || to == null || from === to) return
+    onQuestionsChange((prev) => {
+      if (from < 0 || to < 0 || from >= prev.length || to >= prev.length) return prev
+      const next = [...prev]
+      const [item] = next.splice(from, 1)
+      next.splice(to, 0, item)
+      return next
+    })
+  }
+
+  const onCardDragOver = (index) => (e) => {
+    if (dragIndex == null) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (overIndex !== index) setOverIndex(index)
+  }
+
+  const onHandleDragStart = (index) => (e) => {
+    setDragIndex(index)
+    setOverIndex(index)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(index))
+    try {
+      e.dataTransfer.setDragImage(e.currentTarget.closest('.class-question-card') || e.currentTarget, 24, 20)
+    } catch {
+      /* một số trình duyệt không cho setDragImage tuỳ ý */
+    }
+  }
+
+  const onHandleDragEnd = () => {
+    setDragIndex(null)
+    setOverIndex(null)
+  }
+
+  const onCardDrop = (index) => (e) => {
+    e.preventDefault()
+    moveQuestion(dragIndex, index)
+    onHandleDragEnd()
+  }
+
+  const onHandlePointerDown = (index) => (e) => {
+    if (e.pointerType === 'mouse') return
+    e.preventDefault()
+    pointerDragRef.current = { from: index, pointerId: e.pointerId }
+    setDragIndex(index)
+    setOverIndex(index)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const onHandlePointerMove = (e) => {
+    if (pointerDragRef.current.from == null) return
+    const el = document.elementFromPoint(e.clientX, e.clientY)
+    const card = el?.closest?.('[data-q-index]')
+    if (!card) return
+    const to = Number(card.dataset.qIndex)
+    if (Number.isNaN(to) || to === pointerDragRef.current.from) return
+    moveQuestion(pointerDragRef.current.from, to)
+    pointerDragRef.current.from = to
+    setDragIndex(to)
+    setOverIndex(to)
+  }
+
+  const onHandlePointerUp = () => {
+    pointerDragRef.current = { from: null, pointerId: null }
+    setDragIndex(null)
+    setOverIndex(null)
+  }
+
   return (
     <div className="add-question-wrap" ref={wrapRef}>
       <button
@@ -633,7 +718,29 @@ export default function AddQuestionPanel({
           {questions.map((q, idx) => {
             const keyErr = classQuestionKeyError(q.kind, q.question)
             return (
-            <div key={q.id} className={`class-question-card${keyErr ? ' is-invalid' : ''}`}>
+            <div
+              key={q.id}
+              data-q-index={idx}
+              className={`class-question-card${keyErr ? ' is-invalid' : ''}${dragIndex === idx ? ' is-dragging' : ''}${overIndex === idx && dragIndex !== idx ? ' is-over' : ''}`}
+              onDragOver={onCardDragOver(idx)}
+              onDrop={onCardDrop(idx)}
+            >
+              <span
+                className="class-question-drag-handle"
+                draggable
+                role="button"
+                tabIndex={0}
+                aria-label="Kéo để đổi thứ tự câu hỏi"
+                title="Kéo để đổi thứ tự"
+                onDragStart={onHandleDragStart(idx)}
+                onDragEnd={onHandleDragEnd}
+                onPointerDown={onHandlePointerDown(idx)}
+                onPointerMove={onHandlePointerMove}
+                onPointerUp={onHandlePointerUp}
+                onPointerCancel={onHandlePointerUp}
+              >
+                <IconGrip />
+              </span>
               <div className="class-question-info">
                 <span className={`archive-picker-badge is-${q.kind}`}>{badgeLabel(q.kind)}</span>
                 <span className="class-question-title">
@@ -663,6 +770,7 @@ export default function AddQuestionPanel({
             </div>
             )
           })}
+          <p className="class-questions-hint">Giữ và kéo các ô (nút chấm bên trái) để đổi thứ tự câu hỏi.</p>
         </div>
       ) : null}
 

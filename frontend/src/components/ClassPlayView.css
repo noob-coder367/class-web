@@ -9,6 +9,73 @@
   color: #0f172a;
 }
 
+.class-play-view.has-backdrop {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.class-play-view.has-backdrop-image {
+  background-color: #0f172a;
+}
+
+.class-play-view.has-backdrop-image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.12) 0%, rgba(15, 23, 42, 0.22) 100%);
+}
+
+.class-play-view > * {
+  position: relative;
+  z-index: 1;
+}
+
+.class-play-view.has-backdrop .class-play-topbar {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  border-bottom-color: rgba(226, 232, 240, 0.7);
+}
+
+.class-play-view.has-backdrop .class-play-card {
+  background: #ffffff;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.2);
+}
+
+.class-play-view.has-backdrop .class-play-progress {
+  align-self: stretch;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  padding: 8px 14px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+}
+
+.class-play-view.has-backdrop .class-play-nav-btn {
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+}
+
+.class-play-view.has-backdrop .class-play-next {
+  box-shadow: 0 12px 28px rgba(20, 50, 74, 0.32);
+}
+
+.class-play-view.has-backdrop .class-play-empty {
+  margin: 20px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.18);
+}
+
+.class-play-view.has-backdrop .class-play-close {
+  background: #ffffff;
+}
+
+.class-play-view .quiz-card.class-play-card {
+  background: #ffffff;
+}
+
 .class-play-topbar {
   display: flex;
   align-items: center;

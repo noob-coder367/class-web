@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { answerColorOf, formatCountdown } from './QuizArchivePanel.jsx'
 import { statementLabel } from './TrueFalseArchivePanel.jsx'
+import { normalizePlayBackdrop } from '../lib/playBackdrops.js'
 import './ClassPlayView.css'
+import './PlayBackdrop.css'
 
 function badgeLabel(kind) {
   if (kind === 'quiz') return 'Trắc nghiệm'
@@ -298,6 +300,22 @@ export default function ClassPlayView({ classData, onClose }) {
 
   if (!classData) return null
 
+  const backdrop = normalizePlayBackdrop(classData)
+  const hasTheme = backdrop.backdropType === 'theme'
+  const hasImage = backdrop.backdropType === 'image'
+  const hasBackdrop = hasTheme || hasImage
+  const playClassName = [
+    'class-play-view',
+    hasBackdrop ? 'has-backdrop' : '',
+    hasImage ? 'has-backdrop-image' : '',
+    hasTheme ? `play-backdrop--${backdrop.backdropTheme}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const playStyleBg = hasImage
+    ? { backgroundImage: `url(${JSON.stringify(backdrop.backdropImage)})` }
+    : undefined
+
   const pickTf = (statementId, value) => {
     setTfSelections((prev) => {
       const currentMap = prev[current.id] || {}
@@ -307,7 +325,13 @@ export default function ClassPlayView({ classData, onClose }) {
   }
 
   return (
-    <div className="class-play-view" role="dialog" aria-modal="true" aria-label={`Làm bài: ${classData.title}`}>
+    <div
+      className={playClassName}
+      style={playStyleBg}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Làm bài: ${classData.title}`}
+    >
       <header className="class-play-topbar">
         <div className="class-play-heading">
           <p className="class-play-kicker">Phòng</p>

@@ -293,6 +293,134 @@
   margin-top: 10px;
 }
 
+.backdrop-pick-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.backdrop-pick-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  min-height: 132px;
+  padding: 12px;
+  border: 1.5px dashed #b7c9d4;
+  border-radius: var(--cc-radius);
+  background: var(--cc-soft);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition:
+    border-color var(--cc-fast),
+    background var(--cc-fast),
+    box-shadow var(--cc-fast);
+}
+
+.backdrop-pick-tile:hover {
+  border-color: var(--cc-accent);
+  background: #eef5f8;
+}
+
+.backdrop-pick-tile.is-active {
+  border-style: solid;
+  border-color: var(--cc-accent);
+  background: #eaf3f7;
+  box-shadow: 0 0 0 3px rgba(26, 107, 138, 0.14);
+}
+
+.backdrop-pick-tile .create-class-cover-icon {
+  width: 44px;
+  height: 44px;
+}
+
+.backdrop-pick-swatch,
+.backdrop-pick-img {
+  width: 100%;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 12px;
+  flex-shrink: 0;
+  background: #dbe7ee;
+}
+
+.backdrop-clear-btn {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.backdrop-theme-page {
+  position: fixed;
+  inset: 0;
+  z-index: 330;
+  overflow: auto;
+  background: var(--cc-paper);
+}
+
+.backdrop-theme-lead {
+  margin: -8px 0 0;
+}
+
+.backdrop-theme-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.backdrop-theme-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1.5px solid var(--cc-line);
+  border-radius: 16px;
+  background: var(--cc-soft);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-height: 44px;
+  transition:
+    border-color var(--cc-fast),
+    background var(--cc-fast),
+    box-shadow var(--cc-fast),
+    transform var(--cc-fast);
+}
+
+.backdrop-theme-card:hover {
+  border-color: var(--cc-accent);
+  background: #eef5f8;
+}
+
+.backdrop-theme-card:active {
+  transform: scale(0.98);
+}
+
+.backdrop-theme-card.is-selected {
+  border-color: var(--cc-accent);
+  background: #eaf3f7;
+  box-shadow: 0 0 0 3px rgba(26, 107, 138, 0.16);
+}
+
+.backdrop-theme-card strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--cc-primary);
+}
+
+.backdrop-theme-card span:last-child {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #7a8694;
+}
+
+.backdrop-theme-card .play-backdrop-swatch {
+  height: 96px;
+}
+
 .create-class-ghost {
   height: 36px;
   padding: 0 12px;
@@ -1443,10 +1571,57 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 10px 10px 14px;
+  padding: 10px 10px 10px 8px;
   border: 1px solid var(--cc-line);
   border-radius: 12px;
   background: var(--cc-soft);
+  touch-action: pan-y;
+  transition:
+    box-shadow var(--cc-fast),
+    border-color var(--cc-fast),
+    opacity var(--cc-fast),
+    transform var(--cc-fast);
+}
+
+.class-question-card.is-dragging {
+  opacity: 0.55;
+}
+
+.class-question-card.is-over {
+  border-color: var(--cc-accent);
+  box-shadow: 0 0 0 3px rgba(26, 107, 138, 0.16);
+}
+
+.class-question-drag-handle {
+  flex-shrink: 0;
+  width: 36px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #8a93a8;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.class-question-drag-handle:active {
+  cursor: grabbing;
+}
+
+.class-question-drag-handle svg {
+  width: 16px;
+  height: 16px;
+}
+
+.class-questions-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7a8694;
 }
 
 .class-question-card.is-invalid {
@@ -1460,6 +1635,7 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  flex: 1;
 }
 
 .class-question-title {
@@ -1668,6 +1844,11 @@
     height: 72px;
   }
 
+  .backdrop-pick-row,
+  .backdrop-theme-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .create-class-privacy-row {
     align-items: center;
   }
@@ -1768,7 +1949,8 @@
   .quiz-add-revision,
   .custom-editor-modal,
   .archive-picker-modal,
-  .add-question-menu {
+  .add-question-menu,
+  .backdrop-theme-card {
     transition: none;
     animation: none;
   }

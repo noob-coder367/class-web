@@ -4,7 +4,9 @@ import EssayArchivePanel from './EssayArchivePanel.jsx'
 import TrueFalseArchivePanel from './TrueFalseArchivePanel.jsx'
 import AddQuestionPanel, { classQuestionsKeyError } from './AddQuestionPanel.jsx'
 import * as classroomService from '../services/classroomService.js'
+import { PLAY_BACKDROP_THEMES, playBackdropThemeOf, normalizePlayBackdrop } from '../lib/playBackdrops.js'
 import './CreateClassPage.css'
+import './PlayBackdrop.css'
 
 const MAX_COVER_BYTES = 10 * 1024 * 1024
 
@@ -62,6 +64,18 @@ function IconImage() {
   )
 }
 
+function IconPalette() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3a9 9 0 1 0 0 18h1.2a2.4 2.4 0 0 0 2.3-3.1 2.2 2.2 0 0 1 2-2.9H19a4 4 0 0 0 0-8h-.5" />
+      <circle cx="7.5" cy="10" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="10.5" cy="7.2" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="14.5" cy="7.6" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="8.2" cy="13.5" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 function IconArchive() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -89,10 +103,17 @@ const ARCHIVE_TABS = [
 
 export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const isEditing = !!editingClass
+  const initialBackdrop = normalizePlayBackdrop(editingClass)
   const [title, setTitle] = useState(editingClass?.title || '')
   const [coverName, setCoverName] = useState('')
   const [coverPreview, setCoverPreview] = useState(editingClass?.cover || '')
   const [coverError, setCoverError] = useState('')
+  const [backdropType, setBackdropType] = useState(initialBackdrop.backdropType)
+  const [backdropTheme, setBackdropTheme] = useState(initialBackdrop.backdropTheme)
+  const [backdropImage, setBackdropImage] = useState(initialBackdrop.backdropImage)
+  const [backdropImageName, setBackdropImageName] = useState('')
+  const [backdropError, setBackdropError] = useState('')
+  const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [isPublic, setIsPublic] = useState(editingClass ? editingClass.isPublic !== false : true)
   const [password, setPassword] = useState(editingClass?.password || '')
   const [archiveOpen, setArchiveOpen] = useState(false)
@@ -109,6 +130,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const fileInputRef = useRef(null)
+  const backdropFileRef = useRef(null)
   const archiveTitleRef = useRef(null)
 
   // Lưu ý: ảnh nền được lưu dạng base64 (xem readFileAsDataUrl), nên không cần
@@ -126,15 +148,17 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   }, [])
 
   useEffect(() => {
-    if (!archiveOpen) return
+    if (!archiveOpen && !themePickerOpen) return
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    const id = window.requestAnimationFrame(() => archiveTitleRef.current?.focus())
+    const id = window.requestAnimationFrame(() => {
+      if (archiveOpen) archiveTitleRef.current?.focus()
+    })
     return () => {
       document.body.style.overflow = prevOverflow
       window.cancelAnimationFrame(id)
     }
-  }, [archiveOpen])
+  }, [archiveOpen, themePickerOpen])
 
   useEffect(() => {
     const onKey = (e) => {
@@ -142,6 +166,10 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
       if (document.querySelector('.quiz-settings-overlay, .custom-editor-overlay, .archive-picker-overlay')) return
       e.preventDefault()
       e.stopPropagation()
+      if (themePickerOpen) {
+        setThemePickerOpen(false)
+        return
+      }
       if (archiveOpen) {
         setArchiveOpen(false)
         return
@@ -150,7 +178,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [onBack, archiveOpen])
+  }, [onBack, archiveOpen, themePickerOpen])
 
   // "Cài đặt lớp học" dùng chung class .quiz-settings-overlay nên ESC ở effect
   // phía trên đã tự bỏ qua khi bảng này đang mở (không đóng nhầm cả trang).
@@ -181,6 +209,58 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
     setCoverName('')
     setCoverError('')
     setCoverPreview('')
+  }
+
+  const applyBackdropFile = async (file) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setBackdropError('Vui lòng chọn một tập tin ảnh.')
+      return
+    }
+    if (file.size > MAX_COVER_BYTES) {
+      setBackdropError('Ảnh vượt quá 10MB. Vui lòng chọn ảnh nhỏ hơn.')
+      return
+    }
+    setBackdropError('')
+    setBackdropImageName(file.name)
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      setBackdropType('image')
+      setBackdropTheme('')
+      setBackdropImage(dataUrl)
+    } catch {
+      setBackdropError('Không đọc được ảnh, vui lòng thử lại.')
+    }
+  }
+
+  const handleBackdropChange = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    await applyBackdropFile(file)
+  }
+
+  const handleBackdropDrop = async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const file = e.dataTransfer?.files?.[0]
+    await applyBackdropFile(file)
+  }
+
+  const pickBackdropTheme = (id) => {
+    setBackdropType('theme')
+    setBackdropTheme(id)
+    setBackdropImage('')
+    setBackdropImageName('')
+    setBackdropError('')
+    setThemePickerOpen(false)
+  }
+
+  const clearBackdrop = () => {
+    setBackdropType('')
+    setBackdropTheme('')
+    setBackdropImage('')
+    setBackdropImageName('')
+    setBackdropError('')
   }
 
   const handlePassword = (e) => {
@@ -223,6 +303,15 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
     setSubmitting(true)
     try {
       const uploadedCover = await uploadIfDataUrl(coverPreview, coverName || 'cover')
+      const uploadedBackdropImage =
+        backdropType === 'image'
+          ? await uploadIfDataUrl(backdropImage, backdropImageName || 'backdrop')
+          : ''
+      const backdrop = normalizePlayBackdrop({
+        backdropType,
+        backdropTheme,
+        backdropImage: uploadedBackdropImage,
+      })
       const uploadedQuestions = await Promise.all(
         classQuestions.map(async (entry) => {
           if (!entry.question) return entry
@@ -248,6 +337,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
       const payload = {
         title: trimmedTitle,
         cover: uploadedCover,
+        ...backdrop,
         isPublic,
         password,
         shuffle: shuffleQuestions,
@@ -275,7 +365,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
         Quay về
       </button>
 
-      <div className="create-class-sheet" aria-hidden={archiveOpen || undefined}>
+      <div className="create-class-sheet" aria-hidden={archiveOpen || themePickerOpen || undefined}>
         <header className="create-class-heading">
           <p className="create-class-kicker">Phòng · 10A4</p>
           <h1>{isEditing ? 'Chỉnh sửa phòng' : 'Tạo phòng'}</h1>
@@ -336,6 +426,90 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
             </button>
           )}
           {coverError ? <p className="create-class-error">{coverError}</p> : null}
+        </div>
+
+        <div className="create-class-field">
+          <span className="create-class-label" id="create-class-backdrop-label">
+            Chọn chủ đề nền
+          </span>
+          <p className="create-class-hint">
+            Nền này hiện phía sau khung câu hỏi, đáp án và các nút khi vào phòng.
+          </p>
+          <input
+            ref={backdropFileRef}
+            id="create-class-backdrop"
+            className="create-class-file"
+            type="file"
+            accept="image/*"
+            onChange={handleBackdropChange}
+            aria-labelledby="create-class-backdrop-label"
+          />
+          <div className="backdrop-pick-row">
+            <button
+              type="button"
+              className={`backdrop-pick-tile${backdropType === 'theme' ? ' is-active' : ''}`}
+              onClick={() => setThemePickerOpen(true)}
+            >
+              {backdropType === 'theme' && playBackdropThemeOf(backdropTheme) ? (
+                <>
+                  <span
+                    className={`play-backdrop-swatch play-backdrop-swatch--${backdropTheme} backdrop-pick-swatch`}
+                    aria-hidden="true"
+                  />
+                  <span className="create-class-cover-copy">
+                    <strong>{playBackdropThemeOf(backdropTheme).label}</strong>
+                    <span>Chủ đề có sẵn · bấm để đổi</span>
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="create-class-cover-icon">
+                    <IconPalette />
+                  </span>
+                  <span className="create-class-cover-copy">
+                    <strong>Chủ đề có sẵn</strong>
+                    <span>Bầu trời, đại dương,...</span>
+                  </span>
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              className={`backdrop-pick-tile${backdropType === 'image' ? ' is-active' : ''}`}
+              onClick={() => backdropFileRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'copy'
+              }}
+              onDrop={handleBackdropDrop}
+            >
+              {backdropType === 'image' && backdropImage ? (
+                <>
+                  <img src={backdropImage} alt="Nền từ thư viện máy" className="backdrop-pick-img" />
+                  <span className="create-class-cover-copy">
+                    <strong>{backdropImageName || 'Ảnh thư viện'}</strong>
+                    <span>Bấm hoặc kéo ảnh để đổi</span>
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="create-class-cover-icon">
+                    <IconImage />
+                  </span>
+                  <span className="create-class-cover-copy">
+                    <strong>Từ thư viện máy</strong>
+                    <span>Kéo ảnh hoặc bấm để chọn</span>
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
+          {backdropType ? (
+            <button type="button" className="create-class-ghost backdrop-clear-btn" onClick={clearBackdrop}>
+              Bỏ nền phòng
+            </button>
+          ) : null}
+          {backdropError ? <p className="create-class-error">{backdropError}</p> : null}
         </div>
 
         <div className="create-class-privacy">
@@ -422,6 +596,41 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
           </button>
         </div>
       </div>
+
+      {themePickerOpen ? (
+        <div className="backdrop-theme-page" role="dialog" aria-modal="true" aria-labelledby="backdrop-theme-heading">
+          <button type="button" className="create-class-back" onClick={() => setThemePickerOpen(false)}>
+            <IconBack />
+            Quay về
+          </button>
+          <div className="create-class-sheet">
+            <header className="create-class-heading">
+              <p className="create-class-kicker">Nền phòng</p>
+              <h1 id="backdrop-theme-heading">Chọn chủ đề nền</h1>
+            </header>
+            <p className="create-class-hint backdrop-theme-lead">
+              Nền chỉ nằm sau khung câu hỏi, đáp án và các nút — không đổi màu bên trong.
+            </p>
+            <div className="backdrop-theme-grid">
+              {PLAY_BACKDROP_THEMES.map((theme) => {
+                const selected = backdropType === 'theme' && backdropTheme === theme.id
+                return (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    className={`backdrop-theme-card${selected ? ' is-selected' : ''}`}
+                    onClick={() => pickBackdropTheme(theme.id)}
+                  >
+                    <span className={`play-backdrop-swatch play-backdrop-swatch--${theme.id}`} aria-hidden="true" />
+                    <strong>{theme.label}</strong>
+                    <span>{theme.hint}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {settingsOpen ? (
         <div
