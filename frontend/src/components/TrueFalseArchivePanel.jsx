@@ -38,6 +38,105 @@ function IconPencil() {
   )
 }
 
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+function IconImage() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="2.5" />
+      <circle cx="8.5" cy="10" r="1.4" />
+      <path d="M21 16.5 16 12l-3.2 3.2L10 13l-7 6" />
+    </svg>
+  )
+}
+
+function readImageFile(file) {
+  if (!file) return { error: 'Không tìm thấy tập tin.' }
+  if (!file.type.startsWith('image/')) return { error: 'Vui lòng chọn một tập tin ảnh.' }
+  if (file.size > MAX_IMAGE_BYTES) return { error: 'Ảnh vượt quá 10MB. Vui lòng chọn ảnh nhỏ hơn.' }
+  return { file }
+}
+
+function readImageAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(reader.error || new Error('Không đọc được ảnh.'))
+    reader.readAsDataURL(file)
+  })
+}
+
+// Ảnh minh hoạ (tùy chọn) cho phần cho / nội dung câu hỏi đúng-sai — không
+// phải ảnh của từng ý a, b, c, d.
+function QuestionImageDrop({ image, name, onPick, onClear }) {
+  const inputRef = useRef(null)
+  const [dragOver, setDragOver] = useState(false)
+  const [error, setError] = useState('')
+
+  const applyFile = (file) => {
+    const result = readImageFile(file)
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+    setError('')
+    onPick(result.file)
+  }
+
+  return (
+    <div className="quiz-drop quiz-drop--question">
+      <input
+        ref={inputRef}
+        className="create-class-file"
+        type="file"
+        accept="image/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) applyFile(file)
+        }}
+      />
+      {image ? (
+        <div className="quiz-drop-preview">
+          <img src={image} alt={name || 'Ảnh minh hoạ câu hỏi'} />
+          <div className="quiz-drop-preview-meta">
+            <p>{name || 'Ảnh minh hoạ câu hỏi'}</p>
+            <div className="create-class-cover-actions">
+              <button type="button" className="create-class-ghost" onClick={() => inputRef.current?.click()}>
+                Đổi ảnh
+              </button>
+              <button type="button" className="create-class-ghost" onClick={onClear}>
+                Xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={`quiz-drop-zone${dragOver ? ' is-over' : ''}`}
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragOver(false)
+            const file = e.dataTransfer.files?.[0]
+            if (file) applyFile(file)
+          }}
+        >
+          <IconImage />
+          <span>Kéo thả ảnh vào đây hoặc bấm để chọn (tùy chọn)</span>
+        </button>
+      )}
+      {error ? <p className="create-class-error">{error}</p> : null}
+    </div>
+  )
+}
+
 export function statementLabel(index) {
   return String.fromCharCode(97 + (index % 26))
 }
@@ -52,6 +151,9 @@ export function emptyTrueFalseDraft() {
     title: '',
     questionTitle: '',
     content: '',
+    imageName: '',
+    imagePreview: '',
+    imagePosition: 'top',
     statements: [0, 1, 2, 3].map((i) => emptyStatement(i)),
     countdownSeconds: 0,
   }
@@ -116,6 +218,43 @@ export function TrueFalseQuestionFields({ draft, onChange, titleInputRef }) {
           placeholder="Nhập phần cho / giả thiết chung của câu đúng-sai"
         />
       </label>
+
+      <div className="quiz-field quiz-question-image-field">
+        <span>Ảnh minh hoạ cho câu hỏi (tùy chọn)</span>
+        <QuestionImageDrop
+          image={draft.imagePreview}
+          name={draft.imageName}
+          onPick={async (file) => {
+            try {
+              const dataUrl = await readImageAsDataUrl(file)
+              onChange({ ...draft, imagePreview: dataUrl, imageName: file.name })
+            } catch {
+              // Người dùng có thể bấm chọn lại ảnh nếu đọc file thất bại.
+            }
+          }}
+          onClear={() => onChange({ ...draft, imagePreview: '', imageName: '' })}
+        />
+      </div>
+
+      {draft.imagePreview ? (
+        <label className="quiz-field">
+          <span>Vị trí ảnh</span>
+          <select
+            value={draft.imagePosition || 'top'}
+            onChange={(e) => onChange({ ...draft, imagePosition: e.target.value })}
+          >
+            <option value="top">Trên</option>
+            <option value="bottom">Dưới</option>
+            <option value="left">Bên trái</option>
+            <option value="right">Bên phải</option>
+          </select>
+          <p className="create-class-hint">
+            {draft.imagePosition === 'left' || draft.imagePosition === 'right'
+              ? 'Ảnh và nội dung câu hỏi chia đôi, nằm cạnh nhau.'
+              : 'Ảnh nằm phía trên hoặc dưới nội dung câu hỏi.'}
+          </p>
+        </label>
+      ) : null}
 
       <fieldset className="quiz-fieldset">
         <legend>Các ý a, b, c, d…</legend>
