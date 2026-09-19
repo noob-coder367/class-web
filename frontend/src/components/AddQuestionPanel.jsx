@@ -53,6 +53,15 @@ function IconTrash() {
   )
 }
 
+function IconEdit() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  )
+}
+
 function IconGear() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -132,11 +141,18 @@ export function classQuestionsKeyError(questions) {
   return problems.join(' ')
 }
 
-function CustomEditorModal({ onClose, onSave }) {
-  const [tab, setTab] = useState('quiz')
-  const [quizDraft, setQuizDraft] = useState(() => emptyQuestion())
-  const [essayDraft, setEssayDraft] = useState(() => emptyEssayDraft())
-  const [trueFalseDraft, setTrueFalseDraft] = useState(() => emptyTrueFalseDraft())
+function CustomEditorModal({ onClose, onSave, editEntry }) {
+  const isEditing = !!editEntry
+  const [tab, setTab] = useState(editEntry?.kind || 'quiz')
+  const [quizDraft, setQuizDraft] = useState(() =>
+    editEntry?.kind === 'quiz' ? editEntry.question : emptyQuestion()
+  )
+  const [essayDraft, setEssayDraft] = useState(() =>
+    editEntry?.kind === 'essay' ? editEntry.question : emptyEssayDraft()
+  )
+  const [trueFalseDraft, setTrueFalseDraft] = useState(() =>
+    editEntry?.kind === 'truefalse' ? editEntry.question : emptyTrueFalseDraft()
+  )
   const [showQuizSettings, setShowQuizSettings] = useState(false)
   const [saveError, setSaveError] = useState('')
   const titleId = 'custom-editor-title'
@@ -162,13 +178,10 @@ function CustomEditorModal({ onClose, onSave }) {
       return
     }
     setSaveError('')
-    if (kind === 'quiz') {
-      onSave({ id: uid(), kind: 'quiz', source: 'custom', question: quizDraft })
-    } else if (kind === 'truefalse') {
-      onSave({ id: uid(), kind: 'truefalse', source: 'custom', question: trueFalseDraft })
-    } else {
-      onSave({ id: uid(), kind: 'essay', source: 'custom', question: essayDraft })
-    }
+    const id = editEntry?.id || uid()
+    const source = editEntry?.source || 'custom'
+    const archiveId = editEntry?.archiveId
+    onSave({ id, kind, source, ...(archiveId ? { archiveId } : {}), question: draft })
   }
 
   return (
@@ -189,39 +202,43 @@ function CustomEditorModal({ onClose, onSave }) {
         >
           <header className="quiz-settings-head">
             <div>
-              <p className="quiz-card-kicker">Thêm câu hỏi</p>
-              <h3 id={titleId}>Tự chỉnh sửa</h3>
+              <p className="quiz-card-kicker">{isEditing ? 'Sửa câu hỏi' : 'Thêm câu hỏi'}</p>
+              <h3 id={titleId}>{isEditing ? 'Chỉnh sửa' : 'Tự chỉnh sửa'}</h3>
             </div>
             <button type="button" className="archive-close" onClick={onClose} aria-label="Đóng">
               <IconClose />
             </button>
           </header>
 
-          <div className="archive-tabstrip custom-editor-tabstrip" role="tablist" aria-label="Loại câu hỏi">
-            {CUSTOM_TABS.map((t) => {
-              const selected = tab === t.id
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  tabIndex={selected ? 0 : -1}
-                  className={`archive-tab${selected ? ' is-active' : ''}`}
-                  onClick={() => {
-                    setTab(t.id)
-                    setSaveError('')
-                  }}
-                >
-                  {t.label}
-                </button>
-              )
-            })}
-          </div>
+          {!isEditing ? (
+            <div className="archive-tabstrip custom-editor-tabstrip" role="tablist" aria-label="Loại câu hỏi">
+              {CUSTOM_TABS.map((t) => {
+                const selected = tab === t.id
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    tabIndex={selected ? 0 : -1}
+                    className={`archive-tab${selected ? ' is-active' : ''}`}
+                    onClick={() => {
+                      setTab(t.id)
+                      setSaveError('')
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
 
           <div className="quiz-settings-body">
             <p className="create-class-hint custom-editor-hint">
-              Nội dung này chỉ dùng cho phòng hiện tại và sẽ không được lưu vào Kho lưu trữ.
+              {isEditing
+                ? 'Chỉnh sửa nội dung câu hỏi này. Thay đổi chỉ áp dụng cho phòng hiện tại.'
+                : 'Nội dung này chỉ dùng cho phòng hiện tại và sẽ không được lưu vào Kho lưu trữ.'}
             </p>
             {tab === 'quiz' ? (
               <QuestionCard
@@ -244,7 +261,7 @@ function CustomEditorModal({ onClose, onSave }) {
               Hủy
             </button>
             <button type="button" className="quiz-primary-btn" onClick={handleSave}>
-              Lưu vào phòng
+              {isEditing ? 'Lưu thay đổi' : 'Lưu vào phòng'}
             </button>
           </footer>
         </div>
@@ -513,6 +530,7 @@ export default function AddQuestionPanel({
   const [menuOpen, setMenuOpen] = useState(false)
   const [customOpen, setCustomOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [editingEntry, setEditingEntry] = useState(null)
   const wrapRef = useRef(null)
 
   useEffect(() => {
@@ -541,8 +559,13 @@ export default function AddQuestionPanel({
   }, [customOpen, pickerOpen])
 
   const addFromCustom = (entry) => {
-    onQuestionsChange((prev) => [...prev, entry])
+    if (editingEntry) {
+      onQuestionsChange((prev) => prev.map((q) => (q.id === entry.id ? entry : q)))
+    } else {
+      onQuestionsChange((prev) => [...prev, entry])
+    }
     setCustomOpen(false)
+    setEditingEntry(null)
   }
 
   const addFromArchive = (entry) => {
@@ -555,6 +578,16 @@ export default function AddQuestionPanel({
 
   const removeQuestion = (id) => {
     onQuestionsChange((prev) => prev.filter((q) => q.id !== id))
+  }
+
+  const editQuestion = (entry) => {
+    setEditingEntry(entry)
+    setCustomOpen(true)
+  }
+
+  const closeCustomEditor = () => {
+    setCustomOpen(false)
+    setEditingEntry(null)
   }
 
   return (
@@ -614,21 +647,33 @@ export default function AddQuestionPanel({
                 <span className="class-question-source">{q.source === 'archive' ? 'Từ kho' : 'Tự chỉnh sửa'}</span>
                 {keyErr ? <span className="class-question-error">{keyErr}</span> : null}
               </div>
-              <button
-                type="button"
-                className="quiz-icon-btn"
-                onClick={() => removeQuestion(q.id)}
-                aria-label="Xóa câu hỏi khỏi phòng"
-              >
-                <IconTrash />
-              </button>
+              <div className="class-question-actions">
+                <button
+                  type="button"
+                  className="quiz-icon-btn"
+                  onClick={() => editQuestion(q)}
+                  aria-label="Sửa câu hỏi"
+                >
+                  <IconEdit />
+                </button>
+                <button
+                  type="button"
+                  className="quiz-icon-btn"
+                  onClick={() => removeQuestion(q.id)}
+                  aria-label="Xóa câu hỏi khỏi phòng"
+                >
+                  <IconTrash />
+                </button>
+              </div>
             </div>
             )
           })}
         </div>
       ) : null}
 
-      {customOpen ? <CustomEditorModal onClose={() => setCustomOpen(false)} onSave={addFromCustom} /> : null}
+      {customOpen ? (
+        <CustomEditorModal onClose={closeCustomEditor} onSave={addFromCustom} editEntry={editingEntry} />
+      ) : null}
       {pickerOpen ? (
         <ArchivePickerModal
           quizArchive={quizArchive}
