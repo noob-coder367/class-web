@@ -133,9 +133,14 @@ async function writeUsernameChanges(map) {
 }
 
 async function ensureDataBucket() {
-  const { data: bucket } = await supabaseAdmin.storage.getBucket(DATA_BUCKET)
-  if (!bucket) {
-    await supabaseAdmin.storage.createBucket(DATA_BUCKET, { public: false, fileSizeLimit: 2 * 1024 * 1024 })
+  const { data: bucket, error } =
+    await supabaseAdmin.storage.getBucket(DATA_BUCKET)
+
+  if (error || !bucket) {
+    throw new AppError(
+      `Kho dữ liệu "${DATA_BUCKET}" chưa được cấu hình trên Supabase.`,
+      500
+    )
   }
 }
 
