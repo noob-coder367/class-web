@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabaseClient.js'
+import { supabase, initialAuthRedirect } from '../lib/supabaseClient.js'
 import * as authService from '../services/authService.js'
 import { saveAccessToken } from '../services/apiClient.js'
 import { capabilitiesFor, hasCapability, isAdminRole } from '../lib/roles.js'
@@ -44,6 +44,12 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [authReady, setAuthReady] = useState(false)
+  // true khi user vừa bấm link "đặt lại mật khẩu" trong email
+  // (Supabase phát PASSWORD_RECOVERY). Khởi tạo từ URL phòng trường hợp
+  // sự kiện phát ra trước khi listener bên dưới kịp đăng ký.
+  const [passwordRecovery, setPasswordRecovery] = useState(
+    () => initialAuthRedirect.type === 'recovery' && !initialAuthRedirect.error
+  )
   const profileRef = useRef(null)
 
   useEffect(() => {
@@ -149,6 +155,7 @@ export function AuthProvider({ children }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true)
       setSession(newSession)
       if (newSession?.user) {
         if (event === 'TOKEN_REFRESHED' && profileRef.current) {
@@ -182,6 +189,8 @@ export function AuthProvider({ children }) {
     }
   }, [loadProfile])
 
+  const clearPasswordRecovery = useCallback(() => setPasswordRecovery(false), [])
+
   const logout = useCallback(async () => {
     await authService.logout()
     setSession(null)
@@ -193,6 +202,8 @@ export function AuthProvider({ children }) {
     session,
     profile,
     authReady,
+    passwordRecovery,
+    clearPasswordRecovery,
     isLoggedIn: !!session,
     isAdmin: isAdminRole(profile?.role),
     isMember: !!profile?.is_member,
