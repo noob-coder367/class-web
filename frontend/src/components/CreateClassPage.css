@@ -270,6 +270,9 @@
   font-size: 13px;
   line-height: 1.45;
   color: #7a8694;
+  text-align: left;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .create-class-cover-meta {
@@ -458,6 +461,13 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  text-align: left;
+}
+
+.create-class-privacy-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
 }
 
 .create-class-privacy-q {
@@ -466,6 +476,10 @@
   font-weight: 700;
   line-height: 1.4;
   color: var(--cc-primary);
+  text-align: left;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  hyphens: none;
 }
 
 .create-class-mode {
@@ -1132,6 +1146,7 @@
   gap: 18px;
   padding: 16px;
   overflow: auto;
+  text-align: left;
 }
 
 .quiz-fieldset {

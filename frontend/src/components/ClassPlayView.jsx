@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { answerColorOf, formatCountdown } from './QuizArchivePanel.jsx'
 import { statementLabel } from './TrueFalseArchivePanel.jsx'
 import { normalizePlayBackdrop } from '../lib/playBackdrops.js'
+import { essayKeys, gradeClassPlay, normalizeAnswer } from '../lib/classPlayScore.js'
+import * as classroomService from '../services/classroomService.js'
+import { useAuth } from '../context/AuthContext.jsx'
 import './ClassPlayView.css'
 import './PlayBackdrop.css'
 
@@ -57,6 +60,33 @@ const AUTO_ADVANCE_DELAY_MS = 900
 // Khi hiện bảng "Đã hoàn thành", tự đóng phòng sau 3 giây.
 const AUTO_CLOSE_DELAY_MS = 3000
 
+function IconTrophy() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 4h8v5a4 4 0 0 1-8 0V4z" />
+      <path d="M8 6H5.5A2.5 2.5 0 0 0 8 9.5" />
+      <path d="M16 6h2.5A2.5 2.5 0 0 1 16 9.5" />
+      <path d="M12 13v3" />
+      <path d="M9 20h6" />
+      <path d="M10 17h4v3h-4z" />
+    </svg>
+  )
+}
+
+function medalFor(rank) {
+  if (rank === 1) return '🥇'
+  if (rank === 2) return '🥈'
+  if (rank === 3) return '🥉'
+  return null
+}
+
+function initialOf(name) {
+  const text = String(name || '').trim()
+  if (!text) return '?'
+  const parts = text.split(/\s+/)
+  return parts[parts.length - 1].slice(0, 1).toUpperCase()
+}
+
 function shuffleArray(arr) {
   const next = [...arr]
   for (let i = next.length - 1; i > 0; i -= 1) {
@@ -64,20 +94,6 @@ function shuffleArray(arr) {
     ;[next[i], next[j]] = [next[j], next[i]]
   }
   return next
-}
-
-function normalizeAnswer(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-}
-
-function essayKeys(question) {
-  const answers = question?.answers || []
-  const marked = answers.filter((a) => a.isCorrect && a.content.trim())
-  const pool = marked.length ? marked : answers.filter((a) => a.content.trim())
-  return pool.map((a) => normalizeAnswer(a.content)).filter(Boolean)
 }
 
 function playStyle(answer, settings, { selected, revealed, wrongTried, showCorrect }) {
@@ -105,6 +121,7 @@ function playStyle(answer, settings, { selected, revealed, wrongTried, showCorre
 }
 
 export default function ClassPlayView({ classData, onClose }) {
+  const { profile } = useAuth()
   const questions = classData?.questions || []
 
   const [order] = useState(() => {
@@ -119,6 +136,11 @@ export default function ClassPlayView({ classData, onClose }) {
   const [tfSelections, setTfSelections] = useState({})
   const [timeLeft, setTimeLeft] = useState(null)
   const [done, setDone] = useState(questions.length === 0)
+  const [rankOpen, setRankOpen] = useState(false)
+  const [leaderboard, setLeaderboard] = useState(() =>
+    Array.isArray(classData?.leaderboard) ? classData.leaderboard : []
+  )
+  const submittedRef = useRef(false)
 
   const total = order.length
   const current = total ? questions[order[index]] : null
@@ -129,8 +151,18 @@ export default function ClassPlayView({ classData, onClose }) {
   const q = current?.question
   const allowRetry = classData?.allowRetry !== false
   const allowMultiTry = classData?.allowMultiTry === true
+  const enableLeaderboard = classData?.enableLeaderboard === true
+
+  const score = gradeClassPlay(questions, {
+    selections,
+    quizTried,
+    essayDrafts,
+    tfSelections,
+    allowMultiTry,
+  })
 
   const handleRetry = () => {
+    submittedRef.current = false
     setIndex(0)
     setSelections({})
     setQuizTried({})
@@ -140,49 +172,14 @@ export default function ClassPlayView({ classData, onClose }) {
     setDone(false)
   }
 
-  const gradedQuizTotal = questions.filter(
-    (entry) => entry.kind === 'quiz' && (entry.question?.answers || []).some((a) => a.isCorrect)
-  ).length
-  const gradedQuizCorrect = questions.filter((entry) => {
-    if (entry.kind !== 'quiz') return false
-    const answers = entry.question?.answers || []
-    if (!answers.some((a) => a.isCorrect)) return false
-    if (allowMultiTry) {
-      const tried = quizTried[entry.id] || []
-      return answers.some((a) => a.isCorrect && tried.includes(a.id))
-    }
-    const chosenId = selections[entry.id]
-    if (!chosenId) return false
-    return !!answers.find((a) => a.id === chosenId)?.isCorrect
-  }).length
-
-  const gradedTfTotal = questions.filter(
-    (entry) => entry.kind === 'truefalse' && (entry.question?.statements || []).some((s) => s.content?.trim())
-  ).length
-  const gradedTfCorrect = questions.filter((entry) => {
-    if (entry.kind !== 'truefalse') return false
-    const statements = (entry.question?.statements || []).filter((s) => s.content?.trim())
-    if (!statements.length) return false
-    const chosen = tfSelections[entry.id] || {}
-    return statements.every((s) => chosen[s.id] === s.isTrue)
-  }).length
-
-  const gradedEssayTotal = questions.filter(
-    (entry) => entry.kind === 'essay' && essayKeys(entry.question).length > 0
-  ).length
-  const gradedEssayCorrect = questions.filter((entry) => {
-    if (entry.kind !== 'essay') return false
-    const keys = essayKeys(entry.question)
-    if (!keys.length) return false
-    return keys.includes(normalizeAnswer(essayDrafts[entry.id]))
-  }).length
-
-  const gradedTotal = gradedQuizTotal + gradedTfTotal + gradedEssayTotal
-  const gradedCorrect = gradedQuizCorrect + gradedTfCorrect + gradedEssayCorrect
-
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.()
+      if (e.key !== 'Escape') return
+      if (rankOpen) {
+        setRankOpen(false)
+        return
+      }
+      onClose?.()
     }
     window.addEventListener('keydown', onKey)
     const prevOverflow = document.body.style.overflow
@@ -191,7 +188,7 @@ export default function ClassPlayView({ classData, onClose }) {
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = prevOverflow
     }
-  }, [onClose])
+  }, [onClose, rankOpen])
 
   const goNext = () => {
     if (index >= total - 1) {
@@ -289,12 +286,27 @@ export default function ClassPlayView({ classData, onClose }) {
   }, [tfSelections[current?.id], index, done])
 
   useEffect(() => {
-    if (!done) return
+    if (!done || questions.length === 0) return
+    if (submittedRef.current) return
+    submittedRef.current = true
+    const roomId = classData?.id
+    if (!roomId) return
+    classroomService
+      .submitClassSpaceResult(roomId, { correct: score.correct, total: score.total })
+      .then((data) => {
+        if (Array.isArray(data?.leaderboard)) setLeaderboard(data.leaderboard)
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done])
+
+  useEffect(() => {
+    if (!done || rankOpen) return
     const timer = setTimeout(() => {
       onClose?.()
     }, AUTO_CLOSE_DELAY_MS)
     return () => clearTimeout(timer)
-  }, [done, onClose])
+  }, [done, onClose, rankOpen])
 
   const answerLayoutClass = isQuiz && q?.settings?.layout === 'quiz' ? 'quiz-answers--tiles' : 'quiz-answers--exam'
 
@@ -324,6 +336,18 @@ export default function ClassPlayView({ classData, onClose }) {
     })
   }
 
+  const openLeaderboard = () => {
+    setRankOpen(true)
+    const roomId = classData?.id
+    if (!roomId) return
+    classroomService
+      .getClassSpaceLeaderboard(roomId)
+      .then((data) => {
+        if (Array.isArray(data?.leaderboard)) setLeaderboard(data.leaderboard)
+      })
+      .catch(() => {})
+  }
+
   return (
     <div
       className={playClassName}
@@ -333,6 +357,12 @@ export default function ClassPlayView({ classData, onClose }) {
       aria-label={`Làm bài: ${classData.title}`}
     >
       <header className="class-play-topbar">
+        {enableLeaderboard ? (
+          <button type="button" className="class-play-bxh-btn" onClick={openLeaderboard} aria-label="Bảng xếp hạng">
+            <IconTrophy />
+            BXH
+          </button>
+        ) : null}
         <div className="class-play-heading">
           <p className="class-play-kicker">Phòng</p>
           <h2>{classData.title}</h2>
@@ -351,12 +381,10 @@ export default function ClassPlayView({ classData, onClose }) {
         </div>
       ) : done ? (
         <div className="class-play-empty">
-          <p>Bạn đã hoàn thành {total} câu hỏi của phòng này. 🎉</p>
-          {gradedTotal > 0 ? (
-            <p className="class-play-score">
-              Đã chấm điểm: <strong>{gradedCorrect}/{gradedTotal}</strong> câu đúng
-            </p>
-          ) : null}
+          <p>Bạn đã hoàn thành phòng này. 🎉</p>
+          <p className="class-play-score">
+            Điểm đạt được: <strong>{score.correct}/{score.total}</strong>
+          </p>
           <p className="class-play-autoclose-hint">Tự động về lớp sau vài giây...</p>
           <div className="class-play-done-actions">
             {allowRetry ? (
@@ -641,6 +669,80 @@ export default function ClassPlayView({ classData, onClose }) {
           </footer>
         </div>
       )}
+
+      {rankOpen ? (
+        <div className="play-rank-overlay" onClick={() => setRankOpen(false)}>
+          <div
+            className="play-rank-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="play-rank-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="play-rank-head">
+              <div>
+                <p className="play-rank-kicker">Phòng · Điểm</p>
+                <h3 id="play-rank-title">Bảng xếp hạng</h3>
+              </div>
+              <button
+                type="button"
+                className="class-play-close"
+                onClick={() => setRankOpen(false)}
+                aria-label="Đóng bảng xếp hạng"
+              >
+                <IconClose />
+              </button>
+            </header>
+            {leaderboard.length ? (
+              <div className="play-rank-table-wrap">
+                <table className="play-rank-table">
+                  <thead>
+                    <tr>
+                      <th>Top</th>
+                      <th>Họ và tên</th>
+                      <th>Điểm</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leaderboard.map((row) => {
+                      const medal = medalFor(row.rank)
+                      const isMe = profile?.id && row.userId === profile.id
+                      return (
+                        <tr key={row.userId} className={isMe ? 'is-me' : ''}>
+                          <td>
+                            <span className={`play-rank-badge is-top-${Math.min(row.rank, 4)}`}>
+                              {medal ? <span aria-hidden="true">{medal}</span> : null}
+                              {row.rank}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="play-rank-name">
+                              <span className="play-rank-avatar" aria-hidden="true">
+                                {initialOf(row.userName)}
+                              </span>
+                              <strong>
+                                {row.userName}
+                                {isMe ? <em className="play-rank-you">Bạn</em> : null}
+                              </strong>
+                            </div>
+                          </td>
+                          <td>
+                            <b>
+                              {row.correct}/{row.total}
+                            </b>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="play-rank-empty">Chưa có ai hoàn thành phòng này.</p>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

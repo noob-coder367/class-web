@@ -109,6 +109,67 @@ function normalizeBackdrop(raw) {
   return { backdropType: '', backdropTheme: '', backdropImage: '' }
 }
 
+function normalizeResults(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {}
+  const list = Array.isArray(src) ? src : Object.values(src)
+  const out = {}
+  for (const row of list) {
+    const userId = String(row?.userId || '').trim()
+    if (!userId) continue
+    const total = Math.max(0, Math.floor(Number(row.total) || 0))
+    const correct = Math.max(0, Math.min(total, Math.floor(Number(row.correct) || 0)))
+    out[userId] = {
+      userId,
+      userName: String(row.userName || 'Ẩn danh').trim() || 'Ẩn danh',
+      correct,
+      total,
+      completedAt: String(row.completedAt || new Date().toISOString()),
+    }
+  }
+  return out
+}
+
+function scoreTotalOf(questions) {
+  if (!Array.isArray(questions)) return 0
+  let total = 0
+  for (const entry of questions) {
+    if (entry?.kind === 'truefalse') {
+      total += (entry.question?.statements || []).filter((s) => String(s.content || '').trim()).length
+    } else {
+      total += 1
+    }
+  }
+  return total
+}
+
+function myResultOf(item, profile) {
+  const id = profile?.id ? String(profile.id) : ''
+  if (!id || !item?.results) return null
+  const row = item.results[id]
+  if (!row) return null
+  return {
+    correct: row.correct,
+    total: row.total,
+    completedAt: row.completedAt,
+  }
+}
+
+function buildLeaderboard(item) {
+  const rows = Object.values(item?.results || {}).sort((a, b) => {
+    if (b.correct !== a.correct) return b.correct - a.correct
+    if (b.total !== a.total) return b.total - a.total
+    return String(a.completedAt || '').localeCompare(String(b.completedAt || ''))
+  })
+  let lastCorrect = null
+  let lastRank = 0
+  return rows.map((row, index) => {
+    const rank = row.correct === lastCorrect ? lastRank : index + 1
+    lastCorrect = row.correct
+    lastRank = rank
+    return { ...row, rank }
+  })
+}
+
 function normalizeItem(raw) {
   if (!raw || typeof raw !== 'object') return null
   const id = String(raw.id || '').trim()
@@ -125,7 +186,9 @@ function normalizeItem(raw) {
     shuffle: raw.shuffle === true,
     allowRetry: raw.allowRetry !== false,
     allowMultiTry: raw.allowMultiTry === true,
+    enableLeaderboard: raw.enableLeaderboard === true,
     questions: Array.isArray(raw.questions) ? raw.questions : [],
+    results: normalizeResults(raw.results),
     ownerId: raw.ownerId ? String(raw.ownerId) : '',
     ownerName: String(raw.ownerName || 'Ẩn danh').trim() || 'Ẩn danh',
     createdAt: raw.createdAt ? String(raw.createdAt) : new Date().toISOString(),
@@ -147,8 +210,9 @@ async function saveAll(items) {
   await writeStore({ items })
 }
 
-function toPublicMeta(item) {
-  // Danh sách lưới "Lớp học": KHÔNG gửi passwordHash hay toàn bộ câu hỏi ra ngoài.
+function toPublicMeta(item, profile) {
+  // Danh sách lưới "Lớp học": KHÔNG gửi passwordHash, results đầy đủ hay toàn bộ câu hỏi ra ngoài.
+  const mine = myResultOf(item, profile)
   return {
     id: item.id,
     title: item.title,
@@ -157,18 +221,25 @@ function toPublicMeta(item) {
     shuffle: item.shuffle,
     allowRetry: item.allowRetry !== false,
     allowMultiTry: item.allowMultiTry === true,
+    enableLeaderboard: item.enableLeaderboard === true,
     questionCount: item.questions.length,
     ownerId: item.ownerId,
     ownerName: item.ownerName,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    myResult: mine,
   }
 }
 
-function toFullPayload(item) {
+function toFullPayload(item, profile) {
   // Dùng khi người xem đã được phép vào lớp (public / đúng chủ / đúng mật khẩu).
-  const { passwordHash, ...rest } = item
-  return { ...rest, questions: item.questions }
+  const { passwordHash, results, ...rest } = item
+  return {
+    ...rest,
+    questions: item.questions,
+    myResult: myResultOf(item, profile),
+    leaderboard: item.enableLeaderboard ? buildLeaderboard(item) : [],
+  }
 }
 
 function answerHasContent(answer) {
@@ -238,10 +309,10 @@ export async function uploadClassSpaceImage(payload) {
   return publicImageUrl(path)
 }
 
-export async function listClassSpace() {
+export async function listClassSpace(profile) {
   const data = await loadAll()
   const items = [...data.items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-  return items.map(toPublicMeta)
+  return items.map((item) => toPublicMeta(item, profile))
 }
 
 export async function getClassSpaceById(id, { password, profile } = {}) {
@@ -252,7 +323,7 @@ export async function getClassSpaceById(id, { password, profile } = {}) {
   if (!item) throw new AppError('Không tìm thấy lớp học.', 404)
 
   const isOwner = !!profile?.id && profile.id === item.ownerId
-  if (item.isPublic || isOwner) return toFullPayload(item)
+  if (item.isPublic || isOwner) return toFullPayload(item, profile)
 
   if (!password) {
     const err = new AppError('Lớp học riêng tư, vui lòng nhập mật khẩu.', 401)
@@ -264,7 +335,7 @@ export async function getClassSpaceById(id, { password, profile } = {}) {
     err.code = 'WRONG_PASSWORD'
     throw err
   }
-  return toFullPayload(item)
+  return toFullPayload(item, profile)
 }
 
 export async function createClassSpace(payload, profile) {
@@ -289,7 +360,9 @@ export async function createClassSpace(payload, profile) {
     shuffle: !!payload?.shuffle,
     allowRetry: payload?.allowRetry !== false,
     allowMultiTry: payload?.allowMultiTry === true,
+    enableLeaderboard: payload?.enableLeaderboard === true,
     questions,
+    results: {},
     ownerId: profile?.id || '',
     ownerName: profile?.username || 'Ẩn danh',
     createdAt: now,
@@ -297,7 +370,7 @@ export async function createClassSpace(payload, profile) {
   })
   const data = await loadAll()
   await saveAll([...data.items, item])
-  return toFullPayload(item)
+  return toFullPayload(item, profile)
 }
 
 export async function updateClassSpace(id, payload, profile) {
@@ -339,13 +412,68 @@ export async function updateClassSpace(id, payload, profile) {
     shuffle: !!payload?.shuffle,
     allowRetry: payload?.allowRetry !== false,
     allowMultiTry: payload?.allowMultiTry === true,
+    enableLeaderboard: payload?.enableLeaderboard === true,
     questions,
+    results: current.results,
     updatedAt: new Date().toISOString(),
   })
 
   data.items[idx] = updated
   await saveAll(data.items)
-  return toFullPayload(updated)
+  return toFullPayload(updated, profile)
+}
+
+export async function submitClassSpaceResult(id, payload, profile) {
+  const targetId = String(id || '').trim()
+  if (!targetId) throw new AppError('Thiếu mã lớp học.', 400)
+  if (!profile?.id) throw new AppError('Cần đăng nhập để lưu kết quả.', 401)
+
+  const data = await loadAll()
+  const idx = data.items.findIndex((row) => row.id === targetId)
+  if (idx === -1) throw new AppError('Không tìm thấy lớp học.', 404)
+  const current = data.items[idx]
+  const existing = current.results?.[profile.id]
+  if (existing && current.allowRetry === false) {
+    throw new AppError('Bạn đã hoàn thành phòng này và không được làm lại.', 403)
+  }
+
+  const total = scoreTotalOf(current.questions)
+  const correct = Math.max(0, Math.min(total, Math.floor(Number(payload?.correct) || 0)))
+  const nextResults = { ...(current.results || {}) }
+  nextResults[profile.id] = {
+    userId: String(profile.id),
+    userName: String(profile.username || 'Ẩn danh').trim() || 'Ẩn danh',
+    correct,
+    total,
+    completedAt: new Date().toISOString(),
+  }
+
+  const updated = normalizeItem({
+    ...current,
+    results: nextResults,
+    updatedAt: current.updatedAt,
+  })
+  data.items[idx] = updated
+  await saveAll(data.items)
+
+  const mine = myResultOf(updated, profile)
+  return {
+    myResult: mine,
+    leaderboard: updated.enableLeaderboard ? buildLeaderboard(updated) : [],
+  }
+}
+
+export async function getClassSpaceLeaderboard(id, profile) {
+  const targetId = String(id || '').trim()
+  if (!targetId) throw new AppError('Thiếu mã lớp học.', 400)
+  const data = await loadAll()
+  const item = data.items.find((row) => row.id === targetId)
+  if (!item) throw new AppError('Không tìm thấy lớp học.', 404)
+  if (!item.enableLeaderboard) return { leaderboard: [], myResult: myResultOf(item, profile) }
+  return {
+    leaderboard: buildLeaderboard(item),
+    myResult: myResultOf(item, profile),
+  }
 }
 
 /** Xoá phòng: chủ phòng (editor) hoặc admin. */

@@ -10,6 +10,7 @@ import { capabilitiesFor, isAdminRole } from '../lib/roles.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import CreateClassPage from './CreateClassPage.jsx'
 import ClassPlayView from './ClassPlayView.jsx'
+import { isRoomCompletedLocked } from '../lib/classPlayScore.js'
 import './ClassRoomView.css'
 
 function IconBell() {
@@ -193,6 +194,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [passwordError, setPasswordError] = useState('')
   const [passwordSubmitting, setPasswordSubmitting] = useState(false)
   const [coverFailed, setCoverFailed] = useState({})
+  const [resultClass, setResultClass] = useState(null)
 
   const updateNavScroll = useCallback(() => {
     const el = navRef.current
@@ -488,6 +490,10 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   }
 
   const enterClass = async (cls, passwordAttempt) => {
+    if (isRoomCompletedLocked(cls)) {
+      setResultClass(cls)
+      return
+    }
     const isOwner = !!profile?.id && cls.ownerId === profile.id
     if (!cls.isPublic && !isOwner && !passwordAttempt) {
       setPasswordPromptClass(cls)
@@ -613,6 +619,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
             <div className="class-space-grid">
               {classSpaceItems.map((cls) => {
                 const isOwner = !!profile?.id && cls.ownerId === profile.id
+                const completedLocked = isRoomCompletedLocked(cls)
 
                 return (
                   <div key={cls.id} className="class-space-card">
@@ -620,14 +627,17 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                       role="button"
                       tabIndex={0}
                       className="class-space-box"
-                      onClick={() => enterClass(cls)}
+                      onClick={() => (completedLocked ? setResultClass(cls) : enterClass(cls))}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault()
-                          enterClass(cls)
+                          if (completedLocked) setResultClass(cls)
+                          else enterClass(cls)
                         }
                       }}
-                      aria-label={`Vào phòng ${cls.title}`}
+                      aria-label={
+                        completedLocked ? `Đã hoàn thành phòng ${cls.title}` : `Vào phòng ${cls.title}`
+                      }
                     >
                       <div className="class-space-cover">
                         {cls.cover && !coverFailed[cls.id] ? (
@@ -652,10 +662,23 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                     </div>
 
                     <div className="class-space-footer">
-                      <button type="button" className="class-space-link-btn" onClick={() => enterClass(cls)}>
-                        Vào phòng
-                        <IconArrowRight />
-                      </button>
+                      {completedLocked ? (
+                        <div className="class-space-done-wrap">
+                          <span className="class-space-done-label">Đã hoàn thành</span>
+                          <button
+                            type="button"
+                            className="class-space-result-btn"
+                            onClick={() => setResultClass(cls)}
+                          >
+                            xem kết quả
+                          </button>
+                        </div>
+                      ) : (
+                        <button type="button" className="class-space-link-btn" onClick={() => enterClass(cls)}>
+                          Vào phòng
+                          <IconArrowRight />
+                        </button>
+                      )}
 
                       <div className="class-space-footer-actions">
                         {isOwner ? (
@@ -851,7 +874,40 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       ) : null}
 
       {playingClass ? (
-        <ClassPlayView classData={playingClass} onClose={() => setPlayingClass(null)} />
+        <ClassPlayView
+          classData={playingClass}
+          onClose={() => {
+            setPlayingClass(null)
+            refreshClassSpace()
+          }}
+        />
+      ) : null}
+
+      {resultClass ? (
+        <div className="class-password-overlay" onClick={() => setResultClass(null)}>
+          <div
+            className="class-password-modal class-result-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="class-result-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="class-result-title">Kết quả</h3>
+            <p>
+              Phòng <strong>{resultClass.title}</strong>
+            </p>
+            <p className="class-result-score">
+              {resultClass.myResult
+                ? `${resultClass.myResult.correct}/${resultClass.myResult.total} câu đúng`
+                : 'Chưa có kết quả.'}
+            </p>
+            <div className="class-password-actions">
+              <button type="button" className="quiz-primary-btn" onClick={() => setResultClass(null)}>
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {passwordPromptClass ? (

@@ -127,6 +127,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const [shuffleQuestions, setShuffleQuestions] = useState(!!editingClass?.shuffle)
   const [allowRetry, setAllowRetry] = useState(editingClass ? editingClass.allowRetry !== false : true)
   const [allowMultiTry, setAllowMultiTry] = useState(!!editingClass?.allowMultiTry)
+  const [enableLeaderboard, setEnableLeaderboard] = useState(!!editingClass?.enableLeaderboard)
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const fileInputRef = useRef(null)
@@ -343,6 +344,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
         shuffle: shuffleQuestions,
         allowRetry,
         allowMultiTry,
+        enableLeaderboard,
         questions: uploadedQuestions,
       }
 
@@ -514,7 +516,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
 
         <div className="create-class-privacy">
           <div className="create-class-privacy-row">
-            <div>
+            <div className="create-class-privacy-copy">
               <p className="create-class-privacy-q">Để phòng ở chế độ công khai hay riêng tư?</p>
               <p className="create-class-hint">
                 {isPublic
@@ -664,7 +666,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
 
             <div className="quiz-settings-body">
               <div className="create-class-privacy-row">
-                <div>
+                <div className="create-class-privacy-copy">
                   <p className="create-class-privacy-q">Xáo trộn các câu hỏi</p>
                   <p className="create-class-hint">
                     {shuffleQuestions
@@ -685,12 +687,12 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
               </div>
 
               <div className="create-class-privacy-row">
-                <div>
+                <div className="create-class-privacy-copy">
                   <p className="create-class-privacy-q">Cho phép làm lại</p>
                   <p className="create-class-hint">
                     {allowRetry
                       ? 'Bật: sau khi hoàn thành, học sinh thấy nút "Làm lại" để làm lại từ đầu.'
-                      : 'Tắt: sau khi hoàn thành, học sinh không thấy nút "Làm lại".'}
+                      : 'Tắt: sau khi hoàn thành sẽ không vào lại được. Nút Vào phòng đổi thành Đã hoàn thành.'}
                   </p>
                 </div>
                 <button
@@ -706,7 +708,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
               </div>
 
               <div className="create-class-privacy-row">
-                <div>
+                <div className="create-class-privacy-copy">
                   <p className="create-class-privacy-q">Cho phép thử nhiều đáp án</p>
                   <p className="create-class-hint">
                     {allowMultiTry
@@ -721,6 +723,27 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
                   aria-checked={allowMultiTry}
                   aria-label="Cho phép thử nhiều đáp án"
                   onClick={() => setAllowMultiTry((v) => !v)}
+                >
+                  <span className="create-class-switch-knob" />
+                </button>
+              </div>
+
+              <div className="create-class-privacy-row">
+                <div className="create-class-privacy-copy">
+                  <p className="create-class-privacy-q">Bật bảng xếp hạng</p>
+                  <p className="create-class-hint">
+                    {enableLeaderboard
+                      ? 'Bật: góc trái trên phòng có nút BXH, xếp hạng theo điểm sau khi hoàn thành.'
+                      : 'Tắt: không hiện bảng xếp hạng trong phòng.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={`create-class-switch${enableLeaderboard ? ' is-on' : ''}`}
+                  role="switch"
+                  aria-checked={enableLeaderboard}
+                  aria-label="Bật bảng xếp hạng"
+                  onClick={() => setEnableLeaderboard((v) => !v)}
                 >
                   <span className="create-class-switch-knob" />
                 </button>

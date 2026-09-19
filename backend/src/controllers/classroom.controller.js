@@ -335,7 +335,7 @@ export async function getLeaderboard(req, res, next) {
 export async function listClassSpace(req, res, next) {
   try {
     noStore(res)
-    const items = await classSpaceService.listClassSpace()
+    const items = await classSpaceService.listClassSpace(req.profile)
     res.json({ items })
   } catch (err) {
     next(err)
@@ -380,6 +380,26 @@ export async function deleteClassSpace(req, res, next) {
     noStore(res)
     const result = await classSpaceService.deleteClassSpace(req.params.id, req.profile)
     res.json({ message: 'Đã xoá phòng.', ...result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function submitClassSpaceResult(req, res, next) {
+  try {
+    noStore(res)
+    const data = await classSpaceService.submitClassSpaceResult(req.params.id, req.body || {}, req.profile)
+    res.json({ message: 'Đã lưu kết quả.', ...data })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getClassSpaceLeaderboard(req, res, next) {
+  try {
+    noStore(res)
+    const data = await classSpaceService.getClassSpaceLeaderboard(req.params.id, req.profile)
+    res.json(data)
   } catch (err) {
     next(err)
   }

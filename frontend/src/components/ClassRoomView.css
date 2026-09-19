@@ -649,6 +649,48 @@
   gap: 9px;
 }
 
+.class-space-done-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.class-space-done-label {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #16a34a;
+}
+
+.class-space-result-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1a6b8a;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.class-space-result-btn:hover {
+  color: #14324a;
+}
+
+.class-result-modal {
+  max-width: 360px;
+  text-align: center;
+}
+
+.class-result-score {
+  margin: 8px 0 0 !important;
+  font-size: 22px !important;
+  font-weight: 800;
+  color: #14324a !important;
+}
+
 .class-space-edit-icon-btn {
   display: inline-flex;
   align-items: center;

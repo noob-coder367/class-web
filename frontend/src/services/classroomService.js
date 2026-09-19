@@ -148,6 +148,14 @@ export async function deleteClassSpace(id) {
   return apiClient.delete(`/classroom/class-space/${encodeURIComponent(id)}`, { auth: true })
 }
 
+export async function submitClassSpaceResult(id, payload) {
+  return apiClient.post(`/classroom/class-space/${encodeURIComponent(id)}/result`, payload, { auth: true })
+}
+
+export async function getClassSpaceLeaderboard(id) {
+  return apiClient.get(`/classroom/class-space/${encodeURIComponent(id)}/leaderboard`, { auth: true })
+}
+
 export async function uploadClassSpaceImage({ contentBase64, mimeType, filename }) {
   return apiClient.post(
     '/classroom/class-space/upload-image',
