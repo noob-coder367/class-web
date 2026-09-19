@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
-import { supabase } from '../lib/supabaseClient.js'
+import { supabase, initialAuthRedirect, clearAuthRedirectFromUrl } from '../lib/supabaseClient.js'
 import AuthPage from './AuthPage.jsx'
 import EventsSection from '../components/EventsSection.jsx'
 import AdminPanel from '../components/AdminPanel.jsx'
@@ -38,8 +38,11 @@ const NAV_LINKS = [
 
 const PHOTO_PLACEHOLDER_COUNT = 6
 
+// Thông báo kết quả khi user vừa bấm link trong email chỉ hiện đúng 1 lần.
+let emailLinkNoticeShown = false
+
 export default function HomePage() {
-  const { session, profile, authReady, isAdmin, logout } = useAuth()
+  const { session, profile, authReady, isAdmin, logout, passwordRecovery } = useAuth()
 
   const [showAuth, setShowAuth] = useState(false)
   const [showAdminPanel, setShowAdminPanel] = useState(false)
@@ -105,13 +108,42 @@ export default function HomePage() {
     setShowAuth(true)
   }
 
+  // Vừa bấm link "đặt lại mật khẩu" trong email -> hiện form "Đặt mật khẩu mới".
   useEffect(() => {
-    if (!authReady) return
+    if (!authReady || !passwordRecovery) return
+    setAuthInitialStep('reset-password')
+    setShowAuth(true)
+  }, [authReady, passwordRecovery])
+
+  // Vừa bấm link trong email xác nhận đăng ký / link bị hết hạn hoặc không hợp lệ.
+  useEffect(() => {
+    if (!authReady || emailLinkNoticeShown) return
+    const { type, error } = initialAuthRedirect
+    if (error) {
+      emailLinkNoticeShown = true
+      clearAuthRedirectFromUrl()
+      alert(
+        error.expired
+          ? 'Liên kết trong email đã hết hạn. Hãy yêu cầu gửi lại email mới.'
+          : 'Liên kết trong email không hợp lệ. Hãy yêu cầu gửi lại email mới.'
+      )
+    } else if (type === 'signup') {
+      emailLinkNoticeShown = true
+      clearAuthRedirectFromUrl()
+      alert('Xác nhận email thành công! Tài khoản của bạn đã sẵn sàng.')
+    } else if (type === 'recovery') {
+      emailLinkNoticeShown = true
+      clearAuthRedirectFromUrl()
+    }
+  }, [authReady])
+
+  useEffect(() => {
+    if (!authReady || passwordRecovery) return
     if (profile?.needs_display_name) {
       setAuthInitialStep('display-name')
       setShowAuth(true)
     }
-  }, [authReady, profile?.needs_display_name])
+  }, [authReady, passwordRecovery, profile?.needs_display_name])
 
   // Push + SW: moi tai khoan da login (da co ten) deu bat thong bao day duoc.
   // - Dang nhap ten hien thi: KHONG hoi / khong che form ten.
@@ -119,7 +151,7 @@ export default function HomePage() {
   // - Da granted + pref bat: tu subscribe.
   useEffect(() => {
     if (!authReady || !session) return
-    if (profile?.needs_display_name) {
+    if (profile?.needs_display_name || passwordRecovery) {
       setShowPushPrompt(false)
       return
     }
@@ -152,6 +184,7 @@ export default function HomePage() {
     session,
     profile?.is_member,
     profile?.needs_display_name,
+    passwordRecovery,
     refreshUnread,
   ])
 
