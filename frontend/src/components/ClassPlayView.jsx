@@ -335,7 +335,34 @@ export default function ClassPlayView({ classData, onClose }) {
               <span className="class-play-exam-qnum">Câu {index + 1}:</span>{' '}
               {questionHeading(kind, q)}
             </h3>
-            {q?.content ? <p className="class-play-exam-stem">{q.content}</p> : null}
+            {q?.content || q?.imagePreview ? (
+              (() => {
+                const pos = q?.imagePosition || 'top'
+                const stemText = q?.content ? <p className="class-play-exam-stem">{q.content}</p> : null
+                if (!q?.imagePreview) return stemText
+                const media = (
+                  <div className="class-play-exam-stem-media">
+                    <img src={q.imagePreview} alt={q.imageName || 'Ảnh minh hoạ câu hỏi'} />
+                  </div>
+                )
+                if (pos === 'left' || pos === 'right') {
+                  return (
+                    <div className={`class-play-exam-stem-split class-play-exam-stem-split--${pos}`}>
+                      {pos === 'left' ? media : null}
+                      <div className="class-play-exam-stem-text">{stemText}</div>
+                      {pos === 'right' ? media : null}
+                    </div>
+                  )
+                }
+                return (
+                  <div className="class-play-exam-stem-stack">
+                    {pos === 'top' ? media : null}
+                    {stemText}
+                    {pos === 'bottom' ? media : null}
+                  </div>
+                )
+              })()
+            ) : null}
 
             {isQuiz ? (
               <>
