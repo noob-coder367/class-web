@@ -385,6 +385,16 @@ export async function deleteClassSpace(req, res, next) {
   }
 }
 
+export async function startClassSpaceAttempt(req, res, next) {
+  try {
+    noStore(res)
+    const data = await classSpaceService.startClassSpaceAttempt(req.params.id, req.profile)
+    res.json({ message: 'Đã ghi nhận thời điểm bắt đầu.', ...data })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export async function submitClassSpaceResult(req, res, next) {
   try {
     noStore(res)
