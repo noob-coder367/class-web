@@ -25,6 +25,25 @@ function hashPassword(raw) {
   return createHash('sha256').update(String(raw || '')).digest('hex')
 }
 
+// Mã phòng: 6 chữ số, sinh ngẫu nhiên và đảm bảo không trùng với phòng khác
+// (kể cả phòng riêng tư / công khai / đang ẩn trong lớp), dùng để vào phòng
+// nhanh từ ô nhập mã ở đầu trang, không phụ thuộc việc phòng có hiện trong
+// danh sách "Lớp học" hay không.
+function generateRoomCode() {
+  return String(Math.floor(Math.random() * 1000000)).padStart(6, '0')
+}
+
+function generateUniqueRoomCode(existingCodes) {
+  const taken = existingCodes instanceof Set ? existingCodes : new Set(existingCodes || [])
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const code = generateRoomCode()
+    if (!taken.has(code)) return code
+  }
+  // Cực hiếm khi đụng hết không gian mã sau 200 lần thử — vẫn trả về một mã
+  // hợp lệ thay vì làm hỏng luồng tạo phòng.
+  return generateRoomCode()
+}
+
 async function ensureDataBucket() {
   const { data, error } =
     await supabaseAdmin.storage.getBucket(DATA_BUCKET)
@@ -203,10 +222,14 @@ function normalizeItem(raw) {
   const backdrop = normalizeBackdrop(raw)
   return {
     id,
+    code: String(raw.code || '').trim(),
     title: String(raw.title || '').trim() || 'Lớp học',
     cover: String(raw.cover || ''),
     ...backdrop,
     isPublic,
+    // Có hiện phòng trong danh sách "Lớp học" hay không — mặc định hiện.
+    // Phòng đang ẩn vẫn vào được bằng mã phòng (xem getClassSpaceByCode).
+    visibleInClass: raw.visibleInClass !== false,
     passwordHash: isPublic ? '' : String(raw.passwordHash || ''),
     shuffle: raw.shuffle === true,
     allowRetry: raw.allowRetry !== false,
@@ -244,6 +267,7 @@ function toPublicMeta(item, profile) {
     title: item.title,
     cover: item.cover,
     isPublic: item.isPublic,
+    visibleInClass: item.visibleInClass !== false,
     shuffle: item.shuffle,
     allowRetry: item.allowRetry !== false,
     allowMultiTry: item.allowMultiTry === true,
@@ -338,8 +362,41 @@ export async function uploadClassSpaceImage(payload) {
 
 export async function listClassSpace(profile) {
   const data = await loadAll()
-  const items = [...data.items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  const isAdmin = isAdminRole(profile?.role)
+  // Phòng đang để "Ẩn trong lớp" không hiện trong danh sách chung — trừ chủ
+  // phòng và admin vẫn thấy để quản lý. Phòng ẩn vẫn vào được bằng mã phòng.
+  const visible = data.items.filter((item) => {
+    if (item.visibleInClass !== false) return true
+    const isOwner = !!profile?.id && profile.id === item.ownerId
+    return isOwner || isAdmin
+  })
+  const items = [...visible].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   return items.map((item) => toPublicMeta(item, profile))
+}
+
+/** Tra cứu phòng theo mã 6 số — áp dụng cho mọi phòng (công khai/riêng tư,
+ * đang hiện hay đang ẩn trong lớp). Chỉ trả về thông tin công khai (giống
+ * toPublicMeta) để luồng vào phòng ở client tái dùng được logic hiện có
+ * (enterClass): phòng riêng tư vẫn phải nhập đúng mật khẩu mới vào được. */
+export async function getClassSpaceByCode(code, profile) {
+  const target = String(code || '').trim()
+  if (!/^\d{6}$/.test(target)) {
+    throw new AppError('Mã phòng không đúng hoặc không tồn tại.', 404)
+  }
+  const data = await loadAll()
+  const item = data.items.find((row) => row.code === target)
+  if (!item) throw new AppError('Mã phòng không đúng hoặc không tồn tại.', 404)
+  return toPublicMeta(item, profile)
+}
+
+/** Xem trước mã phòng sẽ được cấp cho phòng mới (chỉ để hiển thị lúc soạn
+ * phòng) — mã thật sự được sinh và đảm bảo không trùng lại một lần nữa ngay
+ * lúc tạo phòng (createClassSpace), tránh trường hợp hiếm hai người tạo
+ * phòng cùng lúc bị trùng mã. */
+export async function previewNextClassSpaceCode() {
+  const data = await loadAll()
+  const existingCodes = new Set(data.items.map((row) => row.code).filter(Boolean))
+  return generateUniqueRoomCode(existingCodes)
 }
 
 export async function getClassSpaceById(id, { password, profile } = {}) {
@@ -375,14 +432,21 @@ export async function createClassSpace(payload, profile) {
   const questions = Array.isArray(payload?.questions) ? payload.questions : []
   assertQuestionsHaveCorrectAnswers(questions)
   const now = new Date().toISOString()
+  const data = await loadAll()
+  // Mã phòng luôn do SERVER sinh ra tại thời điểm tạo (không nhận mã từ
+  // client) để đảm bảo không trùng với bất kỳ phòng nào khác.
+  const existingCodes = new Set(data.items.map((row) => row.code).filter(Boolean))
+  const code = generateUniqueRoomCode(existingCodes)
   const item = normalizeItem({
     id: randomUUID(),
+    code,
     title,
     cover: payload?.cover || '',
     backdropType: payload?.backdropType,
     backdropTheme: payload?.backdropTheme,
     backdropImage: payload?.backdropImage,
     isPublic,
+    visibleInClass: payload?.visibleInClass !== false,
     passwordHash: isPublic ? '' : hashPassword(payload.password),
     shuffle: !!payload?.shuffle,
     allowRetry: payload?.allowRetry !== false,
@@ -395,7 +459,6 @@ export async function createClassSpace(payload, profile) {
     createdAt: now,
     updatedAt: now,
   })
-  const data = await loadAll()
   await saveAll([...data.items, item])
   return toFullPayload(item, profile)
 }
@@ -429,12 +492,15 @@ export async function updateClassSpace(id, payload, profile) {
 
   const updated = normalizeItem({
     ...current,
+    // Mã phòng là cố định, không cho đổi qua payload — giữ nguyên mã cũ.
+    code: current.code,
     title,
     cover: payload?.cover ?? current.cover,
     backdropType: payload?.backdropType ?? current.backdropType,
     backdropTheme: payload?.backdropTheme ?? current.backdropTheme,
     backdropImage: payload?.backdropImage ?? current.backdropImage,
     isPublic,
+    visibleInClass: payload?.visibleInClass !== false,
     passwordHash,
     shuffle: !!payload?.shuffle,
     allowRetry: payload?.allowRetry !== false,
