@@ -118,6 +118,14 @@
   background: #0f2436;
 }
 
+.class-play-bxh-off {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+}
+
 .class-play-heading {
   flex: 1;
   min-width: 0;
