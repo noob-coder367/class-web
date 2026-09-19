@@ -107,6 +107,24 @@ function IconArrowRight() {
   )
 }
 
+function IconAI() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.85"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3.5l1.35 4.15L17.5 9l-4.15 1.35L12 14.5l-1.35-4.15L6.5 9l4.15-1.35Z" />
+      <path d="M18.5 14.5l.65 1.85L21 17l-1.85.65L18.5 19.5l-.65-1.85L16 17l1.85-.65Z" />
+      <path d="M5.5 14.5l.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5-1.5-.5 1.5-.5Z" />
+    </svg>
+  )
+}
+
 function IconPlus() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
@@ -138,6 +156,7 @@ const TABS = [
   { id: 'rules', label: 'Nội quy lớp', icon: IconShield },
   { id: 'cleaning-duty', label: 'Vệ sinh lớp', icon: IconBroom },
   { id: 'class-space', label: 'Lớp học', icon: IconDoor },
+  { id: 'ai', label: 'AI', icon: IconAI },
 ]
 
 // Số nút hiện cùng lúc trong thanh menu trước khi phải kéo/cuộn để xem thêm
