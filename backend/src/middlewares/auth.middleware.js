@@ -3,7 +3,7 @@ import { normalizeRole } from '../lib/roles.js'
 
 /**
  * Đọc "Authorization: Bearer <access_token>" (access_token do Supabase
- * cấp sau khi login/verify OTP thành công), xác thực bằng service role
+ * cấp sau khi đăng nhập thành công), xác thực bằng service role
  * key, rồi gắn req.user / req.profile để các middleware/controller sau
  * dùng lại (không cần query lại DB nhiều lần).
  *
