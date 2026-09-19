@@ -102,6 +102,9 @@ export function emptyQuestion() {
     id: uid(),
     title: '',
     content: '',
+    imageName: '',
+    imagePreview: '',
+    imagePosition: 'top',
     answers: [],
     settings: { ...DEFAULT_SETTINGS },
   }
@@ -213,6 +216,77 @@ function AnswerImageDrop({ answer, onPick, onClear }) {
   )
 }
 
+// Giống AnswerImageDrop nhưng dành cho ảnh minh hoạ của NỘI DUNG CÂU HỎI
+// (không phải ảnh đáp án) — ảnh này là tùy chọn.
+function QuestionImageDrop({ question, onPick, onClear }) {
+  const inputRef = useRef(null)
+  const [dragOver, setDragOver] = useState(false)
+  const [error, setError] = useState('')
+
+  const applyFile = (file) => {
+    const result = readImageFile(file)
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+    setError('')
+    onPick(result.file)
+  }
+
+  return (
+    <div className="quiz-drop quiz-drop--question">
+      <input
+        ref={inputRef}
+        className="create-class-file"
+        type="file"
+        accept="image/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) applyFile(file)
+        }}
+      />
+      {question.imagePreview ? (
+        <div className="quiz-drop-preview">
+          <img src={question.imagePreview} alt={question.imageName || 'Ảnh minh hoạ câu hỏi'} />
+          <div className="quiz-drop-preview-meta">
+            <p>{question.imageName || 'Ảnh minh hoạ câu hỏi'}</p>
+            <div className="create-class-cover-actions">
+              <button type="button" className="create-class-ghost" onClick={() => inputRef.current?.click()}>
+                Đổi ảnh
+              </button>
+              <button type="button" className="create-class-ghost" onClick={onClear}>
+                Xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={`quiz-drop-zone${dragOver ? ' is-over' : ''}`}
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragOver(false)
+            const file = e.dataTransfer.files?.[0]
+            if (file) applyFile(file)
+          }}
+        >
+          <IconImage />
+          <span>Kéo thả ảnh vào đây hoặc bấm để chọn (tùy chọn)</span>
+        </button>
+      )}
+      {error ? <p className="create-class-error">{error}</p> : null}
+    </div>
+  )
+}
+
 export function QuestionCard({ index, question, onChange, onRemove, onOpenSettings }) {
   const isQuiz = question.settings.layout === 'quiz'
   const showImages = isQuiz && question.settings.allowAnswerImages
@@ -254,6 +328,20 @@ export function QuestionCard({ index, question, onChange, onRemove, onOpenSettin
     patchAnswer(answer.id, { imagePreview: '', imageName: '' })
   }
 
+  const setQuestionImage = async (file) => {
+    try {
+      const dataUrl = await readImageAsDataUrl(file)
+      onChange({ ...question, imagePreview: dataUrl, imageName: file.name })
+    } catch {
+      // Người dùng có thể bấm chọn lại ảnh nếu đọc file thất bại.
+    }
+  }
+
+  const clearQuestionImage = () => {
+    revokePreview(question.imagePreview)
+    onChange({ ...question, imagePreview: '', imageName: '' })
+  }
+
   return (
     <article className="quiz-card" aria-label={`Câu hỏi ${index + 1}`}>
       <header className="quiz-card-head">
@@ -283,6 +371,31 @@ export function QuestionCard({ index, question, onChange, onRemove, onOpenSettin
           placeholder="Nhập nội dung câu hỏi trắc nghiệm"
         />
       </label>
+
+      <div className="quiz-field quiz-question-image-field">
+        <span>Ảnh minh hoạ cho câu hỏi (tùy chọn)</span>
+        <QuestionImageDrop question={question} onPick={setQuestionImage} onClear={clearQuestionImage} />
+      </div>
+
+      {question.imagePreview ? (
+        <label className="quiz-field">
+          <span>Vị trí ảnh</span>
+          <select
+            value={question.imagePosition || 'top'}
+            onChange={(e) => onChange({ ...question, imagePosition: e.target.value })}
+          >
+            <option value="top">Trên</option>
+            <option value="bottom">Dưới</option>
+            <option value="left">Bên trái</option>
+            <option value="right">Bên phải</option>
+          </select>
+          <p className="create-class-hint">
+            {question.imagePosition === 'left' || question.imagePosition === 'right'
+              ? 'Ảnh và nội dung câu hỏi chia đôi, nằm cạnh nhau.'
+              : 'Ảnh nằm phía trên hoặc dưới nội dung câu hỏi.'}
+          </p>
+        </label>
+      ) : null}
 
       <div className={`quiz-answers ${layoutClass}`}>
         {question.answers.length === 0 ? (
