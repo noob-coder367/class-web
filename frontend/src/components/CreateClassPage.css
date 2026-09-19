@@ -139,6 +139,25 @@
   line-height: 1.45;
 }
 
+.countdown-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quiz-field .countdown-input-part {
+  width: 64px;
+  flex: 0 0 auto;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown-input-sep {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--cc-muted);
+}
+
 .create-class-field input::placeholder,
 .archive-title-wrap input::placeholder,
 .quiz-field input::placeholder,
