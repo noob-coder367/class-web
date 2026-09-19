@@ -1466,6 +1466,13 @@
   color: var(--cc-danger);
 }
 
+.class-question-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .archive-picker-badge {
   flex-shrink: 0;
   padding: 3px 9px;
