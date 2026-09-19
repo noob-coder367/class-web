@@ -25,23 +25,27 @@ function GhostIcon({ size = 20 }) {
 }
 
 /**
- * Toàn bộ luồng Auth (login/register/otp/forgot/reset) được chuyển
+ * Toàn bộ luồng Auth (login/register/forgot/reset) được chuyển
  * từ App.jsx gốc vào đây. Khác biệt quan trọng so với bản gốc:
  *  - KHÔNG còn hằng số SECRET_CODE ở frontend.
- *  - KHÔNG gọi supabase.auth.signUp / signInWithPassword / verifyOtp
+ *  - KHÔNG gọi supabase.auth.signUp / signInWithPassword
  *    trực tiếp -> tất cả đi qua authService (gọi backend).
+ *  - Xác thực email = link trong email (đăng ký: Confirm signup,
+ *    quên mật khẩu: PASSWORD_RECOVERY -> form "Đặt mật khẩu mới").
  *  - Đăng nhập Google vẫn dùng supabase trực tiếp vì OAuth không
  *    chứa thông tin nhạy cảm cần giấu.
  */
 export default function AuthPage({ onClose, initialStep = 'login' }) {
-  const { setSession, reloadProfile, logout, setProfile, profile } = useAuth()
+  const { setSession, reloadProfile, logout, setProfile, profile, clearPasswordRecovery } = useAuth()
 
   const [authStep, setAuthStep] = useState(
     initialStep === 'display-name'
       ? 'display-name'
-      : initialStep === 'register'
-        ? 'register'
-        : 'login'
+      : initialStep === 'reset-password'
+        ? 'reset-password'
+        : initialStep === 'register'
+          ? 'register'
+          : 'login'
   )
   const [authLoading, setAuthLoading] = useState(false)
 
@@ -53,17 +57,8 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
   const [isMember, setIsMember] = useState(null)
   const [ghostMode, setGhostMode] = useState(false)
 
-  const [otp, setOtp] = useState('')
-  const [otpEmail, setOtpEmail] = useState('')
-  const [otpCooldown, setOtpCooldown] = useState(0)
-
-  useEffect(() => {
-    if (otpCooldown <= 0) return
-    const timer = setInterval(() => {
-      setOtpCooldown((prev) => (prev > 0 ? prev - 1 : 0))
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [otpCooldown])
+  // Email (đăng ký) hoặc email đã che (quên mật khẩu) để hiển thị ở màn "Kiểm tra email"
+  const [sentEmail, setSentEmail] = useState('')
 
   const resetAuthForm = () => {
     setUsername('')
@@ -73,18 +68,16 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
     setSecretCode('')
     setIsMember(null)
     setGhostMode(false)
-    setOtp('')
-    setOtpEmail('')
-    setOtpCooldown(0)
+    setSentEmail('')
   }
 
   const getAuthTitle = () => {
     switch (authStep) {
       case 'login': return 'Đăng nhập'
       case 'register': return 'Đăng ký'
-      case 'verify-register': return 'Xác nhận email'
+      case 'register-sent': return 'Kiểm tra email'
       case 'forgot-password': return 'Quên mật khẩu'
-      case 'verify-reset': return 'Xác nhận mã'
+      case 'forgot-sent': return 'Kiểm tra email'
       case 'reset-password': return 'Đặt mật khẩu mới'
       case 'display-name': return 'Tên hiển thị'
       default: return 'Tài khoản'
@@ -104,21 +97,26 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
         })
       return
     }
-    if (authStep === 'verify-register') {
-      setOtp('')
+    if (authStep === 'register-sent') {
       setAuthStep('register')
       return
     }
-    if (authStep === 'verify-reset') {
-      setOtp('')
+    if (authStep === 'forgot-sent') {
       setAuthStep('forgot-password')
       return
     }
     if (authStep === 'reset-password') {
-      setOtp('')
-      setPassword('')
-      setConfirmPassword('')
-      setAuthStep('forgot-password')
+      // Đang giữ session khôi phục từ link email -> hủy thì đăng xuất luôn.
+      setAuthLoading(true)
+      clearPasswordRecovery()
+      logout()
+        .catch(() => {})
+        .finally(() => {
+          setPassword('')
+          setConfirmPassword('')
+          setAuthLoading(false)
+          onClose?.()
+        })
       return
     }
     if (authStep === 'forgot-password') {
@@ -131,7 +129,7 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
 
   const closeFromOutside = () => {
     if (authLoading) return
-    if (authStep === 'display-name') return
+    if (authStep === 'display-name' || authStep === 'reset-password') return
     onClose?.()
   }
 
@@ -223,9 +221,8 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
         return
       }
 
-      setOtpEmail(result.email)
-      setOtpCooldown(60)
-      setAuthStep('verify-register')
+      setSentEmail(result.email)
+      setAuthStep('register-sent')
     } catch (err) {
       alert(err.message || 'Không thể tạo tài khoản!')
     } finally {
@@ -234,11 +231,10 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
   }
 
   const resendRegisterConfirmation = async () => {
-    if (otpCooldown > 0 || !otpEmail || authLoading) return
+    if (!sentEmail || authLoading) return
     setAuthLoading(true)
     try {
-      await authService.resendConfirmation({ email: otpEmail })
-      setOtpCooldown(60)
+      await authService.resendConfirmation({ email: sentEmail })
       alert('Email xác nhận đã được gửi lại!')
     } catch (err) {
       alert(err.message || 'Không thể gửi lại email xác nhận!')
@@ -249,15 +245,13 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
 
   const handleForgotPassword = async (e) => {
     e.preventDefault()
-    if (!username.trim()) return alert('Vui lòng nhập username!')
+    if (!username.trim()) return alert('Vui lòng nhập username hoặc email!')
 
     setAuthLoading(true)
     try {
-      const { email: sentEmail } = await authService.forgotPassword({ username })
-      setOtpEmail(sentEmail)
-      setOtp('')
-      setOtpCooldown(60)
-      setAuthStep('verify-reset')
+      const { email: maskedEmail } = await authService.forgotPassword({ username })
+      setSentEmail(maskedEmail)
+      setAuthStep('forgot-sent')
     } catch (err) {
       alert(err.message || 'Không tìm thấy tài khoản!')
     } finally {
@@ -265,35 +259,21 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
     }
   }
 
-  const handleVerifyReset = async (e) => {
-    e.preventDefault()
-    if (otp.length !== 6) return alert('Vui lòng nhập đủ 6 số!')
-
+  const resendResetEmail = async () => {
+    if (!username.trim() || authLoading) return
     setAuthLoading(true)
     try {
-      await authService.verifyOtp({ email: otpEmail, otp, purpose: 'reset' })
-      setAuthStep('reset-password')
+      await authService.forgotPassword({ username })
+      alert('Email đặt lại mật khẩu đã được gửi lại!')
     } catch (err) {
-      alert(err.message || 'Mã xác nhận không đúng hoặc đã hết hạn!')
+      alert(err.message || 'Không thể gửi lại email đặt lại mật khẩu!')
     } finally {
       setAuthLoading(false)
     }
   }
 
-  const resendResetOtp = async () => {
-    if (otpCooldown > 0 || !otpEmail || authLoading) return
-    setAuthLoading(true)
-    try {
-      await authService.resendOtp({ email: otpEmail })
-      setOtpCooldown(60)
-      alert('Mã mới đã được gửi!')
-    } catch (err) {
-      alert(err.message || 'Không thể gửi lại mã!')
-    } finally {
-      setAuthLoading(false)
-    }
-  }
-
+  // Bước cuối của luồng quên mật khẩu: user đã bấm link trong email và
+  // Supabase đã phát PASSWORD_RECOVERY -> đổi mật khẩu bằng supabase.auth.updateUser.
   const handleResetPassword = async (e) => {
     e.preventDefault()
     if (password.length < 8) return alert('Mật khẩu mới phải có ít nhất 8 ký tự!')
@@ -301,14 +281,23 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
 
     setAuthLoading(true)
     try {
-      await authService.resetPassword({ email: otpEmail, otp, newPassword: password })
+      await authService.updatePassword({ newPassword: password })
+      clearPasswordRecovery()
+      await logout()
       alert('Đổi mật khẩu thành công! Vui lòng đăng nhập lại.')
       setPassword('')
       setConfirmPassword('')
-      setOtp('')
+      setUsername('')
       setAuthStep('login')
     } catch (err) {
-      alert(err.message || 'Không thể đổi mật khẩu!')
+      const msg = String(err?.message || '')
+      if (/different from the old password/i.test(msg)) {
+        alert('Mật khẩu mới phải khác mật khẩu cũ!')
+      } else if (/session missing|expired|invalid/i.test(msg)) {
+        alert('Liên kết đã hết hạn. Hãy bấm Hủy rồi yêu cầu gửi lại email đặt lại mật khẩu.')
+      } else {
+        alert(msg || 'Không thể đổi mật khẩu!')
+      }
     } finally {
       setAuthLoading(false)
     }
@@ -371,7 +360,11 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
             disabled={authLoading}
           >
             <span>{'<'}</span>
-            {authStep === 'display-name' ? 'Đăng xuất' : 'Quay lại'}
+            {authStep === 'display-name'
+              ? 'Đăng xuất'
+              : authStep === 'reset-password'
+                ? 'Hủy'
+                : 'Quay lại'}
           </button>
 
           <div
@@ -682,10 +675,11 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
               </>
             )}
 
-            {authStep === 'verify-register' && (
+            {authStep === 'register-sent' && (
               <>
 
                 <p className="setup-hint">
+                  Kiểm tra email để xác nhận tài khoản.
                   Chúng tôi đã gửi email xác nhận tới:
                 </p>
 
@@ -696,12 +690,12 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
                     wordBreak: 'break-word',
                   }}
                 >
-                  {otpEmail}
+                  {sentEmail}
                 </p>
 
                 <p className="setup-hint">
-                  Hãy mở hộp thư, bấm link xác nhận trong email,
-                  rồi quay lại đây để đăng nhập. Không cần nhập mã OTP.
+                  Hãy mở hộp thư (kiểm tra cả mục Spam), bấm vào liên kết
+                  xác nhận trong email, rồi quay lại đây để đăng nhập.
                 </p>
 
                 <button
@@ -719,14 +713,9 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
                   type="button"
                   className="btn-toggle-mode"
                   onClick={resendRegisterConfirmation}
-                  disabled={
-                    authLoading ||
-                    otpCooldown > 0
-                  }
+                  disabled={authLoading}
                 >
-                  {otpCooldown > 0
-                    ? `Gửi lại email sau ${otpCooldown}s`
-                    : 'Gửi lại email xác nhận'}
+                  Gửi lại email xác nhận
                 </button>
 
               </>
@@ -736,8 +725,8 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
               <>
 
                 <p className="setup-hint">
-                  Nhập username của bạn.
-                  Chúng tôi sẽ gửi mã 6 số
+                  Nhập username hoặc email của bạn.
+                  Chúng tôi sẽ gửi liên kết đặt lại mật khẩu
                   tới email đã đăng ký.
                 </p>
 
@@ -750,7 +739,7 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
 
                   <input
                     type="text"
-                    placeholder="Username"
+                    placeholder="Username hoặc email"
                     value={username}
                     onChange={(e) =>
                       setUsername(
@@ -767,8 +756,8 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
                     disabled={authLoading}
                   >
                     {authLoading
-                      ? 'Đang gửi mã...'
-                      : 'Gửi mã xác nhận'}
+                      ? 'Đang gửi email...'
+                      : 'Gửi email đặt lại mật khẩu'}
                   </button>
 
                 </form>
@@ -776,12 +765,12 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
               </>
             )}
 
-            {authStep === 'verify-reset' && (
+            {authStep === 'forgot-sent' && (
               <>
 
                 <p className="setup-hint">
-                  Mã 6 số đã được gửi tới
-                  email bảo mật của tài khoản.
+                  Kiểm tra email và bấm vào liên kết
+                  đặt lại mật khẩu. Email đã được gửi tới:
                 </p>
 
                 <p
@@ -791,66 +780,21 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
                     wordBreak: 'break-word',
                   }}
                 >
-                  {otpEmail}
+                  {sentEmail}
                 </p>
 
-                <form
-                  onSubmit={handleVerifyReset}
-                  className="auth-form"
-                >
-
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={6}
-                    placeholder="Nhập mã 6 số"
-                    value={otp}
-                    onChange={(e) =>
-                      setOtp(
-                        e.target.value
-                          .replace(/\D/g, '')
-                          .slice(0, 6)
-                      )
-                    }
-                    autoComplete="one-time-code"
-                    className="otp-input"
-                    required
-                  />
-
-                  <button
-                    type="submit"
-                    className="btn-submit"
-                    disabled={
-                      authLoading ||
-                      otp.length !== 6
-                    }
-                  >
-                    {authLoading
-                      ? 'Đang xác nhận...'
-                      : 'Xác nhận mã'}
-                  </button>
-
-                </form>
+                <p className="setup-hint">
+                  Không thấy email? Hãy kiểm tra cả mục Spam.
+                </p>
 
                 <button
                   type="button"
                   className="btn-toggle-mode"
-                  onClick={resendResetOtp}
-                  disabled={
-                    authLoading ||
-                    otpCooldown > 0
-                  }
+                  onClick={resendResetEmail}
+                  disabled={authLoading}
                 >
-                  {otpCooldown > 0
-                    ? `Gửi lại mã sau ${otpCooldown}s`
-                    : 'Gửi lại mã'}
+                  Gửi lại email đặt lại mật khẩu
                 </button>
-
-                <p className="setup-hint">
-                  Hãy giữ màn hình này mở
-                  trong khi kiểm tra email.
-                </p>
 
               </>
             )}
@@ -859,7 +803,7 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
               <>
 
                 <p className="setup-hint">
-                  Mã xác nhận chính xác.
+                  Liên kết hợp lệ.
                   Hãy đặt mật khẩu mới cho
                   tài khoản của bạn.
                 </p>
