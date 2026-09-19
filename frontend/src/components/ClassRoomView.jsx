@@ -33,21 +33,13 @@ function IconCalendar() {
 
 function IconTrophy() {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.85"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M8 4h8v5a4 4 0 0 1-8 0V4Z" />
-      <path d="M8 6H5a2 2 0 0 0 2 4" />
-      <path d="M16 6h3a2 2 0 0 1-2 4" />
-      <path d="M12 13v4" />
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 4h8v5a4 4 0 0 1-8 0V4z" />
+      <path d="M8 6H5.5A2.5 2.5 0 0 0 8 9.5" />
+      <path d="M16 6h2.5A2.5 2.5 0 0 1 16 9.5" />
+      <path d="M12 13v3" />
       <path d="M9 20h6" />
-      <path d="M10 17h4" />
+      <path d="M10 17h4v3h-4z" />
     </svg>
   )
 }
