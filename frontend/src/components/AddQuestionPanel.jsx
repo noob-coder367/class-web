@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { QuestionCard, SettingsModal, emptyQuestion } from './QuizArchivePanel.jsx'
+import { QuestionCard, SettingsModal, emptyQuestion, CountdownInput, formatCountdown } from './QuizArchivePanel.jsx'
 import { EssayQuestionFields, emptyEssayDraft } from './EssayArchivePanel.jsx'
 import {
   TrueFalseQuestionFields,
@@ -447,27 +447,22 @@ function ArchivePickerModal({ quizArchive, essayArchive, trueFalseArchive, onClo
                     )}
                     <span>
                       {countdownOf(selected.kind, localQuestion) > 0
-                        ? `${countdownOf(selected.kind, localQuestion)}s đếm ngược`
+                        ? `${formatCountdown(countdownOf(selected.kind, localQuestion))} đếm ngược`
                         : 'Không đếm ngược'}
                     </span>
                   </div>
 
                   {!isQuiz && showReset ? (
                     <label className="quiz-field archive-picker-inline-setting">
-                      <span>Thời gian đếm ngược (giây)</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        inputMode="numeric"
+                      <span>Thời gian đếm ngược</span>
+                      <CountdownInput
                         value={localQuestion.countdownSeconds}
-                        onChange={(e) => {
-                          const n = Number(e.target.value)
+                        onChange={(secs) =>
                           setLocalQuestion((q) => ({
                             ...q,
-                            countdownSeconds: Number.isFinite(n) ? Math.max(0, Math.min(3600, Math.round(n))) : 0,
+                            countdownSeconds: secs,
                           }))
-                        }}
+                        }
                       />
                       <p className="create-class-hint">Thay đổi này chỉ áp dụng cho phòng hiện tại, không lưu vào kho.</p>
                     </label>
