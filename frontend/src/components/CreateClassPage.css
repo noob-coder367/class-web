@@ -107,6 +107,7 @@
 .archive-title-wrap input,
 .quiz-field input,
 .quiz-field textarea,
+.quiz-field select,
 .quiz-answer-label,
 .quiz-answer-content {
   width: 100%;
@@ -124,6 +125,10 @@
     border-color var(--cc-fast),
     box-shadow var(--cc-fast),
     background var(--cc-fast);
+}
+
+.quiz-field select {
+  cursor: pointer;
 }
 
 .quiz-field textarea {
@@ -147,6 +152,7 @@
 .archive-title-wrap input:focus,
 .quiz-field input:focus,
 .quiz-field textarea:focus,
+.quiz-field select:focus,
 .quiz-answer-label:focus,
 .quiz-answer-content:focus {
   background: var(--cc-paper);
