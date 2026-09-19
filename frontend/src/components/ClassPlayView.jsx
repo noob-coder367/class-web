@@ -1,6 +1,19 @@
 import { useEffect, useState } from 'react'
 import { answerColorOf } from './QuizArchivePanel.jsx'
+import { statementLabel } from './TrueFalseArchivePanel.jsx'
 import './ClassPlayView.css'
+
+function badgeLabel(kind) {
+  if (kind === 'quiz') return 'Trắc nghiệm'
+  if (kind === 'truefalse') return 'Đúng/Sai'
+  return 'Tự luận'
+}
+
+function questionHeading(kind, question) {
+  if (kind === 'quiz') return question?.title || 'Câu hỏi trắc nghiệm'
+  if (kind === 'truefalse') return question?.questionTitle || question?.title || 'Câu hỏi đúng/sai'
+  return question?.questionTitle || question?.title || 'Câu hỏi tự luận'
+}
 
 function IconClose() {
   return (
@@ -42,7 +55,6 @@ const AUTO_ADVANCE_DELAY_MS = 900
 // Khi hiện bảng "Đã hoàn thành", tự đóng phòng sau 3 giây.
 const AUTO_CLOSE_DELAY_MS = 3000
 
-// Xáo trộn kiểu Fisher–Yates, không đổi mảng gốc.
 function shuffleArray(arr) {
   const next = [...arr]
   for (let i = next.length - 1; i > 0; i -= 1) {
@@ -52,10 +64,43 @@ function shuffleArray(arr) {
   return next
 }
 
+function normalizeAnswer(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+}
+
+function essayKeys(question) {
+  const answers = question?.answers || []
+  const marked = answers.filter((a) => a.isCorrect && a.content.trim())
+  const pool = marked.length ? marked : answers.filter((a) => a.content.trim())
+  return pool.map((a) => normalizeAnswer(a.content)).filter(Boolean)
+}
+
+function playStyle(answer, settings, { selected, revealed }) {
+  const color = answerColorOf(answer, settings)
+  if (revealed) {
+    if (answer.isCorrect) return { background: '#16a34a', color: '#f8fafc', borderColor: '#15803d' }
+    if (selected) return { background: '#dc2626', color: '#f8fafc', borderColor: '#b91c1c' }
+    return {
+      background: color.bg === 'transparent' ? '#f8fafc' : color.bg,
+      color: color.fg,
+      opacity: 0.55,
+    }
+  }
+  if (selected) {
+    return { background: '#f5c400', color: '#0f172a', borderColor: '#e0b000' }
+  }
+  return {
+    background: color.bg === 'transparent' ? undefined : color.bg,
+    color: color.fg,
+  }
+}
+
 export default function ClassPlayView({ classData, onClose }) {
   const questions = classData?.questions || []
 
-  // Chỉ xáo trộn 1 lần khi mở lớp học (mỗi lần vào lại sẽ xáo trộn lại).
   const [order] = useState(() => {
     const base = questions.map((_, i) => i)
     return classData?.shuffle ? shuffleArray(base) : base
@@ -63,25 +108,29 @@ export default function ClassPlayView({ classData, onClose }) {
   const [index, setIndex] = useState(0)
   const [selections, setSelections] = useState({})
   const [essayDrafts, setEssayDrafts] = useState({})
+  const [essayResults, setEssayResults] = useState({})
+  const [tfSelections, setTfSelections] = useState({})
   const [timeLeft, setTimeLeft] = useState(null)
   const [done, setDone] = useState(questions.length === 0)
 
   const total = order.length
   const current = total ? questions[order[index]] : null
-  const isQuiz = current?.kind === 'quiz'
+  const kind = current?.kind
+  const isQuiz = kind === 'quiz'
+  const isEssay = kind === 'essay'
+  const isTrueFalse = kind === 'truefalse'
   const q = current?.question
-  // Mặc định cho làm lại nếu chủ phòng chưa đặt gì (giữ hành vi cũ).
   const allowRetry = classData?.allowRetry !== false
 
-  // Làm lại từ đầu: về câu 1 và xoá sạch mọi lựa chọn/đáp án đã nhập trước đó.
   const handleRetry = () => {
     setIndex(0)
     setSelections({})
     setEssayDrafts({})
+    setEssayResults({})
+    setTfSelections({})
     setDone(false)
   }
 
-  // Chấm điểm trắc nghiệm dựa trên đáp án đã đánh dấu "Đáp án đúng" khi soạn câu hỏi.
   const gradedQuizTotal = questions.filter(
     (entry) => entry.kind === 'quiz' && (entry.question?.answers || []).some((a) => a.isCorrect)
   ).length
@@ -93,6 +142,30 @@ export default function ClassPlayView({ classData, onClose }) {
     if (!chosenId) return false
     return !!answers.find((a) => a.id === chosenId)?.isCorrect
   }).length
+
+  const gradedTfTotal = questions.filter(
+    (entry) => entry.kind === 'truefalse' && (entry.question?.statements || []).some((s) => s.content?.trim())
+  ).length
+  const gradedTfCorrect = questions.filter((entry) => {
+    if (entry.kind !== 'truefalse') return false
+    const statements = (entry.question?.statements || []).filter((s) => s.content?.trim())
+    if (!statements.length) return false
+    const chosen = tfSelections[entry.id] || {}
+    return statements.every((s) => chosen[s.id] === s.isTrue)
+  }).length
+
+  const gradedEssayTotal = questions.filter(
+    (entry) => entry.kind === 'essay' && essayKeys(entry.question).length > 0
+  ).length
+  const gradedEssayCorrect = questions.filter((entry) => {
+    if (entry.kind !== 'essay') return false
+    const keys = essayKeys(entry.question)
+    if (!keys.length) return false
+    return keys.includes(normalizeAnswer(essayDrafts[entry.id]))
+  }).length
+
+  const gradedTotal = gradedQuizTotal + gradedTfTotal + gradedEssayTotal
+  const gradedCorrect = gradedQuizCorrect + gradedTfCorrect + gradedEssayCorrect
 
   useEffect(() => {
     const onKey = (e) => {
@@ -120,7 +193,20 @@ export default function ClassPlayView({ classData, onClose }) {
     setIndex((i) => i - 1)
   }
 
-  // Đếm ngược riêng cho từng câu (nếu người tạo có đặt trong Cài đặt chỉnh sửa).
+  const gradeEssayAndMaybeAdvance = (value, autoAdvance) => {
+    if (!current || !isEssay) return
+    const keys = essayKeys(q)
+    if (!keys.length) {
+      if (autoAdvance) goNext()
+      return
+    }
+    const ok = keys.includes(normalizeAnswer(value))
+    setEssayResults((prev) => ({ ...prev, [current.id]: ok ? 'correct' : 'wrong' }))
+    if (autoAdvance) {
+      window.setTimeout(() => goNext(), AUTO_ADVANCE_DELAY_MS)
+    }
+  }
+
   useEffect(() => {
     if (!current || done) {
       setTimeLeft(null)
@@ -159,7 +245,21 @@ export default function ClassPlayView({ classData, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selections[current?.id], index, done])
 
-  // Hết câu hỏi: hiện bảng "Đã hoàn thành" rồi tự tắt sau 3 giây.
+  // Đúng/Sai: khi đã chọn hết các ý thì hiện màu rồi tự chuyển câu.
+  useEffect(() => {
+    if (done || !isTrueFalse || !current) return
+    const statements = (q?.statements || []).filter((s) => s.content?.trim())
+    if (!statements.length) return
+    const chosen = tfSelections[current.id] || {}
+    const allAnswered = statements.every((s) => typeof chosen[s.id] === 'boolean')
+    if (!allAnswered) return
+    const timer = setTimeout(() => {
+      goNext()
+    }, AUTO_ADVANCE_DELAY_MS)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tfSelections[current?.id], index, done])
+
   useEffect(() => {
     if (!done) return
     const timer = setTimeout(() => {
@@ -168,9 +268,17 @@ export default function ClassPlayView({ classData, onClose }) {
     return () => clearTimeout(timer)
   }, [done, onClose])
 
-  const answerLayoutClass = isQuiz && q?.settings?.layout === 'quiz' ? 'quiz-answers--tiles' : 'quiz-answers--row'
+  const answerLayoutClass = isQuiz && q?.settings?.layout === 'quiz' ? 'quiz-answers--tiles' : 'quiz-answers--exam'
 
   if (!classData) return null
+
+  const pickTf = (statementId, value) => {
+    setTfSelections((prev) => {
+      const currentMap = prev[current.id] || {}
+      if (typeof currentMap[statementId] === 'boolean') return prev
+      return { ...prev, [current.id]: { ...currentMap, [statementId]: value } }
+    })
+  }
 
   return (
     <div className="class-play-view" role="dialog" aria-modal="true" aria-label={`Làm bài: ${classData.title}`}>
@@ -194,9 +302,9 @@ export default function ClassPlayView({ classData, onClose }) {
       ) : done ? (
         <div className="class-play-empty">
           <p>Bạn đã hoàn thành {total} câu hỏi của phòng này. 🎉</p>
-          {gradedQuizTotal > 0 ? (
+          {gradedTotal > 0 ? (
             <p className="class-play-score">
-              Trắc nghiệm đã chấm điểm: <strong>{gradedQuizCorrect}/{gradedQuizTotal}</strong> câu đúng
+              Đã chấm điểm: <strong>{gradedCorrect}/{gradedTotal}</strong> câu đúng
             </p>
           ) : null}
           <p className="class-play-autoclose-hint">Tự động về lớp sau vài giây...</p>
@@ -221,61 +329,129 @@ export default function ClassPlayView({ classData, onClose }) {
             {timeLeft !== null ? <span className="class-play-timer">⏱ {timeLeft}s</span> : null}
           </div>
 
-          <article className="quiz-card class-play-card">
-            <p className="quiz-card-kicker">{isQuiz ? 'Trắc nghiệm' : 'Tự luận'}</p>
-            <h3 className="essay-card-title">
-              {isQuiz ? q?.title || 'Câu hỏi trắc nghiệm' : q?.questionTitle || q?.title || 'Câu hỏi tự luận'}
+          <article className="quiz-card class-play-card class-play-exam">
+            <p className="quiz-card-kicker">{badgeLabel(kind)}</p>
+            <h3 className="class-play-exam-title">
+              <span className="class-play-exam-qnum">Câu {index + 1}:</span>{' '}
+              {questionHeading(kind, q)}
             </h3>
-            {q?.content ? <p className="essay-card-content">{q.content}</p> : null}
+            {q?.content ? <p className="class-play-exam-stem">{q.content}</p> : null}
 
             {isQuiz ? (
-              <div className={`quiz-answers ${answerLayoutClass}`}>
-                {(() => {
-                  const answers = q?.answers || []
-                  const hasKey = answers.some((a) => a.isCorrect)
-                  const chosenId = selections[current.id]
-                  const revealed = hasKey && !!chosenId
-                  return answers.map((answer) => {
-                    const color = answerColorOf(answer, q?.settings)
-                    const selected = chosenId === answer.id
-                    let resultClass = ''
-                    if (revealed) {
-                      if (answer.isCorrect) resultClass = ' is-correct-answer'
-                      else if (selected) resultClass = ' is-wrong-answer'
-                    }
-                    return (
-                      <button
-                        key={answer.id}
-                        type="button"
-                        disabled={!!chosenId}
-                        className={`class-play-answer${answerLayoutClass === 'quiz-answers--tiles' ? ' is-tile' : ''}${selected ? ' is-selected' : ''}${resultClass}`}
-                        onClick={() => setSelections((prev) => ({ ...prev, [current.id]: answer.id }))}
-                        style={{
-                          background: color.bg === 'transparent' ? undefined : color.bg,
-                          color: color.fg,
-                        }}
-                      >
-                        {answer.imagePreview ? (
-                          <img src={answer.imagePreview} alt={answer.imageName || 'Ảnh đáp án'} />
-                        ) : null}
-                        <span className="class-play-answer-label">{answer.label}</span>
-                        <span className="class-play-answer-content">{answer.content}</span>
-                      </button>
-                    )
-                  })
-                })()}
-              </div>
-            ) : (
+              <>
+                <p className="class-play-exam-instruction">Chọn một đáp án đúng</p>
+                <div className={`quiz-answers ${answerLayoutClass}`}>
+                  {(() => {
+                    const answers = q?.answers || []
+                    const hasKey = answers.some((a) => a.isCorrect)
+                    const chosenId = selections[current.id]
+                    const revealed = hasKey && !!chosenId
+                    return answers.map((answer) => {
+                      const selected = chosenId === answer.id
+                      let resultClass = ''
+                      if (revealed) {
+                        if (answer.isCorrect) resultClass = ' is-correct-answer'
+                        else if (selected) resultClass = ' is-wrong-answer'
+                      }
+                      return (
+                        <button
+                          key={answer.id}
+                          type="button"
+                          disabled={!!chosenId}
+                          className={`class-play-answer class-play-exam-choice${answerLayoutClass === 'quiz-answers--tiles' ? ' is-tile' : ''}${selected ? ' is-selected' : ''}${resultClass}`}
+                          onClick={() => setSelections((prev) => ({ ...prev, [current.id]: answer.id }))}
+                          style={playStyle(answer, q?.settings, { selected, revealed })}
+                        >
+                          {answer.imagePreview ? (
+                            <img src={answer.imagePreview} alt={answer.imageName || 'Ảnh đáp án'} />
+                          ) : null}
+                          <span className="class-play-answer-label">{answer.label}</span>
+                          <span className="class-play-answer-content">{answer.content}</span>
+                        </button>
+                      )
+                    })
+                  })()}
+                </div>
+              </>
+            ) : null}
+
+            {isTrueFalse ? (
+              <>
+                <p className="class-play-exam-instruction">Chọn đúng hoặc sai</p>
+                <div className="class-play-tf">
+                  {(q?.statements || [])
+                    .filter((s) => s.content?.trim())
+                    .map((statement, i) => {
+                      const chosen = tfSelections[current.id] || {}
+                      const picked = chosen[statement.id]
+                      const revealed = typeof picked === 'boolean'
+                      const correctVal = statement.isTrue === true
+                      return (
+                        <div key={statement.id} className="class-play-tf-item">
+                          <p className="class-play-tf-text">
+                            {statementLabel(i)}) {statement.content}
+                          </p>
+                          <div className="class-play-tf-btns">
+                            {[
+                              { value: true, label: 'Đúng' },
+                              { value: false, label: 'Sai' },
+                            ].map((opt) => {
+                              const selected = picked === opt.value
+                              let resultClass = ''
+                              if (revealed) {
+                                if (opt.value === correctVal) resultClass = ' is-correct-answer'
+                                else if (selected) resultClass = ' is-wrong-answer'
+                              } else if (selected) {
+                                resultClass = ' is-selected'
+                              }
+                              return (
+                                <button
+                                  key={String(opt.value)}
+                                  type="button"
+                                  disabled={revealed}
+                                  className={`class-play-tf-btn${resultClass}`}
+                                  onClick={() => pickTf(statement.id, opt.value)}
+                                >
+                                  {opt.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                </div>
+              </>
+            ) : null}
+
+            {isEssay ? (
               <div className="class-play-essay">
                 <label className="quiz-field">
-                  <span>Câu trả lời của bạn</span>
-                  <textarea
-                    rows={5}
+                  <span>Đáp án của bạn</span>
+                  <input
+                    className={`class-play-exam-input${essayResults[current.id] === 'correct' ? ' is-correct-answer' : ''}${essayResults[current.id] === 'wrong' ? ' is-wrong-answer' : ''}`}
+                    type="text"
                     value={essayDrafts[current.id] || ''}
+                    disabled={!!essayResults[current.id]}
                     onChange={(e) => setEssayDrafts((prev) => ({ ...prev, [current.id]: e.target.value }))}
-                    placeholder="Nhập câu trả lời để tự ôn tập..."
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter') return
+                      e.preventDefault()
+                      gradeEssayAndMaybeAdvance(essayDrafts[current.id] || '', true)
+                    }}
+                    placeholder="Nhập đáp án"
+                    autoComplete="off"
                   />
                 </label>
+                {!essayResults[current.id] ? (
+                  <button
+                    type="button"
+                    className="quiz-secondary-btn class-play-essay-submit"
+                    onClick={() => gradeEssayAndMaybeAdvance(essayDrafts[current.id] || '', true)}
+                  >
+                    Kiểm tra đáp án
+                  </button>
+                ) : null}
                 {(q?.answers || []).some((a) => a.content.trim()) ? (
                   <details className="class-play-essay-key">
                     <summary>Xem gợi ý đáp án</summary>
@@ -292,7 +468,7 @@ export default function ClassPlayView({ classData, onClose }) {
                   </details>
                 ) : null}
               </div>
-            )}
+            ) : null}
           </article>
 
           <footer className="class-play-nav">
@@ -300,7 +476,17 @@ export default function ClassPlayView({ classData, onClose }) {
               <IconChevronLeft />
               Câu trước
             </button>
-            <button type="button" className="quiz-primary-btn class-play-next" onClick={goNext}>
+            <button
+              type="button"
+              className="quiz-primary-btn class-play-next"
+              onClick={() => {
+                if (isEssay && !essayResults[current.id] && essayKeys(q).length) {
+                  gradeEssayAndMaybeAdvance(essayDrafts[current.id] || '', true)
+                  return
+                }
+                goNext()
+              }}
+            >
               {index >= total - 1 ? 'Hoàn thành' : 'Câu tiếp theo'}
               {index < total - 1 ? <IconChevronRight /> : null}
             </button>

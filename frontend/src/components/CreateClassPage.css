@@ -551,6 +551,7 @@
   padding: 8px 16px 0;
   background: var(--cc-chrome);
   border-bottom: 1px solid #b7c9d4;
+  flex-wrap: wrap;
 }
 
 .archive-tab {
@@ -558,7 +559,7 @@
   height: 40px;
   min-height: 40px;
   margin-bottom: -1px;
-  padding: 0 22px;
+  padding: 0 16px;
   border: 1px solid transparent;
   border-bottom: none;
   border-radius: 10px 10px 0 0;
@@ -1246,6 +1247,79 @@
   width: 100%;
 }
 
+.tf-editor-hint {
+  margin: 0 0 10px;
+}
+
+.tf-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.tf-editor-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--cc-line);
+  border-radius: 14px;
+  background: var(--cc-paper);
+}
+
+.tf-editor-label {
+  flex: 0 0 28px;
+  width: 28px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--cc-primary);
+}
+
+.tf-editor-key {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cc-muted);
+}
+
+.tf-key-btn {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1.5px solid var(--cc-line);
+  border-radius: 10px;
+  background: var(--cc-paper);
+  color: var(--cc-primary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tf-key-btn.is-active.is-true {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #f8fafc;
+}
+
+.tf-key-btn.is-active.is-false {
+  background: #dc2626;
+  border-color: #b91c1c;
+  color: #f8fafc;
+}
+
+.tf-preview-statements {
+  margin-top: 2px;
+}
+
+.tf-preview-key {
+  color: #7a8694;
+  font-weight: 700;
+}
+
 .essay-preview-answers {
   margin: 0;
   padding: 0 0 0 18px;
@@ -1388,6 +1462,11 @@
 .archive-picker-badge.is-essay {
   background: #f3ecfb;
   color: #7c3aed;
+}
+
+.archive-picker-badge.is-truefalse {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 /* ---------- Tự chỉnh sửa modal ---------- */

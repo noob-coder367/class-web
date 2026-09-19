@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import QuizArchivePanel from './QuizArchivePanel.jsx'
 import EssayArchivePanel from './EssayArchivePanel.jsx'
+import TrueFalseArchivePanel from './TrueFalseArchivePanel.jsx'
 import AddQuestionPanel from './AddQuestionPanel.jsx'
 import * as classroomService from '../services/classroomService.js'
 import './CreateClassPage.css'
@@ -83,6 +84,7 @@ function IconGear() {
 const ARCHIVE_TABS = [
   { id: 'quiz', label: 'Trắc nghiệm' },
   { id: 'essay', label: 'Tự luận' },
+  { id: 'truefalse', label: 'Đúng/Sai' },
 ]
 
 export default function CreateClassPage({ onBack, editingClass, onSaved }) {
@@ -98,6 +100,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const [archiveTab, setArchiveTab] = useState('quiz')
   const [quizQuestions, setQuizQuestions] = useState([])
   const [essayQuestions, setEssayQuestions] = useState([])
+  const [trueFalseQuestions, setTrueFalseQuestions] = useState([])
   const [classQuestions, setClassQuestions] = useState(editingClass?.questions || [])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [shuffleQuestions, setShuffleQuestions] = useState(!!editingClass?.shuffle)
@@ -376,6 +379,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
         <AddQuestionPanel
           quizArchive={quizQuestions}
           essayArchive={essayQuestions}
+          trueFalseArchive={trueFalseQuestions}
           questions={classQuestions}
           onQuestionsChange={setClassQuestions}
         />
@@ -560,6 +564,12 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
                     ) : null}
                     {tab.id === 'essay' ? (
                       <EssayArchivePanel questions={essayQuestions} onQuestionsChange={setEssayQuestions} />
+                    ) : null}
+                    {tab.id === 'truefalse' ? (
+                      <TrueFalseArchivePanel
+                        questions={trueFalseQuestions}
+                        onQuestionsChange={setTrueFalseQuestions}
+                      />
                     ) : null}
                   </div>
                 )

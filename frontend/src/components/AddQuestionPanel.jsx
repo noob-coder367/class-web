@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { QuestionCard, SettingsModal, emptyQuestion } from './QuizArchivePanel.jsx'
 import { EssayQuestionFields, emptyEssayDraft } from './EssayArchivePanel.jsx'
+import {
+  TrueFalseQuestionFields,
+  emptyTrueFalseDraft,
+  statementLabel,
+} from './TrueFalseArchivePanel.jsx'
 
 function uid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -68,18 +73,31 @@ function IconBack() {
 const CUSTOM_TABS = [
   { id: 'quiz', label: 'Trắc nghiệm' },
   { id: 'essay', label: 'Tự luận' },
+  { id: 'truefalse', label: 'Đúng/Sai' },
 ]
 
-function badgeLabel(kind) {
-  return kind === 'quiz' ? 'Trắc nghiệm' : 'Tự luận'
+export function badgeLabel(kind) {
+  if (kind === 'quiz') return 'Trắc nghiệm'
+  if (kind === 'truefalse') return 'Đúng/Sai'
+  return 'Tự luận'
 }
 
-// "Tự chỉnh sửa" — full editor giống hệt Trắc nghiệm/Tự luận trong Kho lưu trữ,
-// nhưng kết quả CHỈ được thêm vào lớp học hiện tại, không lưu vào Kho lưu trữ.
+export function questionHeading(kind, question) {
+  if (kind === 'quiz') return question?.title || 'Câu hỏi trắc nghiệm'
+  if (kind === 'truefalse') return question?.questionTitle || question?.title || 'Câu hỏi đúng/sai'
+  return question?.questionTitle || question?.title || 'Câu hỏi tự luận'
+}
+
+function countdownOf(kind, question) {
+  if (kind === 'quiz') return question?.settings?.countdownSeconds || 0
+  return question?.countdownSeconds || 0
+}
+
 function CustomEditorModal({ onClose, onSave }) {
   const [tab, setTab] = useState('quiz')
   const [quizDraft, setQuizDraft] = useState(() => emptyQuestion())
   const [essayDraft, setEssayDraft] = useState(() => emptyEssayDraft())
+  const [trueFalseDraft, setTrueFalseDraft] = useState(() => emptyTrueFalseDraft())
   const [showQuizSettings, setShowQuizSettings] = useState(false)
   const titleId = 'custom-editor-title'
 
@@ -98,6 +116,8 @@ function CustomEditorModal({ onClose, onSave }) {
   const handleSave = () => {
     if (tab === 'quiz') {
       onSave({ id: uid(), kind: 'quiz', source: 'custom', question: quizDraft })
+    } else if (tab === 'truefalse') {
+      onSave({ id: uid(), kind: 'truefalse', source: 'custom', question: trueFalseDraft })
     } else {
       onSave({ id: uid(), kind: 'essay', source: 'custom', question: essayDraft })
     }
@@ -160,9 +180,11 @@ function CustomEditorModal({ onClose, onSave }) {
                 onRemove={() => setQuizDraft(emptyQuestion())}
                 onOpenSettings={() => setShowQuizSettings(true)}
               />
-            ) : (
-              <EssayQuestionFields draft={essayDraft} onChange={setEssayDraft} />
-            )}
+            ) : null}
+            {tab === 'essay' ? <EssayQuestionFields draft={essayDraft} onChange={setEssayDraft} /> : null}
+            {tab === 'truefalse' ? (
+              <TrueFalseQuestionFields draft={trueFalseDraft} onChange={setTrueFalseDraft} />
+            ) : null}
           </div>
 
           <footer className="quiz-settings-foot">
@@ -190,13 +212,11 @@ function CustomEditorModal({ onClose, onSave }) {
   )
 }
 
-// "Chọn từ kho" — chọn 1 bản chỉnh sửa đã lưu, xem trước nội dung, có thể
-// "Cài đặt lại" (chỉ áp dụng cục bộ, không tính vào Kho lưu trữ).
-function ArchivePickerModal({ quizArchive, essayArchive, onClose, onConfirm }) {
+function ArchivePickerModal({ quizArchive, essayArchive, trueFalseArchive, onClose, onConfirm }) {
   const [selected, setSelected] = useState(null)
   const [localQuestion, setLocalQuestion] = useState(null)
   const [showQuizSettings, setShowQuizSettings] = useState(false)
-  const [showEssayReset, setShowEssayReset] = useState(false)
+  const [showReset, setShowReset] = useState(false)
   const titleId = 'archive-picker-title'
 
   const items = useMemo(
@@ -215,8 +235,15 @@ function ArchivePickerModal({ quizArchive, essayArchive, onClose, onConfirm }) {
         subtitle: q.questionTitle || q.content || 'Chưa có nội dung',
         question: q,
       })),
+      ...(trueFalseArchive || []).map((q) => ({
+        id: q.id,
+        kind: 'truefalse',
+        title: q.title || 'Bản chỉnh sửa đúng/sai',
+        subtitle: q.questionTitle || q.content || 'Chưa có nội dung',
+        question: q,
+      })),
     ],
-    [quizArchive, essayArchive]
+    [quizArchive, essayArchive, trueFalseArchive]
   )
 
   useEffect(() => {
@@ -238,16 +265,17 @@ function ArchivePickerModal({ quizArchive, essayArchive, onClose, onConfirm }) {
   const pick = (item) => {
     setSelected(item)
     setLocalQuestion(item.question)
-    setShowEssayReset(false)
+    setShowReset(false)
   }
 
   const back = () => {
     setSelected(null)
     setLocalQuestion(null)
-    setShowEssayReset(false)
+    setShowReset(false)
   }
 
   const isQuiz = selected?.kind === 'quiz'
+  const isTrueFalse = selected?.kind === 'truefalse'
 
   return (
     <>
@@ -308,18 +336,14 @@ function ArchivePickerModal({ quizArchive, essayArchive, onClose, onConfirm }) {
                   <header className="quiz-card-head">
                     <div className="essay-card-heading">
                       <p className="quiz-card-kicker">{badgeLabel(selected.kind)}</p>
-                      <h4 className="essay-card-title">
-                        {isQuiz
-                          ? localQuestion.title || 'Câu hỏi trắc nghiệm'
-                          : localQuestion.questionTitle || 'Câu hỏi tự luận'}
-                      </h4>
+                      <h4 className="essay-card-title">{questionHeading(selected.kind, localQuestion)}</h4>
                     </div>
                   </header>
                   {localQuestion.content ? <p className="essay-card-content">{localQuestion.content}</p> : null}
 
-                  {!isQuiz ? (
+                  {selected.kind === 'essay' ? (
                     <ul className="essay-preview-answers">
-                      {localQuestion.answers
+                      {(localQuestion.answers || [])
                         .filter((a) => a.content.trim())
                         .map((a) => (
                           <li key={a.id}>{a.content}</li>
@@ -327,20 +351,36 @@ function ArchivePickerModal({ quizArchive, essayArchive, onClose, onConfirm }) {
                     </ul>
                   ) : null}
 
+                  {isTrueFalse ? (
+                    <ul className="essay-preview-answers">
+                      {(localQuestion.statements || [])
+                        .filter((s) => s.content.trim())
+                        .map((s, i) => (
+                          <li key={s.id}>
+                            {statementLabel(i)}) {s.content}
+                          </li>
+                        ))}
+                    </ul>
+                  ) : null}
+
                   <div className="essay-card-meta">
                     {isQuiz ? (
-                      <span>{localQuestion.answers.length} đáp án</span>
+                      <span>{(localQuestion.answers || []).length} đáp án</span>
+                    ) : isTrueFalse ? (
+                      <span>
+                        {(localQuestion.statements || []).filter((s) => s.content.trim()).length} ý
+                      </span>
                     ) : (
-                      <span>{localQuestion.answers.filter((a) => a.content.trim()).length} đáp án</span>
+                      <span>{(localQuestion.answers || []).filter((a) => a.content.trim()).length} đáp án</span>
                     )}
                     <span>
-                      {(isQuiz ? localQuestion.settings.countdownSeconds : localQuestion.countdownSeconds) > 0
-                        ? `${isQuiz ? localQuestion.settings.countdownSeconds : localQuestion.countdownSeconds}s đếm ngược`
+                      {countdownOf(selected.kind, localQuestion) > 0
+                        ? `${countdownOf(selected.kind, localQuestion)}s đếm ngược`
                         : 'Không đếm ngược'}
                     </span>
                   </div>
 
-                  {!isQuiz && showEssayReset ? (
+                  {!isQuiz && showReset ? (
                     <label className="quiz-field archive-picker-inline-setting">
                       <span>Thời gian đếm ngược (giây)</span>
                       <input
@@ -366,7 +406,7 @@ function ArchivePickerModal({ quizArchive, essayArchive, onClose, onConfirm }) {
                   <button
                     type="button"
                     className="quiz-settings-btn"
-                    onClick={() => (isQuiz ? setShowQuizSettings(true) : setShowEssayReset((v) => !v))}
+                    onClick={() => (isQuiz ? setShowQuizSettings(true) : setShowReset((v) => !v))}
                   >
                     <IconGear />
                     Cài đặt lại
@@ -399,7 +439,13 @@ function ArchivePickerModal({ quizArchive, essayArchive, onClose, onConfirm }) {
   )
 }
 
-export default function AddQuestionPanel({ quizArchive, essayArchive, questions, onQuestionsChange }) {
+export default function AddQuestionPanel({
+  quizArchive,
+  essayArchive,
+  trueFalseArchive,
+  questions,
+  onQuestionsChange,
+}) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [customOpen, setCustomOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -497,10 +543,7 @@ export default function AddQuestionPanel({ quizArchive, essayArchive, questions,
               <div className="class-question-info">
                 <span className={`archive-picker-badge is-${q.kind}`}>{badgeLabel(q.kind)}</span>
                 <span className="class-question-title">
-                  {idx + 1}.{' '}
-                  {q.kind === 'quiz'
-                    ? q.question.title || 'Câu hỏi trắc nghiệm'
-                    : q.question.questionTitle || q.question.title || 'Câu hỏi tự luận'}
+                  {idx + 1}. {questionHeading(q.kind, q.question)}
                 </span>
                 <span className="class-question-source">{q.source === 'archive' ? 'Từ kho' : 'Tự chỉnh sửa'}</span>
               </div>
@@ -522,6 +565,7 @@ export default function AddQuestionPanel({ quizArchive, essayArchive, questions,
         <ArchivePickerModal
           quizArchive={quizArchive}
           essayArchive={essayArchive}
+          trueFalseArchive={trueFalseArchive}
           onClose={() => setPickerOpen(false)}
           onConfirm={addFromArchive}
         />
