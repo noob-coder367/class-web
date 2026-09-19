@@ -118,13 +118,32 @@ function normalizeResults(raw) {
     if (!userId) continue
     const total = Math.max(0, Math.floor(Number(row.total) || 0))
     const correct = Math.max(0, Math.min(total, Math.floor(Number(row.correct) || 0)))
+    const durationMs =
+      row.durationMs === null || row.durationMs === undefined
+        ? null
+        : Math.max(0, Math.floor(Number(row.durationMs)) || 0)
     out[userId] = {
       userId,
       userName: String(row.userName || 'Ẩn danh').trim() || 'Ẩn danh',
       correct,
       total,
+      durationMs,
       completedAt: String(row.completedAt || new Date().toISOString()),
     }
+  }
+  return out
+}
+
+// Mốc thời gian bắt đầu làm bài của từng người (theo userId) — do SERVER ghi nhận
+// khi gọi startClassSpaceAttempt, không lấy theo thời gian client tự gửi lên, để
+// tránh gian lận (client sửa lại durationMs). Trường này không public ra API.
+function normalizeAttempts(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {}
+  const out = {}
+  for (const [userId, row] of Object.entries(src)) {
+    const startedAt = String(row?.startedAt || '').trim()
+    if (!userId || !startedAt) continue
+    out[String(userId)] = { startedAt }
   }
   return out
 }
@@ -150,21 +169,31 @@ function myResultOf(item, profile) {
   return {
     correct: row.correct,
     total: row.total,
+    durationMs: row.durationMs ?? null,
     completedAt: row.completedAt,
   }
 }
 
 function buildLeaderboard(item) {
+  // Quy chế xếp hạng:
+  // 1) Điểm (correct) cao hơn xếp trên.
+  // 2) Bằng điểm: thời gian làm bài (durationMs) ngắn hơn xếp trên.
+  // 3) Bằng cả điểm và thời gian: hoàn thành (completedAt) sớm hơn xếp trên.
+  // durationMs do BACKEND tự tính (xem submitClassSpaceResult), không lấy giá trị
+  // client tự gửi lên, nên không dùng completedAt để thay cho thời gian làm bài.
   const rows = Object.values(item?.results || {}).sort((a, b) => {
     if (b.correct !== a.correct) return b.correct - a.correct
-    if (b.total !== a.total) return b.total - a.total
+    const da = a.durationMs == null ? Infinity : a.durationMs
+    const db = b.durationMs == null ? Infinity : b.durationMs
+    if (da !== db) return da - db
     return String(a.completedAt || '').localeCompare(String(b.completedAt || ''))
   })
-  let lastCorrect = null
+  let lastKey = null
   let lastRank = 0
   return rows.map((row, index) => {
-    const rank = row.correct === lastCorrect ? lastRank : index + 1
-    lastCorrect = row.correct
+    const key = `${row.correct}|${row.durationMs ?? 'x'}|${row.completedAt || ''}`
+    const rank = key === lastKey ? lastRank : index + 1
+    lastKey = key
     lastRank = rank
     return { ...row, rank }
   })
@@ -189,6 +218,7 @@ function normalizeItem(raw) {
     enableLeaderboard: raw.enableLeaderboard === true,
     questions: Array.isArray(raw.questions) ? raw.questions : [],
     results: normalizeResults(raw.results),
+    attempts: normalizeAttempts(raw.attempts),
     ownerId: raw.ownerId ? String(raw.ownerId) : '',
     ownerName: String(raw.ownerName || 'Ẩn danh').trim() || 'Ẩn danh',
     createdAt: raw.createdAt ? String(raw.createdAt) : new Date().toISOString(),
@@ -233,7 +263,8 @@ function toPublicMeta(item, profile) {
 
 function toFullPayload(item, profile) {
   // Dùng khi người xem đã được phép vào lớp (public / đúng chủ / đúng mật khẩu).
-  const { passwordHash, results, ...rest } = item
+  // Không lộ passwordHash, results đầy đủ hay attempts (mốc thời gian nội bộ) ra ngoài.
+  const { passwordHash, results, attempts, ...rest } = item
   return {
     ...rest,
     questions: item.questions,
@@ -437,6 +468,18 @@ export async function submitClassSpaceResult(id, payload, profile) {
     throw new AppError('Bạn đã hoàn thành phòng này và không được làm lại.', 403)
   }
 
+  // Thời gian làm bài do SERVER tự tính từ mốc bắt đầu đã ghi nhận trước đó
+  // (xem startClassSpaceAttempt) — KHÔNG lấy durationMs mà client tự gửi lên,
+  // để tránh gian lận.
+  const startedAtIso = current.attempts?.[profile.id]?.startedAt
+  let durationMs = null
+  if (startedAtIso) {
+    const startedMs = new Date(startedAtIso).getTime()
+    if (Number.isFinite(startedMs)) {
+      durationMs = Math.max(0, Date.now() - startedMs)
+    }
+  }
+
   const total = scoreTotalOf(current.questions)
   const correct = Math.max(0, Math.min(total, Math.floor(Number(payload?.correct) || 0)))
   const nextResults = { ...(current.results || {}) }
@@ -445,12 +488,19 @@ export async function submitClassSpaceResult(id, payload, profile) {
     userName: String(profile.username || 'Ẩn danh').trim() || 'Ẩn danh',
     correct,
     total,
+    durationMs,
     completedAt: new Date().toISOString(),
   }
+
+  // Mốc bắt đầu đã được dùng để tính thời gian, xoá đi để lần làm lại sau
+  // (nếu phòng cho phép) phải gọi startClassSpaceAttempt lại từ đầu.
+  const nextAttempts = { ...(current.attempts || {}) }
+  delete nextAttempts[profile.id]
 
   const updated = normalizeItem({
     ...current,
     results: nextResults,
+    attempts: nextAttempts,
     updatedAt: current.updatedAt,
   })
   data.items[idx] = updated
@@ -461,6 +511,32 @@ export async function submitClassSpaceResult(id, payload, profile) {
     myResult: mine,
     leaderboard: updated.enableLeaderboard ? buildLeaderboard(updated) : [],
   }
+}
+
+/**
+ * Ghi nhận mốc bắt đầu làm bài của một người theo giờ SERVER. Được gọi khi
+ * người học mở phòng để làm bài (hoặc bấm "Làm lại"). submitClassSpaceResult
+ * sẽ dùng mốc này để tự tính thời gian làm bài (durationMs), không tin vào
+ * bất kỳ giá trị thời gian nào mà client gửi kèm khi nộp bài.
+ */
+export async function startClassSpaceAttempt(id, profile) {
+  const targetId = String(id || '').trim()
+  if (!targetId) throw new AppError('Thiếu mã lớp học.', 400)
+  if (!profile?.id) throw new AppError('Cần đăng nhập để làm bài.', 401)
+
+  const data = await loadAll()
+  const idx = data.items.findIndex((row) => row.id === targetId)
+  if (idx === -1) throw new AppError('Không tìm thấy lớp học.', 404)
+  const current = data.items[idx]
+
+  const nextAttempts = { ...(current.attempts || {}) }
+  const startedAt = new Date().toISOString()
+  nextAttempts[profile.id] = { startedAt }
+
+  const updated = normalizeItem({ ...current, attempts: nextAttempts })
+  data.items[idx] = updated
+  await saveAll(data.items)
+  return { startedAt }
 }
 
 export async function getClassSpaceLeaderboard(id, profile) {
