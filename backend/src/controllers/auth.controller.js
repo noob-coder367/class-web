@@ -39,30 +39,6 @@ export async function previewGhost(req, res, next) {
   }
 }
 
-export async function verifyOtp(req, res, next) {
-  try {
-    const { email, otp, purpose } = req.body
-    const result = await authService.verifyOtp({ email, otp, purpose })
-    res.json({
-      message: 'Xác nhận thành công.',
-      profile: result.profile,
-      session: result.session,
-    })
-  } catch (err) {
-    next(err)
-  }
-}
-
-export async function resendOtp(req, res, next) {
-  try {
-    const { email } = req.body
-    await authService.resendOtp({ email })
-    res.json({ message: 'Mã mới đã được gửi.' })
-  } catch (err) {
-    next(err)
-  }
-}
-
 export async function resendConfirmation(req, res, next) {
   try {
     const { email } = req.body
@@ -91,17 +67,7 @@ export async function forgotPassword(req, res, next) {
   try {
     const { username } = req.body
     const result = await authService.forgotPassword({ username })
-    res.json({ message: 'Đã gửi mã xác nhận.', email: result.email })
-  } catch (err) {
-    next(err)
-  }
-}
-
-export async function resetPassword(req, res, next) {
-  try {
-    const { email, otp, newPassword } = req.body
-    await authService.resetPassword({ email, otp, newPassword })
-    res.json({ message: 'Đổi mật khẩu thành công.' })
+    res.json({ message: 'Đã gửi email đặt lại mật khẩu.', email: result.email })
   } catch (err) {
     next(err)
   }
