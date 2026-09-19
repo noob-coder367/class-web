@@ -186,32 +186,28 @@ export async function previewGhostAccount() {
   }
 }
 
+function isEmailRateLimit(error) {
+  const msg = String(error?.message || '')
+  return error?.status === 429 || /rate limit|after \d+ seconds|too many/i.test(msg)
+}
+
+/**
+ * Gửi email xác nhận đăng ký (Supabase template "Confirm signup",
+ * chứa {{ .ConfirmationURL }}). User bấm link -> được đưa về FRONTEND_ORIGIN.
+ * Không có bất kỳ fallback nào gửi mã số.
+ */
 async function sendSignupConfirmationEmail(email) {
-  const redirectTo = env.FRONTEND_ORIGIN
-  const { error: resendError } = await supabaseAdmin.auth.resend({
+  const { error } = await supabaseAdmin.auth.resend({
     type: 'signup',
     email,
-    options: { emailRedirectTo: redirectTo },
+    options: { emailRedirectTo: env.FRONTEND_ORIGIN },
   })
-  if (!resendError) return
+  if (!error) return
 
-  const { error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-    type: 'signup',
-    email,
-    options: { redirectTo },
-  })
-  if (!linkError) return
-
-  const { error: otpError } = await supabaseAdmin.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false, emailRedirectTo: redirectTo },
-  })
-  if (otpError) {
-    throw new AppError(
-      'Không thể gửi email xác nhận: ' + (resendError.message || linkError.message || otpError.message),
-      500
-    )
+  if (isEmailRateLimit(error)) {
+    throw new AppError('Bạn vừa yêu cầu gửi email. Vui lòng đợi khoảng 1 phút rồi thử lại.', 429)
   }
+  throw new AppError('Không thể gửi email xác nhận: ' + error.message, 500)
 }
 
 export async function getUsernameChangeStatus(userId) {
@@ -412,41 +408,6 @@ export async function registerUser({
   return { email: cleanEmail, ghost: false }
 }
 
-export async function verifyOtp({ email, otp, purpose }) {
-  if (!email) throw new AppError('Thiếu email.')
-  if (!otp || otp.length !== 6) throw new AppError('Vui lòng nhập đủ 6 số!')
-
-  const { data, error } = await supabaseAdmin.auth.verifyOtp({
-    email,
-    token: otp,
-    type: 'email',
-  })
-
-  if (error || !data?.user) {
-    throw new AppError('Mã xác nhận không đúng hoặc đã hết hạn!')
-  }
-
-  if (purpose === 'register') {
-    const profile = await findProfileById(data.user.id)
-    return { profile: toPublicProfile(profile), session: data.session }
-  }
-
-  return { profile: null, session: data.session }
-}
-
-export async function resendOtp({ email }) {
-  if (!email) throw new AppError('Thiếu email.')
-
-  const { error } = await supabaseAdmin.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false },
-  })
-
-  if (error) {
-    throw new AppError('Không thể gửi lại mã: ' + error.message, 500)
-  }
-}
-
 export async function resendConfirmation({ email }) {
   if (!email) throw new AppError('Thiếu email.')
   if (isGhostEmail(email)) {
@@ -477,6 +438,9 @@ export async function loginUser({ username, password }) {
     password,
   })
 
+  if (error?.code === 'email_not_confirmed' || /email not confirmed/i.test(error?.message || '')) {
+    throw new AppError('Email chưa được xác nhận. Hãy kiểm tra email và bấm vào liên kết xác nhận.')
+  }
   if (error || !data?.user) {
     throw new AppError('Username hoặc mật khẩu không chính xác!')
   }
@@ -484,6 +448,19 @@ export async function loginUser({ username, password }) {
   return { session: data.session, profile: toPublicProfile(profile) }
 }
 
+function maskEmail(email) {
+  const [local = '', domain = ''] = String(email || '').split('@')
+  const head = local.slice(0, Math.min(2, local.length))
+  return `${head}${'*'.repeat(Math.max(1, local.length - head.length))}@${domain}`
+}
+
+/**
+ * Quên mật khẩu: tìm email theo username/email rồi nhờ Supabase gửi
+ * "Reset Password" email (chứa {{ .ConfirmationURL }}).
+ * User bấm link -> về FRONTEND_ORIGIN -> Supabase phát PASSWORD_RECOVERY ->
+ * frontend hiện form đặt mật khẩu mới và gọi supabase.auth.updateUser().
+ * Backend không còn nhận/kiểm tra mã hay mật khẩu mới.
+ */
 export async function forgotPassword({ username }) {
   const cleanUsername = (username || '').trim()
   if (!cleanUsername) throw new AppError('Vui lòng nhập username!')
@@ -503,45 +480,19 @@ export async function forgotPassword({ username }) {
     throw new AppError('Tài khoản ma không dùng được quên mật khẩu. Hãy nhờ admin hỗ trợ.')
   }
 
-  const { error } = await supabaseAdmin.auth.signInWithOtp({
-    email: profile.email,
-    options: { shouldCreateUser: false },
+  const { error } = await supabaseAdmin.auth.resetPasswordForEmail(profile.email, {
+    redirectTo: env.FRONTEND_ORIGIN,
   })
 
   if (error) {
-    throw new AppError('Không thể gửi mã: ' + error.message, 500)
+    if (isEmailRateLimit(error)) {
+      throw new AppError('Bạn vừa yêu cầu gửi email. Vui lòng đợi khoảng 1 phút rồi thử lại.', 429)
+    }
+    throw new AppError('Không thể gửi email đặt lại mật khẩu: ' + error.message, 500)
   }
 
-  return { email: profile.email }
-}
-
-export async function resetPassword({ email, otp, newPassword }) {
-  if (!newPassword || newPassword.length < 8) {
-    throw new AppError('Mật khẩu mới phải có ít nhất 8 ký tự!')
-  }
-
-  const { data: verifyData, error: verifyError } =
-    await supabaseAdmin.auth.verifyOtp({
-      email,
-      token: otp,
-      type: 'email',
-    })
-
-  if (verifyError || !verifyData?.user) {
-    throw new AppError('Mã xác nhận không đúng hoặc đã hết hạn!')
-  }
-
-  const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-    verifyData.user.id,
-    { password: newPassword }
-  )
-
-  if (updateError) {
-    throw new AppError(
-      'Không thể đổi mật khẩu: ' + updateError.message,
-      500
-    )
-  }
+  // Chỉ trả email đã che để tránh lộ email đầy đủ của tài khoản qua username.
+  return { email: maskEmail(profile.email) }
 }
 
 export async function setDisplayName(userId, rawName, { countAsChange = false, skipLimit = false } = {}) {
