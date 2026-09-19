@@ -1,0 +1,95 @@
+/* Hiệu ứng khi chọn đáp án trong phòng: đúng = ô xanh lá nhạt nảy lên rồi tan, sai = rung quanh tâm. */
+
+.class-play-answer.fx-correct,
+.class-play-tf-btn.fx-correct {
+  position: relative;
+}
+
+/* Giữ chữ/ảnh nằm trên lớp ô xanh nhạt để luôn đọc được. */
+.class-play-answer.fx-correct > *,
+.class-play-tf-btn.fx-correct > * {
+  position: relative;
+  z-index: 1;
+}
+
+.class-play-answer.fx-correct::after,
+.class-play-tf-btn.fx-correct::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: rgba(134, 239, 172, 0.7);
+  border: 2px solid rgba(187, 247, 208, 0.95);
+  box-sizing: border-box;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  opacity: 0;
+  animation: class-play-correct-pop 0.7s ease-out forwards;
+}
+
+@keyframes class-play-correct-pop {
+  0% {
+    transform: scale(1);
+    opacity: 0;
+  }
+  25% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  55% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+.class-play-answer.fx-wrong,
+.class-play-tf-btn.fx-wrong {
+  transform-origin: 50% 50%;
+  animation: class-play-wrong-shake 0.5s ease-in-out;
+}
+
+/* Rung bằng cách xoay nhẹ quanh điểm chính giữa (tâm đứng yên). */
+@keyframes class-play-wrong-shake {
+  0% {
+    transform: rotate(0deg);
+  }
+  15% {
+    transform: rotate(-1.8deg);
+  }
+  30% {
+    transform: rotate(1.8deg);
+  }
+  45% {
+    transform: rotate(-1.4deg);
+  }
+  60% {
+    transform: rotate(1.4deg);
+  }
+  75% {
+    transform: rotate(-0.7deg);
+  }
+  90% {
+    transform: rotate(0.7deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .class-play-answer.fx-correct::after,
+  .class-play-tf-btn.fx-correct::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .class-play-answer.fx-wrong,
+  .class-play-tf-btn.fx-wrong {
+    animation: none;
+  }
+}
