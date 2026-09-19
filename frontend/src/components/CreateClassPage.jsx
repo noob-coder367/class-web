@@ -105,6 +105,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [shuffleQuestions, setShuffleQuestions] = useState(!!editingClass?.shuffle)
   const [allowRetry, setAllowRetry] = useState(editingClass ? editingClass.allowRetry !== false : true)
+  const [allowMultiTry, setAllowMultiTry] = useState(!!editingClass?.allowMultiTry)
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const fileInputRef = useRef(null)
@@ -245,6 +246,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
         password,
         shuffle: shuffleQuestions,
         allowRetry,
+        allowMultiTry,
         questions: uploadedQuestions,
       }
 
@@ -483,6 +485,27 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
                   aria-checked={allowRetry}
                   aria-label="Cho phép làm lại"
                   onClick={() => setAllowRetry((v) => !v)}
+                >
+                  <span className="create-class-switch-knob" />
+                </button>
+              </div>
+
+              <div className="create-class-privacy-row">
+                <div>
+                  <p className="create-class-privacy-q">Cho phép thử nhiều đáp án</p>
+                  <p className="create-class-hint">
+                    {allowMultiTry
+                      ? 'Bật: chọn sai thì ô đó đỏ, vẫn ở câu hiện tại và được thử tiếp. Sai n-1 đáp án thì hiện luôn đáp án đúng (xanh). Có nút chuyển câu / kết thúc để đi tiếp.'
+                      : 'Tắt: chọn một đáp án là hiện đúng/sai rồi chuyển câu (trắc nghiệm).'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={`create-class-switch${allowMultiTry ? ' is-on' : ''}`}
+                  role="switch"
+                  aria-checked={allowMultiTry}
+                  aria-label="Cho phép thử nhiều đáp án"
+                  onClick={() => setAllowMultiTry((v) => !v)}
                 >
                   <span className="create-class-switch-knob" />
                 </button>

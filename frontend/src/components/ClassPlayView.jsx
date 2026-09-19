@@ -78,11 +78,15 @@ function essayKeys(question) {
   return pool.map((a) => normalizeAnswer(a.content)).filter(Boolean)
 }
 
-function playStyle(answer, settings, { selected, revealed }) {
+function playStyle(answer, settings, { selected, revealed, wrongTried, showCorrect }) {
   const color = answerColorOf(answer, settings)
+  if (showCorrect || (revealed && answer.isCorrect)) {
+    return { background: '#16a34a', color: '#f8fafc', borderColor: '#15803d' }
+  }
+  if (wrongTried || (revealed && selected && !answer.isCorrect)) {
+    return { background: '#dc2626', color: '#f8fafc', borderColor: '#b91c1c' }
+  }
   if (revealed) {
-    if (answer.isCorrect) return { background: '#16a34a', color: '#f8fafc', borderColor: '#15803d' }
-    if (selected) return { background: '#dc2626', color: '#f8fafc', borderColor: '#b91c1c' }
     return {
       background: color.bg === 'transparent' ? '#f8fafc' : color.bg,
       color: color.fg,
@@ -107,6 +111,7 @@ export default function ClassPlayView({ classData, onClose }) {
   })
   const [index, setIndex] = useState(0)
   const [selections, setSelections] = useState({})
+  const [quizTried, setQuizTried] = useState({})
   const [essayDrafts, setEssayDrafts] = useState({})
   const [essayResults, setEssayResults] = useState({})
   const [tfSelections, setTfSelections] = useState({})
@@ -121,10 +126,12 @@ export default function ClassPlayView({ classData, onClose }) {
   const isTrueFalse = kind === 'truefalse'
   const q = current?.question
   const allowRetry = classData?.allowRetry !== false
+  const allowMultiTry = classData?.allowMultiTry === true
 
   const handleRetry = () => {
     setIndex(0)
     setSelections({})
+    setQuizTried({})
     setEssayDrafts({})
     setEssayResults({})
     setTfSelections({})
@@ -138,6 +145,10 @@ export default function ClassPlayView({ classData, onClose }) {
     if (entry.kind !== 'quiz') return false
     const answers = entry.question?.answers || []
     if (!answers.some((a) => a.isCorrect)) return false
+    if (allowMultiTry) {
+      const tried = quizTried[entry.id] || []
+      return answers.some((a) => a.isCorrect && tried.includes(a.id))
+    }
     const chosenId = selections[entry.id]
     if (!chosenId) return false
     return !!answers.find((a) => a.id === chosenId)?.isCorrect
@@ -193,7 +204,7 @@ export default function ClassPlayView({ classData, onClose }) {
     setIndex((i) => i - 1)
   }
 
-  const gradeEssayAndMaybeAdvance = (value, autoAdvance) => {
+  const gradeEssayAndMaybeAdvance = (value, autoAdvance, { skipIfWrong = false } = {}) => {
     if (!current || !isEssay) return
     const keys = essayKeys(q)
     if (!keys.length) {
@@ -203,6 +214,11 @@ export default function ClassPlayView({ classData, onClose }) {
     const ok = keys.includes(normalizeAnswer(value))
     setEssayResults((prev) => ({ ...prev, [current.id]: ok ? 'correct' : 'wrong' }))
     if (autoAdvance) {
+      if (allowMultiTry && !ok && !skipIfWrong) return
+      if (skipIfWrong) {
+        goNext()
+        return
+      }
       window.setTimeout(() => goNext(), AUTO_ADVANCE_DELAY_MS)
     }
   }
@@ -233,17 +249,27 @@ export default function ClassPlayView({ classData, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, done])
 
-  // Trắc nghiệm: sau khi chọn đáp án (đúng hay sai), tự chuyển qua câu tiếp theo.
+  // Trắc nghiệm: mặc định sau khi chọn đáp án (đúng hay sai) thì tự chuyển câu.
+  // Khi bật "thử nhiều đáp án": chọn sai thì ở lại; chỉ tự chuyển khi chọn đúng.
   useEffect(() => {
     if (done || !isQuiz || !current) return
     const chosenId = selections[current.id]
     if (!chosenId) return
+    if (allowMultiTry) {
+      const answers = q?.answers || []
+      const hasKey = answers.some((a) => a.isCorrect)
+      if (hasKey) {
+        const tried = quizTried[current.id] || []
+        const pickedCorrect = answers.some((a) => a.isCorrect && tried.includes(a.id))
+        if (!pickedCorrect) return
+      }
+    }
     const timer = setTimeout(() => {
       goNext()
     }, AUTO_ADVANCE_DELAY_MS)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selections[current?.id], index, done])
+  }, [selections[current?.id], quizTried[current?.id], index, done])
 
   // Đúng/Sai: khi đã chọn hết các ý thì hiện màu rồi tự chuyển câu.
   useEffect(() => {
@@ -366,28 +392,53 @@ export default function ClassPlayView({ classData, onClose }) {
 
             {isQuiz ? (
               <>
-                <p className="class-play-exam-instruction">Chọn một đáp án đúng</p>
+                <p className="class-play-exam-instruction">
+                  {allowMultiTry
+                    ? 'Chọn đáp án đúng. Nếu sai, bạn có thể thử tiếp.'
+                    : 'Chọn một đáp án đúng'}
+                </p>
                 <div className={`quiz-answers ${answerLayoutClass}`}>
                   {(() => {
                     const answers = q?.answers || []
                     const hasKey = answers.some((a) => a.isCorrect)
                     const chosenId = selections[current.id]
-                    const revealed = hasKey && !!chosenId
+                    const tried = quizTried[current.id] || (chosenId ? [chosenId] : [])
+                    const pickedCorrect = hasKey && answers.some((a) => a.isCorrect && tried.includes(a.id))
+                    const wrongCount = tried.filter((id) => !answers.find((a) => a.id === id)?.isCorrect).length
+                    const exhausted =
+                      allowMultiTry && hasKey && answers.length >= 2 && wrongCount >= answers.length - 1
+                    const revealed = hasKey && (allowMultiTry ? pickedCorrect || exhausted : !!chosenId)
+                    const locked = allowMultiTry ? pickedCorrect || exhausted : !!chosenId
                     return answers.map((answer) => {
                       const selected = chosenId === answer.id
+                      const wrongTried = tried.includes(answer.id) && !answer.isCorrect
+                      const showCorrect = revealed && answer.isCorrect
                       let resultClass = ''
-                      if (revealed) {
-                        if (answer.isCorrect) resultClass = ' is-correct-answer'
-                        else if (selected) resultClass = ' is-wrong-answer'
-                      }
+                      if (showCorrect) resultClass = ' is-correct-answer'
+                      else if (wrongTried) resultClass = ' is-wrong-answer'
+                      const alreadyTried = tried.includes(answer.id)
                       return (
                         <button
                           key={answer.id}
                           type="button"
-                          disabled={!!chosenId}
+                          disabled={locked || (allowMultiTry && alreadyTried)}
                           className={`class-play-answer class-play-exam-choice${answerLayoutClass === 'quiz-answers--tiles' ? ' is-tile' : ''}${selected ? ' is-selected' : ''}${resultClass}`}
-                          onClick={() => setSelections((prev) => ({ ...prev, [current.id]: answer.id }))}
-                          style={playStyle(answer, q?.settings, { selected, revealed })}
+                          onClick={() => {
+                            if (allowMultiTry) {
+                              setQuizTried((prev) => {
+                                const prevTried = prev[current.id] || []
+                                if (prevTried.includes(answer.id)) return prev
+                                return { ...prev, [current.id]: [...prevTried, answer.id] }
+                              })
+                            }
+                            setSelections((prev) => ({ ...prev, [current.id]: answer.id }))
+                          }}
+                          style={playStyle(answer, q?.settings, {
+                            selected,
+                            revealed,
+                            wrongTried,
+                            showCorrect,
+                          })}
                         >
                           {answer.imagePreview ? (
                             <img src={answer.imagePreview} alt={answer.imageName || 'Ảnh đáp án'} />
@@ -399,6 +450,32 @@ export default function ClassPlayView({ classData, onClose }) {
                     })
                   })()}
                 </div>
+                {allowMultiTry
+                  ? (() => {
+                      const answers = q?.answers || []
+                      const hasKey = answers.some((a) => a.isCorrect)
+                      const tried = quizTried[current.id] || []
+                      const pickedCorrect = hasKey && answers.some((a) => a.isCorrect && tried.includes(a.id))
+                      const wrongCount = tried.filter((id) => !answers.find((a) => a.id === id)?.isCorrect).length
+                      const exhausted = hasKey && answers.length >= 2 && wrongCount >= answers.length - 1
+                      const skipLabel = index >= total - 1 ? 'Hoàn thành' : 'Câu tiếp theo'
+                      if (exhausted && !pickedCorrect) {
+                        return (
+                          <p className="class-play-retry-hint">
+                            Đã hiện đáp án đúng. Bấm {skipLabel} để đi tiếp.
+                          </p>
+                        )
+                      }
+                      if (wrongCount > 0 && !pickedCorrect) {
+                        return (
+                          <p className="class-play-retry-hint">
+                            Đáp án vừa chọn chưa đúng. Hãy thử đáp án khác, hoặc bấm {skipLabel} để đi luôn.
+                          </p>
+                        )
+                      }
+                      return null
+                    })()
+                  : null}
               </>
             ) : null}
 
@@ -459,8 +536,14 @@ export default function ClassPlayView({ classData, onClose }) {
                     className={`class-play-exam-input${essayResults[current.id] === 'correct' ? ' is-correct-answer' : ''}${essayResults[current.id] === 'wrong' ? ' is-wrong-answer' : ''}`}
                     type="text"
                     value={essayDrafts[current.id] || ''}
-                    disabled={!!essayResults[current.id]}
-                    onChange={(e) => setEssayDrafts((prev) => ({ ...prev, [current.id]: e.target.value }))}
+                    disabled={
+                      allowMultiTry
+                        ? essayResults[current.id] === 'correct'
+                        : !!essayResults[current.id]
+                    }
+                    onChange={(e) =>
+                      setEssayDrafts((prev) => ({ ...prev, [current.id]: e.target.value }))
+                    }
                     onKeyDown={(e) => {
                       if (e.key !== 'Enter') return
                       e.preventDefault()
@@ -470,7 +553,8 @@ export default function ClassPlayView({ classData, onClose }) {
                     autoComplete="off"
                   />
                 </label>
-                {!essayResults[current.id] ? (
+                {!essayResults[current.id] ||
+                (allowMultiTry && essayResults[current.id] === 'wrong') ? (
                   <button
                     type="button"
                     className="quiz-secondary-btn class-play-essay-submit"
@@ -478,6 +562,11 @@ export default function ClassPlayView({ classData, onClose }) {
                   >
                     Kiểm tra đáp án
                   </button>
+                ) : null}
+                {allowMultiTry && essayResults[current.id] === 'wrong' ? (
+                  <p className="class-play-retry-hint">
+                    Chưa đúng. Hãy thử lại, hoặc bấm {index >= total - 1 ? 'Hoàn thành' : 'Câu tiếp theo'} để đi luôn.
+                  </p>
                 ) : null}
                 {(q?.answers || []).some((a) => a.content.trim()) ? (
                   <details className="class-play-essay-key">
@@ -507,9 +596,17 @@ export default function ClassPlayView({ classData, onClose }) {
               type="button"
               className="quiz-primary-btn class-play-next"
               onClick={() => {
-                if (isEssay && !essayResults[current.id] && essayKeys(q).length) {
-                  gradeEssayAndMaybeAdvance(essayDrafts[current.id] || '', true)
-                  return
+                if (isEssay && essayKeys(q).length) {
+                  if (!essayResults[current.id]) {
+                    gradeEssayAndMaybeAdvance(essayDrafts[current.id] || '', true, {
+                      skipIfWrong: allowMultiTry,
+                    })
+                    return
+                  }
+                  if (allowMultiTry && essayResults[current.id] === 'wrong') {
+                    goNext()
+                    return
+                  }
                 }
                 goNext()
               }}

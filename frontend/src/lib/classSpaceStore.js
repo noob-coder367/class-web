@@ -54,6 +54,8 @@ export function createClass(data) {
     isPublic,
     password: isPublic ? '' : String(data.password || ''),
     shuffle: !!data.shuffle,
+    allowRetry: data.allowRetry !== false,
+    allowMultiTry: !!data.allowMultiTry,
     questions: Array.isArray(data.questions) ? data.questions : [],
     ownerId: data.ownerId || '',
     ownerName: data.ownerName || 'Ẩn danh',
