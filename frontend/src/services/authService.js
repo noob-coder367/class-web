@@ -21,20 +21,6 @@ export async function previewGhostAccount() {
   return apiClient.get('/auth/ghost-preview')
 }
 
-export async function verifyOtp({ email, otp, purpose }) {
-  const data = await apiClient.post('/auth/verify-otp', { email, otp, purpose })
-
-  if (data.session) {
-    await applySession(data.session)
-  }
-
-  return data
-}
-
-export async function resendOtp({ email }) {
-  return apiClient.post('/auth/resend-otp', { email })
-}
-
 export async function resendConfirmation({ email }) {
   return apiClient.post('/auth/resend-confirmation', { email })
 }
@@ -53,8 +39,14 @@ export async function forgotPassword({ username }) {
   return apiClient.post('/auth/forgot-password', { username })
 }
 
-export async function resetPassword({ email, otp, newPassword }) {
-  return apiClient.post('/auth/reset-password', { email, otp, newPassword })
+/**
+ * Đặt mật khẩu mới sau khi user bấm link trong email đặt lại mật khẩu.
+ * Lúc này Supabase đã tạo session khôi phục (sự kiện PASSWORD_RECOVERY)
+ * nên updateUser() chỉ đổi được mật khẩu của chính user đó.
+ */
+export async function updatePassword({ newPassword }) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw error
 }
 
 export async function fetchMe() {
