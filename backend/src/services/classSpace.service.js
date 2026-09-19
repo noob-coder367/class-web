@@ -26,15 +26,14 @@ function hashPassword(raw) {
 }
 
 async function ensureDataBucket() {
-  const { data } = await supabaseAdmin.storage.getBucket(DATA_BUCKET)
-  if (!data) {
-    const { error } = await supabaseAdmin.storage.createBucket(DATA_BUCKET, {
-      public: false,
-      fileSizeLimit: 5 * 1024 * 1024,
-    })
-    if (error && !/already exists|duplicate|exists/i.test(error.message || '')) {
-      throw new AppError('Không tạo được kho dữ liệu lớp học: ' + error.message, 502)
-    }
+  const { data, error } =
+    await supabaseAdmin.storage.getBucket(DATA_BUCKET)
+
+  if (error || !data) {
+    throw new AppError(
+      `Kho dữ liệu "${DATA_BUCKET}" chưa được cấu hình trên Supabase.`,
+      500
+    )
   }
 }
 
