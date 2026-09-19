@@ -159,9 +159,6 @@ const TABS = [
   { id: 'ai', label: 'AI', icon: IconAI },
 ]
 
-// Số nút hiện cùng lúc trong thanh menu trước khi phải kéo/cuộn để xem thêm
-const TABS_PER_VIEW = 3
-
 const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty'])
 const EMPTY_CAPS = capabilitiesFor('user')
 
@@ -195,7 +192,6 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [passwordSubmitting, setPasswordSubmitting] = useState(false)
-  // Ảnh nền lỗi (404/hết hạn...) thì hiện icon cửa thay vì ô trắng.
   const [coverFailed, setCoverFailed] = useState({})
 
   const updateNavScroll = useCallback(() => {
@@ -208,7 +204,6 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     })
   }, [])
 
-  // Cuộn chuột dọc (PC) cũng kéo thanh menu theo chiều ngang, từ từ như cuộn bình thường
   useEffect(() => {
     const el = navRef.current
     if (!el) return
@@ -230,7 +225,6 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     }
   }, [updateNavScroll])
 
-  // Khi đổi tab (kể cả mở thẳng vào 1 tab ở "trang" sau), tự cuộn cho nút đó lộ ra
   useEffect(() => {
     const el = navRef.current
     if (!el) return
@@ -300,7 +294,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           rules: Math.min(99, countNewer(violationsList, 'rules', (item) => item.createdAt)),
           rulesViolations: Math.min(99, countNewer(violationsList, 'rules-violations', (item) => item.createdAt)),
         })
-      } catch { /* ignore */ }
+      } catch {}
     }
     loadBadges()
     const onUnread = () => loadBadges()
@@ -383,6 +377,11 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           setRules(null)
           setViolations([])
           setItems([])
+        } else if (activeTab === 'ai') {
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
+          setItems([])
         } else {
           const data = await classroomService.getTabContent(activeTab)
           if (cancelled) return
@@ -457,7 +456,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       const classItems = Array.isArray(data?.items) ? data.items : []
       setMembers(classItems)
       setDirectory(classItems)
-    } catch { /* keep */ }
+    } catch {}
   }, [])
 
   const refreshClassSpace = useCallback(async () => {
@@ -483,15 +482,11 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     setEditingClass(null)
   }
 
-  // CreateClassPage tự gọi API tạo/lưu (kèm tải ảnh lên) rồi trả về bản ghi đã
-  // lưu — ở đây chỉ cần đóng trang soạn và tải lại danh sách chung từ server.
   const handleClassSaved = () => {
     closeClassEditor()
     refreshClassSpace()
   }
 
-  // Mở lớp học để làm bài. Lớp riêng tư (không phải chủ lớp) sẽ được hỏi mật
-  // khẩu trước — server là nơi kiểm tra mật khẩu, không tự chấm ở client.
   const enterClass = async (cls, passwordAttempt) => {
     const isOwner = !!profile?.id && cls.ownerId === profile.id
     if (!cls.isPublic && !isOwner && !passwordAttempt) {
@@ -529,8 +524,6 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     }
   }
 
-  // Chủ lớp bấm "Chỉnh sửa": danh sách lưới chỉ có metadata (không có câu
-  // hỏi), nên cần lấy lại bản ghi đầy đủ trước khi mở trang soạn.
   const startEditClass = async (cls) => {
     try {
       const { item } = await classroomService.getClassSpace(cls.id)
@@ -540,7 +533,6 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     }
   }
 
-  // Chủ phòng hoặc admin có thể xoá hẳn một phòng khỏi danh sách chung.
   const handleDeleteClass = async (cls) => {
     if (!cls?.id) return
     const ok = window.confirm(`Xoá phòng "${cls.title}"? Hành động này không thể hoàn tác.`)
@@ -561,7 +553,15 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         </div>
       )
     }
-    if (loadingTab && activeTab !== 'announcements' && activeTab !== 'homework' && activeTab !== 'cleaning-duty' && activeTab !== 'class-space') {
+
+    if (
+      loadingTab &&
+      activeTab !== 'announcements' &&
+      activeTab !== 'homework' &&
+      activeTab !== 'cleaning-duty' &&
+      activeTab !== 'class-space' &&
+      activeTab !== 'ai'
+    ) {
       return (
         <div className="classroom-state">
           <span className="classroom-spinner" aria-hidden="true" />
@@ -569,6 +569,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         </div>
       )
     }
+
     if (tabError) {
       return (
         <div className="classroom-state classroom-state--denied">
@@ -576,6 +577,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         </div>
       )
     }
+
     if (activeTab === 'announcements') {
       return (
         <AnnouncementsBoard
@@ -589,12 +591,15 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         />
       )
     }
+
     if (activeTab === 'homework') return <HomeworkBoard isAdmin={!!caps.homework} />
     if (activeTab === 'cleaning-duty') return <CleaningBoard isAdmin={!!caps.cleaningDuty} />
+
     if (activeTab === 'class-space') {
       if (classSpaceLoading && !classSpaceItems.length) {
         return <p className="classroom-empty">Đang tải danh sách phòng...</p>
       }
+
       return (
         <>
           {classSpaceError ? <p className="classroom-state classroom-state--denied">{classSpaceError}</p> : null}
@@ -608,11 +613,9 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
             <div className="class-space-grid">
               {classSpaceItems.map((cls) => {
                 const isOwner = !!profile?.id && cls.ownerId === profile.id
+
                 return (
                   <div key={cls.id} className="class-space-card">
-                    {/* Dùng <div role="button"> thay cho <button>: Safari trên iOS/iPadOS
-                        không xử lý đúng phần tử con có position/flex bên trong <button>,
-                        khiến ảnh nền và nhãn "Riêng tư" không hiển thị. */}
                     <div
                       role="button"
                       tabIndex={0}
@@ -640,17 +643,20 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                         )}
                         {!cls.isPublic ? <span className="class-space-badge">Riêng tư</span> : null}
                       </div>
+
                       <div className="class-space-info">
                         <h3 className="class-space-title">{cls.title}</h3>
                         <span className="class-space-code">{cls.questionCount} câu hỏi</span>
                         <p className="class-space-owner">Chủ phòng: {cls.ownerName || 'Ẩn danh'}</p>
                       </div>
                     </div>
+
                     <div className="class-space-footer">
                       <button type="button" className="class-space-link-btn" onClick={() => enterClass(cls)}>
                         Vào phòng
                         <IconArrowRight />
                       </button>
+
                       <div className="class-space-footer-actions">
                         {isOwner ? (
                           <button
@@ -663,6 +669,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                             <IconPencil />
                           </button>
                         ) : null}
+
                         {isOwner || isAdminRole(role) ? (
                           <button
                             type="button"
@@ -684,8 +691,21 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         </>
       )
     }
+
+    if (activeTab === 'ai') {
+      return (
+        <div className="classroom-state classroom-state--soon">
+          <h2>Đang được xây dựng</h2>
+          <p className="classroom-state-sub">
+            Tính năng AI đang được phát triển. Vui lòng quay lại sau!
+          </p>
+        </div>
+      )
+    }
+
     if (activeTab === 'timetable') {
       if (!timetable) return <p className="classroom-empty">Chưa có thời khoá biểu</p>
+
       return (
         <TimetableBoard
           data={timetable}
@@ -695,6 +715,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         />
       )
     }
+
     if (activeTab === 'rules') {
       return (
         <RulesBoard
@@ -711,7 +732,9 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         />
       )
     }
+
     if (!items.length) return <p className="classroom-empty">Chưa có nội dung</p>
+
     return (
       <ul className="classroom-list">
         {items.map((item) => (
@@ -732,15 +755,19 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         <button type="button" className="classroom-back" onClick={onClose} aria-label="Quay về trang chính" title="Quay về">
           <IconBack />
         </button>
+
         <div className="classroom-iso">
           <span className="classroom-iso-end" aria-hidden="true" />
+
           <div className="classroom-iso-main">
             <span className="classroom-iso-lid" aria-hidden="true" />
+
             <nav className="classroom-iso-front" role="tablist" aria-label="Mục lớp 10A4" ref={navRef}>
               {TABS.map((tab) => {
                 const Icon = tab.icon
                 const selected = activeTab === tab.id
                 const badge = tab.id === 'timetable' ? 0 : tabBadges[tab.id] || 0
+
                 return (
                   <button
                     key={tab.id}
@@ -765,6 +792,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                 )
               })}
             </nav>
+
             {!navScroll.atStart ? (
               <button
                 type="button"
@@ -776,6 +804,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                 <IconChevronLeft />
               </button>
             ) : null}
+
             {!navScroll.atEnd ? (
               <button
                 type="button"
@@ -790,9 +819,16 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           </div>
         </div>
       </header>
-      <div className={`classroom-body${bodyMod}`} id="classroom-panel" role="tabpanel" aria-labelledby={`classroom-tab-${activeTab}`}>
+
+      <div
+        className={`classroom-body${bodyMod}`}
+        id="classroom-panel"
+        role="tabpanel"
+        aria-labelledby={`classroom-tab-${activeTab}`}
+      >
         {renderBody()}
       </div>
+
       {access === 'ok' && activeTab === 'class-space' && !showCreateClass && !editingClass ? (
         <button
           type="button"
@@ -804,6 +840,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           <IconPlus />
         </button>
       ) : null}
+
       {showCreateClass || editingClass ? (
         <CreateClassPage
           key={editingClass?.id || 'new-class'}
@@ -812,9 +849,11 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           onSaved={handleClassSaved}
         />
       ) : null}
+
       {playingClass ? (
         <ClassPlayView classData={playingClass} onClose={() => setPlayingClass(null)} />
       ) : null}
+
       {passwordPromptClass ? (
         <div className="class-password-overlay" onClick={() => setPasswordPromptClass(null)}>
           <div
@@ -826,32 +865,30 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           >
             <h3 id="class-password-title">Phòng riêng tư</h3>
             <p>Nhập mật khẩu 6 chữ số để vào "{passwordPromptClass.title}".</p>
+
             <input
               type="text"
               inputMode="numeric"
               autoFocus
               value={passwordInput}
               onChange={(e) => {
-  const v = e.target.value.replace(/\D/g, '').slice(0, 6)
-  setPasswordInput(v)
-  setPasswordError('')
-  if (v.length === 6) {
-    // Đợi state cập nhật xíu rồi submit
-    setTimeout(() => {
-      // gọi trực tiếp logic submit với v
-    }, 0)
-  }
-}}
+                const v = e.target.value.replace(/\D/g, '').slice(0, 6)
+                setPasswordInput(v)
+                setPasswordError('')
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') submitClassPassword()
               }}
               placeholder="••••••"
             />
+
             {passwordError ? <p className="class-password-error">{passwordError}</p> : null}
+
             <div className="class-password-actions">
               <button type="button" className="quiz-ghost-btn" onClick={() => setPasswordPromptClass(null)}>
                 Hủy
               </button>
+
               <button
                 type="button"
                 className="quiz-primary-btn"
