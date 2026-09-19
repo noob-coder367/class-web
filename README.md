@@ -12,7 +12,7 @@ tác, bao gồm cả thao tác nhạy cảm:
 |---|---|
 | `SECRET_CODE` hardcode trong `App.jsx`, kiểm tra ở client | Ai mở DevTools cũng đọc được mã, hoặc gọi thẳng Supabase để tự set `is_member: true` |
 | Toàn bộ thao tác Admin (list/toggle role/xóa user) gọi thẳng `supabase.from('profiles')` bằng anon key | Chỉ được chặn bởi RLS (nếu cấu hình đúng); nút "Admin" trên UI chỉ ẩn/hiện, không chặn được request thật |
-| Đăng ký/đăng nhập/OTP xử lý hoàn toàn ở client | Không có nơi tập trung để audit, rate-limit, hay validate nghiệp vụ trước khi chạm DB |
+| Đăng ký/đăng nhập/xác thực email xử lý hoàn toàn ở client | Không có nơi tập trung để audit, rate-limit, hay validate nghiệp vụ trước khi chạm DB |
 
 ## Kiến trúc hiện tại
 
@@ -70,7 +70,7 @@ class-web/
 ## Những gì đã chuyển từ Frontend sang Backend
 
 - **`SECRET_CODE`**: chỉ trong `backend/.env`, so sánh ở `auth.service.js::registerUser`.
-- **Đăng ký / xác nhận email / login username / quên mật khẩu**: qua `/api/auth/*`.
+- **Đăng ký / xác nhận email / login username / quên mật khẩu**: qua `/api/auth/*`. Xác thực bằng **link trong email** của Supabase (không dùng OTP); cấu hình template trong `supabase/EMAIL-TEMPLATES.md`.
 - **Tài khoản ma**: nút ma cạnh ô Gmail → `taikhoanma-x@ghost.com`. Seed `x` tăng mãi (kể cả khi xóa/đăng xuất). Chỉ đăng ký được với mã thành viên 10A4, bỏ qua email xác nhận, hiện form đặt tên ngay. Tối đa **2 tài khoản ma / ngày** (cả server). Admin vẫn thấy, đổi tên, xóa được.
 - **Tên hiển thị**: `/api/auth/display-name`, `/api/auth/change-username`, `/api/auth/username-change-status`.
 - **Admin Panel**: `GET/PATCH/DELETE /api/admin/...` — `requireAuth` + `requireAdmin`.
