@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { CountdownInput, formatCountdown } from './QuizArchivePanel.jsx'
 
 export function uid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -285,25 +286,15 @@ export function EssayQuestionFields({ draft, onChange, titleInputRef }) {
       </fieldset>
 
       <label className="quiz-field">
-        <span>Thời gian đếm ngược (giây)</span>
-        <input
-          type="number"
-          min="0"
-          step="1"
-          inputMode="numeric"
+        <span>Thời gian đếm ngược</span>
+        <CountdownInput
           value={draft.countdownSeconds}
-          onChange={(e) => {
-            const n = Number(e.target.value)
-            onChange({
-              ...draft,
-              countdownSeconds: Number.isFinite(n) ? Math.max(0, Math.min(3600, Math.round(n))) : 0,
-            })
-          }}
+          onChange={(secs) => onChange({ ...draft, countdownSeconds: secs })}
         />
         <p className="create-class-hint">
           {draft.countdownSeconds > 0
-            ? `Tự chuyển sang câu tiếp theo sau ${draft.countdownSeconds} giây.`
-            : 'Để 0 nếu không tự chuyển câu.'}
+            ? `Tự chuyển sang câu tiếp theo sau ${formatCountdown(draft.countdownSeconds)}.`
+            : 'Để 0:00 nếu không tự chuyển câu.'}
         </p>
       </label>
     </>
@@ -423,7 +414,7 @@ export default function EssayArchivePanel({ questions, onQuestionsChange }) {
                 {q.content ? <p className="essay-card-content">{q.content}</p> : null}
                 <div className="essay-card-meta">
                   <span>{answerCount > 0 ? `${answerCount} đáp án` : 'Chưa có đáp án'}</span>
-                  <span>{q.countdownSeconds > 0 ? `${q.countdownSeconds}s đếm ngược` : 'Không đếm ngược'}</span>
+                  <span>{q.countdownSeconds > 0 ? `${formatCountdown(q.countdownSeconds)} đếm ngược` : 'Không đếm ngược'}</span>
                 </div>
               </article>
             )
