@@ -28,6 +28,60 @@ export const DEFAULT_SETTINGS = {
   answerColor: 'transparent',
 }
 
+/** Định dạng số giây thành chuỗi phút:giây kiểu "0:00". */
+export function formatCountdown(totalSeconds) {
+  const s = Math.max(0, Math.min(3600, Math.round(totalSeconds || 0)))
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  return `${m}:${String(r).padStart(2, '0')}`
+}
+
+/** Ô nhập đếm ngược dạng phút:giây (kiểu đồng hồ "0:00"), độc lập cho mỗi câu hỏi. */
+export function CountdownInput({ value, onChange, minutesLabel = 'Phút', secondsLabel = 'Giây' }) {
+  const total = Math.max(0, Math.min(3600, Math.round(value || 0)))
+  const minutes = Math.floor(total / 60)
+  const seconds = total % 60
+
+  const commit = (nextMinutes, nextSeconds) => {
+    const next = Math.max(0, Math.min(3600, Math.round(nextMinutes) * 60 + Math.round(nextSeconds)))
+    onChange(next)
+  }
+
+  return (
+    <div className="countdown-input">
+      <input
+        type="number"
+        min="0"
+        max="60"
+        step="1"
+        inputMode="numeric"
+        className="countdown-input-part"
+        value={minutes}
+        aria-label={minutesLabel}
+        onChange={(e) => {
+          const n = Number(e.target.value)
+          commit(Number.isFinite(n) ? Math.max(0, Math.min(60, n)) : 0, seconds)
+        }}
+      />
+      <span className="countdown-input-sep" aria-hidden="true">:</span>
+      <input
+        type="number"
+        min="0"
+        max="59"
+        step="1"
+        inputMode="numeric"
+        className="countdown-input-part"
+        value={String(seconds).padStart(2, '0')}
+        aria-label={secondsLabel}
+        onChange={(e) => {
+          const n = Number(e.target.value)
+          commit(minutes, Number.isFinite(n) ? Math.max(0, Math.min(59, n)) : 0)
+        }}
+      />
+    </div>
+  )
+}
+
 export function uid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
   return `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
@@ -588,25 +642,15 @@ export function SettingsModal({ question, onClose, onSave }) {
           ) : null}
 
           <label className="quiz-field">
-            <span>Thời gian đếm ngược (giây)</span>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              inputMode="numeric"
+            <span>Thời gian đếm ngược</span>
+            <CountdownInput
               value={draft.countdownSeconds}
-              onChange={(e) => {
-                const n = Number(e.target.value)
-                setDraft((prev) => ({
-                  ...prev,
-                  countdownSeconds: Number.isFinite(n) ? Math.max(0, Math.min(3600, Math.round(n))) : 0,
-                }))
-              }}
+              onChange={(secs) => setDraft((prev) => ({ ...prev, countdownSeconds: secs }))}
             />
             <p className="create-class-hint">
               {draft.countdownSeconds > 0
-                ? `Tự chuyển sang câu tiếp theo sau ${draft.countdownSeconds} giây.`
-                : 'Để 0 nếu không tự chuyển câu.'}
+                ? `Tự chuyển sang câu tiếp theo sau ${formatCountdown(draft.countdownSeconds)}.`
+                : 'Để 0:00 nếu không tự chuyển câu.'}
             </p>
           </label>
         </div>
