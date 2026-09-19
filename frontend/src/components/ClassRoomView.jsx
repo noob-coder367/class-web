@@ -667,7 +667,8 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                       >
                         {cls.enableLeaderboard ? (
                           <>
-                            <span aria-hidden="true">🏆</span> BXH
+                            <IconTrophy />
+BXH
                           </>
                         ) : (
                           'Không có BXH'
