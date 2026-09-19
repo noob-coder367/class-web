@@ -14,18 +14,6 @@ router.post(
 router.get('/ghost-preview', authController.previewGhost)
 
 router.post(
-  '/verify-otp',
-  validateBody({ email: 'string', otp: 'string' }),
-  authController.verifyOtp
-)
-
-router.post(
-  '/resend-otp',
-  validateBody({ email: 'string' }),
-  authController.resendOtp
-)
-
-router.post(
   '/resend-confirmation',
   validateBody({ email: 'string' }),
   authController.resendConfirmation
@@ -41,12 +29,6 @@ router.post(
   '/forgot-password',
   validateBody({ username: 'string' }),
   authController.forgotPassword
-)
-
-router.post(
-  '/reset-password',
-  validateBody({ email: 'string', otp: 'string', newPassword: 'string' }),
-  authController.resetPassword
 )
 
 router.get('/me', requireAuth, authController.me)
