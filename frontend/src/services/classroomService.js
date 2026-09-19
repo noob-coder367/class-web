@@ -136,6 +136,18 @@ export async function getClassSpace(id, password) {
   return apiClient.get(`/classroom/class-space/${encodeURIComponent(id)}${query}`, { auth: true })
 }
 
+// Mã phòng 6 số — xem trước mã sẽ được cấp khi tạo phòng mới (mã thật do
+// server sinh và khoá lại ngay lúc tạo, xem createClassSpace).
+export async function getNextClassSpaceCode() {
+  return apiClient.get('/classroom/class-space/next-code', { auth: true })
+}
+
+// Tra cứu phòng theo mã 6 số — dùng cho ô "Vào bằng mã phòng" ở đầu trang,
+// hoạt động với mọi phòng (công khai/riêng tư, đang hiện hay đang ẩn trong lớp).
+export async function getClassSpaceByCode(code) {
+  return apiClient.get(`/classroom/class-space/by-code/${encodeURIComponent(code)}`, { auth: true })
+}
+
 export async function createClassSpace(payload) {
   return apiClient.post('/classroom/class-space', payload, { auth: true })
 }
