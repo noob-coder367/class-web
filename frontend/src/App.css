@@ -983,6 +983,58 @@ h1, h2, h3, h4 {
   background: #fff;
 }
 
+.email-with-ghost {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.email-with-ghost input {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-ghost {
+  width: 48px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f4ecff;
+  color: #5b21b6;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s;
+}
+
+.btn-ghost:hover {
+  background: #e9d5ff;
+  border-color: #7c3aed;
+}
+
+.btn-ghost.active {
+  background: #5b21b6;
+  border-color: #5b21b6;
+  color: #fff;
+}
+
+.btn-ghost:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ghost-hint {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f3e8ff;
+  color: #5b21b6;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+}
+
 .auth-form input::placeholder {
   color: #7a8694;
   -webkit-text-fill-color: #7a8694;

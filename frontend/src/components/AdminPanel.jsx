@@ -32,6 +32,27 @@ function compareByGivenName(a, b) {
   return String(a || '').localeCompare(String(b || ''), 'vi', { sensitivity: 'base' })
 }
 
+function GhostMark() {
+  return (
+    <svg
+      className="ghost-account-icon"
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      aria-hidden="true"
+    >
+      <path
+        fill="currentColor"
+        d="M12 2.6c-4.5 0-8.1 3.5-8.1 8.5V20.2c0 .7.8 1 1.3.5l1.7-1.6 1.6 1.7c.4.4 1.1.4 1.5 0l1.9-2 2 2c.4.4 1.1.4 1.5 0l1.6-1.7 1.7 1.6c.5.5 1.3.2 1.3-.5v-9.1c0-5-3.6-8.5-8.1-8.5z"
+      />
+      <ellipse cx="9.1" cy="11.1" rx="1.55" ry="1.85" fill="#fff" />
+      <ellipse cx="14.9" cy="11.1" rx="1.55" ry="1.85" fill="#fff" />
+      <circle cx="9.45" cy="11.4" r="0.72" fill="#2a1848" />
+      <circle cx="15.25" cy="11.4" r="0.72" fill="#2a1848" />
+    </svg>
+  )
+}
+
 function GoogleMark() {
   return (
     <svg
@@ -278,7 +299,12 @@ export default function AdminPanel({ onClose }) {
                           </td>
 
                           <td>
-                            {u.google_email ? (
+                            {u.is_ghost ? (
+                              <span className="ghost-account" title={u.email || ''}>
+                                <GhostMark />
+                                {u.email || 'Tài khoản ma'}
+                              </span>
+                            ) : u.google_email ? (
                               <span className="google-account" title={u.google_email}>
                                 <GoogleMark />
                                 {u.google_email}

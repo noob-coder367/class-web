@@ -9,7 +9,7 @@ import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js
 
 // Các route auth chỉ đọc dữ liệu (cần token hợp lệ, không thể brute-force)
 // nên không tính vào giới hạn chống brute-force login/OTP bên dưới.
-const AUTH_READ_ONLY_PATHS = new Set(['/me', '/username-change-status'])
+const AUTH_READ_ONLY_PATHS = new Set(['/me', '/username-change-status', '/ghost-preview'])
 
 function clientKey(req) {
   const auth = String(req.headers.authorization || '')
@@ -82,7 +82,8 @@ export function createApp() {
       return (
         AUTH_READ_ONLY_PATHS.has(path) ||
         path.endsWith('/me') ||
-        path.endsWith('/username-change-status')
+        path.endsWith('/username-change-status') ||
+        path.endsWith('/ghost-preview')
       )
     },
   })

@@ -7,9 +7,11 @@ const router = Router()
 
 router.post(
   '/register',
-  validateBody({ username: 'string', email: 'string', password: 'string' }),
+  validateBody({ email: 'string', password: 'string' }),
   authController.register
 )
+
+router.get('/ghost-preview', authController.previewGhost)
 
 router.post(
   '/verify-otp',
@@ -21,6 +23,12 @@ router.post(
   '/resend-otp',
   validateBody({ email: 'string' }),
   authController.resendOtp
+)
+
+router.post(
+  '/resend-confirmation',
+  validateBody({ email: 'string' }),
+  authController.resendConfirmation
 )
 
 router.post(

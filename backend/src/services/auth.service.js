@@ -13,8 +13,12 @@ const PENDING_USERNAME_PREFIX = 'pending:'
 const PROFILE_COLUMNS = 'id, username, email, is_member, role, created_at, updated_at'
 const DATA_BUCKET = 'classroom-data'
 const USERNAME_CHANGES_PATH = 'username-changes.json'
+const GHOST_STATE_PATH = 'ghost-accounts.json'
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 const MAX_CHANGES_PER_WEEK = 2
+const GHOST_EMAIL_PREFIX = 'taikhoanma-'
+const GHOST_EMAIL_DOMAIN = 'ghost.com'
+export const GHOST_DAILY_LIMIT = 2
 
 export function isPendingUsername(username) {
   return !username || String(username).startsWith(PENDING_USERNAME_PREFIX)
@@ -22,6 +26,24 @@ export function isPendingUsername(username) {
 
 export function pendingUsernameFor(userId) {
   return `${PENDING_USERNAME_PREFIX}${userId}`
+}
+
+export function isGhostEmail(email) {
+  const value = String(email || '').trim().toLowerCase()
+  return value.endsWith(`@${GHOST_EMAIL_DOMAIN}`)
+}
+
+export function ghostEmailFor(index) {
+  return `${GHOST_EMAIL_PREFIX}${index}@${GHOST_EMAIL_DOMAIN}`
+}
+
+function vietnamDayKey(ms = Date.now()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(ms))
 }
 
 export function toPublicProfile(profile) {
@@ -35,6 +57,7 @@ export function toPublicProfile(profile) {
     role: normalizeRole(profile.role),
     created_at: profile.created_at,
     needs_display_name: pending,
+    is_ghost: isGhostEmail(profile.email),
   }
 }
 
@@ -56,6 +79,17 @@ async function findProfileByUsername(username) {
     .from('profiles')
     .select(PROFILE_COLUMNS)
     .eq('username', username.trim())
+    .maybeSingle()
+
+  if (error) throw new AppError('Lỗi truy vấn tài khoản.', 500)
+  return data
+}
+
+async function findProfileByEmail(email) {
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .select(PROFILE_COLUMNS)
+    .eq('email', String(email || '').trim().toLowerCase())
     .maybeSingle()
 
   if (error) throw new AppError('Lỗi truy vấn tài khoản.', 500)
@@ -98,6 +132,88 @@ async function writeUsernameChanges(map) {
   if (error) throw new AppError('Không lưu được lịch sử đổi tên: ' + error.message, 502)
 }
 
+async function ensureDataBucket() {
+  const { data: bucket } = await supabaseAdmin.storage.getBucket(DATA_BUCKET)
+  if (!bucket) {
+    await supabaseAdmin.storage.createBucket(DATA_BUCKET, { public: false, fileSizeLimit: 2 * 1024 * 1024 })
+  }
+}
+
+async function readGhostState() {
+  const { data, error } = await supabaseAdmin.storage.from(DATA_BUCKET).download(GHOST_STATE_PATH)
+  if (error || !data) return { nextIndex: 1, created: [] }
+  try {
+    const parsed = JSON.parse(await data.text())
+    const nextIndex = Math.max(1, Number(parsed?.nextIndex) || 1)
+    const created = Array.isArray(parsed?.created) ? parsed.created : []
+    return { nextIndex, created }
+  } catch {
+    return { nextIndex: 1, created: [] }
+  }
+}
+
+async function writeGhostState(state) {
+  await ensureDataBucket()
+  const body = Buffer.from(JSON.stringify(state, null, 2) + '\n', 'utf8')
+  const { error } = await supabaseAdmin.storage.from(DATA_BUCKET).upload(GHOST_STATE_PATH, body, {
+    contentType: 'application/json',
+    upsert: true,
+  })
+  if (error) throw new AppError('Không lưu được bộ đếm tài khoản ma: ' + error.message, 502)
+}
+
+function remainingGhostToday(created) {
+  const today = vietnamDayKey()
+  const used = (created || []).filter((item) => vietnamDayKey(Number(item?.at) || 0) === today).length
+  return Math.max(0, GHOST_DAILY_LIMIT - used)
+}
+
+let ghostLock = Promise.resolve()
+function withGhostLock(fn) {
+  const run = ghostLock.then(fn, fn)
+  ghostLock = run.then(() => undefined, () => undefined)
+  return run
+}
+
+export async function previewGhostAccount() {
+  const state = await readGhostState()
+  const remainingToday = remainingGhostToday(state.created)
+  return {
+    email: remainingToday > 0 ? ghostEmailFor(state.nextIndex) : null,
+    nextIndex: state.nextIndex,
+    remainingToday,
+    limit: GHOST_DAILY_LIMIT,
+  }
+}
+
+async function sendSignupConfirmationEmail(email) {
+  const redirectTo = env.FRONTEND_ORIGIN
+  const { error: resendError } = await supabaseAdmin.auth.resend({
+    type: 'signup',
+    email,
+    options: { emailRedirectTo: redirectTo },
+  })
+  if (!resendError) return
+
+  const { error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+    type: 'signup',
+    email,
+    options: { redirectTo },
+  })
+  if (!linkError) return
+
+  const { error: otpError } = await supabaseAdmin.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: false, emailRedirectTo: redirectTo },
+  })
+  if (otpError) {
+    throw new AppError(
+      'Không thể gửi email xác nhận: ' + (resendError.message || linkError.message || otpError.message),
+      500
+    )
+  }
+}
+
 export async function getUsernameChangeStatus(userId) {
   const map = await readUsernameChanges()
   const list = Array.isArray(map[userId]) ? map[userId] : []
@@ -110,50 +226,76 @@ export async function getUsernameChangeStatus(userId) {
   }
 }
 
-export async function registerUser({
-  username,
-  email,
-  password,
-  isMember,
-  secretCode,
-}) {
-  const cleanUsername = normalizeDisplayName(username)
-  const cleanEmail = (email || '').trim().toLowerCase()
-
-  if (!cleanEmail) throw new AppError('Vui lòng nhập email!')
-  if (!password || password.length < 8) {
-    throw new AppError('Mật khẩu phải có ít nhất 8 ký tự!')
-  }
-  if (isMember === true && secretCode !== env.SECRET_CODE) {
-    throw new AppError('Mã thành viên không chính xác!')
+async function upsertProfile({ userId, username, email, isMember }) {
+  const profilePayload = {
+    id: userId,
+    username,
+    email,
+    is_member: isMember === true,
   }
 
-  const existing = await findProfileByUsername(cleanUsername)
-  if (existing) throw new AppError('Username này đã được sử dụng!')
+  const existingProfile = await findProfileById(userId)
+  let profileError = null
+  if (existingProfile) {
+    const { error } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        username,
+        email,
+        is_member: isMember === true,
+      })
+      .eq('id', userId)
+    profileError = error
+  } else {
+    const { error } = await supabaseAdmin.from('profiles').insert([profilePayload])
+    profileError = error
+    if (profileError && /duplicate key|profiles_pkey/i.test(profileError.message || '')) {
+      const { error: upErr } = await supabaseAdmin
+        .from('profiles')
+        .update({
+          username,
+          email,
+          is_member: isMember === true,
+        })
+        .eq('id', userId)
+      profileError = upErr
+    }
+  }
 
+  if (profileError) {
+    const still = await findProfileById(userId)
+    if (!still) {
+      await supabaseAdmin.auth.admin.deleteUser(userId)
+    }
+    throw new AppError('Tạo hồ sơ thất bại: ' + profileError.message, 500)
+  }
+
+  return findProfileById(userId)
+}
+
+async function createAuthUser({ email, password, emailConfirm, reuseExisting = true }) {
   let user = null
-  const { data: created, error: createError } =
-    await supabaseAdmin.auth.admin.createUser({
-      email: cleanEmail,
-      password,
-      email_confirm: false,
-    })
+  const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: emailConfirm,
+  })
 
   if (createError) {
     const msg = String(createError.message || '')
-    if (/already|registered|exists/i.test(msg)) {
+    if (reuseExisting && /already|registered|exists/i.test(msg)) {
       const { data: listed, error: listErr } = await supabaseAdmin.auth.admin.listUsers({
         page: 1,
         perPage: 200,
       })
       if (listErr) throw new AppError(createError.message || 'Không thể tạo tài khoản!', 400)
       const found = (listed?.users || []).find(
-        (u) => String(u.email || '').toLowerCase() === cleanEmail
+        (u) => String(u.email || '').toLowerCase() === email
       )
       if (!found) throw new AppError('Email này đã được sử dụng!', 400)
       const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(found.id, {
         password,
-        email_confirm: false,
+        email_confirm: emailConfirm,
       })
       if (pwErr) throw new AppError('Email này đã được sử dụng!', 400)
       user = found
@@ -165,66 +307,109 @@ export async function registerUser({
   }
 
   if (!user) throw new AppError('Không thể tạo tài khoản!')
+  return user
+}
 
-  const profilePayload = {
-    id: user.id,
-    username: cleanUsername,
-    email: cleanEmail,
-    is_member: isMember === true,
+async function registerGhostUser({ password, isMember, secretCode }) {
+  if (isMember !== true || secretCode !== env.SECRET_CODE) {
+    throw new AppError('Tài khoản ma chỉ đăng ký được với mã thành viên 10A4!')
   }
 
-  const existingProfile = await findProfileById(user.id)
-  let profileError = null
-  if (existingProfile) {
-    const { error } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        username: cleanUsername,
-        email: cleanEmail,
-        is_member: isMember === true,
-      })
-      .eq('id', user.id)
-    profileError = error
-  } else {
-    const { error } = await supabaseAdmin.from('profiles').insert([profilePayload])
-    profileError = error
-    if (profileError && /duplicate key|profiles_pkey/i.test(profileError.message || '')) {
-      const { error: upErr } = await supabaseAdmin
-        .from('profiles')
-        .update({
-          username: cleanUsername,
-          email: cleanEmail,
-          is_member: isMember === true,
-        })
-        .eq('id', user.id)
-      profileError = upErr
+  return withGhostLock(async () => {
+    const state = await readGhostState()
+    const remainingToday = remainingGhostToday(state.created)
+    if (remainingToday <= 0) {
+      throw new AppError('Hôm nay đã hết lượt tài khoản ma (tối đa 2 tài khoản/ngày trên toàn hệ thống).')
     }
-  }
 
-  if (profileError) {
-    const still = await findProfileById(user.id)
-    if (!still) {
-      await supabaseAdmin.auth.admin.deleteUser(user.id)
+    const index = state.nextIndex
+    const cleanEmail = ghostEmailFor(index)
+
+    // Seed tăng ngay, kể cả khi tạo user thất bại / xóa / đăng xuất sau này.
+    const nextState = {
+      nextIndex: index + 1,
+      created: state.created,
     }
-    throw new AppError(
-      'Tạo hồ sơ thất bại: ' + profileError.message,
-      500
-    )
+    await writeGhostState(nextState)
+
+    const user = await createAuthUser({
+      email: cleanEmail,
+      password,
+      emailConfirm: true,
+      reuseExisting: false,
+    })
+
+    const profile = await upsertProfile({
+      userId: user.id,
+      username: pendingUsernameFor(user.id),
+      email: cleanEmail,
+      isMember: true,
+    })
+
+    nextState.created = [
+      ...state.created,
+      { index, at: Date.now(), userId: user.id },
+    ]
+    await writeGhostState(nextState)
+
+    const { data: signed, error: signError } = await supabaseAdmin.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    })
+    if (signError || !signed?.session) {
+      throw new AppError('Tạo tài khoản ma thành công nhưng không đăng nhập được. Hãy thử đăng nhập lại.')
+    }
+
+    return {
+      email: cleanEmail,
+      ghost: true,
+      session: signed.session,
+      profile: toPublicProfile(profile),
+    }
+  })
+}
+
+export async function registerUser({
+  username,
+  email,
+  password,
+  isMember,
+  secretCode,
+}) {
+  const cleanEmail = (email || '').trim().toLowerCase()
+  if (!cleanEmail) throw new AppError('Vui lòng nhập email!')
+  if (!password || password.length < 8) {
+    throw new AppError('Mật khẩu phải có ít nhất 8 ký tự!')
   }
 
-  const { error: otpError } = await supabaseAdmin.auth.signInWithOtp({
+  if (isGhostEmail(cleanEmail)) {
+    return registerGhostUser({ password, isMember, secretCode })
+  }
+
+  const cleanUsername = normalizeDisplayName(username)
+  if (isMember === true && secretCode !== env.SECRET_CODE) {
+    throw new AppError('Mã thành viên không chính xác!')
+  }
+
+  const existing = await findProfileByUsername(cleanUsername)
+  if (existing) throw new AppError('Username này đã được sử dụng!')
+
+  const user = await createAuthUser({
     email: cleanEmail,
-    options: { shouldCreateUser: false },
+    password,
+    emailConfirm: false,
   })
 
-  if (otpError) {
-    throw new AppError(
-      'Không thể gửi mã xác nhận: ' + otpError.message,
-      500
-    )
-  }
+  await upsertProfile({
+    userId: user.id,
+    username: cleanUsername,
+    email: cleanEmail,
+    isMember,
+  })
 
-  return { email: cleanEmail }
+  await sendSignupConfirmationEmail(cleanEmail)
+
+  return { email: cleanEmail, ghost: false }
 }
 
 export async function verifyOtp({ email, otp, purpose }) {
@@ -262,6 +447,14 @@ export async function resendOtp({ email }) {
   }
 }
 
+export async function resendConfirmation({ email }) {
+  if (!email) throw new AppError('Thiếu email.')
+  if (isGhostEmail(email)) {
+    throw new AppError('Tài khoản ma không cần xác nhận email.')
+  }
+  await sendSignupConfirmationEmail(email)
+}
+
 export async function loginUser({ username, password }) {
   const cleanUsername = (username || '').trim()
   if (!cleanUsername) throw new AppError('Vui lòng nhập username!')
@@ -270,8 +463,12 @@ export async function loginUser({ username, password }) {
     throw new AppError('Username hoặc mật khẩu không chính xác!')
   }
 
-  const profile = await findProfileByUsername(cleanUsername)
-  if (!profile?.email || isPendingUsername(profile.username)) {
+  const byEmail = cleanUsername.includes('@')
+  const profile = byEmail
+    ? await findProfileByEmail(cleanUsername.toLowerCase())
+    : await findProfileByUsername(cleanUsername)
+
+  if (!profile?.email || (!byEmail && isPendingUsername(profile.username))) {
     throw new AppError('Username hoặc mật khẩu không chính xác!')
   }
 
@@ -294,9 +491,16 @@ export async function forgotPassword({ username }) {
     throw new AppError('Không tìm thấy tài khoản!')
   }
 
-  const profile = await findProfileByUsername(cleanUsername)
+  const byEmail = cleanUsername.includes('@')
+  const profile = byEmail
+    ? await findProfileByEmail(cleanUsername.toLowerCase())
+    : await findProfileByUsername(cleanUsername)
+
   if (!profile?.email || isPendingUsername(profile.username)) {
     throw new AppError('Không tìm thấy tài khoản!')
+  }
+  if (isGhostEmail(profile.email)) {
+    throw new AppError('Tài khoản ma không dùng được quên mật khẩu. Hãy nhờ admin hỗ trợ.')
   }
 
   const { error } = await supabaseAdmin.auth.signInWithOtp({

@@ -10,10 +10,30 @@ export async function register(req, res, next) {
       isMember,
       secretCode,
     })
+    if (result.ghost) {
+      res.status(201).json({
+        message: 'Đăng ký tài khoản ma thành công.',
+        email: result.email,
+        ghost: true,
+        profile: result.profile,
+        session: result.session,
+      })
+      return
+    }
     res.status(201).json({
-      message: 'Đăng ký thành công, vui lòng kiểm tra email để lấy mã OTP.',
+      message: 'Đăng ký thành công. Vui lòng kiểm tra email và bấm link xác nhận.',
       email: result.email,
+      ghost: false,
     })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function previewGhost(req, res, next) {
+  try {
+    const result = await authService.previewGhostAccount()
+    res.json(result)
   } catch (err) {
     next(err)
   }
@@ -38,6 +58,16 @@ export async function resendOtp(req, res, next) {
     const { email } = req.body
     await authService.resendOtp({ email })
     res.json({ message: 'Mã mới đã được gửi.' })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function resendConfirmation(req, res, next) {
+  try {
+    const { email } = req.body
+    await authService.resendConfirmation({ email })
+    res.json({ message: 'Email xác nhận đã được gửi lại.' })
   } catch (err) {
     next(err)
   }

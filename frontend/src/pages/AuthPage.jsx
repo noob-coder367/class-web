@@ -3,6 +3,27 @@ import { useAuth } from '../context/AuthContext.jsx'
 import * as authService from '../services/authService.js'
 import { supabase } from '../lib/supabaseClient.js'
 
+function GhostIcon({ size = 20 }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        fill="currentColor"
+        d="M12 2.6c-4.5 0-8.1 3.5-8.1 8.5V20.2c0 .7.8 1 1.3.5l1.7-1.6 1.6 1.7c.4.4 1.1.4 1.5 0l1.9-2 2 2c.4.4 1.1.4 1.5 0l1.6-1.7 1.7 1.6c.5.5 1.3.2 1.3-.5v-9.1c0-5-3.6-8.5-8.1-8.5z"
+      />
+      <ellipse cx="9.1" cy="11.1" rx="1.55" ry="1.85" fill="#fff" />
+      <ellipse cx="14.9" cy="11.1" rx="1.55" ry="1.85" fill="#fff" />
+      <circle cx="9.45" cy="11.4" r="0.72" fill="#2a1848" />
+      <circle cx="15.25" cy="11.4" r="0.72" fill="#2a1848" />
+    </svg>
+  )
+}
+
 /**
  * Toàn bộ luồng Auth (login/register/otp/forgot/reset) được chuyển
  * từ App.jsx gốc vào đây. Khác biệt quan trọng so với bản gốc:
@@ -11,25 +32,16 @@ import { supabase } from '../lib/supabaseClient.js'
  *    trực tiếp -> tất cả đi qua authService (gọi backend).
  *  - Đăng nhập Google vẫn dùng supabase trực tiếp vì OAuth không
  *    chứa thông tin nhạy cảm cần giấu.
- *
- * GHI CHÚ SỬA ĐỔI (bảo trì đăng ký):
- *  - Nút "Chưa có tài khoản? Đăng ký ngay" ở màn Đăng nhập: không còn
- *    chuyển sang bước 'register' nữa, chỉ hiện thông báo bảo trì.
- *  - Nút submit "Đăng ký" trong form Đăng ký: bị vô hiệu hoá, không gọi
- *    authService.register nữa, chỉ hiện thông báo bảo trì.
- *  - Toàn bộ code/form đăng ký vẫn được GIỮ NGUYÊN, không xoá, để dễ
- *    bật lại khi cần (chỉ cần gỡ 2 đoạn chặn bên dưới).
  */
 export default function AuthPage({ onClose, initialStep = 'login' }) {
-  const { setSession, reloadProfile, logout, setProfile } = useAuth()
+  const { setSession, reloadProfile, logout, setProfile, profile } = useAuth()
 
-  // BẢO TRÌ ĐĂNG KÝ: dù nơi khác trong app truyền initialStep="register"
-  // (ví dụ nút Đăng ký ở Navbar/trang chủ), KHÔNG cho mở thẳng vào bước
-  // đăng ký nữa — luôn rơi về 'login' trong trường hợp đó.
   const [authStep, setAuthStep] = useState(
     initialStep === 'display-name'
       ? 'display-name'
-      : 'login'
+      : initialStep === 'register'
+        ? 'register'
+        : 'login'
   )
   const [authLoading, setAuthLoading] = useState(false)
 
@@ -39,6 +51,7 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [secretCode, setSecretCode] = useState('')
   const [isMember, setIsMember] = useState(null)
+  const [ghostMode, setGhostMode] = useState(false)
 
   const [otp, setOtp] = useState('')
   const [otpEmail, setOtpEmail] = useState('')
@@ -59,20 +72,11 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
     setConfirmPassword('')
     setSecretCode('')
     setIsMember(null)
+    setGhostMode(false)
     setOtp('')
     setOtpEmail('')
     setOtpCooldown(0)
   }
-
-  useEffect(() => {
-    // BẢO TRÌ ĐĂNG KÝ: lớp chặn runtime — nếu bằng cách nào đó authStep
-    // bị đưa về 'register' (initialStep, code khác, v.v.), tự động huỷ
-    // và quay về màn đăng nhập kèm thông báo.
-    if (authStep === 'register') {
-      alert('Nút đăng ký đang bảo trì')
-      setAuthStep('login')
-    }
-  }, [authStep])
 
   const getAuthTitle = () => {
     switch (authStep) {
@@ -142,12 +146,47 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
 
     setAuthLoading(true)
     try {
-      const { session, profile } = await authService.login({ username, password })
+      const { session, profile: nextProfile } = await authService.login({ username, password })
       setSession(session)
       await reloadProfile()
-      if (profile) onClose?.()
+      if (nextProfile?.needs_display_name) {
+        setUsername('')
+        setAuthStep('display-name')
+        return
+      }
+      if (nextProfile) onClose?.()
     } catch (err) {
       alert(err.message || 'Username hoặc mật khẩu không chính xác!')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const clearGhostMode = () => {
+    setGhostMode(false)
+    setEmail('')
+  }
+
+  const handleGhostClick = async () => {
+    if (authLoading) return
+    if (ghostMode) {
+      clearGhostMode()
+      return
+    }
+
+    setAuthLoading(true)
+    try {
+      const data = await authService.previewGhostAccount()
+      if (!data?.remainingToday) {
+        alert('Hôm nay đã hết lượt tài khoản ma (tối đa 2 tài khoản/ngày).')
+        return
+      }
+      setGhostMode(true)
+      setEmail(data.email)
+      setUsername('')
+      setIsMember(true)
+    } catch (err) {
+      alert(err.message || 'Không lấy được tài khoản ma!')
     } finally {
       setAuthLoading(false)
     }
@@ -156,28 +195,35 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
   const handleRegisterSubmit = async (e) => {
     e.preventDefault()
 
-    // --- BẢO TRÌ ĐĂNG KÝ: chặn ngay, không gọi authService.register nữa ---
-    alert('Nút đăng ký đang bảo trì')
-    return
-    // --- Hết đoạn chặn. Code gốc bên dưới được giữ nguyên, chưa xoá ---
-
-    if (!username.trim()) return alert('Vui lòng nhập username!')
+    if (!ghostMode && !username.trim()) return alert('Vui lòng nhập username!')
     if (!email.trim()) return alert('Vui lòng nhập email!')
     if (password.length < 8) return alert('Mật khẩu phải có ít nhất 8 ký tự!')
     if (password !== confirmPassword) return alert('Mật khẩu xác nhận không khớp!')
     if (isMember === null) return alert('Vui lòng chọn bạn có phải thành viên 10A4 hay không!')
+    if (ghostMode && (isMember !== true || !secretCode.trim())) {
+      return alert('Tài khoản ma chỉ đăng ký được với mã thành viên 10A4!')
+    }
 
     setAuthLoading(true)
     try {
-      const { email: sentEmail } = await authService.register({
-        username,
+      const result = await authService.register({
+        username: ghostMode ? '' : username,
         email,
         password,
         isMember,
         secretCode,
       })
-      setOtpEmail(sentEmail)
-      setOtp('')
+
+      if (result.ghost && result.session) {
+        setSession(result.session)
+        if (result.profile) setProfile(result.profile)
+        else await reloadProfile()
+        setUsername('')
+        setAuthStep('display-name')
+        return
+      }
+
+      setOtpEmail(result.email)
       setOtpCooldown(60)
       setAuthStep('verify-register')
     } catch (err) {
@@ -187,41 +233,15 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
     }
   }
 
-  const handleVerifyRegister = async (e) => {
-    e.preventDefault()
-    if (otp.length !== 6) return alert('Vui lòng nhập đủ 6 số!')
-
-    setAuthLoading(true)
-    try {
-      const { session, profile } = await authService.verifyOtp({
-        email: otpEmail,
-        otp,
-        purpose: 'register',
-      })
-      setSession(session)
-      await reloadProfile()
-      if (profile) {
-        alert('Đăng ký thành công!')
-        onClose?.()
-      } else {
-        alert('Email đã xác nhận nhưng profile chưa hoàn tất.')
-      }
-    } catch (err) {
-      alert(err.message || 'Mã xác nhận không đúng hoặc đã hết hạn!')
-    } finally {
-      setAuthLoading(false)
-    }
-  }
-
-  const resendRegisterOtp = async () => {
+  const resendRegisterConfirmation = async () => {
     if (otpCooldown > 0 || !otpEmail || authLoading) return
     setAuthLoading(true)
     try {
-      await authService.resendOtp({ email: otpEmail })
+      await authService.resendConfirmation({ email: otpEmail })
       setOtpCooldown(60)
-      alert('Mã mới đã được gửi tới email!')
+      alert('Email xác nhận đã được gửi lại!')
     } catch (err) {
-      alert(err.message || 'Không thể gửi lại mã!')
+      alert(err.message || 'Không thể gửi lại email xác nhận!')
     } finally {
       setAuthLoading(false)
     }
@@ -319,8 +339,8 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
 
     setAuthLoading(true)
     try {
-      const { profile } = await authService.setDisplayName({ username })
-      if (profile) setProfile(profile)
+      const { profile: nextProfile } = await authService.setDisplayName({ username })
+      if (nextProfile) setProfile(nextProfile)
       else await reloadProfile()
       onClose?.()
     } catch (err) {
@@ -467,9 +487,9 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
                     type="button"
                     className="btn-toggle-mode"
                     onClick={() => {
-                      // --- BẢO TRÌ ĐĂNG KÝ: không chuyển step nữa, chỉ báo bảo trì ---
                       if (authLoading) return
-                      alert('Nút đăng ký đang bảo trì')
+                      resetAuthForm()
+                      setAuthStep('register')
                     }}
                   >
                     Chưa có tài khoản? Đăng ký ngay
@@ -485,31 +505,55 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
                   className="auth-form"
                 >
 
-                  <input
-                    type="text"
-                    placeholder="Username"
-                    value={username}
-                    onChange={(e) =>
-                      setUsername(
-                        e.target.value
-                      )
-                    }
-                    autoComplete="username"
-                    required
-                  />
+                  {!ghostMode && (
+                    <input
+                      type="text"
+                      placeholder="Username"
+                      value={username}
+                      onChange={(e) =>
+                        setUsername(
+                          e.target.value
+                        )
+                      }
+                      autoComplete="username"
+                      required
+                    />
+                  )}
 
-                  <input
-                    type="email"
-                    placeholder="Email"
-                    value={email}
-                    onChange={(e) =>
-                      setEmail(
-                        e.target.value
-                      )
-                    }
-                    autoComplete="email"
-                    required
-                  />
+                  <div className="email-with-ghost">
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      value={email}
+                      onChange={(e) => {
+                        const next = e.target.value
+                        setEmail(next)
+                        if (ghostMode && !next.toLowerCase().endsWith('@ghost.com')) {
+                          setGhostMode(false)
+                        }
+                      }}
+                      autoComplete="email"
+                      required
+                      readOnly={ghostMode}
+                    />
+                    <button
+                      type="button"
+                      className={`btn-ghost${ghostMode ? ' active' : ''}`}
+                      onClick={handleGhostClick}
+                      disabled={authLoading}
+                      title={ghostMode ? 'Bỏ tài khoản ma' : 'Dùng tài khoản ma'}
+                      aria-label={ghostMode ? 'Bỏ tài khoản ma' : 'Dùng tài khoản ma'}
+                    >
+                      <GhostIcon />
+                    </button>
+                  </div>
+
+                  {ghostMode && (
+                    <p className="ghost-hint">
+                      Tài khoản ma không cần xác nhận email. Chỉ đăng ký được
+                      với mã thành viên 10A4, sau đó sẽ đặt tên hiển thị ngay.
+                    </p>
+                  )}
 
                   <input
                     type="password"
@@ -580,9 +624,13 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
                           checked={
                             isMember === false
                           }
-                          onChange={() =>
+                          onChange={() => {
+                            if (ghostMode) {
+                              alert('Tài khoản ma bắt buộc là thành viên 10A4.')
+                              return
+                            }
                             setIsMember(false)
-                          }
+                          }}
                         />
                         Không
                       </label>
@@ -638,10 +686,7 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
               <>
 
                 <p className="setup-hint">
-                  Một mã xác nhận gồm 6 chữ số
-                  đã được gửi tới email (xem mã
-                  6 chữ số trong thư — không bấm
-                  link trong email):
+                  Chúng tôi đã gửi email xác nhận tới:
                 </p>
 
                 <p
@@ -654,66 +699,35 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
                   {otpEmail}
                 </p>
 
-                <form
-                  onSubmit={handleVerifyRegister}
-                  className="auth-form"
+                <p className="setup-hint">
+                  Hãy mở hộp thư, bấm link xác nhận trong email,
+                  rồi quay lại đây để đăng nhập. Không cần nhập mã OTP.
+                </p>
+
+                <button
+                  type="button"
+                  className="btn-submit"
+                  onClick={() => {
+                    resetAuthForm()
+                    setAuthStep('login')
+                  }}
                 >
-
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={6}
-                    placeholder="Nhập mã 6 số"
-                    value={otp}
-                    onChange={(e) =>
-                      setOtp(
-                        e.target.value
-                          .replace(/\D/g, '')
-                          .slice(0, 6)
-                      )
-                    }
-                    autoComplete="one-time-code"
-                    className="otp-input"
-                    required
-                  />
-
-                  <button
-                    type="submit"
-                    className="btn-submit"
-                    disabled={
-                      authLoading ||
-                      otp.length !== 6
-                    }
-                  >
-                    {authLoading
-                      ? 'Đang xác nhận...'
-                      : 'Xác nhận'}
-                  </button>
-
-                </form>
+                  Đã xác nhận, đăng nhập
+                </button>
 
                 <button
                   type="button"
                   className="btn-toggle-mode"
-                  onClick={
-                    resendRegisterOtp
-                  }
+                  onClick={resendRegisterConfirmation}
                   disabled={
                     authLoading ||
                     otpCooldown > 0
                   }
                 >
                   {otpCooldown > 0
-                    ? `Gửi lại mã sau ${otpCooldown}s`
-                    : 'Gửi lại mã'}
+                    ? `Gửi lại email sau ${otpCooldown}s`
+                    : 'Gửi lại email xác nhận'}
                 </button>
-
-                <p className="setup-hint">
-                  Bạn có thể mở Gmail để xem
-                  mã. Màn hình này sẽ không
-                  tự chuyển về sảnh.
-                </p>
 
               </>
             )}
@@ -900,9 +914,9 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
             {authStep === 'display-name' && (
               <>
                 <p className="setup-hint">
-                  Tài khoản Google của bạn đã được tạo.
-                  Hãy đặt tên hiển thị — tên này sẽ
-                  hiện trong Quản lý Admin.
+                  {ghostMode || profile?.is_ghost
+                    ? 'Tài khoản ma đã sẵn sàng. Hãy đặt tên hiển thị — tên này sẽ hiện trong Quản lý Admin.'
+                    : 'Tài khoản của bạn đã được tạo. Hãy đặt tên hiển thị — tên này sẽ hiện trong Quản lý Admin.'}
                 </p>
 
                 <form

@@ -144,6 +144,20 @@
   color: #64748b;
 }
 
+.ghost-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #e9d5ff;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.ghost-account-icon {
+  flex-shrink: 0;
+  color: #c4b5fd;
+}
+
 /* Cụm Nút bấm thao tác */
 .action-buttons {
   display: flex;

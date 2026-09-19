@@ -2,13 +2,23 @@ import { apiClient, saveAccessToken } from './apiClient.js'
 import { supabase } from '../lib/supabaseClient.js'
 
 export async function register({ username, email, password, isMember, secretCode }) {
-  return apiClient.post('/auth/register', {
+  const data = await apiClient.post('/auth/register', {
     username,
     email,
     password,
     isMember,
     secretCode,
   })
+
+  if (data.session) {
+    await applySession(data.session)
+  }
+
+  return data
+}
+
+export async function previewGhostAccount() {
+  return apiClient.get('/auth/ghost-preview')
 }
 
 export async function verifyOtp({ email, otp, purpose }) {
@@ -23,6 +33,10 @@ export async function verifyOtp({ email, otp, purpose }) {
 
 export async function resendOtp({ email }) {
   return apiClient.post('/auth/resend-otp', { email })
+}
+
+export async function resendConfirmation({ email }) {
+  return apiClient.post('/auth/resend-confirmation', { email })
 }
 
 export async function login({ username, password }) {
