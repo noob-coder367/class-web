@@ -277,6 +277,90 @@
   transform: translateY(-50%) scale(0.92);
 }
 
+.classroom-joincode-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 0 16px 10px;
+  background: #ffffff;
+}
+
+.classroom-joincode-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.classroom-joincode-input {
+  width: 128px;
+  max-width: 45vw;
+  padding: 8px 10px;
+  border: 1.5px solid #dbe4ec;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #14324a;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.classroom-joincode-input::placeholder {
+  letter-spacing: normal;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.classroom-joincode-input:focus {
+  outline: none;
+  border-color: #14324a;
+  background: #ffffff;
+}
+
+.classroom-joincode-btn {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: #14324a;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.classroom-joincode-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.classroom-joincode-btn:hover {
+  background: #1d4a6b;
+}
+
+.classroom-joincode-btn:active {
+  transform: scale(0.92);
+}
+
+.classroom-joincode-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.classroom-joincode-error {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #d0342c;
+  text-align: right;
+}
+
 .classroom-state--soon {
   color: var(--iso-ink, #14324a);
 }
@@ -404,6 +488,14 @@
   .classroom-topbar {
     padding: 10px 10px 8px;
     gap: 8px;
+  }
+
+  .classroom-joincode-bar {
+    padding: 0 10px 8px;
+  }
+
+  .classroom-joincode-input {
+    width: 108px;
   }
 
   .classroom-back {
