@@ -89,6 +89,7 @@ router.get('/class-space/by-code/:code', classroomController.getClassSpaceByCode
 router.get('/class-space/:id', classroomController.getClassSpaceById)
 router.post('/class-space', classroomController.createClassSpace)
 router.put('/class-space/:id', classroomController.updateClassSpace)
+router.patch('/class-space/:id/password', classroomController.updateClassSpacePassword)
 router.delete('/class-space/:id', classroomController.deleteClassSpace)
 router.post('/class-space/:id/start', classroomController.startClassSpaceAttempt)
 router.post('/class-space/:id/result', classroomController.submitClassSpaceResult)
