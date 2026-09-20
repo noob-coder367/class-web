@@ -401,6 +401,44 @@ export async function listClassSpace(profile) {
   return items.map((item) => toPublicMeta(item, profile))
 }
 
+/** Danh sách tài khoản ĐÃ TỪNG TẠO PHÒNG (ít nhất 1 phòng) — dùng cho dropdown
+ * "Được tạo bởi" ở bộ lọc phòng. Chỉ trả về ownerId + ownerName (+ cờ singleRoom
+ * để client chọn đúng câu ghi chú), TUYỆT ĐỐI không trả mã phòng, tiêu đề hay
+ * bất kỳ thông tin nào của phòng — kể cả phòng đang ẩn — nên không thể dùng để
+ * vòng qua cơ chế "Ẩn trong lớp". Danh sách phòng thật sự vẫn lấy từ
+ * listClassSpace (đã lọc phòng ẩn theo quyền chủ phòng/admin). */
+export async function listClassSpaceCreators() {
+  const data = await loadAll()
+  const byOwner = new Map()
+  for (const item of data.items) {
+    if (!item.ownerId) continue
+    const at = new Date(item.createdAt).getTime() || 0
+    const current = byOwner.get(item.ownerId)
+    if (!current) {
+      byOwner.set(item.ownerId, {
+        ownerId: item.ownerId,
+        ownerName: item.ownerName,
+        count: 1,
+        latestAt: at,
+      })
+      continue
+    }
+    current.count += 1
+    // Lấy tên ở phòng mới nhất (phòng cũ có thể lưu tên cũ của người tạo).
+    if (at >= current.latestAt) {
+      current.ownerName = item.ownerName
+      current.latestAt = at
+    }
+  }
+  return [...byOwner.values()]
+    .sort((a, b) => a.ownerName.localeCompare(b.ownerName, 'vi', { sensitivity: 'base' }))
+    .map((row) => ({
+      ownerId: row.ownerId,
+      ownerName: row.ownerName,
+      singleRoom: row.count === 1,
+    }))
+}
+
 /** Tra cứu phòng theo mã 6 số — áp dụng cho mọi phòng (công khai/riêng tư,
  * đang hiện hay đang ẩn trong lớp). Chỉ trả về thông tin công khai (giống
  * toPublicMeta) để luồng vào phòng ở client tái dùng được logic hiện có
