@@ -538,30 +538,187 @@
 
 .create-class-code-display {
   display: inline-flex;
+  align-items: center;
   align-self: flex-start;
-  padding: 10px 18px;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 8px 6px 18px;
   border: 1.5px dashed var(--cc-line);
   border-radius: var(--cc-radius);
   background: var(--cc-soft);
   color: var(--cc-primary);
+  box-sizing: border-box;
+}
+
+.create-class-code-text {
   font-size: 20px;
   font-weight: 800;
+  /* letter-spacing để lại một khoảng thừa ở cuối chữ nên bù bằng margin âm */
   letter-spacing: 0.42em;
+  margin-right: -0.42em;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Nút con mắt (hiện/ẩn mã phòng, mật khẩu) */
+.create-class-eye-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #5f7284;
+  cursor: pointer;
+  transition:
+    background var(--cc-fast),
+    color var(--cc-fast);
+}
+
+.create-class-eye-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.create-class-eye-btn:hover:not(:disabled) {
+  background: rgba(26, 107, 138, 0.1);
+  color: var(--cc-primary);
+}
+
+.create-class-eye-btn[aria-pressed='true'] {
+  color: var(--cc-accent);
+}
+
+.create-class-eye-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.create-class-eye-btn--inset {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
 }
 
 .create-class-password {
   margin-top: 16px;
 }
 
-.create-class-password input {
-  max-width: 240px;
-  letter-spacing: 0.42em;
-  font-size: 20px;
+.create-class-secret-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.create-class-secret-input {
+  position: relative;
+  flex: 1 1 140px;
+  min-width: 140px;
+  max-width: 260px;
+}
+
+.create-class-password .create-class-secret-input input {
+  padding: 0 44px 0 10px;
+  letter-spacing: 0.25em;
+  font-size: 18px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   text-align: center;
-  padding-right: 8px;
+}
+
+/* Placeholder không dùng chung letter-spacing/cỡ chữ của mật khẩu để không bị cắt chữ */
+.create-class-password .create-class-secret-input input::placeholder {
+  letter-spacing: normal;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.create-class-password .create-class-secret-input input:read-only {
+  cursor: default;
+  background: var(--cc-soft);
+  box-shadow: none;
+  border-color: var(--cc-line);
+}
+
+.create-class-icon-btn,
+.create-class-save-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  border-radius: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background var(--cc-fast),
+    transform var(--cc-fast),
+    opacity var(--cc-fast);
+}
+
+.create-class-icon-btn {
+  width: 48px;
+  padding: 0;
+  border: 1px solid var(--cc-line);
+  background: var(--cc-paper);
+  color: var(--cc-primary);
+}
+
+.create-class-icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.create-class-icon-btn:hover:not(:disabled) {
+  background: #eaf3f7;
+}
+
+.create-class-icon-btn.is-cancel {
+  color: var(--cc-danger);
+}
+
+.create-class-save-btn {
+  gap: 6px;
+  padding: 0 14px;
+  border: none;
+  background: var(--cc-primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.create-class-save-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.create-class-save-btn:hover:not(:disabled) {
+  background: #0f2740;
+}
+
+.create-class-icon-btn:active:not(:disabled),
+.create-class-save-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.create-class-save-btn:disabled,
+.create-class-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.create-class-notice {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1b7a4b;
 }
 
 .create-class-archive-btn {
