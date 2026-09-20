@@ -95,6 +95,43 @@ function IconGear() {
   )
 }
 
+function IconEye() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+function IconEyeOff() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17.94 17.94A10.4 10.4 0 0 1 12 19c-6.4 0-10-7-10-7a18.6 18.6 0 0 1 4.06-5.06" />
+      <path d="M9.9 4.24A9.9 9.9 0 0 1 12 5c6.4 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19" />
+      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+      <path d="M2 2l20 20" />
+    </svg>
+  )
+}
+
+function IconPencil() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+    </svg>
+  )
+}
+
+function IconCheck() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  )
+}
+
 const ARCHIVE_TABS = [
   { id: 'quiz', label: 'Trắc nghiệm' },
   { id: 'essay', label: 'Tự luận' },
@@ -116,6 +153,17 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [isPublic, setIsPublic] = useState(editingClass ? editingClass.isPublic !== false : true)
   const [password, setPassword] = useState(editingClass?.password || '')
+  // Phòng ĐÃ riêng tư từ trước: ô mật khẩu luôn hiện mật khẩu đang dùng (chỉ đọc),
+  // muốn đổi thì bấm nút bút → nhập 6 số mới → bấm Lưu (lưu ngay lên server).
+  const wasPrivateBefore = isEditing && editingClass.isPublic === false
+  const [savedPassword, setSavedPassword] = useState(wasPrivateBefore ? editingClass?.password || '' : '')
+  const [passwordEditing, setPasswordEditing] = useState(false)
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordNotice, setPasswordNotice] = useState('')
+  const [showRoomCode, setShowRoomCode] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const passwordInputRef = useRef(null)
   const [visibleInClass, setVisibleInClass] = useState(editingClass ? editingClass.visibleInClass !== false : true)
   const [roomCode, setRoomCode] = useState(editingClass?.code || '')
   const [archiveOpen, setArchiveOpen] = useState(false)
@@ -285,6 +333,45 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
 
   const handlePassword = (e) => {
     setPassword(e.target.value.replace(/\D/g, '').slice(0, 6))
+    setPasswordError('')
+    setPasswordNotice('')
+  }
+
+  const startPasswordEdit = () => {
+    setPassword(savedPassword)
+    setPasswordError('')
+    setPasswordNotice('')
+    setPasswordEditing(true)
+    window.requestAnimationFrame(() => passwordInputRef.current?.focus())
+  }
+
+  const cancelPasswordEdit = () => {
+    setPassword(savedPassword)
+    setPasswordError('')
+    setPasswordEditing(false)
+  }
+
+  const savePassword = async () => {
+    if (password.length !== 6) {
+      setPasswordError('Mật khẩu cần đủ 6 chữ số.')
+      return
+    }
+    if (password === savedPassword) {
+      setPasswordEditing(false)
+      return
+    }
+    setPasswordSaving(true)
+    setPasswordError('')
+    try {
+      await classroomService.updateClassSpacePassword(editingClass.id, password)
+      setSavedPassword(password)
+      setPasswordEditing(false)
+      setPasswordNotice('Đã lưu mật khẩu mới.')
+    } catch (err) {
+      setPasswordError(err?.message || 'Không lưu được mật khẩu, vui lòng thử lại.')
+    } finally {
+      setPasswordSaving(false)
+    }
   }
 
   const openArchive = () => {
@@ -301,7 +388,6 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
     // Lớp đang chỉnh sửa mà TRƯỚC ĐÓ đã riêng tư thì được để trống mật khẩu
     // (giữ nguyên mật khẩu cũ) — chỉ bắt buộc nhập đủ 6 số khi tạo mới hoặc
     // khi vừa chuyển từ công khai sang riêng tư.
-    const wasPrivateBefore = isEditing && editingClass.isPublic === false
     if (!isPublic) {
       if (password && password.length !== 6) {
         setSubmitError('Mật khẩu cần đủ 6 chữ số.')
@@ -456,7 +542,20 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
             Mã 6 số để vào phòng nhanh bằng ô nhập mã, hệ thống tự sinh và không trùng với phòng khác.
           </p>
           <div className="create-class-code-display" aria-live="polite">
-            {roomCode || '······'}
+            <span className="create-class-code-text">
+              {roomCode ? (showRoomCode ? roomCode : '••••••') : '······'}
+            </span>
+            <button
+              type="button"
+              className="create-class-eye-btn"
+              onClick={() => setShowRoomCode((v) => !v)}
+              disabled={!roomCode}
+              aria-pressed={showRoomCode}
+              aria-label={showRoomCode ? 'Ẩn mã phòng' : 'Hiện mã phòng'}
+              title={showRoomCode ? 'Ẩn mã phòng' : 'Hiện mã phòng'}
+            >
+              {showRoomCode ? <IconEyeOff /> : <IconEye />}
+            </button>
           </div>
         </div>
 
@@ -572,23 +671,72 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
           {!isPublic ? (
             <div className="create-class-field create-class-password">
               <label htmlFor="create-class-pin">Mật khẩu 6 chữ số</label>
-              <input
-                id="create-class-pin"
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                value={password}
-                onChange={handlePassword}
-                placeholder={isEditing && editingClass.isPublic === false ? 'Để trống nếu giữ nguyên' : '••••••'}
-                aria-describedby="create-class-pin-hint"
-              />
+              <div className="create-class-secret-row">
+                <div className="create-class-secret-input">
+                  <input
+                    ref={passwordInputRef}
+                    id="create-class-pin"
+                    type={showPassword ? 'text' : 'password'}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={wasPrivateBefore && !passwordEditing ? savedPassword : password}
+                    onChange={handlePassword}
+                    readOnly={wasPrivateBefore && !passwordEditing}
+                    maxLength={6}
+                    placeholder={wasPrivateBefore && !passwordEditing ? 'Chưa hiển thị' : '••••••'}
+                    aria-describedby="create-class-pin-hint"
+                  />
+                  <button
+                    type="button"
+                    className="create-class-eye-btn create-class-eye-btn--inset"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-pressed={showPassword}
+                    aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showPassword ? <IconEyeOff /> : <IconEye />}
+                  </button>
+                </div>
+
+                {wasPrivateBefore ? (
+                  <>
+                    <button
+                      type="button"
+                      className={`create-class-icon-btn${passwordEditing ? ' is-cancel' : ''}`}
+                      onClick={passwordEditing ? cancelPasswordEdit : startPasswordEdit}
+                      disabled={passwordSaving}
+                      aria-label={passwordEditing ? 'Huỷ chỉnh sửa mật khẩu' : 'Chỉnh sửa mật khẩu'}
+                      title={passwordEditing ? 'Huỷ' : 'Chỉnh sửa mật khẩu'}
+                    >
+                      {passwordEditing ? <IconClose /> : <IconPencil />}
+                    </button>
+                    <button
+                      type="button"
+                      className="create-class-save-btn"
+                      onClick={savePassword}
+                      disabled={!passwordEditing || passwordSaving || password.length !== 6}
+                    >
+                      <IconCheck />
+                      {passwordSaving ? 'Đang lưu...' : 'Lưu'}
+                    </button>
+                  </>
+                ) : null}
+              </div>
               <p id="create-class-pin-hint" className="create-class-hint">
-                {password.length === 6
-                  ? 'Mật khẩu đã đủ 6 chữ số.'
-                  : isEditing && editingClass.isPublic === false
-                    ? 'Để trống để giữ mật khẩu cũ, hoặc nhập 6 số mới để đổi mật khẩu.'
+                {wasPrivateBefore
+                  ? passwordEditing
+                    ? password.length === 6
+                      ? 'Đã đủ 6 số — bấm Lưu để đổi mật khẩu.'
+                      : 'Nhập đủ 6 chữ số rồi bấm Lưu.'
+                    : savedPassword
+                      ? 'Đây là mật khẩu đang dùng. Bấm nút bút để đổi mật khẩu.'
+                      : 'Mật khẩu phòng này được đặt từ trước nên chưa hiện được. Bấm nút bút để đặt lại.'
+                  : password.length === 6
+                    ? 'Mật khẩu đã đủ 6 chữ số.'
                     : 'Chỉ nhập số. Học sinh cần đúng mật khẩu này mới vào được lớp.'}
               </p>
+              {passwordError ? <p className="create-class-error">{passwordError}</p> : null}
+              {passwordNotice ? <p className="create-class-notice">{passwordNotice}</p> : null}
             </div>
           ) : null}
         </div>
