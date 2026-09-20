@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { supabase, initialAuthRedirect, clearAuthRedirectFromUrl } from '../lib/supabaseClient.js'
+import { ROUTES, classTabPath } from '../lib/routes.js'
 import AuthPage from './AuthPage.jsx'
+import SettingsPanel from '../components/SettingsPanel.jsx'
+import { getStoredAvatar } from '../components/ProfileMenu.jsx'
 import EventsSection from '../components/EventsSection.jsx'
 import AdminPanel from '../components/AdminPanel.jsx'
 import ClassRoomView from '../components/ClassRoomView.jsx'
@@ -44,10 +48,16 @@ let emailLinkNoticeShown = false
 
 export default function HomePage() {
   const { session, profile, authReady, isAdmin, logout, passwordRecovery } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  // /vo-lop và mọi sub-route của nó -> mở khu vực lớp. /profile-setting -> mở
+  // Cài đặt. Các route này điều khiển trực tiếp bằng URL thay vì state rời rạc.
+  const showClassRoom = location.pathname === ROUTES.classRoot || location.pathname.startsWith(`${ROUTES.classRoot}/`)
+  const showProfileSetting = location.pathname === ROUTES.profileSetting
 
   const [showAuth, setShowAuth] = useState(false)
   const [showAdminPanel, setShowAdminPanel] = useState(false)
-  const [showClassRoom, setShowClassRoom] = useState(false)
   const [classInitialTab, setClassInitialTab] = useState('announcements')
   const [authLoading, setAuthLoading] = useState(false)
   const [authInitialStep, setAuthInitialStep] = useState('login')
@@ -65,6 +75,18 @@ export default function HomePage() {
   })
 
   const [unreadTotal, setUnreadTotal] = useState(0)
+  const [avatarUrl, setAvatarUrl] = useState(null)
+
+  useEffect(() => {
+    const uid = session?.user?.id
+    if (!uid) {
+      setAvatarUrl(null)
+      return
+    }
+    const googleAvatar =
+      session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture || null
+    setAvatarUrl(getStoredAvatar(uid) || googleAvatar || null)
+  }, [session?.user?.id, showProfileSetting])
   const [showPushPrompt, setShowPushPrompt] = useState(false)
 
   const teacherPhoto = siteImages.teacher[0]
@@ -105,9 +127,21 @@ export default function HomePage() {
   }, [profile?.is_member])
 
   const openAuth = (step = 'login') => {
-    setAuthInitialStep(step === 'register' ? 'register' : 'login')
-    setShowAuth(true)
+    navigate(step === 'register' ? ROUTES.register : ROUTES.login)
   }
+
+  // Route /dang-nhap và /dang-ky (gõ thẳng URL hoặc bấm nút ở header) -> mở
+  // đúng form tương ứng. Các luồng khác (quên mật khẩu, cần đặt tên...) vẫn
+  // tự mở form bằng setShowAuth bên dưới, không phụ thuộc route.
+  useEffect(() => {
+    if (location.pathname === ROUTES.register) {
+      setAuthInitialStep('register')
+      setShowAuth(true)
+    } else if (location.pathname === ROUTES.login) {
+      setAuthInitialStep('login')
+      setShowAuth(true)
+    }
+  }, [location.pathname])
 
   // Vừa bấm link "đặt lại mật khẩu" trong email -> hiện form "Đặt mật khẩu mới".
   useEffect(() => {
@@ -216,19 +250,28 @@ export default function HomePage() {
     }
   }, [authReady, profile?.is_member, showClassRoom, refreshUnread])
 
+  // Backend/Service Worker vẫn gửi URL push kiểu cũ ("/#/classroom/homework").
+  // Không sửa backend theo yêu cầu -> dịch hash cũ đó sang route mới ở đây.
+  const goToLegacyClassHash = useCallback(
+    (hash) => {
+      const raw = String(hash || '')
+      if (!raw.startsWith('#/classroom')) return
+      const parts = raw.replace(/^#\/?/, '').split('/')
+      const tab = parts[1] || 'announcements'
+      const allowed = new Set(['announcements', 'timetable', 'homework', 'rules', 'cleaning-duty'])
+      const finalTab = allowed.has(tab) ? tab : 'announcements'
+      setClassInitialTab(finalTab)
+      if (profile?.is_member) navigate(classTabPath(finalTab))
+    },
+    [profile?.is_member, navigate]
+  )
+
   useEffect(() => {
-    const applyHash = () => {
-      const hash = window.location.hash || ''
-      if (hash.startsWith('#/classroom')) {
-        const parts = hash.replace(/^#\/?/, '').split('/')
-        const tab = parts[1] || 'announcements'
-        const allowed = new Set(['announcements', 'timetable', 'homework', 'rules', 'cleaning-duty'])
-        setClassInitialTab(allowed.has(tab) ? tab : 'announcements')
-        if (profile?.is_member) setShowClassRoom(true)
-      }
+    if (window.location.hash) {
+      goToLegacyClassHash(window.location.hash)
+      // Xoá hash cũ khỏi thanh địa chỉ để không lẫn với route mới.
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
     }
-    applyHash()
-    window.addEventListener('hashchange', applyHash)
 
     const onMsg = (event) => {
       if (event.data?.type === 'CLASS_REFRESH') {
@@ -239,9 +282,9 @@ export default function HomePage() {
       if (event.data?.type === 'PUSH_NAVIGATE' && event.data.url) {
         try {
           const u = new URL(event.data.url, window.location.origin)
-          window.location.hash = u.hash || '#/classroom/announcements'
+          goToLegacyClassHash(u.hash || '#/classroom/announcements')
         } catch {
-          window.location.hash = '#/classroom/announcements'
+          goToLegacyClassHash('#/classroom/announcements')
         }
       }
     }
@@ -249,12 +292,11 @@ export default function HomePage() {
       navigator.serviceWorker.addEventListener('message', onMsg)
     }
     return () => {
-      window.removeEventListener('hashchange', applyHash)
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.removeEventListener('message', onMsg)
       }
     }
-  }, [profile?.is_member])
+  }, [goToLegacyClassHash])
 
   useEffect(() => {
     fetchAnnouncements()
@@ -352,7 +394,7 @@ export default function HomePage() {
     try {
       await logout()
       setShowAuth(false)
-      setShowClassRoom(false)
+      if (showClassRoom) navigate(ROUTES.home)
       setUnreadTotal(0)
       setShowPushPrompt(false)
     } finally {
@@ -381,21 +423,36 @@ export default function HomePage() {
 
   const openClassRoom = (tab = 'announcements') => {
     setClassInitialTab(tab)
-    setShowClassRoom(true)
+    navigate(classTabPath(tab))
   }
 
   const closeClassRoom = () => {
-    setShowClassRoom(false)
+    navigate(ROUTES.home)
     refreshUnread()
   }
 
+  const closeAuth = () => {
+    setShowAuth(false)
+    if (location.pathname === ROUTES.login || location.pathname === ROUTES.register) {
+      navigate(ROUTES.home)
+    }
+  }
+
   return (
-    <div className={`page ${showAuth || showClassRoom ? 'no-scroll' : ''}`}>
+    <div className={`page ${showAuth || showClassRoom || showProfileSetting ? 'no-scroll' : ''}`}>
       {showAuth && (
         <AuthPage
           key={authInitialStep}
           initialStep={authInitialStep}
-          onClose={() => setShowAuth(false)}
+          onClose={closeAuth}
+        />
+      )}
+
+      {showProfileSetting && (
+        <SettingsPanel
+          onClose={() => navigate(ROUTES.home)}
+          avatarUrl={avatarUrl}
+          onAvatarChange={(url) => setAvatarUrl(url)}
         />
       )}
 
