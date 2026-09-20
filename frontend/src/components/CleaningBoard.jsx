@@ -169,12 +169,6 @@ export default function CleaningBoard({ isAdmin }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => {
-    const onRefresh = () => load()
-    window.addEventListener('classweb-class-refresh', onRefresh)
-    return () => window.removeEventListener('classweb-class-refresh', onRefresh)
-  }, [])
-
   const handleUpdateStatus = async (dateISO, status) => {
     setUpdatingDate(dateISO)
     try {
@@ -283,7 +277,7 @@ export default function CleaningBoard({ isAdmin }) {
       {isAdmin ? (
         <button
           type="button"
-          className="cleaning-fab cleaning-fab--left"
+          className="cleaning-fab"
           onClick={() => setOpenSettings(true)}
           aria-label="Cài đặt lịch trực"
           title="Cài đặt lịch trực (tuần này & tuần sau)"
