@@ -222,6 +222,7 @@ const EMPTY_CAPS = capabilitiesFor('user')
 export default function ClassRoomView({ onClose, initialTab = 'announcements' }) {
   const { profile } = useAuth()
   const [activeTab, setActiveTab] = useState(initialTab || 'announcements')
+  const [refreshTick, setRefreshTick] = useState(0)
   const [access, setAccess] = useState('ok')
   const [accessError, setAccessError] = useState('')
   const [items, setItems] = useState([])
@@ -384,6 +385,12 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   }, [access, activeTab])
 
   useEffect(() => {
+    const onRefresh = () => setRefreshTick((t) => t + 1)
+    window.addEventListener('classweb-class-refresh', onRefresh)
+    return () => window.removeEventListener('classweb-class-refresh', onRefresh)
+  }, [])
+
+  useEffect(() => {
     if (access === 'denied') {
       setLoadingTab(false)
       setItems([])
@@ -479,7 +486,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     }
     load()
     return () => { cancelled = true }
-  }, [access, activeTab])
+  }, [access, activeTab, refreshTick])
 
   const handleSaveTimetable = async (next) => {
     const data = await classroomService.saveTimetable(next)
@@ -607,7 +614,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   useEffect(() => {
     if (access !== 'ok') return
     refreshClassSpace()
-  }, [access, refreshClassSpace])
+  }, [access, refreshClassSpace, refreshTick])
 
   const closeClassEditor = () => {
     setShowCreateClass(false)
