@@ -124,6 +124,7 @@ async function sendOne(sub, payload, urgency = 'normal') {
       TTL: 60 * 60 * 12,
       urgency: urgency === 'high' || urgency === 'urgent' ? 'high' : 'normal',
     }
+
     await webpush.sendNotification(
       {
         endpoint: sub.endpoint,
@@ -132,13 +133,27 @@ async function sendOne(sub, payload, urgency = 'normal') {
       JSON.stringify(payload),
       options
     )
+
+    console.log('[push] GỬI THÀNH CÔNG:', {
+      userId: sub.userId,
+      endpoint: String(sub.endpoint || '').slice(0, 80),
+      title: payload?.title || '',
+    })
+
     return true
   } catch (err) {
     const code = err?.statusCode
+
     if (code === 404 || code === 410) {
+      console.warn('[push] Subscription không còn tồn tại:', {
+        userId: sub.userId,
+        statusCode: code,
+      })
       return 'gone'
     }
+
     console.warn('[push] gửi thất bại:', err?.message || err)
+
     return false
   }
 }
@@ -174,6 +189,11 @@ export async function sendPushNotification(payload, options = {}) {
     const set = new Set(options.userIds.map(String))
     targets = targets.filter((s) => set.has(String(s.userId)))
   }
+
+  console.log('[push] BẮT ĐẦU GỬI:', {
+  totalSubscriptions: targets.length,
+  title,
+  })
 
   const gone = []
   let sent = 0
