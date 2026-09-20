@@ -231,6 +231,10 @@ function normalizeItem(raw) {
     // Phòng đang ẩn vẫn vào được bằng mã phòng (xem getClassSpaceByCode).
     visibleInClass: raw.visibleInClass !== false,
     passwordHash: isPublic ? '' : String(raw.passwordHash || ''),
+    // Mật khẩu 6 số dạng đọc được — CHỈ để chủ phòng xem/chỉnh lại trong màn
+    // hình chỉnh sửa (xem toFullPayload). Phòng cũ tạo trước khi có trường này
+    // chỉ có passwordHash nên password sẽ rỗng cho tới khi chủ phòng đặt lại.
+    password: isPublic ? '' : String(raw.password || ''),
     shuffle: raw.shuffle === true,
     allowRetry: raw.allowRetry !== false,
     allowMultiTry: raw.allowMultiTry === true,
@@ -250,6 +254,26 @@ async function loadAll() {
   await ensureDataBucket()
   const store = await readStore()
   const items = store.items.map(normalizeItem).filter(Boolean)
+
+  // Phòng tạo từ trước khi có mã phòng thì chưa có `code` — cấp mã 6 số không
+  // trùng cho các phòng đó (một lần duy nhất) để hiện được trong màn hình chỉnh
+  // sửa và vào được bằng ô nhập mã.
+  const missingCode = items.filter((row) => !row.code)
+  if (missingCode.length) {
+    const taken = new Set(items.map((row) => row.code).filter(Boolean))
+    for (const row of missingCode) {
+      row.code = generateUniqueRoomCode(taken)
+      taken.add(row.code)
+    }
+    memoryCache = { items }
+    try {
+      await writeStore({ items })
+    } catch {
+      // Không lưu được lúc này thì lần sau sẽ tự thử lại, không làm hỏng luồng đọc.
+    }
+    return clone(memoryCache)
+  }
+
   memoryCache = { items }
   return clone(memoryCache)
 }
@@ -284,9 +308,12 @@ function toPublicMeta(item, profile) {
 function toFullPayload(item, profile) {
   // Dùng khi người xem đã được phép vào lớp (public / đúng chủ / đúng mật khẩu).
   // Không lộ passwordHash, results đầy đủ hay attempts (mốc thời gian nội bộ) ra ngoài.
-  const { passwordHash, results, attempts, ...rest } = item
+  const { passwordHash, password, results, attempts, ...rest } = item
+  // Mật khẩu đọc được chỉ gửi cho CHỦ phòng (để hiện trong màn hình chỉnh sửa).
+  const isOwner = !!profile?.id && profile.id === item.ownerId
   return {
     ...rest,
+    ...(isOwner ? { password: item.isPublic ? '' : password || '' } : {}),
     questions: item.questions,
     myResult: myResultOf(item, profile),
     leaderboard: item.enableLeaderboard ? buildLeaderboard(item) : [],
@@ -448,6 +475,7 @@ export async function createClassSpace(payload, profile) {
     isPublic,
     visibleInClass: payload?.visibleInClass !== false,
     passwordHash: isPublic ? '' : hashPassword(payload.password),
+    password: isPublic ? '' : String(payload.password),
     shuffle: !!payload?.shuffle,
     allowRetry: payload?.allowRetry !== false,
     allowMultiTry: payload?.allowMultiTry === true,
@@ -486,6 +514,14 @@ export async function updateClassSpace(id, payload, profile) {
     : payload?.password
       ? hashPassword(payload.password)
       : current.passwordHash
+  if (!isPublic && !passwordHash) {
+    throw new AppError('Lớp riêng tư cần mật khẩu đủ 6 chữ số.', 400)
+  }
+  const password = isPublic
+    ? ''
+    : payload?.password
+      ? String(payload.password)
+      : current.password
 
   const questions = Array.isArray(payload?.questions) ? payload.questions : current.questions
   assertQuestionsHaveCorrectAnswers(questions)
@@ -502,6 +538,7 @@ export async function updateClassSpace(id, payload, profile) {
     isPublic,
     visibleInClass: payload?.visibleInClass !== false,
     passwordHash,
+    password,
     shuffle: !!payload?.shuffle,
     allowRetry: payload?.allowRetry !== false,
     allowMultiTry: payload?.allowMultiTry === true,
@@ -514,6 +551,37 @@ export async function updateClassSpace(id, payload, profile) {
   data.items[idx] = updated
   await saveAll(data.items)
   return toFullPayload(updated, profile)
+}
+
+/** Đổi riêng mật khẩu 6 số của phòng riêng tư (nút "Sửa mật khẩu" → "Lưu" ở
+ * màn hình chỉnh sửa phòng). Chỉ chủ phòng; không đụng tới các cài đặt khác. */
+export async function updateClassSpacePassword(id, payload, profile) {
+  const targetId = String(id || '').trim()
+  if (!targetId) throw new AppError('Thiếu mã lớp học.', 400)
+  const data = await loadAll()
+  const idx = data.items.findIndex((row) => row.id === targetId)
+  if (idx === -1) throw new AppError('Không tìm thấy lớp học.', 404)
+  const current = data.items[idx]
+  if (!profile?.id || profile.id !== current.ownerId) {
+    throw new AppError('Bạn không phải chủ lớp học này nên không thể đổi mật khẩu.', 403)
+  }
+  if (current.isPublic) {
+    throw new AppError('Phòng đang ở chế độ công khai nên chưa có mật khẩu.', 400)
+  }
+  const next = String(payload?.password || '')
+  if (!/^\d{6}$/.test(next)) {
+    throw new AppError('Mật khẩu cần đủ 6 chữ số.', 400)
+  }
+
+  const updated = normalizeItem({
+    ...current,
+    passwordHash: hashPassword(next),
+    password: next,
+    updatedAt: new Date().toISOString(),
+  })
+  data.items[idx] = updated
+  await saveAll(data.items)
+  return { password: next }
 }
 
 export async function submitClassSpaceResult(id, payload, profile) {
