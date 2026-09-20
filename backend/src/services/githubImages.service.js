@@ -41,17 +41,35 @@ function emptyManifest() {
 }
 
 async function ensureBucket() {
-  const { data } = await supabaseAdmin.storage.getBucket(BUCKET)
+  const { data, error } = await supabaseAdmin.storage.getBucket(BUCKET)
+
+  if (error) {
+    throw new AppError(
+      'Không truy cập được kho ảnh site-images: ' + error.message,
+      502
+    )
+  }
+
   if (!data) {
-    const { error } = await supabaseAdmin.storage.createBucket(BUCKET, {
-      public: true,
-      fileSizeLimit: MAX_BYTES,
-    })
-    if (error && !/already exists|duplicate|exists/i.test(error.message || '')) {
-      throw new AppError('Không tạo được kho ảnh: ' + error.message, 502)
+    throw new AppError(
+      'Bucket site-images chưa tồn tại trong Supabase.',
+      500
+    )
+  }
+
+  if (data.public === false) {
+    const { error: updateError } =
+      await supabaseAdmin.storage.updateBucket(BUCKET, {
+        public: true,
+      })
+
+    if (updateError) {
+      throw new AppError(
+        'Không thể đặt bucket site-images thành Public: ' +
+          updateError.message,
+        500
+      )
     }
-  } else if (data.public === false) {
-    await supabaseAdmin.storage.updateBucket(BUCKET, { public: true })
   }
 }
 
