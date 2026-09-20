@@ -263,6 +263,14 @@ export default function HomePage() {
     const onImagesUpdated = () => loadSiteImages()
     window.addEventListener('site-images-updated', onImagesUpdated)
 
+    const onHomeRefresh = () => {
+      fetchAnnouncements()
+      loadSiteImages()
+      refreshUnread()
+    }
+    window.addEventListener('classweb-home-refresh', onHomeRefresh)
+    window.addEventListener('classweb-class-refresh', onHomeRefresh)
+
     const channel = supabase
       .channel('realtime-announcements')
       .on(
@@ -276,9 +284,11 @@ export default function HomePage() {
 
     return () => {
       window.removeEventListener('site-images-updated', onImagesUpdated)
+      window.removeEventListener('classweb-home-refresh', onHomeRefresh)
+      window.removeEventListener('classweb-class-refresh', onHomeRefresh)
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [refreshUnread])
 
   useEffect(() => {
     const sectionIds = NAV_LINKS.map((link) => link.href.replace('#', ''))
