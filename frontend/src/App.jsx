@@ -3,6 +3,7 @@ import { WeatherProvider } from './context/WeatherContext.jsx'
 import HomePage from './pages/HomePage.jsx'
 import OceanScrollBackground from './components/OceanScrollBackground.jsx'
 import LocationPermissionModal from './components/LocationPermissionModal.jsx'
+import GlobalRefreshButton from './components/GlobalRefreshButton.jsx'
 import './App.css'
 
 export default function App() {
@@ -12,6 +13,7 @@ export default function App() {
         <OceanScrollBackground />
         <HomePage />
         <LocationPermissionModal />
+        <GlobalRefreshButton />
       </WeatherProvider>
     </AuthProvider>
   )
