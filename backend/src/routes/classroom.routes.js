@@ -84,6 +84,7 @@ router.get('/leaderboard', classroomController.getLeaderboard)
 
 // Mục "Lớp học" (bộ câu hỏi tự tạo) — dùng chung cho mọi thiết bị/thành viên.
 router.get('/class-space', classroomController.listClassSpace)
+router.get('/class-space/creators', classroomController.listClassSpaceCreators)
 router.get('/class-space/next-code', classroomController.getNextClassSpaceCode)
 router.get('/class-space/by-code/:code', classroomController.getClassSpaceByCode)
 router.get('/class-space/:id', classroomController.getClassSpaceById)
