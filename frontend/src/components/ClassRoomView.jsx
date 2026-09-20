@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
 import TimetableBoard from './TimetableBoard.jsx'
 import RulesBoard from './RulesBoard.jsx'
@@ -96,6 +96,17 @@ function IconDoor() {
       <path d="M6.5 21V4.5A1.5 1.5 0 0 1 8 3h5a1.5 1.5 0 0 1 1.5 1.5V21" />
       <path d="M14.5 10.5H17a1.5 1.5 0 0 1 1.5 1.5v9" />
       <circle cx="10.5" cy="12" r="0.9" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function IconEyeOff() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17.94 17.94A10.6 10.6 0 0 1 12 19.5C6.5 19.5 2.5 12 2.5 12a19 19 0 0 1 4.2-5.3" />
+      <path d="M9.9 4.6A9.7 9.7 0 0 1 12 4.5C17.5 4.5 21.5 12 21.5 12a19 19 0 0 1-2.2 3.1" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+      <path d="M3 3l18 18" />
     </svg>
   )
 }
@@ -247,6 +258,10 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [joinCode, setJoinCode] = useState('')
   const [joinError, setJoinError] = useState('')
   const [joinLoading, setJoinLoading] = useState(false)
+  // Bộ lọc phòng (mục "Lớp học"): mặc định Mới nhất + Tất cả.
+  const [roomSort, setRoomSort] = useState('newest')
+  const [roomOwner, setRoomOwner] = useState('all')
+  const [roomCreators, setRoomCreators] = useState([])
 
   const updateNavScroll = useCallback(() => {
     const el = navRef.current
@@ -513,9 +528,20 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     } catch {}
   }, [])
 
+  // Danh sách người đã từng tạo phòng (kể cả người chỉ có phòng đang ẩn) — chỉ
+  // gồm ownerId/ownerName, không kèm thông tin phòng. Lỗi thì bỏ qua: dropdown
+  // sẽ tự dùng danh sách người tạo suy ra từ các phòng đang hiển thị.
+  const refreshRoomCreators = useCallback(async () => {
+    try {
+      const data = await classroomService.getClassSpaceCreators()
+      setRoomCreators(Array.isArray(data?.creators) ? data.creators : [])
+    } catch {}
+  }, [])
+
   const refreshClassSpace = useCallback(async () => {
     setClassSpaceLoading(true)
     setClassSpaceError('')
+    refreshRoomCreators()
     try {
       const data = await classroomService.listClassSpace()
       setClassSpaceItems(Array.isArray(data?.items) ? data.items : [])
@@ -524,7 +550,59 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     } finally {
       setClassSpaceLoading(false)
     }
-  }, [])
+  }, [refreshRoomCreators])
+
+  // Dropdown "Được tạo bởi": người đã có ít nhất 1 phòng (từ backend) + người
+  // tạo của các phòng đang hiển thị (phòng hờ khi backend chưa trả được danh sách).
+  const roomOwnerOptions = useMemo(() => {
+    const byId = new Map()
+    for (const row of roomCreators) {
+      if (!row?.ownerId) continue
+      byId.set(row.ownerId, {
+        ownerId: row.ownerId,
+        ownerName: row.ownerName || 'Ẩn danh',
+        singleRoom: row.singleRoom === true,
+      })
+    }
+    for (const row of classSpaceItems) {
+      if (!row?.ownerId || byId.has(row.ownerId)) continue
+      byId.set(row.ownerId, {
+        ownerId: row.ownerId,
+        ownerName: row.ownerName || 'Ẩn danh',
+        singleRoom: false,
+      })
+    }
+    return [...byId.values()].sort((a, b) =>
+      a.ownerName.localeCompare(b.ownerName, 'vi', { sensitivity: 'base' })
+    )
+  }, [roomCreators, classSpaceItems])
+
+  const selectedRoomCreator = useMemo(
+    () => roomOwnerOptions.find((row) => row.ownerId === roomOwner) || null,
+    [roomOwnerOptions, roomOwner]
+  )
+
+  // Nguồn phòng luôn là classSpaceItems (server đã loại phòng "Ẩn trong lớp"
+  // trừ chủ phòng/admin) — bộ lọc chỉ sắp xếp/lọc lại trên tập này nên không
+  // bao giờ làm lộ thêm phòng ẩn.
+  const displayedClassSpaceItems = useMemo(() => {
+    const timeOf = (row) => {
+      const t = Date.parse(row?.createdAt)
+      return Number.isFinite(t) ? t : 0
+    }
+    const dir = roomSort === 'oldest' ? 1 : -1
+    return classSpaceItems
+      .map((row, index) => ({ row, index, t: timeOf(row) }))
+      .filter(({ row }) => roomOwner === 'all' || row.ownerId === roomOwner)
+      .sort((a, b) => (a.t - b.t) * dir || (a.index - b.index) * -dir)
+      .map(({ row }) => row)
+  }, [classSpaceItems, roomSort, roomOwner])
+
+  // Người được chọn không còn phòng nào (vd. vừa xoá phòng cuối) → về "Tất cả".
+  useEffect(() => {
+    if (roomOwner === 'all' || classSpaceLoading) return
+    if (!roomOwnerOptions.some((row) => row.ownerId === roomOwner)) setRoomOwner('all')
+  }, [roomOwner, roomOwnerOptions, classSpaceLoading])
 
   useEffect(() => {
     if (access !== 'ok') return
@@ -626,6 +704,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     try {
       await classroomService.deleteClassSpace(cls.id)
       setClassSpaceItems((prev) => prev.filter((row) => row.id !== cls.id))
+      refreshRoomCreators()
     } catch (err) {
       setClassSpaceError(err?.message || 'Không xoá được phòng.')
     }
@@ -744,15 +823,27 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       return (
         <>
           {classSpaceError ? <p className="classroom-state classroom-state--denied">{classSpaceError}</p> : null}
-          {!classSpaceItems.length ? (
+          {!classSpaceItems.length && roomOwner === 'all' ? (
             <div className="classroom-state classroom-state--soon">
               <IconDoor />
               <p>Chưa có phòng nào được tạo.</p>
               <p className="classroom-state-sub">Bấm nút + ở góc dưới để tạo phòng đầu tiên.</p>
             </div>
+          ) : !displayedClassSpaceItems.length ? (
+            // Đã chọn một người tạo nhưng không có phòng nào được phép hiển thị →
+            // toàn bộ phòng của họ đang bị chủ phòng ẩn. Chỉ báo chung, không kèm
+            // mã phòng/tiêu đề hay bất kỳ dữ liệu nào của phòng ẩn.
+            <div className="classroom-state class-space-hidden-note" role="status">
+              <IconEyeOff />
+              <p>
+                {selectedRoomCreator && !selectedRoomCreator.singleRoom
+                  ? 'Các phòng của người này đang bị chủ phòng ẩn.'
+                  : 'Phòng này đang bị chủ phòng ẩn.'}
+              </p>
+            </div>
           ) : (
             <div className="class-space-grid">
-              {classSpaceItems.map((cls) => {
+              {displayedClassSpaceItems.map((cls) => {
                 const isOwner = !!profile?.id && cls.ownerId === profile.id
                 const completedLocked = isRoomCompletedLocked(cls)
 
@@ -996,34 +1087,65 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
 
       {activeTab === 'class-space' ? (
         <div className="classroom-joincode-bar">
-          <div className="classroom-joincode-field">
-            <input
-              type="text"
-              inputMode="numeric"
-              className="classroom-joincode-input"
-              value={joinCode}
-              onChange={(e) => {
-                setJoinCode(e.target.value.replace(/\D/g, '').slice(0, 6))
-                setJoinError('')
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleJoinByCode()
-              }}
-              placeholder="Nhập mã phòng"
-              maxLength={6}
-              aria-label="Nhập mã phòng 6 số"
-              disabled={access === 'denied'}
-            />
-            <button
-              type="button"
-              className="classroom-joincode-btn"
-              onClick={handleJoinByCode}
-              disabled={joinLoading || access === 'denied'}
-              aria-label="Vào phòng bằng mã"
-              title="Vào phòng bằng mã"
-            >
-              <IconArrowRight />
-            </button>
+          <div className="classroom-joincode-row">
+            <div className="classroom-roomfilter" role="group" aria-label="Bộ lọc phòng">
+              <label className="classroom-roomfilter-item">
+                <span className="classroom-roomfilter-label">Sắp xếp theo</span>
+                <select
+                  className="classroom-roomfilter-select"
+                  value={roomSort}
+                  onChange={(e) => setRoomSort(e.target.value)}
+                >
+                  <option value="newest">Mới nhất</option>
+                  <option value="oldest">Cũ nhất</option>
+                </select>
+              </label>
+              <label className="classroom-roomfilter-item">
+                <span className="classroom-roomfilter-label">Được tạo bởi</span>
+                <select
+                  className="classroom-roomfilter-select classroom-roomfilter-select--owner"
+                  value={roomOwner}
+                  onChange={(e) => setRoomOwner(e.target.value)}
+                >
+                  <option value="all">Tất cả</option>
+                  {roomOwnerOptions.map((row) => (
+                    <option key={row.ownerId} value={row.ownerId}>
+                      {row.ownerName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="classroom-joincode-field">
+              <input
+                type="text"
+                inputMode="numeric"
+                className="classroom-joincode-input"
+                value={joinCode}
+                onChange={(e) => {
+                  setJoinCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                  setJoinError('')
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleJoinByCode()
+                }}
+                placeholder="Nhập mã phòng"
+                maxLength={6}
+                aria-label="Nhập mã phòng 6 số"
+                disabled={access === 'denied'}
+              />
+              <button
+                type="button"
+                className="classroom-joincode-btn"
+                onClick={handleJoinByCode}
+                disabled={joinLoading || access === 'denied'}
+                aria-label="Vào phòng bằng mã"
+                title="Vào phòng bằng mã"
+              >
+                <IconArrowRight />
+              </button>
+            </div>
           </div>
           {joinError ? <p className="classroom-joincode-error">{joinError}</p> : null}
         </div>
