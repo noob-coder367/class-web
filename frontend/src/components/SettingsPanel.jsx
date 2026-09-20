@@ -8,6 +8,7 @@ import {
   requestPermissionAndSubscribe,
   unsubscribePush,
   getNotificationPermission,
+  registerServiceWorker,
 } from '../services/pushService.js'
 import { saveAvatar, getAvatarMeta } from './ProfileMenu.jsx'
 import './SettingsPanel.css'
@@ -39,7 +40,7 @@ export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
   const [nameLoading, setNameLoading] = useState(false)
   const [nameStatus, setNameStatus] = useState({ remaining: 2, max: 2 })
 
-  const [pushOn, setPushOn] = useState(isPushEnabledPref() && getNotificationPermission() === 'granted')
+  const [pushOn, setPushOn] = useState(false)
   const [pushMsg, setPushMsg] = useState('')
   const [pushLoading, setPushLoading] = useState(false)
 
@@ -60,6 +61,29 @@ export default function SettingsPanel({ onClose, avatarUrl, onAvatarChange }) {
   useEffect(() => {
     setNameInput(username || '')
   }, [username])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (getNotificationPermission() !== 'granted' || !isPushEnabledPref()) {
+        if (!cancelled) setPushOn(false)
+        return
+      }
+      try {
+        const reg = await registerServiceWorker()
+        const sub = await reg?.pushManager?.getSubscription()
+        if (!cancelled) setPushOn(Boolean(sub))
+      } catch (err) {
+        console.error('[push] không đọc được subscription hiện tại:', err)
+        if (!cancelled) {
+          setPushOn(isPushEnabledPref() && getNotificationPermission() === 'granted')
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false

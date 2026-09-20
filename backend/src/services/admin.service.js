@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError, setDisplayName, toPublicProfile } from './auth.service.js'
 import { isKnownRole, normalizeRole, ROLES } from '../lib/roles.js'
+import * as pushService from './push.service.js'
 
 /**
  * Toàn bộ thao tác quản trị chạy ở backend bằng service role key,
@@ -68,10 +69,28 @@ export async function listUsers() {
     googleByUserId = new Map()
   }
 
-  return (data || []).map((profile) => ({
-    ...toPublicProfile(profile),
-    google_email: googleByUserId.get(profile.id) || null,
-  }))
+  let pushByUserId = new Map()
+  try {
+    pushByUserId = await pushService.getPushStatsByUserId()
+  } catch (err) {
+    console.warn('[admin] không tải được trạng thái push:', err?.message || err)
+    pushByUserId = new Map()
+  }
+
+  return (data || []).map((profile) => {
+    const push = pushByUserId.get(String(profile.id)) || {
+      push_devices: 0,
+      push_last_received_at: null,
+    }
+    const devices = Number(push.push_devices) || 0
+    return {
+      ...toPublicProfile(profile),
+      google_email: googleByUserId.get(profile.id) || null,
+      push_enabled: devices > 0,
+      push_devices: devices,
+      push_last_received_at: push.push_last_received_at || null,
+    }
+  })
 }
 
 export async function updateUsername(targetUserId, rawName) {
@@ -135,6 +154,12 @@ export async function toggleRole(targetUserId, currentRole, requesterId) {
 export async function deleteUser(targetUserId, requesterId) {
   if (targetUserId === requesterId) {
     throw new AppError('Bạn không thể tự xóa chính tài khoản của mình!')
+  }
+
+  try {
+    await pushService.removeSubscriptionsForUser(targetUserId)
+  } catch (err) {
+    console.warn('[admin] xóa push subscriptions:', err?.message || err)
   }
 
   const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(

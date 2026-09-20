@@ -20,6 +20,7 @@ import {
   isPushEnabledPref,
   requestPermissionAndSubscribe,
   registerServiceWorker,
+  syncPushSubscription,
   getNotificationPermission,
   needsPushPrompt,
   hasPromptedPermission,
@@ -163,7 +164,9 @@ export default function HomePage() {
       window.addEventListener('classweb-unread-updated', onUnread)
     }
 
-    registerServiceWorker().catch(() => {})
+    registerServiceWorker().catch((err) => {
+      console.error('[push] không đăng ký được Service Worker:', err)
+    })
 
     const perm = getNotificationPermission()
     let promptTimer = null
@@ -172,7 +175,9 @@ export default function HomePage() {
     if (needsPushPrompt() && !hasPromptedPermission()) {
       promptTimer = setTimeout(() => setShowPushPrompt(true), 600)
     } else if (perm === 'granted' && isPushEnabledPref()) {
-      requestPermissionAndSubscribe().catch(() => {})
+      syncPushSubscription({ createIfMissing: true }).catch((err) => {
+        console.error('[push] không đồng bộ được subscription:', err)
+      })
     }
 
     return () => {
@@ -350,7 +355,7 @@ export default function HomePage() {
       await requestPermissionAndSubscribe()
       setShowPushPrompt(false)
     } catch (err) {
-      console.warn('Push subscribe:', err?.message || err)
+      console.error('[push] bật thông báo thất bại:', err)
       markPrompted()
       alert(
         err?.message ||

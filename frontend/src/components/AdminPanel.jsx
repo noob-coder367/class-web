@@ -32,6 +32,15 @@ function compareByGivenName(a, b) {
   return String(a || '').localeCompare(String(b || ''), 'vi', { sensitivity: 'base' })
 }
 
+/** Chỉ hiện số giây. lastReceivedAt là lúc Service Worker nhận Push + showNotification. */
+function formatSecondsAgo(lastReceivedAt, now = Date.now()) {
+  if (!lastReceivedAt) return '—'
+  const t = new Date(lastReceivedAt).getTime()
+  if (!Number.isFinite(t)) return '—'
+  const seconds = Math.max(0, Math.floor((now - t) / 1000))
+  return `${seconds} giây trước`
+}
+
 function GhostMark() {
   return (
     <svg
@@ -91,9 +100,15 @@ export default function AdminPanel({ onClose }) {
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState(null)
   const [roleBusyId, setRoleBusyId] = useState(null)
+  const [nowMs, setNowMs] = useState(() => Date.now())
 
   useEffect(() => {
     fetchUsers()
+  }, [])
+
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(id)
   }, [])
 
   useEffect(() => {
@@ -278,6 +293,8 @@ export default function AdminPanel({ onClose }) {
                       <th>Tài khoản Google</th>
                       <th>Vai trò</th>
                       <th>Thành viên 10A4</th>
+                      <th>Push</th>
+                      <th>Nhận thông báo</th>
                       <th>Thao tác</th>
                     </tr>
                   </thead>
@@ -330,6 +347,31 @@ export default function AdminPanel({ onClose }) {
                             >
                               {u.is_member ? 'Đã xác minh' : 'Chưa xác minh'}
                             </span>
+                          </td>
+
+                          <td>
+                            {u.push_enabled ? (
+                              <div className="push-cell">
+                                <span className="push-on">🟢 Đã bật</span>
+                                {Number(u.push_devices) > 0 && (
+                                  <span className="push-devices">
+                                    {u.push_devices} thiết bị
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="push-off">🔴 Chưa bật</span>
+                            )}
+                          </td>
+
+                          <td>
+                            {u.push_last_received_at ? (
+                              <span className="push-received">
+                                {formatSecondsAgo(u.push_last_received_at, nowMs)}
+                              </span>
+                            ) : (
+                              <span className="push-received-empty">—</span>
+                            )}
                           </td>
 
                           <td>

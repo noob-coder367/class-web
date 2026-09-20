@@ -6,6 +6,9 @@ const router = Router()
 
 router.get('/vapid-public-key', pushController.getVapidPublicKey)
 
+// Receipt là telemetry từ Service Worker — xác thực bằng receiptToken, không cần session.
+router.post('/receipt', pushController.receipt)
+
 // Mọi user đã đăng nhập đều bật/tắt Web Push được — không bắt buộc thành viên 10A4
 router.post('/subscribe', requireAuth, pushController.subscribe)
 router.post('/unsubscribe', requireAuth, pushController.unsubscribe)

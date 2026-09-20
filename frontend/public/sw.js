@@ -1,11 +1,42 @@
 /* Service Worker — Web Push cho 10A4 */
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim())
 })
+
+function pickReceipt(data) {
+  const nested = data && typeof data.data === 'object' ? data.data : {}
+  const token = data?.__pushReceiptToken || nested.__pushReceiptToken || ''
+  const url = data?.__pushReceiptUrl || nested.__pushReceiptUrl || ''
+  return { token, url }
+}
+
+function publicNotificationData(data) {
+  const nested = data && typeof data.data === 'object' ? { ...data.data } : {}
+  delete nested.__pushReceiptToken
+  delete nested.__pushReceiptUrl
+  return {
+    url: data.url || '/#/classroom/announcements',
+    ...nested,
+  }
+}
+
+async function sendPushReceipt(token, url) {
+  if (!token || !url) return
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receiptToken: token }),
+      keepalive: true,
+    })
+  } catch {
+    console.error('[sw] gửi receipt thất bại')
+  }
+}
 
 self.addEventListener('push', (event) => {
   let data = {
@@ -30,6 +61,7 @@ self.addEventListener('push', (event) => {
   }
 
   const isUrgent = data.urgency === 'high' || data.urgency === 'urgent' || data.requireInteraction
+  const { token: receiptToken, url: receiptUrl } = pickReceipt(data)
 
   event.waitUntil(
     (async () => {
@@ -57,11 +89,11 @@ self.addEventListener('push', (event) => {
         // Một số trình duyệt/Android dùng silent=false + vibrate để nổi bật
         silent: false,
         vibrate: isUrgent ? [200, 100, 200, 100, 200] : [100, 50, 100],
-        data: {
-          url: data.url || '/#/classroom/announcements',
-          ...(data.data || {}),
-        },
+        data: publicNotificationData(data),
       })
+
+      // Telemetry — lỗi receipt không được làm hỏng notification.
+      await sendPushReceipt(receiptToken, receiptUrl)
     })()
   )
 })

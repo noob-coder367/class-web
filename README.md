@@ -90,6 +90,13 @@ Thành viên bấm **Vô Lớp 10A4** vào màn nội bộ (thông báo, TKB, b�
 - Đổi mật khẩu (tài khoản email/password).
 - Bật/tắt chia sẻ vị trí (nền đại dương theo thời tiết) và Web Push.
 
+## Web Push (trạng thái Admin)
+
+- Push **đã bật** khi backend đang lưu ít nhất một subscription hợp lệ của tài khoản (không dùng localStorage / `Notification.permission`).
+- **Nhận thông báo** = Service Worker đã nhận payload và `showNotification` thành công, rồi gửi receipt (`POST /api/push/receipt`). Không dùng thời điểm server gọi `webpush.sendNotification()`.
+- Admin chỉ nhận `push_enabled`, `push_devices`, `push_last_received_at` — không nhận endpoint / keys / receiptToken.
+- Nên chạy `supabase/push-subscriptions.sql` một lần trên Supabase (bảng `push_subscriptions`, endpoint unique). Nếu chưa chạy, backend tạm dùng JSON Storage với ghi tuần tự.
+
 ## Cách chạy
 
 ### 1. Cấu hình Supabase

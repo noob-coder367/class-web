@@ -48,46 +48,83 @@ export async function registerServiceWorker() {
   return reg
 }
 
+/**
+ * Đồng bộ subscription thật (PushManager) với backend.
+ * localStorage không phải nguồn sự thật — chỉ dùng để nhớ user đã tắt chủ động.
+ */
+export async function syncPushSubscription({ createIfMissing = true } = {}) {
+  if (getNotificationPermission() !== 'granted') return null
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.error('[push] Trình duyệt không hỗ trợ Web Push / Service Worker.')
+    return null
+  }
+
+  try {
+    const { publicKey } = await apiClient.get('/push/vapid-public-key')
+    if (!publicKey) {
+      console.error('[push] Server chưa cấu hình VAPID key.')
+      throw new Error('Server chưa cấu hình VAPID key.')
+    }
+
+    const reg = await registerServiceWorker()
+    if (!reg?.pushManager) {
+      console.error('[push] Không đăng ký được Service Worker.')
+      throw new Error('Không đăng ký được Service Worker.')
+    }
+
+    let sub = await reg.pushManager.getSubscription()
+    if (!sub && createIfMissing) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      })
+    }
+    if (!sub) return null
+
+    await apiClient.post(
+      '/push/subscribe',
+      { subscription: sub.toJSON() },
+      { auth: true }
+    )
+    setPushEnabledPref(true)
+    return sub
+  } catch (err) {
+    console.error('[push] auto-sync thất bại:', err)
+    throw err
+  }
+}
+
 export async function subscribePush() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     throw new Error('Trình duyệt không hỗ trợ Web Push.')
   }
-  const { publicKey } = await apiClient.get('/push/vapid-public-key')
-  if (!publicKey) throw new Error('Server chưa cấu hình VAPID key.')
-
-  const reg = await registerServiceWorker()
-  let sub = await reg.pushManager.getSubscription()
-  if (!sub) {
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
-    })
-  }
-
-  await apiClient.post(
-    '/push/subscribe',
-    { subscription: sub.toJSON() },
-    { auth: true }
-  )
-  setPushEnabledPref(true)
-  return sub
+  return syncPushSubscription({ createIfMissing: true })
 }
 
 export async function unsubscribePush() {
   if (!('serviceWorker' in navigator)) return
-  const reg = await navigator.serviceWorker.getRegistration()
-  if (!reg) return
-  const sub = await reg.pushManager.getSubscription()
-  if (sub) {
-    const endpoint = sub.endpoint
-    await sub.unsubscribe()
-    try {
-      await apiClient.post('/push/unsubscribe', { endpoint }, { auth: true })
-    } catch {
-      /* ignore */
+  try {
+    const reg = await navigator.serviceWorker.getRegistration()
+    if (!reg) {
+      setPushEnabledPref(false)
+      return
     }
+    const sub = await reg.pushManager.getSubscription()
+    if (sub) {
+      const endpoint = sub.endpoint
+      await sub.unsubscribe()
+      try {
+        await apiClient.post('/push/unsubscribe', { endpoint }, { auth: true })
+      } catch (err) {
+        console.error('[push] hủy subscription trên server thất bại:', err)
+      }
+    }
+  } catch (err) {
+    console.error('[push] unsubscribe thất bại:', err)
+    throw err
+  } finally {
+    setPushEnabledPref(false)
   }
-  setPushEnabledPref(false)
 }
 
 export async function requestPermissionAndSubscribe() {

@@ -33,4 +33,7 @@ export const env = {
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || '',
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || '',
   VAPID_SUBJECT: process.env.VAPID_SUBJECT || 'mailto:admin@10a4.local',
+
+  // Public origin của /api (vd https://xxx.onrender.com/api). Dùng cho push receipt URL.
+  API_PUBLIC_URL: String(process.env.API_PUBLIC_URL || '').replace(/\/$/, ''),
 }

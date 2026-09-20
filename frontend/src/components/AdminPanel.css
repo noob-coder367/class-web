@@ -21,7 +21,7 @@
   background: #1a2b3c;
   color: #fff;
   width: 100%;
-  max-width: 1080px;
+  max-width: 1240px;
   max-height: 90vh;
   border-radius: 16px;
   display: flex;
@@ -96,7 +96,7 @@
 .admin-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 920px; /* Đảm bảo bảng không bị ép quá nhỏ */
+  min-width: 1180px; /* Đảm bảo bảng không bị ép quá nhỏ */
   text-align: left;
 }
 
@@ -125,6 +125,40 @@
 
 .admin-table th.col-stt {
   color: #94a3b8;
+}
+
+.push-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  line-height: 1.3;
+}
+
+.push-on {
+  color: #4ade80;
+  font-weight: 700;
+}
+
+.push-off {
+  color: #f87171;
+  font-weight: 700;
+}
+
+.push-devices {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.push-received {
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.push-received-empty {
+  color: #64748b;
 }
 
 .google-account {

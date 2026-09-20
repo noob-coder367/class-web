@@ -110,6 +110,13 @@ export function createApp() {
   })
   app.use('/api/classroom', classroomLimiter)
 
+  const pushReceiptLimiter = rateLimit({
+    ...limiterBase,
+    windowMs: 15 * 60 * 1000,
+    limit: 400,
+  })
+  app.use('/api/push/receipt', pushReceiptLimiter)
+
   app.use('/api', routes)
 
   app.use(notFoundHandler)
