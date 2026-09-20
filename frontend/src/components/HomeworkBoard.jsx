@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import * as classroomService from '../services/classroomService.js'
+import { parseClassPath, homeworkDetailPath, parseHomeworkSegment, classTabPath } from '../lib/routes.js'
 import './HomeworkBoard.css'
 
 const SUBJECT_OPTIONS = [
@@ -56,7 +58,10 @@ function defaultTitle(isoDate) {
 }
 
 export default function HomeworkBoard({ isAdmin }) {
+  const navigate = useNavigate()
+  const location = useLocation()
   const [posts, setPosts] = useState([])
+  const [detailPost, setDetailPost] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -197,6 +202,31 @@ export default function HomeworkBoard({ isAdmin }) {
     }
   }
 
+  const openDetail = (post, opts = {}) => {
+    if (!post) return
+    setDetailPost(post)
+    if (!opts.silent) navigate(homeworkDetailPath(post.id))
+  }
+  const closeDetail = () => {
+    setDetailPost(null)
+    navigate(classTabPath('homework'), { replace: true })
+  }
+
+  // Truy cập trực tiếp bằng URL /bai-tap-ve-nha/bao-bai-:x -> tự mở Modal
+  // chi tiết báo bài tương ứng.
+  useEffect(() => {
+    const { rest } = parseClassPath(location.pathname)
+    const id = parseHomeworkSegment(rest)
+    if (!id) {
+      if (detailPost) setDetailPost(null)
+      return
+    }
+    if (detailPost && String(detailPost.id) === String(id)) return
+    const found = posts.find((p) => String(p.id) === String(id))
+    if (found) openDetail(found, { silent: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, posts])
+
   const toggleFilterType = (key) => {
     setFilterTypes((prev) => ({ ...prev, [key]: !prev[key] }))
   }
@@ -295,7 +325,19 @@ export default function HomeworkBoard({ isAdmin }) {
       ) : (
         <div className="hw-list">
           {filtered.map((post) => (
-            <article key={post.id} className="hw-card">
+            <article
+              key={post.id}
+              className="hw-card hw-card--clickable"
+              role="button"
+              tabIndex={0}
+              onClick={() => openDetail(post)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  openDetail(post)
+                }
+              }}
+            >
               <h3 className="hw-title">{post.title}</h3>
 
               <div className="hw-body">
@@ -339,7 +381,10 @@ export default function HomeworkBoard({ isAdmin }) {
                   <button
                     type="button"
                     className="hw-btn-delete"
-                    onClick={() => handleDelete(post.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(post.id)
+                    }}
                   >
                     Xóa
                   </button>
@@ -360,6 +405,62 @@ export default function HomeworkBoard({ isAdmin }) {
         >
           +
         </button>
+      ) : null}
+
+      {detailPost ? (
+        <div className="hw-composer-overlay" onClick={closeDetail} role="presentation">
+          <div
+            className="hw-composer-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hw-detail-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="hw-composer-header">
+              <h2 id="hw-detail-title">{detailPost.title}</h2>
+              <button type="button" className="hw-composer-close" onClick={closeDetail} aria-label="Đóng">
+                ✕
+              </button>
+            </header>
+
+            <div className="hw-composer-body">
+              {detailPost.has_exam && detailPost.exam_content ? (
+                <div className="hw-block hw-block--exam">
+                  <div className="hw-block-label">Kiểm tra</div>
+                  <div className="hw-exam-meta">
+                    {detailPost.exam_subject ? (
+                      <span className="hw-exam-pill">Môn: {detailPost.exam_subject}</span>
+                    ) : null}
+                    {detailPost.exam_date ? (
+                      <span className="hw-exam-pill">Ngày: {formatVNDate(detailPost.exam_date)}</span>
+                    ) : null}
+                  </div>
+                  <p className="hw-block-text">{detailPost.exam_content}</p>
+                </div>
+              ) : null}
+
+              {detailPost.experiment_content ? (
+                <div className="hw-block hw-block--exp">
+                  <div className="hw-block-label">Thí nghiệm, thuyết trình…</div>
+                  <p className="hw-block-text">{detailPost.experiment_content}</p>
+                </div>
+              ) : null}
+
+              {detailPost.homework_content ? (
+                <div className="hw-block hw-block--hw">
+                  <div className="hw-block-label">BTVN</div>
+                  <p className="hw-block-text">{detailPost.homework_content}</p>
+                </div>
+              ) : null}
+
+              <p className="hw-meta-info">
+                {detailPost.report_date ? `Ngày ${formatVNDate(detailPost.report_date)} · ` : ''}
+                {detailPost.created_by_name || 'Admin'} ·{' '}
+                {new Date(detailPost.created_at).toLocaleString('vi-VN')}
+              </p>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {showComposer ? (
