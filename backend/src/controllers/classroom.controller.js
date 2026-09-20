@@ -395,6 +395,20 @@ export async function updateClassSpace(req, res, next) {
   }
 }
 
+export async function updateClassSpacePassword(req, res, next) {
+  try {
+    noStore(res)
+    const data = await classSpaceService.updateClassSpacePassword(
+      req.params.id,
+      req.body || {},
+      req.profile
+    )
+    res.json({ message: 'Đã lưu mật khẩu mới.', ...data })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export async function deleteClassSpace(req, res, next) {
   try {
     noStore(res)
