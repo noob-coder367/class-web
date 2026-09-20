@@ -272,10 +272,10 @@
   color: #fff;
 }
 
-/* FAB — góc dưới bên trái (chỉ admin) */
+/* FAB — góc dưới bên phải (chỉ admin) */
 .hw-fab {
   position: fixed;
-  left: 22px;
+  right: 22px;
   bottom: 22px;
   z-index: 230;
   width: 56px;
@@ -566,7 +566,7 @@
 
 @media (max-width: 640px) {
   .hw-fab {
-    left: 14px;
+    right: 14px;
     bottom: 14px;
     width: 50px;
     height: 50px;
