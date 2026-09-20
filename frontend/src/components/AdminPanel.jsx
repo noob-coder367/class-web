@@ -32,12 +32,16 @@ function compareByGivenName(a, b) {
   return String(a || '').localeCompare(String(b || ''), 'vi', { sensitivity: 'base' })
 }
 
+/** Quá mốc này thì dừng đếm, hiển thị cố định "600+ giây trước" để tránh re-render liên tục. */
+const PUSH_AGO_CAP_SECONDS = 600
+
 /** Chỉ hiện số giây. lastReceivedAt là lúc Service Worker nhận Push + showNotification. */
 function formatSecondsAgo(lastReceivedAt, now = Date.now()) {
   if (!lastReceivedAt) return '—'
   const t = new Date(lastReceivedAt).getTime()
   if (!Number.isFinite(t)) return '—'
   const seconds = Math.max(0, Math.floor((now - t) / 1000))
+  if (seconds >= PUSH_AGO_CAP_SECONDS) return `${PUSH_AGO_CAP_SECONDS}+ giây trước`
   return `${seconds} giây trước`
 }
 
@@ -106,10 +110,27 @@ export default function AdminPanel({ onClose }) {
     fetchUsers()
   }, [])
 
+  // Chỉ chạy đồng hồ khi còn ít nhất 1 dòng chưa chạm mốc 600 giây.
+  // Khi tất cả đã >= 600s thì tự dừng interval (không re-render mỗi giây nữa).
   useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), 1000)
+    const stillCounting = (now) =>
+      users.some((u) => {
+        if (!u.push_last_received_at) return false
+        const t = new Date(u.push_last_received_at).getTime()
+        return Number.isFinite(t) && now - t < PUSH_AGO_CAP_SECONDS * 1000
+      })
+
+    const start = Date.now()
+    setNowMs(start)
+    if (!stillCounting(start)) return undefined
+
+    const id = setInterval(() => {
+      const now = Date.now()
+      setNowMs(now)
+      if (!stillCounting(now)) clearInterval(id)
+    }, 1000)
     return () => clearInterval(id)
-  }, [])
+  }, [users])
 
   useEffect(() => {
     const onKeyDown = (e) => {
