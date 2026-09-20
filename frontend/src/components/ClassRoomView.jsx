@@ -244,6 +244,9 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [rankRows, setRankRows] = useState([])
   const [rankLoading, setRankLoading] = useState(false)
   const [rankError, setRankError] = useState('')
+  const [joinCode, setJoinCode] = useState('')
+  const [joinError, setJoinError] = useState('')
+  const [joinLoading, setJoinLoading] = useState(false)
 
   const updateNavScroll = useCallback(() => {
     const el = navRef.current
@@ -561,6 +564,34 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       } else {
         setClassSpaceError(err?.message || 'Không mở được phòng.')
       }
+    }
+  }
+
+  // Vào phòng bằng mã 6 số (ô ở góc trên bên phải, dùng được ở mọi tab).
+  // Áp dụng cho mọi phòng — công khai, riêng tư, đang hiện hay đang ẩn trong
+  // lớp — chỉ khác là phòng riêng tư vẫn phải nhập đúng mật khẩu (dùng lại
+  // đúng luồng enterClass ở trên).
+  const handleJoinByCode = async () => {
+    const code = joinCode.trim()
+    if (code.length !== 6) {
+      setJoinError('Vui lòng nhập đủ 6 số.')
+      return
+    }
+    setJoinLoading(true)
+    setJoinError('')
+    try {
+      const { item } = await classroomService.getClassSpaceByCode(code)
+      if (!item) {
+        setJoinError('Mã phòng không đúng hoặc không tồn tại.')
+        return
+      }
+      setJoinCode('')
+      setActiveTab('class-space')
+      await enterClass(item)
+    } catch (err) {
+      setJoinError(err?.message || 'Mã phòng không đúng hoặc không tồn tại.')
+    } finally {
+      setJoinLoading(false)
     }
   }
 
@@ -962,6 +993,39 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           </div>
         </div>
       </header>
+
+      <div className="classroom-joincode-bar">
+        <div className="classroom-joincode-field">
+          <input
+            type="text"
+            inputMode="numeric"
+            className="classroom-joincode-input"
+            value={joinCode}
+            onChange={(e) => {
+              setJoinCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+              setJoinError('')
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleJoinByCode()
+            }}
+            placeholder="Nhập mã phòng"
+            maxLength={6}
+            aria-label="Nhập mã phòng 6 số"
+            disabled={access === 'denied'}
+          />
+          <button
+            type="button"
+            className="classroom-joincode-btn"
+            onClick={handleJoinByCode}
+            disabled={joinLoading || access === 'denied'}
+            aria-label="Vào phòng bằng mã"
+            title="Vào phòng bằng mã"
+          >
+            <IconArrowRight />
+          </button>
+        </div>
+        {joinError ? <p className="classroom-joincode-error">{joinError}</p> : null}
+      </div>
 
       <div
         className={`classroom-body${bodyMod}`}
