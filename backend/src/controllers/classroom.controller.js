@@ -342,6 +342,16 @@ export async function listClassSpace(req, res, next) {
   }
 }
 
+export async function listClassSpaceCreators(req, res, next) {
+  try {
+    noStore(res)
+    const creators = await classSpaceService.listClassSpaceCreators()
+    res.json({ creators })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export async function getNextClassSpaceCode(req, res, next) {
   try {
     noStore(res)
