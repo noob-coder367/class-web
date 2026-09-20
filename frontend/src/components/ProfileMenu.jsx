@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import SettingsPanel from './SettingsPanel.jsx'
+import { ROUTES } from '../lib/routes.js'
 import './ProfileMenu.css'
 
 const AVATAR_KEY = (uid) => `classweb_avatar_${uid}`
@@ -95,8 +96,9 @@ export function saveAvatar(userId, dataUrl) {
 
 export default function ProfileMenu({ onLogout }) {
   const { session, profile } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [open, setOpen] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(null)
   const wrapRef = useRef(null)
 
@@ -113,7 +115,9 @@ export default function ProfileMenu({ onLogout }) {
     }
     const stored = getStoredAvatar(userId)
     setAvatarUrl(stored || googleAvatar || null)
-  }, [userId, googleAvatar])
+    // Đọc lại mỗi khi rời trang /profile-setting để avatar mới lưu (nếu có)
+    // hiện ngay trên header mà không cần refresh cả trang.
+  }, [userId, googleAvatar, location.pathname])
 
   useEffect(() => {
     if (!open) return
@@ -133,7 +137,7 @@ export default function ProfileMenu({ onLogout }) {
 
   const handleOpenSettings = () => {
     setOpen(false)
-    setShowSettings(true)
+    navigate(ROUTES.profileSetting)
   }
 
   const displayName =
@@ -191,14 +195,6 @@ export default function ProfileMenu({ onLogout }) {
           </div>
         )}
       </div>
-
-      {showSettings && (
-        <SettingsPanel
-          onClose={() => setShowSettings(false)}
-          avatarUrl={avatarUrl}
-          onAvatarChange={(url) => setAvatarUrl(url)}
-        />
-      )}
     </>
   )
 }
