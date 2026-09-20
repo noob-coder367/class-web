@@ -131,6 +131,12 @@ export async function listClassSpace() {
   return apiClient.get('/classroom/class-space', { auth: true })
 }
 
+// Bộ lọc phòng — danh sách tài khoản đã từng tạo phòng (chỉ ownerId/ownerName,
+// không kèm thông tin phòng nào) để đổ vào dropdown "Được tạo bởi".
+export async function getClassSpaceCreators() {
+  return apiClient.get('/classroom/class-space/creators', { auth: true })
+}
+
 export async function getClassSpace(id, password) {
   const query = password ? `?password=${encodeURIComponent(password)}` : ''
   return apiClient.get(`/classroom/class-space/${encodeURIComponent(id)}${query}`, { auth: true })
