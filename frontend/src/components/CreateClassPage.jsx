@@ -116,6 +116,8 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [isPublic, setIsPublic] = useState(editingClass ? editingClass.isPublic !== false : true)
   const [password, setPassword] = useState(editingClass?.password || '')
+  const [visibleInClass, setVisibleInClass] = useState(editingClass ? editingClass.visibleInClass !== false : true)
+  const [roomCode, setRoomCode] = useState(editingClass?.code || '')
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [archiveTitle, setArchiveTitle] = useState('')
   const [archiveTab, setArchiveTab] = useState('quiz')
@@ -144,6 +146,23 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
           if (a.imagePreview) URL.revokeObjectURL(a.imagePreview)
         })
       })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Phòng mới: xin trước một mã phòng 6 số để hiển thị (mã thật được server
+  // khoá lại và đảm bảo không trùng ngay lúc bấm "Tạo phòng").
+  useEffect(() => {
+    if (isEditing) return
+    let cancelled = false
+    classroomService
+      .getNextClassSpaceCode()
+      .then((data) => {
+        if (!cancelled && data?.code) setRoomCode(data.code)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -341,6 +360,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
         ...backdrop,
         isPublic,
         password,
+        visibleInClass,
         shuffle: shuffleQuestions,
         allowRetry,
         allowMultiTry,
@@ -428,6 +448,16 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
             </button>
           )}
           {coverError ? <p className="create-class-error">{coverError}</p> : null}
+        </div>
+
+        <div className="create-class-field">
+          <span className="create-class-label">Mã phòng</span>
+          <p className="create-class-hint">
+            Mã 6 số để vào phòng nhanh bằng ô nhập mã, hệ thống tự sinh và không trùng với phòng khác.
+          </p>
+          <div className="create-class-code-display" aria-live="polite">
+            {roomCode || '······'}
+          </div>
         </div>
 
         <div className="create-class-field">
@@ -561,6 +591,29 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
               </p>
             </div>
           ) : null}
+        </div>
+
+        <div className="create-class-privacy create-class-visibility">
+          <div className="create-class-privacy-row">
+            <div className="create-class-privacy-copy">
+              <p className="create-class-privacy-q">Có hiện phòng này trong lớp không?</p>
+              <p className="create-class-hint">
+                {visibleInClass
+                  ? 'Hiện: phòng xuất hiện trong danh sách "Lớp học" cho mọi người xem.'
+                  : 'Ẩn: phòng không hiện trong danh sách, chỉ vào được bằng mã phòng.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              className={`create-class-switch${visibleInClass ? ' is-on' : ''}`}
+              role="switch"
+              aria-checked={visibleInClass}
+              aria-label={visibleInClass ? 'Hiện trong lớp' : 'Ẩn trong lớp'}
+              onClick={() => setVisibleInClass((v) => !v)}
+            >
+              <span className="create-class-switch-knob" />
+            </button>
+          </div>
         </div>
 
         <button type="button" className="create-class-archive-btn" onClick={openArchive}>
