@@ -294,9 +294,12 @@
 }
 
 .classroom-joincode-input {
-  width: 128px;
-  max-width: 45vw;
+  width: 168px;
+  max-width: 62vw;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 8px 10px;
+  font-family: inherit;
   border: 1.5px solid #dbe4ec;
   border-radius: 10px;
   background: #f8fafc;
@@ -310,8 +313,10 @@
 
 .classroom-joincode-input::placeholder {
   letter-spacing: normal;
+  font-size: 13px;
   font-weight: 500;
   color: #94a3b8;
+  white-space: nowrap;
 }
 
 .classroom-joincode-input:focus {
@@ -495,7 +500,7 @@
   }
 
   .classroom-joincode-input {
-    width: 108px;
+    width: 152px;
   }
 
   .classroom-back {
