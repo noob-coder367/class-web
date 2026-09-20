@@ -156,6 +156,16 @@ export async function updateClassSpace(id, payload) {
   return apiClient.put(`/classroom/class-space/${encodeURIComponent(id)}`, payload, { auth: true })
 }
 
+// Đổi riêng mật khẩu 6 số của phòng riêng tư (nút Lưu cạnh ô mật khẩu ở màn
+// hình chỉnh sửa phòng) — chỉ chủ phòng, không đụng tới các cài đặt khác.
+export async function updateClassSpacePassword(id, password) {
+  return apiClient.patch(
+    `/classroom/class-space/${encodeURIComponent(id)}/password`,
+    { password },
+    { auth: true }
+  )
+}
+
 export async function deleteClassSpace(id) {
   return apiClient.delete(`/classroom/class-space/${encodeURIComponent(id)}`, { auth: true })
 }
