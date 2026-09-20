@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import * as classroomService from '../services/classroomService.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { getSeenPostIds, markPostSeen } from '../lib/unreadStore.js'
@@ -6,6 +7,7 @@ import {
   canEdit, canHardDelete, canHide, canManageArchive,
   canPostToSection, postableSections, SECTION_LABELS,
 } from '../lib/roles.js'
+import { parseClassPath, announcementDetailPath, classTabPath } from '../lib/routes.js'
 import './AnnouncementsBoard.css'
 
 const NOTIFY_OPTIONS = ['normal', 'hot', 'urgent']
@@ -104,6 +106,8 @@ export default function AnnouncementsBoard({
   role: roleProp, caps, canDismissTkb, tkbNotice, onDismissTkbNotice, dismissingTkb, onOpenTimetable,
 }) {
   const { profile } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
   const role = roleProp || profile?.role || 'user'
   const userId = profile?.id || 'anon'
 
@@ -177,14 +181,34 @@ export default function AnnouncementsBoard({
     return map
   }, [bySection, userId, seenTick])
 
-  const openDetail = (post) => {
+  const openDetail = (post, opts = {}) => {
     if (!post) return
     markPostSeen(post.id, userId)
     setOpenedPreviewId(post.id)
     setSeenTick((t) => t + 1)
     setDetailPost(post)
+    if (!opts.silent) navigate(announcementDetailPath(post.id))
   }
-  const closeDetail = () => setDetailPost(null)
+  const closeDetail = () => {
+    setDetailPost(null)
+    navigate(classTabPath('announcements'), { replace: true })
+  }
+
+  // Truy cập trực tiếp bằng URL /thong-bao-chung/:id -> tự mở Modal chi tiết
+  // tương ứng ngay khi danh sách bài đăng đã tải xong.
+  useEffect(() => {
+    const { rest } = parseClassPath(location.pathname)
+    const id = rest[0]
+    if (!id) {
+      if (detailPost) setDetailPost(null)
+      return
+    }
+    if (detailPost && String(detailPost.id) === String(id)) return
+    const found = posts.find((p) => String(p.id) === String(id))
+    if (found) openDetail(found, { silent: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, posts])
+
   const toggleSection = (id) => setExpandedSection((c) => (c === id ? null : id))
 
   const handleFilesChange = (e) => {
