@@ -366,6 +366,93 @@
   text-align: right;
 }
 
+/* Bộ lọc phòng — nằm ngay cạnh ô nhập mã phòng, tự xuống dòng khi màn hình hẹp */
+.classroom-joincode-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  max-width: 100%;
+}
+
+.classroom-roomfilter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.classroom-roomfilter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.classroom-roomfilter-label {
+  padding-left: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.classroom-roomfilter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 120px;
+  max-width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 28px 0 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #14324a;
+  border: 1.5px solid #dbe4ec;
+  border-radius: 10px;
+  background-color: #f8fafc;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 14px 14px;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.classroom-roomfilter-select--owner {
+  width: 156px;
+}
+
+.classroom-roomfilter-select:focus {
+  outline: none;
+  border-color: #14324a;
+  background-color: #ffffff;
+}
+
+.class-space-hidden-note {
+  max-width: 34ch;
+  padding: 18px 22px;
+  box-sizing: border-box;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.class-space-hidden-note svg {
+  width: 28px;
+  height: 28px;
+  opacity: 0.6;
+}
+
 .classroom-state--soon {
   color: var(--iso-ink, #14324a);
 }
@@ -501,6 +588,20 @@
 
   .classroom-joincode-input {
     width: 152px;
+  }
+
+  .classroom-roomfilter {
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  .classroom-roomfilter-item {
+    flex: 1 1 0;
+  }
+
+  .classroom-roomfilter-select,
+  .classroom-roomfilter-select--owner {
+    width: 100%;
   }
 
   .classroom-back {
