@@ -567,7 +567,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     }
   }
 
-  // Vào phòng bằng mã 6 số (ô ở góc trên bên phải, dùng được ở mọi tab).
+  // Vào phòng bằng mã 6 số (ô nhập mã chỉ hiện ở mục "Lớp học").
   // Áp dụng cho mọi phòng — công khai, riêng tư, đang hiện hay đang ẩn trong
   // lớp — chỉ khác là phòng riêng tư vẫn phải nhập đúng mật khẩu (dùng lại
   // đúng luồng enterClass ở trên).
@@ -994,38 +994,40 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         </div>
       </header>
 
-      <div className="classroom-joincode-bar">
-        <div className="classroom-joincode-field">
-          <input
-            type="text"
-            inputMode="numeric"
-            className="classroom-joincode-input"
-            value={joinCode}
-            onChange={(e) => {
-              setJoinCode(e.target.value.replace(/\D/g, '').slice(0, 6))
-              setJoinError('')
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleJoinByCode()
-            }}
-            placeholder="Nhập mã phòng"
-            maxLength={6}
-            aria-label="Nhập mã phòng 6 số"
-            disabled={access === 'denied'}
-          />
-          <button
-            type="button"
-            className="classroom-joincode-btn"
-            onClick={handleJoinByCode}
-            disabled={joinLoading || access === 'denied'}
-            aria-label="Vào phòng bằng mã"
-            title="Vào phòng bằng mã"
-          >
-            <IconArrowRight />
-          </button>
+      {activeTab === 'class-space' ? (
+        <div className="classroom-joincode-bar">
+          <div className="classroom-joincode-field">
+            <input
+              type="text"
+              inputMode="numeric"
+              className="classroom-joincode-input"
+              value={joinCode}
+              onChange={(e) => {
+                setJoinCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                setJoinError('')
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleJoinByCode()
+              }}
+              placeholder="Nhập mã phòng"
+              maxLength={6}
+              aria-label="Nhập mã phòng 6 số"
+              disabled={access === 'denied'}
+            />
+            <button
+              type="button"
+              className="classroom-joincode-btn"
+              onClick={handleJoinByCode}
+              disabled={joinLoading || access === 'denied'}
+              aria-label="Vào phòng bằng mã"
+              title="Vào phòng bằng mã"
+            >
+              <IconArrowRight />
+            </button>
+          </div>
+          {joinError ? <p className="classroom-joincode-error">{joinError}</p> : null}
         </div>
-        {joinError ? <p className="classroom-joincode-error">{joinError}</p> : null}
-      </div>
+      ) : null}
 
       <div
         className={`classroom-body${bodyMod}`}
