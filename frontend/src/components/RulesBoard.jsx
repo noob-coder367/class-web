@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import RulesSettings from './RulesSettings.jsx'
 import ReputationBoard, { statusFor } from './ReputationBoard.jsx'
 import { markSeen } from '../lib/unreadStore.js'
 import { ROLES, roleLabel } from '../lib/roles.js'
+import { parseClassPath, rulesPanePath } from '../lib/routes.js'
 import './RulesBoard.css'
 
 const PERIOD_OPTIONS = [
@@ -128,7 +130,23 @@ export default function RulesBoard({
   onRefreshMembers,
 }) {
   const { profile } = useAuth()
-  const [pane, setPane] = useState('rules')
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { rest: rulesRest } = parseClassPath(location.pathname)
+  const RULES_PANE_BY_SEG = { 'noi-quy': 'rules', 'danh-sach-vi-pham': 'violations', 'bang-xep-hang': 'rank' }
+  const urlPane = RULES_PANE_BY_SEG[(rulesRest[0] || '').toLowerCase()] || null
+  const [pane, setPaneState] = useState(urlPane || 'rules')
+
+  // Mặc định /noi-quy-lop (chưa có sub-route) -> redirect về /noi-quy-lop/noi-quy.
+  useEffect(() => {
+    if (!urlPane) {
+      navigate(rulesPanePath('rules'), { replace: true })
+    } else {
+      setPaneState((prev) => (prev === urlPane ? prev : urlPane))
+    }
+  }, [urlPane, navigate])
+
+  const setPane = (next) => navigate(rulesPanePath(next))
   const [openSettings, setOpenSettings] = useState(false)
   const [form, setForm] = useState({
     date: todayISO(),
