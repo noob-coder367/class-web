@@ -536,6 +536,20 @@
   transform: translateX(20px);
 }
 
+.create-class-code-display {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 10px 18px;
+  border: 1.5px dashed var(--cc-line);
+  border-radius: var(--cc-radius);
+  background: var(--cc-soft);
+  color: var(--cc-primary);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.42em;
+  font-variant-numeric: tabular-nums;
+}
+
 .create-class-password {
   margin-top: 16px;
 }
