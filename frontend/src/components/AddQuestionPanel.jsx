@@ -675,14 +675,21 @@ export default function AddQuestionPanel({
     setOverIndex(null)
   }
 
+  const toggleAddMenu = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setMenuOpen((value) => !value)
+  }
+
   return (
     <div className="add-question-wrap" ref={wrapRef} data-question-count={questions.length}>
       <button
         type="button"
         className="create-class-archive-btn add-question-btn"
-        onClick={() => setMenuOpen((v) => !v)}
+        onPointerDown={toggleAddMenu}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
+        aria-controls="add-question-menu"
       >
         <IconPlus />
         Thêm câu hỏi
@@ -690,7 +697,12 @@ export default function AddQuestionPanel({
       </button>
 
       {menuOpen ? (
-        <div className="add-question-menu" role="menu">
+        <div
+          id="add-question-menu"
+          className="add-question-menu"
+          role="menu"
+          onPointerDown={(event) => event.stopPropagation()}
+        >
           <button
             type="button"
             role="menuitem"

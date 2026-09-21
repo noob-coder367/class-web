@@ -1683,6 +1683,7 @@
 
 .add-question-wrap {
   position: relative;
+  z-index: 20;
 }
 
 .add-question-btn {
@@ -1702,7 +1703,7 @@
 
 .add-question-menu {
   position: absolute;
-  z-index: 6;
+  z-index: 100;
   top: calc(100% + 8px);
   left: 0;
   right: 0;
@@ -1713,6 +1714,7 @@
   border-radius: 14px;
   background: var(--cc-paper);
   box-shadow: 0 18px 40px rgba(4, 22, 32, 0.18);
+  pointer-events: auto;
   animation: archive-in var(--cc-fast) var(--cc-out);
 }
 
