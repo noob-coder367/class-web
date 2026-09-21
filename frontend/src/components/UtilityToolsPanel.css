@@ -90,3 +90,12 @@
 @keyframes utility-duck-run { 0% { transform: translateX(0) rotate(0); } 15% { transform: translateX(13%) rotate(-4deg); } 34% { transform: translateX(32%) rotate(4deg); } 58% { transform: translateX(57%) rotate(-3deg); } 82% { transform: translateX(82%) rotate(3deg); } 100% { transform: translateX(calc(100% - 34px)) rotate(0); } }
 @keyframes utility-celebrate { 0% { opacity: 0; transform: scale(.7) translateY(10px); } 65% { transform: scale(1.06); } 100% { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .utility-wheel { transition-duration: .01ms; } .utility-duck-lane.is-racing .utility-duck, .utility-celebration { animation: none; } }
+.utility-tools-panel--floating { position: static; min-height: 0; padding: 0; background: transparent; pointer-events: none; }
+.utility-tools-panel--floating > .utility-title-row,
+.utility-tools-panel--floating > .utility-first-card,
+.utility-tools-panel--floating > .utility-pdf-card,
+.utility-tools-panel--floating > .utility-off-note { display: none; }
+.utility-tools-panel--floating .utility-mini-chat,
+.utility-tools-panel--floating .utility-window { pointer-events: auto; }
+.utility-tools-panel--floating .utility-window { position: fixed; }
+.utility-mini-chat { touch-action: none; user-select: none; }

@@ -1092,9 +1092,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       )
     }
 
-    if (activeTab === 'utilities') {
-      return <UtilityToolsPanel isAdmin={isAdminRole(role)} />
-    }
+    if (activeTab === 'utilities') return null
 
     if (activeTab === 'timetable') {
       if (!timetable) return <p className="classroom-empty">Chưa có thời khoá biểu</p>
@@ -1287,6 +1285,8 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       >
         {renderBody()}
       </div>
+
+      <UtilityToolsPanel isAdmin={isAdminRole(role)} isPage={activeTab === 'utilities'} />
 
       {access === 'ok' && activeTab === 'class-space' && !showCreateClass && !editingClass ? (
         <button
