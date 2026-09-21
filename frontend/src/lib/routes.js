@@ -29,6 +29,8 @@ const PATH_TAB = Object.fromEntries(
 )
 // Alias chia sẻ / xem chi tiết: /vo-lop/thong-bao?id=<id>
 PATH_TAB['thong-bao'] = 'announcements'
+// Alias chia sẻ / xem chi tiết: /vo-lop/bai-tap?id=<id>
+PATH_TAB['bai-tap'] = 'homework'
 
 /** Tạo URL đầy đủ cho 1 tab trong /vo-lop, kèm các đoạn phụ phía sau (nếu có). */
 export function classTabPath(tab, ...rest) {
@@ -61,14 +63,25 @@ export function parseAnnouncementId(pathname, search) {
   return rest[0] ? String(rest[0]).trim() : null
 }
 
-// ---- Bài tập về nhà: /vo-lop/bai-tap-ve-nha/bao-bai-:x ----
+// ---- Bài tập về nhà: /vo-lop/bai-tap?id=<id> (giữ /vo-lop/bai-tap-ve-nha/bao-bai-:x) ----
 export function homeworkDetailPath(x) {
-  return classTabPath('homework', `bao-bai-${x}`)
+  const id = String(x || '').trim()
+  if (!id) return `${ROUTES.classRoot}/bai-tap`
+  return `${ROUTES.classRoot}/bai-tap?id=${encodeURIComponent(id)}`
 }
+
 export function parseHomeworkSegment(rest) {
   const seg = rest?.[0] || ''
   const m = /^bao-bai-(.+)$/i.exec(seg)
   return m ? m[1] : null
+}
+
+/** Đọc id báo bài từ ?id= hoặc đoạn path cũ /bai-tap-ve-nha/bao-bai-:x */
+export function parseHomeworkId(pathname, search) {
+  const fromQuery = new URLSearchParams(search || '').get('id')
+  if (fromQuery) return String(fromQuery).trim() || null
+  const { rest } = parseClassPath(pathname)
+  return parseHomeworkSegment(rest)
 }
 
 // ---- Nội quy lớp: /vo-lop/noi-quy-lop/{noi-quy|danh-sach-vi-pham|bang-xep-hang} ----

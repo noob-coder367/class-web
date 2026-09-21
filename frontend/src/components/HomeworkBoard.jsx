@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import * as classroomService from '../services/classroomService.js'
-import { parseClassPath, homeworkDetailPath, parseHomeworkSegment, classTabPath } from '../lib/routes.js'
+import { parseHomeworkId, homeworkDetailPath, classTabPath } from '../lib/routes.js'
+import { shareHelper } from '../utils/shareHelper.js'
 import './HomeworkBoard.css'
 
 const SUBJECT_OPTIONS = [
@@ -55,6 +56,27 @@ function formatVNDate(iso) {
 
 function defaultTitle(isoDate) {
   return `Báo bài ngày ${formatVNDate(isoDate) || '…'}`
+}
+
+function IconShare() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5" />
+    </svg>
+  )
+}
+
+function shareHomework(post) {
+  if (!post) return
+  const date = post.report_date || (post.created_at ? String(post.created_at).slice(0, 10) : '')
+  shareHelper({
+    title: defaultTitle(date),
+    text: post.homework_content || '',
+    path: homeworkDetailPath(post.id),
+  })
 }
 
 export default function HomeworkBoard({ isAdmin }) {
@@ -212,11 +234,10 @@ export default function HomeworkBoard({ isAdmin }) {
     navigate(classTabPath('homework'), { replace: true })
   }
 
-  // Truy cập trực tiếp bằng URL /bai-tap-ve-nha/bao-bai-:x -> tự mở Modal
-  // chi tiết báo bài tương ứng.
+  // Truy cập trực tiếp bằng URL /vo-lop/bai-tap?id=... (hoặc path cũ /bai-tap-ve-nha/bao-bai-:x)
+  // -> tự mở Modal chi tiết báo bài tương ứng.
   useEffect(() => {
-    const { rest } = parseClassPath(location.pathname)
-    const id = parseHomeworkSegment(rest)
+    const id = parseHomeworkId(location.pathname, location.search)
     if (!id) {
       if (detailPost) setDetailPost(null)
       return
@@ -225,7 +246,7 @@ export default function HomeworkBoard({ isAdmin }) {
     const found = posts.find((p) => String(p.id) === String(id))
     if (found) openDetail(found, { silent: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname, posts])
+  }, [location.pathname, location.search, posts])
 
   const toggleFilterType = (key) => {
     setFilterTypes((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -377,18 +398,33 @@ export default function HomeworkBoard({ isAdmin }) {
                   {post.created_by_name || 'Admin'} ·{' '}
                   {new Date(post.created_at).toLocaleString('vi-VN')}
                 </span>
-                {isAdmin ? (
+                <div className="hw-meta-actions">
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      className="hw-btn-delete"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(post.id)
+                      }}
+                    >
+                      Xóa
+                    </button>
+                  ) : null}
                   <button
                     type="button"
-                    className="hw-btn-delete"
+                    className="hw-btn-share"
+                    aria-label="Chia sẻ báo bài"
+                    title="Chia sẻ"
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleDelete(post.id)
+                      shareHomework(post)
                     }}
                   >
-                    Xóa
+                    <IconShare />
+                    Chia sẻ
                   </button>
-                ) : null}
+                </div>
               </div>
             </article>
           ))}
@@ -453,11 +489,25 @@ export default function HomeworkBoard({ isAdmin }) {
                 </div>
               ) : null}
 
-              <p className="hw-meta-info">
-                {detailPost.report_date ? `Ngày ${formatVNDate(detailPost.report_date)} · ` : ''}
-                {detailPost.created_by_name || 'Admin'} ·{' '}
-                {new Date(detailPost.created_at).toLocaleString('vi-VN')}
-              </p>
+              <div className="hw-meta">
+                <span className="hw-meta-info">
+                  {detailPost.report_date ? `Ngày ${formatVNDate(detailPost.report_date)} · ` : ''}
+                  {detailPost.created_by_name || 'Admin'} ·{' '}
+                  {new Date(detailPost.created_at).toLocaleString('vi-VN')}
+                </span>
+                <div className="hw-meta-actions">
+                  <button
+                    type="button"
+                    className="hw-btn-share"
+                    aria-label="Chia sẻ báo bài"
+                    title="Chia sẻ"
+                    onClick={() => shareHomework(detailPost)}
+                  >
+                    <IconShare />
+                    Chia sẻ
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
