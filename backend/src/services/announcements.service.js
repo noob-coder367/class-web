@@ -101,6 +101,7 @@ function normalizeItem(raw) {
   const hidden = raw.hidden === true
   return {
     id,
+    title: String(raw.title || '').trim(),
     content: String(raw.content || '').trim(),
     images,
     notify_type: notify,
@@ -261,6 +262,7 @@ function parseExpiresAt(raw, { requiredFuture = true } = {}) {
 
 export async function createAnnouncement(payload, profile) {
   const content = String(payload?.content || '').trim()
+  const title = String(payload?.title || '').trim()
   const files = Array.isArray(payload?.images) ? payload.images : []
   if (!content && files.length === 0) {
     throw new AppError('Vui lòng nhập nội dung hoặc chọn ít nhất 1 ảnh.')
@@ -280,6 +282,7 @@ export async function createAnnouncement(payload, profile) {
   for (const file of files) imageUrls.push(await uploadOneImage(file))
   const item = {
     id: randomUUID(),
+    title,
     content,
     images: imageUrls,
     notify_type: notifyType,

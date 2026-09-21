@@ -7,7 +7,8 @@ import {
   canEdit, canHardDelete, canHide, canManageArchive,
   canPostToSection, postableSections, SECTION_LABELS,
 } from '../lib/roles.js'
-import { parseClassPath, announcementDetailPath, classTabPath } from '../lib/routes.js'
+import { announcementDetailPath, classTabPath, parseAnnouncementId } from '../lib/routes.js'
+import { shareHelper } from '../utils/shareHelper.js'
 import './AnnouncementsBoard.css'
 
 const NOTIFY_OPTIONS = ['normal', 'hot', 'urgent']
@@ -69,6 +70,7 @@ function PostCard({
             ))}
           </div>
         ) : null}
+        {post.title ? <h3 className="ann-post-title">{post.title}</h3> : null}
         {post.content ? (
           <div className="ann-content-wrap">
             <p className="ann-content">{compact ? excerpt(post.content) : post.content}</p>
@@ -125,6 +127,7 @@ export default function AnnouncementsBoard({
   const [showComposer, setShowComposer] = useState(false)
   const [posting, setPosting] = useState(false)
   const [content, setContent] = useState('')
+  const [postTitle, setPostTitle] = useState('')
   const [selectedFiles, setSelectedFiles] = useState([])
   const [previewUrls, setPreviewUrls] = useState([])
   const [notifyType, setNotifyType] = useState('normal')
@@ -194,11 +197,10 @@ export default function AnnouncementsBoard({
     navigate(classTabPath('announcements'), { replace: true })
   }
 
-  // Truy cập trực tiếp bằng URL /thong-bao-chung/:id -> tự mở Modal chi tiết
-  // tương ứng ngay khi danh sách bài đăng đã tải xong.
+  // Truy cập trực tiếp bằng URL /vo-lop/thong-bao?id=... (hoặc path cũ /thong-bao-chung/:id)
+  // -> tự mở modal chi tiết ngay khi danh sách bài đăng đã tải xong.
   useEffect(() => {
-    const { rest } = parseClassPath(location.pathname)
-    const id = rest[0]
+    const id = parseAnnouncementId(location.pathname, location.search)
     if (!id) {
       if (detailPost) setDetailPost(null)
       return
@@ -207,7 +209,7 @@ export default function AnnouncementsBoard({
     const found = posts.find((p) => String(p.id) === String(id))
     if (found) openDetail(found, { silent: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname, posts])
+  }, [location.pathname, location.search, posts])
 
   const toggleSection = (id) => setExpandedSection((c) => (c === id ? null : id))
 
@@ -227,7 +229,7 @@ export default function AnnouncementsBoard({
   const closeComposer = () => {
     if (posting) return
     previewUrls.forEach((url) => URL.revokeObjectURL(url))
-    setContent(''); setSelectedFiles([]); setPreviewUrls([])
+    setContent(''); setPostTitle(''); setSelectedFiles([]); setPreviewUrls([])
     setNotifyType('normal'); setShowNotifyMenu(false); setExpiresAt('')
     setComposerSection(allowedSections[0] || 'main'); setShowComposer(false)
   }
@@ -245,6 +247,7 @@ export default function AnnouncementsBoard({
         images.push({ mimeType: file.type || 'image/jpeg', contentBase64: dataUrl })
       }
       await classroomService.createAnnouncement({
+        title: postTitle.trim(),
         content: clean, notify_type: notifyType, section: composerSection,
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null, images,
       })
@@ -453,6 +456,14 @@ export default function AnnouncementsBoard({
                 ) : null}
               </div>
               <div className="ann-composer-right">
+                <input
+                  className="ann-title-input"
+                  type="text"
+                  placeholder="Tiêu đề bài đăng"
+                  value={postTitle}
+                  onChange={(e) => setPostTitle(e.target.value)}
+                  maxLength={120}
+                />
                 <textarea className="ann-textarea" placeholder="Nội dung thông báo..." value={content} onChange={(e) => setContent(e.target.value)} />
                 <div className="ann-composer-extras">
                   {allowedSections.length > 1 ? (
@@ -519,6 +530,7 @@ export default function AnnouncementsBoard({
                   ))}
                 </div>
               ) : null}
+              {detailPost.title ? <h3 className="ann-post-title ann-detail-title">{detailPost.title}</h3> : null}
               {detailPost.content ? <p className="ann-content ann-detail-content">{detailPost.content}</p> : null}
             </div>
             <footer className="ann-detail-footer">
@@ -526,6 +538,19 @@ export default function AnnouncementsBoard({
               {detailPost.expires_at ? (
                 <span className="ann-meta-info">Tự xóa: {new Date(detailPost.expires_at).toLocaleString('vi-VN')}</span>
               ) : null}
+              <button
+                type="button"
+                className="ann-btn-share"
+                onClick={() => {
+                  shareHelper({
+                    title: detailPost.title || 'Thông báo lớp',
+                    text: detailPost.content || '',
+                    path: `/vo-lop/thong-bao?id=${detailPost.id}`,
+                  })
+                }}
+              >
+                Chia sẻ
+              </button>
             </footer>
           </div>
         </div>
@@ -549,7 +574,10 @@ export default function AnnouncementsBoard({
               ) : (
                 archiveItems.map((post) => (
                   <article key={post.id} className={`ann-card ann-card--${post.notify_type || 'normal'}`}>
-                    <div className="ann-body">{post.content ? <p className="ann-content">{post.content}</p> : null}</div>
+                    <div className="ann-body">
+                      {post.title ? <h3 className="ann-post-title">{post.title}</h3> : null}
+                      {post.content ? <p className="ann-content">{post.content}</p> : null}
+                    </div>
                     <div className="ann-meta">
                       <span className="ann-badge">{SECTION_LABELS[post.section] || post.section}</span>
                       <span className="ann-meta-info">{post.created_by_name || 'Admin'} · {new Date(post.created_at).toLocaleString('vi-VN')}</span>
