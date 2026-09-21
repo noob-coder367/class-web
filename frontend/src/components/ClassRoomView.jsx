@@ -11,6 +11,7 @@ import { capabilitiesFor, isAdminRole } from '../lib/roles.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import CreateClassPage from './CreateClassPage.jsx'
 import ClassPlayView from './ClassPlayView.jsx'
+import UtilityToolsPanel, { IconWrench } from './UtilityToolsPanel.jsx'
 import { isRoomCompletedLocked } from '../lib/classPlayScore.js'
 import {
   classTabPath,
@@ -223,6 +224,7 @@ const TABS = [
   { id: 'cleaning-duty', label: 'Vệ sinh lớp', icon: IconBroom },
   { id: 'class-space', label: 'Lớp học', icon: IconDoor },
   { id: 'ai', label: 'AI', icon: IconAI },
+  { id: 'utilities', label: 'Tiện ích phụ', icon: IconWrench },
 ]
 
 const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty'])
@@ -1082,6 +1084,10 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           </p>
         </div>
       )
+    }
+
+    if (activeTab === 'utilities') {
+      return <UtilityToolsPanel isAdmin={isAdminRole(role)} />
     }
 
     if (activeTab === 'timetable') {
