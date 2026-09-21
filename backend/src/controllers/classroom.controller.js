@@ -405,6 +405,26 @@ export async function updateClassSpace(req, res, next) {
   }
 }
 
+export async function getUtilityRoster(req, res, next) {
+  try {
+    noStore(res)
+    const roster = await classSpaceService.getUtilityRoster()
+    res.json({ roster })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function updateUtilityRoster(req, res, next) {
+  try {
+    noStore(res)
+    const roster = await classSpaceService.updateUtilityRoster(req.body || {}, req.profile)
+    res.json({ message: 'Đã lưu danh sách PDF.', roster })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export async function updateClassSpacePassword(req, res, next) {
   try {
     noStore(res)

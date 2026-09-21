@@ -5,6 +5,7 @@ import { isAdminRole } from '../lib/roles.js'
 
 const DATA_BUCKET = 'classroom-data'
 const DATA_PATH = 'class-space.json'
+const UTILITY_ROSTER_PATH = 'utility-roster.json'
 const IMAGE_BUCKET = 'class-space-images'
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const ALLOWED_MIME = {
@@ -95,6 +96,33 @@ async function writeStore(store) {
   if (error) {
     throw new AppError('Không lưu được lớp học: ' + error.message, 502)
   }
+}
+
+async function readUtilityRoster() {
+  const { data, error } = await supabaseAdmin.storage.from(DATA_BUCKET).download(UTILITY_ROSTER_PATH)
+  if (error || !data) return { names: [], fileName: '', updatedAt: '' }
+  try {
+    const parsed = JSON.parse(await data.text())
+    return {
+      names: Array.isArray(parsed.names)
+        ? parsed.names.filter((item) => item && typeof item === 'object' && String(item.name || '').trim())
+        : [],
+      fileName: String(parsed.fileName || ''),
+      updatedAt: String(parsed.updatedAt || ''),
+    }
+  } catch {
+    return { names: [], fileName: '', updatedAt: '' }
+  }
+}
+
+async function writeUtilityRoster(roster) {
+  await ensureDataBucket()
+  const body = Buffer.from(JSON.stringify(roster, null, 2) + '\n', 'utf8')
+  const { error } = await supabaseAdmin.storage.from(DATA_BUCKET).upload(UTILITY_ROSTER_PATH, body, {
+    contentType: 'application/json',
+    upsert: true,
+  })
+  if (error) throw new AppError('Không lưu được danh sách PDF: ' + error.message, 502)
 }
 
 function normalizeBackdrop(raw) {
@@ -723,6 +751,32 @@ export async function getClassSpaceLeaderboard(id, profile) {
     leaderboard: buildLeaderboard(item),
     myResult: myResultOf(item, profile),
   }
+}
+
+export async function getUtilityRoster() {
+  return readUtilityRoster()
+}
+
+export async function updateUtilityRoster(payload, profile) {
+  if (!isAdminRole(profile?.role)) {
+    throw new AppError('Chỉ admin mới được đổi danh sách PDF.', 403)
+  }
+  const names = Array.isArray(payload?.names)
+    ? payload.names
+        .map((item, index) => ({
+          stt: Number(item?.stt) || index + 1,
+          name: String(item?.name || '').trim(),
+        }))
+        .filter((item) => item.name)
+    : []
+  if (!names.length) throw new AppError('Danh sách PDF không có tên hợp lệ.', 400)
+  const roster = {
+    names,
+    fileName: String(payload?.fileName || 'danh-sach.pdf').trim() || 'danh-sach.pdf',
+    updatedAt: new Date().toISOString(),
+  }
+  await writeUtilityRoster(roster)
+  return roster
 }
 
 /** Xoá phòng: chủ phòng (editor) hoặc admin. */

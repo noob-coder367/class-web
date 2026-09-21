@@ -137,6 +137,14 @@ export async function getClassSpaceCreators() {
   return apiClient.get('/classroom/class-space/creators', { auth: true })
 }
 
+export async function getUtilityRoster() {
+  return apiClient.get('/classroom/utility-roster', { auth: true })
+}
+
+export async function saveUtilityRoster(roster) {
+  return apiClient.put('/classroom/utility-roster', roster, { auth: true })
+}
+
 export async function getClassSpace(id, password) {
   const query = password ? `?password=${encodeURIComponent(password)}` : ''
   return apiClient.get(`/classroom/class-space/${encodeURIComponent(id)}${query}`, { auth: true })
