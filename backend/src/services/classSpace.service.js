@@ -238,6 +238,7 @@ function normalizeItem(raw) {
     shuffle: raw.shuffle === true,
     allowRetry: raw.allowRetry !== false,
     allowMultiTry: raw.allowMultiTry === true,
+    showEssayHints: raw.showEssayHints !== false,
     enableLeaderboard: raw.enableLeaderboard === true,
     questions: Array.isArray(raw.questions) ? raw.questions : [],
     results: normalizeResults(raw.results),
@@ -296,6 +297,7 @@ function toPublicMeta(item, profile) {
     shuffle: item.shuffle,
     allowRetry: item.allowRetry !== false,
     allowMultiTry: item.allowMultiTry === true,
+    showEssayHints: item.showEssayHints !== false,
     enableLeaderboard: item.enableLeaderboard === true,
     questionCount: item.questions.length,
     ownerId: item.ownerId,
@@ -521,6 +523,7 @@ export async function createClassSpace(payload, profile) {
     enableLeaderboard: payload?.enableLeaderboard === true,
     questions,
     results: {},
+    showEssayHints: payload?.showEssayHints !== false,
     ownerId: profile?.id || '',
     ownerName: profile?.username || 'Ẩn danh',
     createdAt: now,
@@ -584,6 +587,7 @@ export async function updateClassSpace(id, payload, profile) {
     enableLeaderboard: payload?.enableLeaderboard === true,
     questions,
     results: current.results,
+    showEssayHints: payload?.showEssayHints !== false,
     updatedAt: new Date().toISOString(),
   })
 

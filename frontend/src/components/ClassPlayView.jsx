@@ -753,7 +753,7 @@ export default function ClassPlayView({ classData, onClose }) {
                     Chưa đúng. Hãy thử lại, hoặc bấm {index >= total - 1 ? 'Hoàn thành' : 'Câu tiếp theo'} để đi luôn.
                   </p>
                 ) : null}
-                {(q?.answers || []).some((a) => a.content.trim()) ? (
+                {classData.showEssayHints !== false && (q?.answers || []).some((a) => a.content.trim()) ? (
                   <details className="class-play-essay-key">
                     <summary>Xem gợi ý đáp án</summary>
                     <ul className="essay-preview-answers">

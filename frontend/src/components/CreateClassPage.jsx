@@ -177,6 +177,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const [shuffleQuestions, setShuffleQuestions] = useState(!!editingClass?.shuffle)
   const [allowRetry, setAllowRetry] = useState(editingClass ? editingClass.allowRetry !== false : true)
   const [allowMultiTry, setAllowMultiTry] = useState(!!editingClass?.allowMultiTry)
+  const [showEssayHints, setShowEssayHints] = useState(editingClass ? editingClass.showEssayHints !== false : true)
   const [enableLeaderboard, setEnableLeaderboard] = useState(!!editingClass?.enableLeaderboard)
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -450,6 +451,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
         shuffle: shuffleQuestions,
         allowRetry,
         allowMultiTry,
+        showEssayHints,
         enableLeaderboard,
         questions: uploadedQuestions,
       }
@@ -945,6 +947,27 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
                   aria-checked={enableLeaderboard}
                   aria-label="Bật bảng xếp hạng"
                   onClick={() => setEnableLeaderboard((v) => !v)}
+                >
+                  <span className="create-class-switch-knob" />
+                </button>
+              </div>
+
+              <div className="create-class-privacy-row">
+                <div className="create-class-privacy-copy">
+                  <p className="create-class-privacy-q">Bật gợi ý đáp án tự luận</p>
+                  <p className="create-class-hint">
+                    {showEssayHints
+                      ? 'Bật: người làm bài có thể mở mục “Xem gợi ý đáp án” ở câu tự luận.'
+                      : 'Tắt: gợi ý đáp án bị ẩn với mọi người khi làm bài. Chủ phòng vẫn xem và chỉnh đáp án trong màn hình chỉnh sửa.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={`create-class-switch${showEssayHints ? ' is-on' : ''}`}
+                  role="switch"
+                  aria-checked={showEssayHints}
+                  aria-label="Bật gợi ý đáp án tự luận"
+                  onClick={() => setShowEssayHints((v) => !v)}
                 >
                   <span className="create-class-switch-knob" />
                 </button>
