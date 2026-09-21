@@ -11,6 +11,31 @@
   padding-bottom: 24px;
 }
 
+.tkb-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.tkb-btn-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #14324a;
+  background: #14324a;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tkb-btn-share:hover {
+  background: #1d4a6b;
+}
+
 .tkb-banner {
   display: flex;
   align-items: flex-end;

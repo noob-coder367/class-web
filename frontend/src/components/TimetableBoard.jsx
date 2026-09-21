@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import TimetableSettings from './TimetableSettings.jsx'
+import { shareHelper } from '../utils/shareHelper.js'
+import { classTabPath } from '../lib/routes.js'
 import './TimetableBoard.css'
 
 const SUBJECT_TONE = {
@@ -34,6 +36,17 @@ const SUBJECT_TONE = {
 function toneFor(subject) {
   if (!subject) return ''
   return SUBJECT_TONE[subject] || '#eef6fb'
+}
+
+function IconShare() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5" />
+    </svg>
+  )
 }
 
 function IconGear() {
@@ -235,8 +248,31 @@ export default function TimetableBoard({ data, isAdmin, onSave, onDismissNotice 
     }
   }
 
+  const shareTitle =
+    `THỜI KHÓA BIỂU LỚP ${data.className || '10A4'} : Áp dụng từ ngày ${formatDateVN(applyRange.from)} đến ngày ${formatDateVN(applyRange.to)}`
+
+  const handleShare = () => {
+    shareHelper({
+      title: shareTitle,
+      text: 'Xem thời khóa biểu',
+      path: classTabPath('timetable'),
+    })
+  }
+
   return (
     <div className="tkb-board">
+      <div className="tkb-toolbar">
+        <button
+          type="button"
+          className="tkb-btn-share"
+          onClick={handleShare}
+          aria-label="Chia sẻ thời khóa biểu"
+        >
+          <IconShare />
+          Chia sẻ
+        </button>
+      </div>
+
       <div className="tkb-banner">
         <div>
           <p className="tkb-kicker">Thời khoá biểu lớp {data.className}</p>
