@@ -529,6 +529,7 @@ export default function RulesBoard({
           startingPoints={ranked.startingPoints}
           currentUserId={profile?.id}
           violations={violations}
+          classLabel={classLabel}
         />
       ) : null}
 
