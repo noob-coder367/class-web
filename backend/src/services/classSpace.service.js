@@ -288,6 +288,7 @@ function toPublicMeta(item, profile) {
   const mine = myResultOf(item, profile)
   return {
     id: item.id,
+    code: item.code,
     title: item.title,
     cover: item.cover,
     isPublic: item.isPublic,
