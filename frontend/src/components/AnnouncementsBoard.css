@@ -81,6 +81,18 @@
 }
 .ann-card--changed .ann-title { color: #92400e; }
 
+.ann-post-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.ann-detail-title {
+  font-size: 18px;
+}
+
 .ann-body {
   display: flex;
   flex-direction: column;
@@ -399,6 +411,23 @@
   position: relative;
   z-index: 2;
 }
+.ann-title-input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  background: #fff;
+  color: #0f172a;
+  box-sizing: border-box;
+}
+.ann-title-input:focus {
+  outline: 2px solid #14324a;
+  outline-offset: 1px;
+  border-color: #14324a;
+}
 .ann-textarea {
   width: 100%;
   min-height: 120px;
@@ -714,10 +743,26 @@
   border-top: 1px solid #e2e8f0;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px 14px;
   font-size: 12px;
   color: #64748b;
   background: #fafbfc;
+}
+.ann-btn-share {
+  margin-left: auto;
+  border: 1px solid #14324a;
+  background: #14324a;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.ann-btn-share:hover {
+  background: #1d4a6b;
 }
 
 @media (min-width: 641px) {

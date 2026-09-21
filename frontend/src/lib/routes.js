@@ -27,6 +27,8 @@ export const CLASS_TAB_PATH = {
 const PATH_TAB = Object.fromEntries(
   Object.entries(CLASS_TAB_PATH).map(([tab, path]) => [path.toLowerCase(), tab])
 )
+// Alias chia sẻ / xem chi tiết: /vo-lop/thong-bao?id=<id>
+PATH_TAB['thong-bao'] = 'announcements'
 
 /** Tạo URL đầy đủ cho 1 tab trong /vo-lop, kèm các đoạn phụ phía sau (nếu có). */
 export function classTabPath(tab, ...rest) {
@@ -45,9 +47,18 @@ export function parseClassPath(pathname) {
   return { tab, rest: parts.slice(2) }
 }
 
-// ---- Thông báo chung: /vo-lop/thong-bao-chung/:id ----
+// ---- Thông báo chung: /vo-lop/thong-bao?id=<id> (giữ /vo-lop/thong-bao-chung/:id) ----
 export function announcementDetailPath(id) {
-  return classTabPath('announcements', id)
+  const encoded = encodeURIComponent(String(id || '').trim())
+  return `${ROUTES.classRoot}/thong-bao?id=${encoded}`
+}
+
+/** Đọc id bài thông báo từ ?id= hoặc đoạn path cũ /thong-bao-chung/:id */
+export function parseAnnouncementId(pathname, search) {
+  const fromQuery = new URLSearchParams(search || '').get('id')
+  if (fromQuery) return String(fromQuery).trim() || null
+  const { rest } = parseClassPath(pathname)
+  return rest[0] ? String(rest[0]).trim() : null
 }
 
 // ---- Bài tập về nhà: /vo-lop/bai-tap-ve-nha/bao-bai-:x ----
