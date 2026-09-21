@@ -312,6 +312,7 @@ export default function ClassPlayView({ classData, onClose }) {
     }
     const ok = keys.includes(normalizeAnswer(value))
     setEssayResults((prev) => ({ ...prev, [current.id]: ok ? 'correct' : 'wrong' }))
+    triggerAnswerFx(`essay:${current.id}`, ok)
     if (autoAdvance) {
       if (allowMultiTry && !ok && !skipIfWrong) return
       if (skipIfWrong) {
@@ -717,7 +718,7 @@ export default function ClassPlayView({ classData, onClose }) {
                 <label className="quiz-field">
                   <span>Đáp án của bạn</span>
                   <input
-                    className={`class-play-exam-input${essayResults[current.id] === 'correct' ? ' is-correct-answer' : ''}${essayResults[current.id] === 'wrong' ? ' is-wrong-answer' : ''}`}
+                    className={`class-play-exam-input${essayResults[current.id] === 'correct' ? ' is-correct-answer' : ''}${essayResults[current.id] === 'wrong' ? ' is-wrong-answer' : ''}${fxClassOf(`essay:${current.id}`)}`}
                     type="text"
                     value={essayDrafts[current.id] || ''}
                     disabled={
