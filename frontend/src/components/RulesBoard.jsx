@@ -5,7 +5,8 @@ import RulesSettings from './RulesSettings.jsx'
 import ReputationBoard, { statusFor } from './ReputationBoard.jsx'
 import { markSeen } from '../lib/unreadStore.js'
 import { ROLES, roleLabel } from '../lib/roles.js'
-import { parseClassPath, rulesPanePath } from '../lib/routes.js'
+import { parseClassPath, parseRulesPane, rulesPanePath, RULES_SHARE_PATH, RULES_VIOLATIONS_SHARE_PATH } from '../lib/routes.js'
+import { shareHelper } from '../utils/shareHelper.js'
 import './RulesBoard.css'
 
 const PERIOD_OPTIONS = [
@@ -36,6 +37,17 @@ function IconGear() {
   )
 }
 
+function IconShare() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5" />
+    </svg>
+  )
+}
+
 function todayISO() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
 }
@@ -45,6 +57,26 @@ function formatDate(value) {
   const [y, m, d] = String(value).split('-')
   if (!y || !m || !d) return value
   return `${d}/${m}/${y}`
+}
+
+function personKey(row) {
+  if (row?.userId) return `u:${row.userId}`
+  if (row?.rosterId) return `r:${row.rosterId}`
+  const name = String(row?.name || '').trim().toLowerCase()
+  return name ? `n:${name}` : ''
+}
+
+function countPeopleInRange(violations, fromDate, toDate) {
+  const keys = new Set()
+  for (const row of violations || []) {
+    const d = String(row.date || '')
+    if (!d) continue
+    if (fromDate && d < fromDate) continue
+    if (toDate && d > toDate) continue
+    const key = personKey(row)
+    if (key) keys.add(key)
+  }
+  return keys.size
 }
 
 function itemText(item) {
@@ -133,8 +165,7 @@ export default function RulesBoard({
   const navigate = useNavigate()
   const location = useLocation()
   const { rest: rulesRest } = parseClassPath(location.pathname)
-  const RULES_PANE_BY_SEG = { 'noi-quy': 'rules', 'danh-sach-vi-pham': 'violations', 'bang-xep-hang': 'rank' }
-  const urlPane = RULES_PANE_BY_SEG[(rulesRest[0] || '').toLowerCase()] || null
+  const urlPane = parseRulesPane(rulesRest)
   const [pane, setPaneState] = useState(urlPane || 'rules')
 
   // Mặc định /noi-quy-lop (chưa có sub-route) -> redirect về /noi-quy-lop/noi-quy.
@@ -166,9 +197,14 @@ export default function RulesBoard({
   const [filterPointsMin, setFilterPointsMin] = useState('')
   const [filterPointsMax, setFilterPointsMax] = useState('')
   const [filterOffense, setFilterOffense] = useState('')
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareMode, setShareMode] = useState('today')
+  const [shareFrom, setShareFrom] = useState(todayISO())
+  const [shareTo, setShareTo] = useState(todayISO())
   const galleryRef = useRef(null)
   const cameraRef = useRef(null)
   const photosRef = useRef([])
+  const shareMenuRef = useRef(null)
 
   const options = useMemo(() => offenseOptions(rules), [rules])
   const selectedOffense = options.find((row) => row.name === form.offense)
@@ -231,7 +267,24 @@ export default function RulesBoard({
 
   useEffect(() => {
     if (pane === 'violations') markSeen('rules-violations')
+    setShareOpen(false)
   }, [pane])
+
+  useEffect(() => {
+    if (!shareOpen) return
+    const onDown = (e) => {
+      if (!shareMenuRef.current?.contains(e.target)) setShareOpen(false)
+    }
+    const onKey = (e) => {
+      if (e.key === 'Escape') setShareOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [shareOpen])
 
   useEffect(() => {
     if (!lightbox) return
@@ -353,6 +406,49 @@ export default function RulesBoard({
     }
   }
 
+  const classLabel = rules?.className || '10A4'
+
+  const handleShareRules = () => {
+    shareHelper({
+      title: `Nội quy lớp ${classLabel}`,
+      text: 'Xem chi tiết',
+      path: RULES_SHARE_PATH,
+      fullText: true,
+    })
+  }
+
+  const handleShareViolations = () => {
+    let from = shareFrom
+    let to = shareTo
+    if (shareMode === 'today') {
+      from = todayISO()
+      to = todayISO()
+    } else {
+      if (!from || !to) return
+      if (from > to) {
+        const swap = from
+        from = to
+        to = swap
+      }
+    }
+    const count = countPeopleInRange(violations, from, to)
+    const fromLabel = formatDate(from)
+    const toLabel = formatDate(to)
+    const title = shareMode === 'today'
+      ? 'Danh sách vi phạm hôm nay (Hôm nay)'
+      : `Danh sách vi phạm từ ngày ${fromLabel} đến ngày ${toLabel} (Tự chọn)`
+    const text = shareMode === 'today'
+      ? `Danh sách vi phạm: có ${count} người có vi phạm trong hôm nay`
+      : `Danh sách vi phạm: có ${count} người có vi phạm từ ngày ${fromLabel} đến ngày ${toLabel}`
+    shareHelper({
+      title,
+      text,
+      path: RULES_VIOLATIONS_SHARE_PATH,
+      fullText: true,
+    })
+    setShareOpen(false)
+  }
+
   return (
     <div className="rules-board">
       <div className="rules-switch" role="tablist" aria-label="Nội quy lớp">
@@ -413,6 +509,17 @@ export default function RulesBoard({
               <strong>{rules.notice.title || 'LƯU Ý'} :</strong> {rules.notice.body}
             </p>
           ) : null}
+          <div className="rules-doc-share">
+            <button
+              type="button"
+              className="rules-btn-share"
+              onClick={handleShareRules}
+              aria-label="Chia sẻ nội quy lớp"
+            >
+              <IconShare />
+              Chia sẻ
+            </button>
+          </div>
         </article>
       ) : null}
 
@@ -426,7 +533,78 @@ export default function RulesBoard({
       ) : null}
 
       {pane === 'violations' ? (
-        <div className="rules-violations">
+        <>
+          <div className="rules-violations-toolbar">
+            <div className="rules-share-menu" ref={shareMenuRef}>
+              <button
+                type="button"
+                className="rules-btn-share"
+                onClick={() => setShareOpen((open) => !open)}
+                aria-label="Chia sẻ danh sách vi phạm"
+                aria-expanded={shareOpen}
+                aria-haspopup="dialog"
+              >
+                <IconShare />
+                Chia sẻ
+              </button>
+              {shareOpen ? (
+                <div className="rules-share-dropdown" role="dialog" aria-label="Chọn phạm vi chia sẻ">
+                  <p className="rules-share-dropdown-title">Phạm vi chia sẻ</p>
+                  <div className="rules-share-options" role="radiogroup" aria-label="Chọn khoảng thời gian">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={shareMode === 'today'}
+                      className={shareMode === 'today' ? 'is-active' : ''}
+                      onClick={() => setShareMode('today')}
+                    >
+                      Hôm nay
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={shareMode === 'custom'}
+                      className={shareMode === 'custom' ? 'is-active' : ''}
+                      onClick={() => setShareMode('custom')}
+                    >
+                      Tự chọn
+                    </button>
+                  </div>
+                  {shareMode === 'custom' ? (
+                    <div className="rules-share-range">
+                      <label>
+                        Từ ngày
+                        <input
+                          type="date"
+                          value={shareFrom}
+                          onChange={(e) => setShareFrom(e.target.value)}
+                          required
+                        />
+                      </label>
+                      <label>
+                        Đến ngày
+                        <input
+                          type="date"
+                          value={shareTo}
+                          onChange={(e) => setShareTo(e.target.value)}
+                          required
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="rules-share-ok"
+                    onClick={handleShareViolations}
+                    disabled={shareMode === 'custom' && (!shareFrom || !shareTo)}
+                  >
+                    Ok
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="rules-violations">
           {isAdmin ? (
             <form className="rules-add-form" onSubmit={handleAdd}>
               <h3>Thêm vi phạm</h3>
@@ -739,6 +917,7 @@ export default function RulesBoard({
             </div>
           )}
         </div>
+        </>
       ) : null}
 
       {isAdmin && pane === 'rules' ? (

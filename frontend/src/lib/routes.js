@@ -29,6 +29,8 @@ const PATH_TAB = Object.fromEntries(
 )
 // Alias chia sẻ / xem chi tiết: /vo-lop/thong-bao?id=<id>
 PATH_TAB['thong-bao'] = 'announcements'
+// Alias chia sẻ nội quy: /vo-lop/noi-quy và /vo-lop/noi-quy/vi-pham
+PATH_TAB['noi-quy'] = 'rules'
 
 /** Tạo URL đầy đủ cho 1 tab trong /vo-lop, kèm các đoạn phụ phía sau (nếu có). */
 export function classTabPath(tab, ...rest) {
@@ -80,6 +82,12 @@ export const RULES_PANE_PATH = {
 const PATH_RULES_PANE = Object.fromEntries(
   Object.entries(RULES_PANE_PATH).map(([pane, seg]) => [seg, pane])
 )
+// Alias chia sẻ danh sách vi phạm: /vo-lop/noi-quy/vi-pham
+PATH_RULES_PANE['vi-pham'] = 'violations'
+
+export const RULES_SHARE_PATH = `${ROUTES.classRoot}/noi-quy`
+export const RULES_VIOLATIONS_SHARE_PATH = `${ROUTES.classRoot}/noi-quy/vi-pham`
+
 export function rulesPanePath(pane) {
   return classTabPath('rules', RULES_PANE_PATH[pane] || RULES_PANE_PATH.rules)
 }
