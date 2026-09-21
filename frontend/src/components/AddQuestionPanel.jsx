@@ -544,6 +544,14 @@ export default function AddQuestionPanel({
   const [overIndex, setOverIndex] = useState(null)
   const pointerDragRef = useRef({ from: null, pointerId: null })
 
+  const appendQuestion = (entry) => {
+    onQuestionsChange((prev) => [...prev, entry])
+    window.requestAnimationFrame(() => {
+      const node = wrapRef.current?.querySelector(`[data-q-index="${questions.length}"]`)
+      node?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    })
+  }
+
   useEffect(() => {
     if (!menuOpen) return
     const onDocClick = (e) => {
@@ -573,17 +581,14 @@ export default function AddQuestionPanel({
     if (editingEntry) {
       onQuestionsChange((prev) => prev.map((q) => (q.id === entry.id ? entry : q)))
     } else {
-      onQuestionsChange((prev) => [...prev, entry])
+      appendQuestion(entry)
     }
     setCustomOpen(false)
     setEditingEntry(null)
   }
 
   const addFromArchive = (entry) => {
-    onQuestionsChange((prev) => [
-      ...prev,
-      { id: uid(), kind: entry.kind, source: 'archive', archiveId: entry.id, question: entry.question },
-    ])
+    appendQuestion({ id: uid(), kind: entry.kind, source: 'archive', archiveId: entry.id, question: entry.question })
     setPickerOpen(false)
   }
 
@@ -671,7 +676,7 @@ export default function AddQuestionPanel({
   }
 
   return (
-    <div className="add-question-wrap" ref={wrapRef}>
+    <div className="add-question-wrap" ref={wrapRef} data-question-count={questions.length}>
       <button
         type="button"
         className="create-class-archive-btn add-question-btn"

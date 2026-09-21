@@ -1750,6 +1750,8 @@
   flex-direction: column;
   gap: 8px;
   margin-top: 10px;
+  max-height: none;
+  overflow: visible;
 }
 
 .class-question-card {
@@ -1767,6 +1769,7 @@
     border-color var(--cc-fast),
     opacity var(--cc-fast),
     transform var(--cc-fast);
+  scroll-margin-block: 16px;
 }
 
 .class-question-card.is-dragging {
