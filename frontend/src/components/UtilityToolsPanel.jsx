@@ -55,18 +55,25 @@ function PlayView({ tool, onEdit }) {
   const [running, setRunning] = useState(false)
   const [rotation, setRotation] = useState(0)
   const [seed, setSeed] = useState(0)
+  const [raceWinner, setRaceWinner] = useState(-1)
   const pool = tool.removeWinners ? remaining : items
   const run = () => {
     if (!pool.length || running) return
     const picked = pool[Math.floor(Math.random() * pool.length)]
-    setWinner(null); setRunning(true); playUtilitySound('spin')
-    if (tool.mode === 'wheel') setRotation((prev) => prev + 1440 + Math.floor(Math.random() * 360))
+    const pickedIndex = pool.indexOf(picked)
+    setWinner(null); setRunning(true); setRaceWinner(pickedIndex); playUtilitySound('spin')
+    if (tool.mode === 'wheel') {
+      const slice = 360 / pool.length
+      const target = pickedIndex * slice + slice / 2
+      setRotation((prev) => prev + 1440 + (360 - target))
+    }
     setSeed((value) => value + 1)
     window.setTimeout(() => { setWinner(picked); setRunning(false); if (tool.removeWinners) setRemaining((prev) => prev.filter((item) => item !== picked)); playUtilitySound('win') }, tool.mode === 'duck' ? 5000 : 4200)
   }
   const labels = pool.map((item) => item.name || item)
+  const slice = 360 / Math.max(labels.length, 1)
   return <section className="utility-play-view"><div className="utility-play-head"><div><span className="utility-kicker">{tool.mode === 'wheel' ? 'WHEEL' : 'DUCK RACE'}</span><h3>{tool.type === 'names' ? 'Quay tên' : 'Quay phần thưởng'}</h3></div><button type="button" className="utility-edit-button" onClick={onEdit}>Chỉnh sửa</button></div>
-    {tool.mode === 'wheel' ? <div className="utility-wheel-wrap"><div className="utility-pointer" /><div className={`utility-wheel${running ? ' is-running' : ''}`} style={{ transform: `rotate(${rotation}deg)` }}>{labels.map((label, i) => <span key={`${label}-${i}`} className="utility-wheel-label" style={{ transform: `rotate(${(360 / Math.max(labels.length, 1)) * i}deg) translateY(-112px) rotate(${-((360 / Math.max(labels.length, 1)) * i)}deg)` }}>{label}</span>)}</div></div> : <div className="utility-race"><div className="utility-race-track">{labels.map((label, i) => <div key={`${label}-${i}-${seed}`} className={`utility-duck-lane${running ? ' is-racing' : ''}`} style={{ '--duck-delay': `${i * 70}ms`, '--duck-color': `hsl(${(i * 47) % 360} 75% 48%)` }}><span className="utility-duck">🦆</span><b>{label}</b><i /></div>)}</div></div>}
+    {tool.mode === 'wheel' ? <div className="utility-wheel-wrap"><div className="utility-pointer" /><div className={`utility-wheel${running ? ' is-running' : ''}`} style={{ transform: `rotate(${rotation}deg)`, background: `conic-gradient(${labels.map((_, i) => `hsl(${(i * 47) % 360} 75% 62%) ${i * slice}deg ${(i + 1) * slice}deg`).join(', ')})` }}>{labels.map((label, i) => <span key={`${label}-${i}`} className="utility-wheel-label" style={{ '--wheel-angle': `${i * slice + slice / 2}deg` }}>{label}</span>)}</div></div> : <div className="utility-race"><div className="utility-race-track">{labels.map((label, i) => <div key={`${label}-${i}-${seed}`} className={`utility-duck-lane${running ? ' is-racing' : ''}${running && i === raceWinner ? ' is-race-winner' : ''}`} style={{ '--duck-delay': `${i * 45}ms`, '--duck-color': `hsl(${(i * 47) % 360} 75% 48%)` }}><span className="utility-duck">🦆</span><b>{label}</b><i /></div>)}</div></div>}
     <div className="utility-play-actions"><button type="button" className="utility-primary utility-spin-button" onClick={run} disabled={!pool.length || running}>{running ? (tool.mode === 'duck' ? 'Đang đua…' : 'Đang xoay…') : tool.mode === 'duck' ? 'Bắt đầu đua' : 'Xoay'}</button>{tool.removeWinners ? <span>Còn lại: {remaining.length}/{items.length}</span> : <span>Có thể trúng lại</span>}</div><Celebration winner={winner} />{!pool.length ? <p className="utility-empty">Đã hết kết quả để quay.</p> : null}</section>
 }
 
