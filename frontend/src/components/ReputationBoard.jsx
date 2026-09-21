@@ -1,5 +1,7 @@
 import { Fragment, useMemo, useState } from 'react'
 import { ROLES, roleLabel } from '../lib/roles.js'
+import { RULES_RANK_SHARE_PATH } from '../lib/routes.js'
+import { shareHelper } from '../utils/shareHelper.js'
 
 function medalFor(rank) {
   if (rank === 1) return { emoji: '🥇', label: 'Vàng' }
@@ -61,14 +63,40 @@ function tiedLabel(totalAtRank, rank) {
   return `Top ${rank} · +${totalAtRank - 1} đồng hạng`
 }
 
+function IconShare() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5" />
+    </svg>
+  )
+}
+
 export default function ReputationBoard({
   rows = [],
   startingPoints = 100,
   currentUserId,
   loading,
   violations = [],
+  classLabel = '10A4',
 }) {
   const [expandedId, setExpandedId] = useState(null)
+
+  const topSummary = useMemo(() => {
+    const top = rows.find((row) => row.rank === 1)
+    if (!top) return 'Chưa có dữ liệu bảng xếp hạng'
+    return `Top 1: ${top.username} (${top.score}đ)`
+  }, [rows])
+
+  const handleShareRank = () => {
+    shareHelper({
+      title: `Bảng xếp hạng lớp ${classLabel}...`,
+      text: topSummary,
+      path: RULES_RANK_SHARE_PATH,
+    })
+  }
 
   const podium = useMemo(() => {
     const firstsAll = rows.filter((row) => row.rank === 1)
@@ -132,6 +160,17 @@ export default function ReputationBoard({
       <header className="rank-hero">
         <p className="rank-kicker">Lớp 10A4 · Điểm uy tín</p>
         <h2>Bảng xếp hạng</h2>
+        <div className="rank-share-row">
+          <button
+            type="button"
+            className="rules-btn-share"
+            onClick={handleShareRank}
+            aria-label="Chia sẻ bảng xếp hạng"
+          >
+            <IconShare />
+            Chia sẻ
+          </button>
+        </div>
         <p>
           Mỗi bạn bắt đầu với <strong>{startingPoints} điểm</strong>. Vi phạm sẽ trừ đúng số điểm trong nội quy.
           Hạng trùng điểm sẽ cùng Top — có thể có nhiều Top 1, Top 2…
