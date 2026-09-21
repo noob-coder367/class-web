@@ -2,7 +2,7 @@
  * Chia sẻ nội dung bài đăng: ưu tiên Web Share API,
  * fallback copy link vào clipboard + toast/alert.
  *
- * @param {string|{ title?: string, text?: string, path?: string }} title
+ * @param {string|{ title?: string, text?: string, path?: string, fullText?: boolean }} title
  * @param {string} [text]
  * @param {string} [path]
  */
@@ -10,7 +10,9 @@ export async function shareHelper(title, text, path) {
   const opts = title && typeof title === 'object' ? title : { title, text, path }
   const shareTitle = String(opts.title || '').trim()
   const rawText = String(opts.text || '').replace(/\s+/g, ' ').trim()
-  const snippet = rawText.length > 15 ? `${rawText.slice(0, 15)}...` : rawText
+  const snippet = (opts.fullText || rawText.length <= 15)
+    ? rawText
+    : `${rawText.slice(0, 15)}...`
   const routePath = String(opts.path || '').trim() || window.location.pathname
   const url = `${window.location.origin}${routePath.startsWith('/') ? routePath : `/${routePath}`}`
 
