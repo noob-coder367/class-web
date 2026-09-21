@@ -541,6 +541,12 @@
   letter-spacing: 0.02em;
 }
 
+.rank-share-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 10px;
+}
+
 .rank-hero p {
   margin: 0 auto;
   max-width: 520px;
