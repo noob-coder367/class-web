@@ -490,6 +490,11 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           setRules(null)
           setViolations([])
           setItems([])
+        } else if (activeTab === 'utilities') {
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
+          setItems([])
         } else {
           const data = await classroomService.getTabContent(activeTab)
           if (cancelled) return
@@ -895,10 +900,11 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     if (
       loadingTab &&
       activeTab !== 'announcements' &&
-      activeTab !== 'homework' &&
-      activeTab !== 'cleaning-duty' &&
-      activeTab !== 'class-space' &&
-      activeTab !== 'ai'
+        activeTab !== 'homework' &&
+        activeTab !== 'cleaning-duty' &&
+        activeTab !== 'class-space' &&
+        activeTab !== 'ai' &&
+        activeTab !== 'utilities'
     ) {
       return (
         <div className="classroom-state">
