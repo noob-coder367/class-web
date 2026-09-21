@@ -29,8 +29,10 @@ const PATH_TAB = Object.fromEntries(
 )
 // Alias chia sẻ / xem chi tiết: /vo-lop/thong-bao?id=<id>
 PATH_TAB['thong-bao'] = 'announcements'
-// Alias chia sẻ nội quy: /vo-lop/noi-quy và /vo-lop/noi-quy/vi-pham
+// Alias chia sẻ nội quy: /vo-lop/noi-quy và /vo-lop/noi-quy/vi-pham và /vo-lop/noi-quy/bang-xep-hang
 PATH_TAB['noi-quy'] = 'rules'
+// Alias chia sẻ vệ sinh lớp: /vo-lop/ve-sinh
+PATH_TAB['ve-sinh'] = 'cleaning-duty'
 
 /** Tạo URL đầy đủ cho 1 tab trong /vo-lop, kèm các đoạn phụ phía sau (nếu có). */
 export function classTabPath(tab, ...rest) {
@@ -87,6 +89,7 @@ PATH_RULES_PANE['vi-pham'] = 'violations'
 
 export const RULES_SHARE_PATH = `${ROUTES.classRoot}/noi-quy`
 export const RULES_VIOLATIONS_SHARE_PATH = `${ROUTES.classRoot}/noi-quy/vi-pham`
+export const RULES_RANK_SHARE_PATH = `${ROUTES.classRoot}/noi-quy/bang-xep-hang`
 
 export function rulesPanePath(pane) {
   return classTabPath('rules', RULES_PANE_PATH[pane] || RULES_PANE_PATH.rules)
@@ -108,3 +111,6 @@ export function classSpaceRoomPath(code) {
 export function classSpaceEditPath(code) {
   return classTabPath('class-space', code, 'chinh-sua-phong')
 }
+
+// ---- Vệ sinh lớp: /vo-lop/ve-sinh-chung (alias chia sẻ: /vo-lop/ve-sinh) ----
+export const CLEANING_SHARE_PATH = `${ROUTES.classRoot}/ve-sinh`
