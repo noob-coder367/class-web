@@ -14,7 +14,20 @@ import {
   todayISO,
   tomorrowISO,
 } from '../lib/cleaningDuty.js'
+import { CLEANING_SHARE_PATH } from '../lib/routes.js'
+import { shareHelper } from '../utils/shareHelper.js'
 import './CleaningBoard.css'
+
+function IconShare() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5" />
+    </svg>
+  )
+}
 
 function IconGear() {
   return (
@@ -194,6 +207,18 @@ export default function CleaningBoard({ isAdmin }) {
   const weekTitleFrom = formatDateVN(schedule?.week_start || currentWeekStart)
   const weekTitleTo = formatDateVN(currentWeekEnd)
 
+  const todayDisplayStatus = effectiveStatus(todayDate, todayStatusRow)
+  const tomorrowDisplayStatus = effectiveStatus(tomorrowDate, tomorrowStatusRow)
+
+  const handleShareStatus = () => {
+    shareHelper({
+      title: 'Lịch vệ sinh lớp...',
+      text: `Hôm nay: ${statusLabel(todayDisplayStatus)} · Ngày mai: ${statusLabel(tomorrowDisplayStatus)}`,
+      path: CLEANING_SHARE_PATH,
+      fullText: true,
+    })
+  }
+
   return (
     <div className="cleaning-board">
       {error ? <p className="cleaning-board-error">{error}</p> : null}
@@ -225,6 +250,18 @@ export default function CleaningBoard({ isAdmin }) {
           </div>
         )}
       </section>
+
+      <div className="cleaning-share-row">
+        <button
+          type="button"
+          className="cleaning-btn-share"
+          onClick={handleShareStatus}
+          aria-label="Chia sẻ tình trạng vệ sinh lớp"
+        >
+          <IconShare />
+          Chia sẻ
+        </button>
+      </div>
 
       <section className="cleaning-card">
         <div className="cleaning-card-head">
