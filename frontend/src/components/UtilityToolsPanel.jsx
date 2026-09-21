@@ -67,13 +67,24 @@ function PlayView({ tool, onEdit }) {
     raceRef.current.timers.forEach((timer) => window.clearTimeout(timer))
   }, [])
 
+  const finishDuckRace = (ordered, first) => {
+    setRankings(ordered)
+    setWinner(first.item)
+    setRunning(false)
+    playUtilitySound('win')
+    if (tool.removeWinners) setRemaining((prev) => prev.filter((item) => item !== first.item))
+    raceRef.current.frame = 0
+  }
+
   const startDuckRace = () => {
     const startedAt = performance.now()
     const participants = pool.map((item, index) => ({
       id: `${String(item?.name || item)}-${index}-${startedAt}`,
       item,
-      progress: 0,
-      velocity: 0.075 + Math.random() * 0.035,
+      x: 0.02,
+      y: 0.18 + ((index + 0.5) / Math.max(pool.length, 1)) * 0.64,
+      vx: 0.075 + Math.random() * 0.035,
+      vy: (Math.random() - 0.5) * 0.02,
       baseSpeed: 0.105 + Math.random() * 0.035,
       phase: Math.random() * Math.PI * 2,
       wobble: 0.012 + Math.random() * 0.018,
@@ -83,13 +94,8 @@ function PlayView({ tool, onEdit }) {
     raceRef.current.cancelled = false
     raceRef.current.timers.forEach((timer) => window.clearTimeout(timer))
     raceRef.current.timers = []
-    setWinner(null)
-    setRankings([])
-    setRaceParticipants(participants)
-    setRunning(true)
-    setCountdown(3)
+    setWinner(null); setRankings([]); setRaceParticipants(participants); setRunning(true); setCountdown(3)
     playUtilitySound('spin')
-
     let count = 3
     const countdownTimer = window.setInterval(() => {
       if (raceRef.current.cancelled) return window.clearInterval(countdownTimer)
@@ -110,39 +116,29 @@ function PlayView({ tool, onEdit }) {
               if (duck.finished) return duck
               const rhythm = Math.sin(elapsed * (1.7 + duck.phase) + duck.phase) * duck.wobble
               const surge = Math.sin(elapsed * 0.9 + duck.phase * 2.1) > 0.82 ? 0.028 : 0
-              const target = duck.baseSpeed + rhythm + surge
-              const velocity = Math.max(0.045, duck.velocity + (target - duck.velocity) * Math.min(1, dt * 3.5))
-              const progress = Math.min(1, duck.progress + velocity * dt)
-              return progress >= 1 ? { ...duck, progress: 1, velocity, finished: true, finishTime: now } : { ...duck, progress, velocity }
+              const targetVx = duck.baseSpeed + rhythm + surge
+              const vx = Math.max(0.045, duck.vx + (targetVx - duck.vx) * Math.min(1, dt * 3.5))
+              const laneChange = Math.sin(elapsed * (0.9 + duck.phase * 0.15) + duck.phase) * 0.025
+              const vy = Math.max(-0.055, Math.min(0.055, duck.vy + (laneChange - duck.vy) * Math.min(1, dt * 2.2)))
+              const x = Math.min(1, duck.x + vx * dt)
+              const y = Math.max(0.10, Math.min(0.90, duck.y + vy * dt))
+              return x >= 1 ? { ...duck, x: 1, y, vx, vy, finished: true, finishTime: now } : { ...duck, x, y, vx, vy }
             })
             participants.splice(0, participants.length, ...next)
             setRaceParticipants(next)
             const finished = next.filter((duck) => duck.finished).sort((a, b) => a.finishTime - b.finishTime)
             if (finished.length) {
-              const ordered = [...finished, ...next.filter((duck) => !duck.finished).sort((a, b) => b.progress - a.progress)]
-              const first = finished[0]
-              setRankings(ordered)
-              setWinner(first.item)
-              setRunning(false)
-              playUtilitySound('win')
-              if (tool.removeWinners) setRemaining((prev) => prev.filter((item) => item !== first.item))
-              raceRef.current.frame = 0
+              const ordered = [...finished, ...next.filter((duck) => !duck.finished).sort((a, b) => b.x - a.x)]
+              finishDuckRace(ordered, finished[0])
               return
             }
             if (elapsed < 14) {
               raceRef.current.frame = window.requestAnimationFrame(updateRace)
               return
             }
-            const ordered = [...next].sort((a, b) => b.progress - a.progress)
+            const ordered = [...next].sort((a, b) => b.x - a.x)
             const first = ordered[0]
-            first.finished = true
-            first.finishTime = now
-            setRankings(ordered)
-            setWinner(first.item)
-            setRunning(false)
-            playUtilitySound('win')
-            if (tool.removeWinners) setRemaining((prev) => prev.filter((item) => item !== first.item))
-            raceRef.current.frame = 0
+            finishDuckRace(ordered, first)
           }
           raceRef.current.frame = window.requestAnimationFrame(updateRace)
         }, 500)
@@ -157,32 +153,21 @@ function PlayView({ tool, onEdit }) {
     if (tool.mode === 'duck') return startDuckRace()
     const picked = pool[Math.floor(Math.random() * pool.length)]
     const pickedIndex = pool.indexOf(picked)
-    setWinner(null)
-    setRunning(true)
-    playUtilitySound('spin')
+    setWinner(null); setRunning(true); playUtilitySound('spin')
     const wheelSlice = 360 / pool.length
-    const target = pickedIndex * wheelSlice + wheelSlice / 2
-    setRotation((prev) => prev + 1440 + (360 - target))
+    setRotation((prev) => prev + 1440 + (360 - (pickedIndex * wheelSlice + wheelSlice / 2)))
     setSeed((value) => value + 1)
-    window.setTimeout(() => {
-      setWinner(picked)
-      setRunning(false)
-      if (tool.removeWinners) setRemaining((prev) => prev.filter((item) => item !== picked))
-      playUtilitySound('win')
-    }, 4200)
+    window.setTimeout(() => { setWinner(picked); setRunning(false); if (tool.removeWinners) setRemaining((prev) => prev.filter((item) => item !== picked)); playUtilitySound('win') }, 4200)
   }
 
   const labels = pool.map((item) => item.name || item)
   const slice = 360 / Math.max(labels.length, 1)
-  const ducks = raceParticipants.length ? raceParticipants : pool.map((item) => ({ item, progress: 0 }))
-  return (
-    <section className="utility-play-view">
-      <div className="utility-play-head"><div><span className="utility-kicker">{tool.mode === 'wheel' ? 'WHEEL' : 'DUCK RACE'}</span><h3>{tool.type === 'names' ? 'Quay tên' : 'Quay phần thưởng'}</h3></div><button type="button" className="utility-edit-button" onClick={onEdit}>Chỉnh sửa</button></div>
-      {tool.mode === 'wheel' ? <div className="utility-wheel-wrap"><div className="utility-pointer" /><div className={`utility-wheel${running ? ' is-running' : ''}`} style={{ transform: `rotate(${rotation}deg)`, background: `conic-gradient(${labels.map((_, i) => `hsl(${(i * 47) % 360} 75% 62%) ${i * slice}deg ${(i + 1) * slice}deg`).join(', ')})` }}>{labels.map((label, i) => <span key={`${label}-${i}`} className="utility-wheel-label" style={{ '--wheel-angle': `${i * slice + slice / 2}deg` }}>{label}</span>)}</div></div> : <div className="utility-race"><div className="utility-race-start">START</div><div className="utility-race-finish">🏁</div><div className="utility-race-track">{ducks.map((duck, i) => { const label = duck.item?.name || duck.item; const progress = duck.progress || 0; const rank = rankings.indexOf(duck); return <div key={`${label}-${i}-${seed}`} className={`utility-duck-lane${running ? ' is-racing' : ''}${rank === 0 && !running ? ' is-race-winner' : ''}`}><span className="utility-duck" style={{ left: `calc(${progress * 100}% - 12px)` }}>🦆</span><b>{rank >= 0 ? `${rank + 1}. ` : ''}{label}</b><i /></div> })}</div>{countdown !== null ? <div className="utility-countdown">{countdown}</div> : null}</div>}
-      <div className="utility-play-actions"><button type="button" className="utility-primary utility-spin-button" onClick={run} disabled={!pool.length || running || countdown !== null}>{running ? (tool.mode === 'duck' ? 'Đang đua…' : 'Đang xoay…') : tool.mode === 'duck' ? 'Bắt đầu đua' : 'Xoay'}</button>{tool.removeWinners ? <span>Còn lại: {remaining.length}/{items.length}</span> : <span>Có thể trúng lại</span>}</div><Celebration winner={winner} />{!pool.length ? <p className="utility-empty">Đã hết kết quả để quay.</p> : null}
-    </section>
-  )
+  const ducks = raceParticipants.length ? raceParticipants : pool.map((item, index) => ({ item, x: 0.02, y: 0.18 + ((index + 0.5) / Math.max(pool.length, 1)) * 0.64 }))
+  return <section className="utility-play-view"><div className="utility-play-head"><div><span className="utility-kicker">{tool.mode === 'wheel' ? 'WHEEL' : 'DUCK RACE'}</span><h3>{tool.type === 'names' ? 'Quay tên' : 'Quay phần thưởng'}</h3></div><button type="button" className="utility-edit-button" onClick={onEdit}>Chỉnh sửa</button></div>
+    {tool.mode === 'wheel' ? <div className="utility-wheel-wrap"><div className="utility-pointer" /><div className={`utility-wheel${running ? ' is-running' : ''}`} style={{ transform: `rotate(${rotation}deg)`, background: `conic-gradient(${labels.map((_, i) => `hsl(${(i * 47) % 360} 75% 62%) ${i * slice}deg ${(i + 1) * slice}deg`).join(', ')})` }}>{labels.map((label, i) => <span key={`${label}-${i}`} className="utility-wheel-label" style={{ '--wheel-angle': `${i * slice + slice / 2}deg` }}>{label}</span>)}</div></div> : <div className="utility-race"><div className="utility-race-start">START</div><div className="utility-race-finish">🏁</div><div className="utility-race-field">{ducks.map((duck, i) => { const label = duck.item?.name || duck.item; const rank = rankings.indexOf(duck); return <div key={`${label}-${i}-${seed}`} className={`utility-duck${rank === 0 && !running ? ' is-race-winner' : ''}`} style={{ left: `${duck.x * 100}%`, top: `${duck.y * 100}%` }}><span>🦆</span><b>{rank >= 0 ? `${rank + 1}. ` : ''}{label}</b></div> })}<div className="utility-start-line" /><div className="utility-finish-line" /></div>{countdown !== null ? <div className="utility-countdown">{countdown}</div> : null}</div>}
+    <div className="utility-play-actions"><button type="button" className="utility-primary utility-spin-button" onClick={run} disabled={!pool.length || running || countdown !== null}>{running ? (tool.mode === 'duck' ? 'Đang đua…' : 'Đang xoay…') : tool.mode === 'duck' ? 'Bắt đầu đua' : 'Xoay'}</button>{tool.removeWinners ? <span>Còn lại: {remaining.length}/{items.length}</span> : <span>Có thể trúng lại</span>}</div><Celebration winner={winner} />{!pool.length ? <p className="utility-empty">Đã hết kết quả để quay.</p> : null}</section>
 }
+
 function ConfigureView({ tool, onChange, onRemove, onCreate }) {
   const items = tool.type === 'names' ? tool.names : tool.rewards
   return <section className="utility-workspace"><div className="utility-tab-head"><div><label htmlFor={`tool-type-${tool.id}`}>Quay gì?</label><select id={`tool-type-${tool.id}`} value={tool.type} onChange={(e) => onChange({ type: e.target.value })}>{TOOL_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div><button type="button" className="utility-remove-tab" onClick={onRemove}>Xóa tab</button></div>
