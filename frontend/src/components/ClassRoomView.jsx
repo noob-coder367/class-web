@@ -797,8 +797,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       }
 
       if (wantsEdit) {
-        const isOwner = !!profile?.id && item.ownerId === profile.id
-        if (!isOwner) {
+        if (item.canEdit !== true) {
           alert('Bạn không có quyền')
           navigate(classSpaceRoomPath(code), { replace: true })
           return
@@ -969,6 +968,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
             <div className="class-space-grid">
               {displayedClassSpaceItems.map((cls) => {
                 const isOwner = !!profile?.id && cls.ownerId === profile.id
+                const canEdit = cls.canEdit === true || isOwner
                 const completedLocked = isRoomCompletedLocked(cls)
 
                 return (
@@ -1047,7 +1047,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                       )}
 
                       <div className="class-space-footer-actions">
-                        {isOwner ? (
+                        {canEdit ? (
                           <button
                             type="button"
                             className="class-space-edit-icon-btn"

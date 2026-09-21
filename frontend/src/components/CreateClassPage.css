@@ -2157,3 +2157,55 @@
     transform: none;
   }
 }
+
+.class-space-editor-permissions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--cc-line);
+}
+
+.class-space-editor-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.class-space-editor-add input {
+  min-width: 0;
+  flex: 1;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--cc-line);
+  border-radius: 10px;
+  background: var(--cc-soft);
+  color: var(--cc-primary);
+  font: inherit;
+}
+
+.class-space-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.class-space-editor-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 6px 4px 12px;
+  border: 1px solid var(--cc-line);
+  border-radius: 10px;
+  background: var(--cc-soft);
+  color: var(--cc-primary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.class-space-editor-item .quiz-icon-btn {
+  flex: 0 0 auto;
+}

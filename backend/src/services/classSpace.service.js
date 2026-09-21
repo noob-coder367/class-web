@@ -191,6 +191,59 @@ function normalizeAttempts(raw) {
   return out
 }
 
+function normalizeEditors(raw) {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set()
+  return raw
+    .map((entry) => ({
+      userId: String(entry?.userId || '').trim(),
+      email: String(entry?.email || '').trim().toLowerCase(),
+      username: String(entry?.username || '').trim(),
+    }))
+    .filter((entry) => {
+      if (!entry.userId || !entry.email || seen.has(entry.userId)) return false
+      seen.add(entry.userId)
+      return true
+    })
+}
+
+function isOwnerOf(item, profile) {
+  return !!profile?.id && String(profile.id) === String(item?.ownerId || '')
+}
+
+function canEditClassSpace(item, profile) {
+  if (isOwnerOf(item, profile)) return true
+  const userId = String(profile?.id || '')
+  return !!userId && normalizeEditors(item?.editors).some((editor) => editor.userId === userId)
+}
+
+async function resolveEditorsByEmail(rawEmails, ownerId) {
+  if (!Array.isArray(rawEmails)) return null
+  const emails = [...new Set(rawEmails
+    .map((email) => String(email || '').trim().toLowerCase())
+    .filter(Boolean))]
+  if (emails.length > 20) throw new AppError('Mỗi phòng chỉ được cấp tối đa 20 tài khoản editor.', 400)
+  if (!emails.length) return []
+
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .select('id, username, email')
+    .in('email', emails)
+  if (error) throw new AppError('Không kiểm tra được tài khoản editor.', 500)
+  const byEmail = new Map((data || []).map((profile) => [String(profile.email || '').toLowerCase(), profile]))
+  const missing = emails.filter((email) => !byEmail.has(email))
+  if (missing.length) throw new AppError(`Không tìm thấy tài khoản Google: ${missing.join(', ')}`, 404)
+
+  return emails
+    .map((email) => byEmail.get(email))
+    .filter((profile) => String(profile.id) !== String(ownerId))
+    .map((profile) => ({
+      userId: String(profile.id),
+      email: String(profile.email || '').trim().toLowerCase(),
+      username: String(profile.username || '').trim(),
+    }))
+}
+
 function scoreTotalOf(questions) {
   if (!Array.isArray(questions)) return 0
   let total = 0
@@ -271,6 +324,7 @@ function normalizeItem(raw) {
     questions: Array.isArray(raw.questions) ? raw.questions : [],
     results: normalizeResults(raw.results),
     attempts: normalizeAttempts(raw.attempts),
+    editors: normalizeEditors(raw.editors),
     ownerId: raw.ownerId ? String(raw.ownerId) : '',
     ownerName: String(raw.ownerName || 'Ẩn danh').trim() || 'Ẩn danh',
     createdAt: raw.createdAt ? String(raw.createdAt) : new Date().toISOString(),
@@ -330,6 +384,7 @@ function toPublicMeta(item, profile) {
     questionCount: item.questions.length,
     ownerId: item.ownerId,
     ownerName: item.ownerName,
+    canEdit: canEditClassSpace(item, profile),
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
     myResult: mine,
@@ -339,13 +394,16 @@ function toPublicMeta(item, profile) {
 function toFullPayload(item, profile) {
   // Dùng khi người xem đã được phép vào lớp (public / đúng chủ / đúng mật khẩu).
   // Không lộ passwordHash, results đầy đủ hay attempts (mốc thời gian nội bộ) ra ngoài.
-  const { passwordHash, password, results, attempts, ...rest } = item
+  const { passwordHash, password, results, attempts, editors, ...rest } = item
   // Mật khẩu đọc được chỉ gửi cho CHỦ phòng (để hiện trong màn hình chỉnh sửa).
-  const isOwner = !!profile?.id && profile.id === item.ownerId
+  const isOwner = isOwnerOf(item, profile)
   return {
     ...rest,
     ...(isOwner ? { password: item.isPublic ? '' : password || '' } : {}),
     questions: item.questions,
+    canEdit: canEditClassSpace(item, profile),
+    canManageEditors: isOwner,
+    ...(isOwner ? { editors: item.editors } : {}),
     myResult: myResultOf(item, profile),
     leaderboard: item.enableLeaderboard ? buildLeaderboard(item) : [],
   }
@@ -502,8 +560,7 @@ export async function getClassSpaceById(id, { password, profile } = {}) {
   const item = data.items.find((row) => row.id === targetId)
   if (!item) throw new AppError('Không tìm thấy lớp học.', 404)
 
-  const isOwner = !!profile?.id && profile.id === item.ownerId
-  if (item.isPublic || isOwner) return toFullPayload(item, profile)
+  if (item.isPublic || canEditClassSpace(item, profile)) return toFullPayload(item, profile)
 
   if (!password) {
     const err = new AppError('Lớp học riêng tư, vui lòng nhập mật khẩu.', 401)
@@ -550,6 +607,7 @@ export async function createClassSpace(payload, profile) {
     allowMultiTry: payload?.allowMultiTry === true,
     enableLeaderboard: payload?.enableLeaderboard === true,
     questions,
+    editors: [],
     results: {},
     showEssayHints: payload?.showEssayHints !== false,
     ownerId: profile?.id || '',
@@ -568,9 +626,10 @@ export async function updateClassSpace(id, payload, profile) {
   const idx = data.items.findIndex((row) => row.id === targetId)
   if (idx === -1) throw new AppError('Không tìm thấy lớp học.', 404)
   const current = data.items[idx]
-  if (!profile?.id || profile.id !== current.ownerId) {
-    throw new AppError('Bạn không phải chủ lớp học này nên không thể chỉnh sửa.', 403)
+  if (!canEditClassSpace(current, profile)) {
+    throw new AppError('Bạn không có quyền chỉnh sửa lớp học này.', 403)
   }
+  const isOwner = isOwnerOf(current, profile)
 
   const title = String(payload?.title || '').trim()
   if (!title) throw new AppError('Vui lòng nhập tiêu đề lớp học.', 400)
@@ -595,6 +654,12 @@ export async function updateClassSpace(id, payload, profile) {
 
   const questions = Array.isArray(payload?.questions) ? payload.questions : current.questions
   assertQuestionsHaveCorrectAnswers(questions)
+  if (!isOwner && Object.prototype.hasOwnProperty.call(payload || {}, 'editorEmails')) {
+    throw new AppError('Chỉ chủ phòng mới được thay đổi quyền editor.', 403)
+  }
+  const editors = isOwner
+    ? (await resolveEditorsByEmail(payload?.editorEmails, current.ownerId)) ?? current.editors
+    : current.editors
 
   const updated = normalizeItem({
     ...current,
@@ -614,6 +679,7 @@ export async function updateClassSpace(id, payload, profile) {
     allowMultiTry: payload?.allowMultiTry === true,
     enableLeaderboard: payload?.enableLeaderboard === true,
     questions,
+    editors,
     results: current.results,
     showEssayHints: payload?.showEssayHints !== false,
     updatedAt: new Date().toISOString(),

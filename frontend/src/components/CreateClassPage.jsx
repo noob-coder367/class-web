@@ -179,6 +179,10 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const [allowMultiTry, setAllowMultiTry] = useState(!!editingClass?.allowMultiTry)
   const [showEssayHints, setShowEssayHints] = useState(editingClass ? editingClass.showEssayHints !== false : true)
   const [enableLeaderboard, setEnableLeaderboard] = useState(!!editingClass?.enableLeaderboard)
+  const canManageEditors = isEditing && editingClass?.canManageEditors === true
+  const [editors, setEditors] = useState(editingClass?.editors || [])
+  const [editorEmail, setEditorEmail] = useState('')
+  const [editorError, setEditorError] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const fileInputRef = useRef(null)
@@ -380,6 +384,21 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
     setArchiveOpen(true)
   }
 
+  const addEditor = () => {
+    const email = editorEmail.trim().toLowerCase()
+    if (!email || !email.includes('@')) {
+      setEditorError('Vui lòng nhập đúng email tài khoản Google.')
+      return
+    }
+    if (editors.some((editor) => editor.email === email)) {
+      setEditorError('Tài khoản này đã được cấp quyền.')
+      return
+    }
+    setEditors((prev) => [...prev, { email }])
+    setEditorEmail('')
+    setEditorError('')
+  }
+
   const handleCreateClass = async () => {
     const trimmedTitle = title.trim()
     if (!trimmedTitle) {
@@ -454,6 +473,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
         showEssayHints,
         enableLeaderboard,
         questions: uploadedQuestions,
+        ...(canManageEditors ? { editorEmails: editors.map((editor) => editor.email) } : {}),
       }
 
       const { item } = isEditing
@@ -972,6 +992,58 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
                   <span className="create-class-switch-knob" />
                 </button>
               </div>
+
+              {canManageEditors ? (
+                <div className="class-space-editor-permissions">
+                  <div className="create-class-privacy-copy">
+                    <p className="create-class-privacy-q">Cấp quyền chỉnh sửa phòng</p>
+                    <p className="create-class-hint">
+                      Chỉ chủ phòng quản lý được danh sách này. Tài khoản Google được cấp quyền có thể mở và sửa phòng.
+                    </p>
+                  </div>
+                  <div className="class-space-editor-add">
+                    <input
+                      type="email"
+                      value={editorEmail}
+                      onChange={(e) => {
+                        setEditorEmail(e.target.value)
+                        setEditorError('')
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addEditor()
+                        }
+                      }}
+                      placeholder="email Google của editor"
+                      autoComplete="off"
+                    />
+                    <button type="button" className="create-class-ghost" onClick={addEditor}>
+                      Thêm
+                    </button>
+                  </div>
+                  {editorError ? <p className="create-class-error">{editorError}</p> : null}
+                  {editors.length ? (
+                    <div className="class-space-editor-list">
+                      {editors.map((editor) => (
+                        <div key={editor.email} className="class-space-editor-item">
+                          <span>{editor.email}</span>
+                          <button
+                            type="button"
+                            className="quiz-icon-btn"
+                            onClick={() => setEditors((prev) => prev.filter((item) => item.email !== editor.email))}
+                            aria-label={`Xóa quyền editor ${editor.email}`}
+                          >
+                            <IconClose />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="create-class-hint">Chưa có tài khoản nào được cấp quyền.</p>
+                  )}
+                </div>
+              ) : null}
             </div>
 
             <footer className="quiz-settings-foot">
