@@ -683,26 +683,27 @@ export default function AddQuestionPanel({
 
   return (
     <div className="add-question-wrap" ref={wrapRef} data-question-count={questions.length}>
-      <button
-        type="button"
-        className="create-class-archive-btn add-question-btn"
-        onPointerDown={toggleAddMenu}
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        aria-controls="add-question-menu"
-      >
-        <IconPlus />
-        Thêm câu hỏi
-        <IconChevron className={`add-question-chevron${menuOpen ? ' is-open' : ''}`} />
-      </button>
-
-      {menuOpen ? (
-        <div
-          id="add-question-menu"
-          className="add-question-menu"
-          role="menu"
-          onPointerDown={(event) => event.stopPropagation()}
+      <div className="add-question-trigger">
+        <button
+          type="button"
+          className="create-class-archive-btn add-question-btn"
+          onPointerDown={toggleAddMenu}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-controls="add-question-menu"
         >
+          <IconPlus />
+          Thêm câu hỏi
+          <IconChevron className={`add-question-chevron${menuOpen ? ' is-open' : ''}`} />
+        </button>
+
+        {menuOpen ? (
+          <div
+            id="add-question-menu"
+            className="add-question-menu"
+            role="menu"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
           <button
             type="button"
             role="menuitem"
@@ -727,8 +728,9 @@ export default function AddQuestionPanel({
             <span className="add-question-menu-title">Chọn từ kho</span>
             <span className="add-question-menu-desc">Dùng lại bản chỉnh sửa đã lưu</span>
           </button>
-        </div>
-      ) : null}
+          </div>
+        ) : null}
+      </div>
 
       {questions.length > 0 ? (
         <div className="class-questions-list">

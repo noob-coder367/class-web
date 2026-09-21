@@ -1686,6 +1686,10 @@
   z-index: 20;
 }
 
+.add-question-trigger {
+  position: relative;
+}
+
 .add-question-btn {
   justify-content: space-between;
 }
