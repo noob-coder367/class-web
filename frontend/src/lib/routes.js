@@ -11,6 +11,31 @@ export const ROUTES = {
   register: '/dang-ky',
   profileSetting: '/profile-setting',
   classRoot: '/vo-lop',
+  presentationRoot: '/thuyet-trinh',
+  presentationCreate: '/tao-bai',
+}
+
+export function presentationListPath() {
+  return ROUTES.presentationRoot
+}
+
+export function presentationCreatePath(id = '') {
+  return id ? `${ROUTES.presentationCreate}/${encodeURIComponent(id)}` : ROUTES.presentationCreate
+}
+
+export function presentationViewPath(id, present = false) {
+  return `${ROUTES.presentationRoot}/${encodeURIComponent(id)}${present ? '/trinh-chieu' : ''}`
+}
+
+export function parsePresentationPath(pathname) {
+  const clean = String(pathname || '').replace(/^\/+|\/+$/g, '')
+  const parts = clean.split('/').filter(Boolean)
+  if (parts[0] === 'tao-bai') return { type: parts[1] ? 'editor' : 'create', id: parts[1] || null }
+  if (parts[0] === 'thuyet-trinh') {
+    if (!parts[1]) return { type: 'list', id: null }
+    return { type: parts[2] === 'trinh-chieu' ? 'player' : 'view', id: parts[1] }
+  }
+  return { type: null, id: null }
 }
 
 // Tab nội bộ (ClassRoomView) <-> tên segment trên URL.

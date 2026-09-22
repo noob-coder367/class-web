@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { supabase, initialAuthRedirect, clearAuthRedirectFromUrl } from '../lib/supabaseClient.js'
-import { ROUTES, classTabPath } from '../lib/routes.js'
+import { ROUTES, classTabPath, parsePresentationPath, presentationListPath } from '../lib/routes.js'
 import AuthPage from './AuthPage.jsx'
 import SettingsPanel from '../components/SettingsPanel.jsx'
 import { getStoredAvatar } from '../components/ProfileMenu.jsx'
@@ -31,6 +31,7 @@ import {
   markPrompted,
 } from '../services/pushService.js'
 import { countNewer } from '../lib/unreadStore.js'
+import PresentationHome from '../components/presentation/PresentationHome.jsx'
 
 const NAV_LINKS = [
   { href: '#trang-chu', label: 'Trang chủ' },
@@ -55,6 +56,8 @@ export default function HomePage() {
   // Cài đặt. Các route này điều khiển trực tiếp bằng URL thay vì state rời rạc.
   const showClassRoom = location.pathname === ROUTES.classRoot || location.pathname.startsWith(`${ROUTES.classRoot}/`)
   const showProfileSetting = location.pathname === ROUTES.profileSetting
+  const presentationPath = parsePresentationPath(location.pathname)
+  const showPresentation = presentationPath.type !== null
 
   const [showAuth, setShowAuth] = useState(false)
   const [showAdminPanel, setShowAdminPanel] = useState(false)
@@ -439,7 +442,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className={`page ${showAuth || showClassRoom || showProfileSetting ? 'no-scroll' : ''}`}>
+    <div className={`page ${showAuth || showClassRoom || showProfileSetting || showPresentation ? 'no-scroll' : ''}`}>
       {showAuth && (
         <AuthPage
           key={authInitialStep}
@@ -460,6 +463,13 @@ export default function HomePage() {
         <ClassRoomView
           onClose={closeClassRoom}
           initialTab={classInitialTab}
+        />
+      )}
+
+      {showPresentation && (
+        <PresentationHome
+          mode={presentationPath.type}
+          presentationId={presentationPath.id}
         />
       )}
 
@@ -505,6 +515,16 @@ export default function HomePage() {
                     {unreadTotal > 99 ? '99+' : unreadTotal}
                   </span>
                 ) : null}
+              </button>
+            )}
+
+            {profile?.is_member && (
+              <button
+                type="button"
+                className="btn-presentation"
+                onClick={() => navigate(presentationListPath())}
+              >
+                ▣ Thuyết trình
               </button>
             )}
 

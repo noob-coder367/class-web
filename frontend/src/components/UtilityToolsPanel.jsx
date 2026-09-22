@@ -196,6 +196,7 @@ function PlayView({ tool, onEdit }) {
             // Race chỉ kết thúc khi một participant thật sự đạt finish line.
             raceRef.current.frame = window.requestAnimationFrame(updateRace)
           }
+          raceRef.current.frame = window.requestAnimationFrame(updateRace)
         }, 500)
         raceRef.current.timers.push(goTimer)
       }

@@ -1225,3 +1225,28 @@ body,
 .events-section {
   background: transparent !important;
 }
+
+.btn-presentation {
+  border: 1px solid #0b91a3;
+  border-radius: 10px;
+  padding: 10px 13px;
+  color: #0b7687;
+  background: #e8f8fa;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-presentation:hover { background: #d4f1f4; }
+
+@media (max-width: 760px) {
+  .btn-presentation { padding: 9px 10px; font-size: 11px; }
+  .nav-actions { gap: 6px; }
+}
+
+@media (max-width: 520px) {
+  .btn-presentation { width: 40px; overflow: hidden; padding: 9px 8px; font-size: 0; }
+  .btn-presentation::first-letter { font-size: 16px; }
+}
