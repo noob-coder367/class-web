@@ -1,0 +1,12 @@
+const SHAPES = ['rectangle', 'rounded', 'circle', 'triangle', 'diamond', 'star', 'heart', 'cloud', 'lightning', 'arrow', 'process', 'decision', 'database', 'document', 'callout']
+
+export const createDataElement = (type, variant = 'rectangle') => {
+  const base = { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, type, x: 18, y: 22, width: 64, height: 42, rotation: 0, zIndex: 2, locked: false, visible: true, opacity: 1 }
+  if (type === 'table') return { ...base, rows: [['Category', 'Value'], ['A', '10'], ['B', '20'], ['C', '30']], style: { color: '#14324a', header: '#dff4f5', border: '#8dc6cc' } }
+  if (type === 'chart') return { ...base, chartType: variant || 'bar', title: 'Chart title', data: [{ label: 'A', value: 10 }, { label: 'B', value: 20 }, { label: 'C', value: 30 }], style: { color: '#0b91a3', text: '#14324a' } }
+  return { ...base, diagramType: variant || 'process', nodes: ['Start', 'Process', 'Result'], style: { color: '#0b91a3', text: '#14324a' } }
+}
+
+export default function PresentationInsertLibrary({ onInsert, onClose }) {
+  return <div className="presentation-library-overlay"><div className="presentation-insert-library"><header><div><strong>Insert elements</strong><span>Build real editable presentation objects</span></div><button type="button" onClick={onClose}>Close</button></header><section><h4>Shapes</h4><div className="presentation-shape-grid">{SHAPES.map((shape) => <button type="button" key={shape} onClick={() => onInsert('shape', shape)}><span className={`shape-preview shape-${shape}`} />{shape}</button>)}</div></section><section><h4>Data</h4><div className="presentation-library-actions"><button type="button" onClick={() => onInsert('table')}>Table</button><button type="button" onClick={() => onInsert('chart', 'bar')}>Bar chart</button><button type="button" onClick={() => onInsert('chart', 'line')}>Line chart</button><button type="button" onClick={() => onInsert('chart', 'pie')}>Pie chart</button></div></section><section><h4>Diagrams</h4><div className="presentation-library-actions"><button type="button" onClick={() => onInsert('diagram', 'process')}>Process</button><button type="button" onClick={() => onInsert('diagram', 'cycle')}>Cycle</button><button type="button" onClick={() => onInsert('diagram', 'timeline')}>Timeline</button><button type="button" onClick={() => onInsert('diagram', 'hierarchy')}>Hierarchy</button></div></section></div></div>
+}
