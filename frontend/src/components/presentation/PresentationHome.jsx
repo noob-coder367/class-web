@@ -9,23 +9,20 @@ import './PresentationHome.css'
 
 function Player({ item }) {
   const [index, setIndex] = useState(0)
+  const [transitioning, setTransitioning] = useState(false)
+  const [reducedMotion, setReducedMotion] = useState(false)
   const playerRef = useRef(null)
   const slide = item.slides[index]
+  const transition = slide?.transition || { type: 'fade', duration: 0.5, advance: 'click' }
   const next = () => setIndex((i) => Math.min(item.slides.length - 1, i + 1))
   const previous = () => setIndex((i) => Math.max(0, i - 1))
   const enterFullscreen = () => playerRef.current?.requestFullscreen?.()
-  useEffect(() => {
-    const onKey = (event) => {
-      if (event.key === 'ArrowRight' || event.key === ' ') { event.preventDefault(); next() }
-      if (event.key === 'ArrowLeft') { event.preventDefault(); previous() }
-      if (event.key === 'Escape' && document.fullscreenElement) document.exitFullscreen?.()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [item.slides.length])
-  return <div ref={playerRef} className="presentation-player"><div className="presentation-player-slide" style={{ background: slide?.background?.value || '#fff' }} onClick={next}>{slide?.elements?.map((element) => <div key={element.id} className={`presentation-element presentation-element--${element.type}`} style={{ left: `${element.x}%`, top: `${element.y}%`, width: `${element.width}%`, height: `${element.height}%`, transform: `rotate(${element.rotation || 0}deg)`, opacity: element.opacity, zIndex: element.zIndex, ...element.style }}>{element.type === 'text' ? element.text : element.type === 'image' && element.src ? <img src={element.src} alt="" style={{ maxWidth: '100%', maxHeight: '100%' }} /> : null}</div>)}</div><div className="presentation-player-controls"><button type="button" onClick={previous}>Previous</button><span>{index + 1} / {item.slides.length}</span><button type="button" onClick={next}>Next</button><button type="button" onClick={enterFullscreen}>Fullscreen</button><button type="button" onClick={() => document.fullscreenElement ? document.exitFullscreen?.() : null}>Exit</button></div></div>
+  useEffect(() => { setReducedMotion(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false) }, [])
+  useEffect(() => { setTransitioning(true); const timer = setTimeout(() => setTransitioning(false), reducedMotion ? 1 : Math.max(250, Number(transition.duration || 0.5) * 1000)); return () => clearTimeout(timer) }, [index, reducedMotion, transition.duration])
+  useEffect(() => { if (transition.advance !== 'after' || index >= item.slides.length - 1 || reducedMotion) return undefined; const timer = setTimeout(next, Math.max(1000, Number(transition.duration || 0.5) * 1000 + 1200)); return () => clearTimeout(timer) }, [index, item.slides.length, reducedMotion, transition.advance, transition.duration])
+  useEffect(() => { const onKey = (event) => { if (event.key === 'ArrowRight' || event.key === ' ') { event.preventDefault(); next() }; if (event.key === 'ArrowLeft') { event.preventDefault(); previous() }; if (event.key === 'Escape' && document.fullscreenElement) document.exitFullscreen?.() }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey) }, [item.slides.length])
+  return <div ref={playerRef} className="presentation-player"><div key={slide?.id} className={`presentation-player-slide presentation-transition-${transition.type || 'fade'}${transitioning ? ' is-transitioning' : ''}`} style={{ background: slide?.background?.value || '#fff', '--transition-duration': `${reducedMotion ? 0 : Number(transition.duration || 0.5)}s` }} onClick={next}>{slide?.elements?.map((element, elementIndex) => <div key={element.id} className={`presentation-element presentation-element--${element.type} presentation-animation-${element.animation?.entrance || 'none'}`} style={{ left: `${element.x}%`, top: `${element.y}%`, width: `${element.width}%`, height: `${element.height}%`, transform: `rotate(${element.rotation || 0}deg)`, opacity: element.opacity, zIndex: element.zIndex, '--animation-delay': `${reducedMotion ? 0 : Number(element.animation?.delay || elementIndex * 0.05)}s`, '--animation-duration': `${reducedMotion ? 0 : Number(element.animation?.duration || 0.5)}s`, ...element.style }}>{element.type === 'text' ? element.text : element.type === 'image' && element.src ? <img src={element.src} alt="" style={{ maxWidth: '100%', maxHeight: '100%' }} /> : element.type === 'video' && element.src ? <video src={element.src} controls style={{ maxWidth: '100%', maxHeight: '100%' }} /> : element.type === 'audio' && element.src ? <audio src={element.src} controls /> : null}</div>)}</div><div className="presentation-player-controls"><button type="button" onClick={previous}>Previous</button><span>{index + 1} / {item.slides.length}</span><button type="button" onClick={next}>Next</button><button type="button" onClick={enterFullscreen}>Fullscreen</button><button type="button" onClick={() => document.fullscreenElement ? document.exitFullscreen?.() : null}>Exit</button></div></div>
 }
-
 function DesktopOnlyNotice() {
   return <div className="presentation-desktop-only"><div className="presentation-desktop-only-icon">⌘</div><h2>Presentation Editor dành cho PC/Desktop</h2><p>Editor cần chuột hoặc trackpad, màn hình lớn và thao tác kéo thả. Bạn vẫn có thể xem và trình chiếu bài trên thiết bị này.</p></div>
 }
