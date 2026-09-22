@@ -1,104 +1,70 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as presentationService from '../../services/presentationService.js'
 import { presentationListPath, presentationViewPath } from '../../lib/routes.js'
+import { useIsDesktop } from '../../hooks/useDesktopDetection.js'
 import './PresentationEditor.css'
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`
-const blankSlide = () => ({ id: uid(), title: 'Slide mới', background: { type: 'solid', value: '#ffffff' }, transition: { type: 'fade', duration: .5, advance: 'click' }, elements: [] })
-const newElement = (type) => type === 'shape'
-  ? { id: uid(), type, x: 35, y: 35, width: 30, height: 22, rotation: 0, opacity: 1, zIndex: 1, shape: 'rectangle', style: { background: '#0b91a3', border: 'none', borderRadius: 12 } }
-  : type === 'image'
-    ? { id: uid(), type, x: 25, y: 25, width: 50, height: 35, rotation: 0, opacity: 1, zIndex: 1, src: '', style: { objectFit: 'contain' } }
-  : { id: uid(), type: 'text', x: 25, y: 38, width: 50, height: 14, rotation: 0, opacity: 1, zIndex: 1, text: 'Văn bản mới', style: { fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 28, fontWeight: 700, color: '#14324a', textAlign: 'center' }, animation: { entrance: 'fade', duration: .5, delay: 0 } }
+const clone = (value) => JSON.parse(JSON.stringify(value))
+function readDraft(key) { try { return JSON.parse(localStorage.getItem(key) || 'null') } catch { return null } }
+function writeDraft(key, value) { try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* autosave backend vẫn là nguồn chính */ } }
+function removeDraft(key) { try { localStorage.removeItem(key) } catch { /* storage có thể bị browser chặn */ } }
+const blankSlide = () => ({ id: uid(), title: 'Slide mới', notes: '', background: { type: 'solid', value: '#ffffff' }, transition: { type: 'fade', duration: 0.5, advance: 'click' }, elements: [] })
+const defaultStyle = { fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 28, fontWeight: 700, color: '#14324a', textAlign: 'center', lineHeight: 1.2, letterSpacing: 0 }
+function newElement(type = 'text', shape = 'rectangle') {
+  if (type === 'shape') return { id: uid(), type, x: 35, y: 35, width: 30, height: 22, rotation: 0, opacity: 1, zIndex: 1, shape, style: { background: '#0b91a3', border: 'none', borderRadius: shape === 'rounded' ? 18 : 0 } }
+  if (type === 'image') return { id: uid(), type, x: 25, y: 25, width: 50, height: 35, rotation: 0, opacity: 1, zIndex: 1, src: '', style: { objectFit: 'contain', borderRadius: 0 } }
+  return { id: uid(), type: 'text', x: 25, y: 38, width: 50, height: 14, rotation: 0, opacity: 1, zIndex: 1, text: 'Văn bản mới', style: { ...defaultStyle }, animation: { entrance: 'fade', duration: 0.5, delay: 0 } }
+}
+function elementStyle(element) {
+  return { left: `${element.x}%`, top: `${element.y}%`, width: `${element.width}%`, height: `${element.height}%`, transform: `rotate(${element.rotation || 0}deg)`, opacity: element.opacity, zIndex: element.zIndex, ...element.style }
+}
+function renderElement(element, { selected, onPointerDown, onDoubleClick, thumbnail = false }) {
+  return <div key={element.id} className={`presentation-element presentation-element--${element.type}${selected ? ' is-selected' : ''}${thumbnail ? ' is-thumbnail' : ''}`} style={elementStyle(element)} onPointerDown={(event) => onPointerDown?.(event, element)} onDoubleClick={(event) => onDoubleClick?.(event, element)}>{element.type === 'text' ? element.text : element.type === 'image' && element.src ? <img src={element.src} alt="" draggable="false" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: element.style?.borderRadius || 0 }} /> : null}{selected && !thumbnail ? <span className="presentation-resize-handle" data-resize="se" /> : null}</div>
+}
+
+function Toolbar({ tab, setTab, status, onUndo, onRedo, canUndo, canRedo, onSave, onPresent, onDuplicate, onDelete, onInsertText, onInsertShape, onInsertImage, onBringFront, onSendBack, onZoom, zoom, grid, setGrid }) {
+  return <header className="presentation-pro-toolbar"><div className="presentation-toolbar-brand"><span className="presentation-toolbar-mark">P</span><strong>Studio</strong></div><nav className="presentation-toolbar-tabs">{['Home', 'Insert', 'Design', 'Transitions', 'Animations', 'View'].map((name) => <button type="button" key={name} className={tab === name ? 'is-active' : ''} onClick={() => setTab(name)}>{name}</button>)}</nav><div className="presentation-toolbar-actions"><button type="button" onClick={onUndo} disabled={!canUndo} title="Undo">↶</button><button type="button" onClick={onRedo} disabled={!canRedo} title="Redo">↷</button>{tab === 'Insert' ? <><button type="button" onClick={onInsertText}>Text</button><button type="button" onClick={() => onInsertShape('rectangle')}>Shape</button><button type="button" onClick={onInsertImage}>Image</button></> : null}{tab === 'Home' ? <><button type="button" onClick={onDuplicate}>Duplicate</button><button type="button" onClick={onDelete}>Delete</button><button type="button" onClick={onBringFront}>Bring front</button><button type="button" onClick={onSendBack}>Send back</button></> : null}{tab === 'View' ? <><button type="button" onClick={() => onZoom(Math.max(50, zoom - 10))}>−</button><span className="presentation-zoom-value">{zoom}%</span><button type="button" onClick={() => onZoom(Math.min(160, zoom + 10))}>＋</button><button type="button" className={grid ? 'is-toggled' : ''} onClick={() => setGrid((value) => !value)}>Grid</button></> : null}<span className="presentation-toolbar-status">{status}</span><button type="button" className="presentation-toolbar-save" onClick={onSave}>Save</button><button type="button" className="presentation-toolbar-present" onClick={onPresent}>Present</button></div></header>
+}
+
+function SlideSidebar({ slides, active, setActive, onNew, onDuplicate, onDelete, onReorder }) {
+  const dragSlide = useRef(null)
+  return <aside className="presentation-workspace-sidebar"><div className="presentation-sidebar-heading"><span>SLIDES</span><button type="button" onClick={onNew}>＋</button></div><div className="presentation-slide-list">{slides.map((slide, index) => <div key={slide.id} className={`presentation-slide-thumb-wrap${active === index ? ' is-active' : ''}`} draggable onDragStart={() => { dragSlide.current = index }} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (dragSlide.current !== null) onReorder(dragSlide.current, index); dragSlide.current = null }}><button type="button" className="presentation-slide-thumb" onClick={() => setActive(index)}><span className="presentation-slide-number">{index + 1}</span><div className="presentation-slide-mini" style={{ background: slide.background?.value || '#fff' }}>{slide.elements?.map((element) => renderElement(element, { thumbnail: true }))}</div><strong>{slide.title}</strong></button><div className="presentation-slide-actions"><button type="button" onClick={() => onDuplicate(index)} aria-label="Nhân bản slide">⧉</button><button type="button" onClick={() => onDelete(index)} aria-label="Xóa slide">×</button></div></div>)}</div></aside>
+}
+
+function PropertiesPanel({ slide, selected, updateElement, updateSlide, meta, setMeta }) {
+  const element = slide?.elements?.find((item) => item.id === selected)
+  const numeric = (key, min, max) => <label>{key}<input type="number" min={min} max={max} value={Math.round(element?.[key] ?? 0)} onChange={(event) => updateElement({ [key]: Number(event.target.value) })} /></label>
+  return <aside className="presentation-properties presentation-properties-pro"><div className="presentation-panel-title">PROPERTIES</div>{element ? <><div className="presentation-properties-section"><strong>{element.type.toUpperCase()}</strong><button type="button" onClick={() => updateElement({ _delete: true })}>Delete object</button></div><div className="presentation-property-grid">{numeric('x', 0, 100)}{numeric('y', 0, 100)}{numeric('width', 1, 100)}{numeric('height', 1, 100)}{numeric('rotation', -360, 360)}{numeric('zIndex', 0, 999)}</div>{element.type === 'text' ? <label>Text<textarea value={element.text || ''} onChange={(event) => updateElement({ text: event.target.value })} /></label> : null}{element.type === 'image' ? <label>Image URL<input value={element.src || ''} onChange={(event) => updateElement({ src: event.target.value })} /></label> : null}<label>Opacity<input type="range" min="0" max="1" step="0.05" value={element.opacity ?? 1} onChange={(event) => updateElement({ opacity: Number(event.target.value) })} /></label><label>Color<input type="color" value={element.style?.color || element.style?.background || '#14324a'} onChange={(event) => updateElement({ style: { ...element.style, [element.type === 'shape' ? 'background' : 'color']: event.target.value } })} /></label>{element.type === 'text' ? <div className="presentation-inline-buttons"><button type="button" onClick={() => updateElement({ style: { ...element.style, fontWeight: element.style?.fontWeight >= 800 ? 400 : 800 } })}>Bold</button><button type="button" onClick={() => updateElement({ style: { ...element.style, fontStyle: element.style?.fontStyle === 'italic' ? 'normal' : 'italic' } })}>Italic</button><button type="button" onClick={() => updateElement({ style: { ...element.style, textDecoration: element.style?.textDecoration ? 'none' : 'underline' } })}>Underline</button></div> : null}</> : <><label>Slide title<input value={slide?.title || ''} onChange={(event) => updateSlide({ title: event.target.value })} /></label><label>Background<input type="color" value={slide?.background?.value || '#ffffff'} onChange={(event) => updateSlide({ background: { type: 'solid', value: event.target.value } })} /></label><label>Speaker notes<textarea value={slide?.notes || ''} onChange={(event) => updateSlide({ notes: event.target.value })} placeholder="Ghi chú cho người thuyết trình…" /></label><label>Privacy<select value={meta.visibility} onChange={(event) => setMeta((prev) => ({ ...prev, visibility: event.target.value }))}><option value="public">Public</option><option value="private">Private</option></select></label></>}</aside>
+}
 
 export default function PresentationEditor({ presentationId = null }) {
-  const navigate = useNavigate()
-  const [meta, setMeta] = useState({ title: '', description: '', visibility: 'public', password: '', linkedClassRoomId: '' })
-  const [slides, setSlides] = useState([blankSlide()])
-  const [active, setActive] = useState(0)
-  const [selected, setSelected] = useState(null)
-  const [history, setHistory] = useState([])
-  const [future, setFuture] = useState([])
-  const [status, setStatus] = useState('Chưa lưu')
-  const [error, setError] = useState('')
-  const dragRef = useRef(null)
-  const saveTimer = useRef(null)
-  const loaded = useRef(false)
-  const current = slides[active]
-  const selectedElement = current?.elements.find((item) => item.id === selected)
-
-  useEffect(() => {
-    if (!presentationId) return
-    presentationService.getPresentation(presentationId).then(({ item }) => {
-      setMeta({ title: item.title, description: item.description, visibility: item.visibility, password: '', linkedClassRoomId: item.linkedClassRoomId || '' })
-      setSlides(item.slides)
-      loaded.current = true
-      setStatus('Đã tải')
-    }).catch((err) => setError(err.message))
-  }, [presentationId])
-
-  const snapshot = () => ({ slides: JSON.parse(JSON.stringify(slides)), meta: { ...meta } })
-  const commit = (nextSlides, nextMeta = meta) => {
-    setHistory((prev) => [...prev.slice(-39), snapshot()])
-    setFuture([])
-    setSlides(nextSlides)
-    setMeta(nextMeta)
-    setStatus('Có thay đổi')
-  }
-  const changeSlide = (mutate) => commit(slides.map((slide, index) => index === active ? mutate(slide) : slide))
-  const addElement = (type) => changeSlide((slide) => ({ ...slide, elements: [...slide.elements, newElement(type)] }))
-  const addImage = () => { const src = window.prompt('Dán URL ảnh (https://...)'); if (src?.trim()) { const element = newElement('image'); element.src = src.trim(); changeSlide((slide) => ({ ...slide, elements: [...slide.elements, element] })); setSelected(element.id) } }
-  const updateElement = (patch) => changeSlide((slide) => ({ ...slide, elements: slide.elements.map((item) => item.id === selected ? { ...item, ...patch } : item) }))
-  const removeSelected = () => { if (selected) { changeSlide((slide) => ({ ...slide, elements: slide.elements.filter((item) => item.id !== selected) })); setSelected(null) } }
-  const undo = () => { const previous = history.at(-1); if (!previous) return; setFuture((prev) => [{ slides, meta }, ...prev]); setSlides(previous.slides); setMeta(previous.meta); setHistory((prev) => prev.slice(0, -1)); setStatus('Có thay đổi') }
-  const redo = () => { const next = future[0]; if (!next) return; setHistory((prev) => [...prev, { slides, meta }]); setSlides(next.slides); setMeta(next.meta); setFuture((prev) => prev.slice(1)); setStatus('Có thay đổi') }
-  const save = async (goAfter = false) => {
-    if (!meta.title.trim()) { setError('Vui lòng nhập tên bài.'); return }
-    setStatus('Đang lưu…'); setError('')
-    try {
-      const data = presentationId ? await presentationService.updatePresentation(presentationId, { ...meta, slides }) : await presentationService.createPresentation({ ...meta, slides })
-      setStatus('Đã lưu ✓')
-      if (!presentationId) navigate(`/tao-bai/${data.item.id}`, { replace: true })
-      if (goAfter) navigate(presentationViewPath(data.item.id, true))
-    } catch (err) { setStatus('Chưa lưu'); setError(err.message || 'Không lưu được bài.') }
-  }
-  useEffect(() => {
-    if (!loaded.current && presentationId) return undefined
-    if (status === 'Đã tải' || status === 'Đã lưu ✓' || status === 'Chưa lưu') return undefined
-    window.clearTimeout(saveTimer.current)
-    saveTimer.current = window.setTimeout(() => save(false), 900)
-    return () => window.clearTimeout(saveTimer.current)
-  }, [slides, meta])
-  useEffect(() => () => window.clearTimeout(saveTimer.current), [])
-
-  const onPointerDown = (event, element) => {
-    event.stopPropagation(); setSelected(element.id)
-    dragRef.current = { id: element.id, x: event.clientX, y: event.clientY, start: { x: element.x, y: element.y } }
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-  }
-  const onPointerMove = (event) => {
-    const drag = dragRef.current
-    if (!drag) return
-    const rect = event.currentTarget.closest('.presentation-canvas')?.getBoundingClientRect()
-    if (!rect) return
-    const x = Math.max(0, Math.min(100, drag.start.x + ((event.clientX - drag.x) / rect.width) * 100))
-    const y = Math.max(0, Math.min(100, drag.start.y + ((event.clientY - drag.y) / rect.height) * 100))
-    setSlides((prev) => prev.map((slide, i) => i === active ? { ...slide, elements: slide.elements.map((item) => item.id === drag.id ? { ...item, x, y } : item) } : slide))
-    setStatus('Có thay đổi')
-  }
-  const onPointerUp = () => { dragRef.current = null }
-  const addSlide = () => { commit([...slides, blankSlide()]); setActive(slides.length) }
-  const duplicateSlide = () => { const copy = JSON.parse(JSON.stringify(current)); copy.id = uid(); copy.title = `${current.title} bản sao`; copy.elements.forEach((item) => { item.id = uid() }); commit([...slides.slice(0, active + 1), copy, ...slides.slice(active + 1)]); setActive(active + 1) }
-  const deleteSlide = () => { if (slides.length <= 1) return; commit(slides.filter((_, i) => i !== active)); setActive(Math.max(0, active - 1)); setSelected(null) }
-
-  return <div className="presentation-editor">
-    <header className="presentation-editor-head"><button type="button" onClick={() => navigate(presentationListPath())}>←</button><input value={meta.title} onChange={(e) => { setMeta((prev) => ({ ...prev, title: e.target.value })); setStatus('Có thay đổi') }} placeholder="Tên bài thuyết trình" /><span className="presentation-save-status">{status}</span><button type="button" onClick={() => save(false)}>Lưu</button><button type="button" onClick={() => save(true)}>Trình chiếu</button></header>
-    {error ? <p className="presentation-error">{error}</p> : null}
-    <div className="presentation-editor-grid">
-      <aside className="presentation-slides"><div className="presentation-panel-title">SLIDE</div><button type="button" onClick={addSlide}>+ Slide</button>{slides.map((slide, index) => <button type="button" key={slide.id} className={index === active ? 'is-active' : ''} onClick={() => { setActive(index); setSelected(null) }}><span>{index + 1}</span>{slide.title}</button>)}</aside>
-      <main><div className="presentation-canvas" style={{ background: current?.background?.value || '#fff' }} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}>{current?.elements.map((element) => <div key={element.id} className={`presentation-element presentation-element--${element.type}${selected === element.id ? ' is-selected' : ''}`} onPointerDown={(e) => onPointerDown(e, element)} style={{ left: `${element.x}%`, top: `${element.y}%`, width: `${element.width}%`, height: `${element.height}%`, transform: `rotate(${element.rotation || 0}deg)`, opacity: element.opacity, zIndex: element.zIndex, ...element.style }}>{element.type === 'text' ? element.text : element.type === 'image' && element.src ? <img src={element.src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : null}</div>)}</div><div className="presentation-bottom-toolbar"><button type="button" onClick={() => addElement('text')}>Text</button><button type="button" onClick={() => addElement('shape')}>Shape</button><button type="button" onClick={addImage}>Ảnh</button><button type="button" onClick={duplicateSlide}>Nhân bản slide</button><button type="button" onClick={deleteSlide}>Xóa slide</button><button type="button" onClick={undo} disabled={!history.length}>Undo</button><button type="button" onClick={redo} disabled={!future.length}>Redo</button></div></main>
-      <aside className="presentation-properties"><div className="presentation-panel-title">THUỘC TÍNH</div><label>Tên slide<input value={current?.title || ''} onChange={(e) => changeSlide((slide) => ({ ...slide, title: e.target.value }))} /></label><label>Nền<input type="color" value={current?.background?.value || '#ffffff'} onChange={(e) => changeSlide((slide) => ({ ...slide, background: { type: 'solid', value: e.target.value } }))} /></label><hr /><label>Mô tả<textarea value={meta.description} onChange={(e) => { setMeta((prev) => ({ ...prev, description: e.target.value })); setStatus('Có thay đổi') }} /></label><label>Quyền riêng tư<select value={meta.visibility} onChange={(e) => { setMeta((prev) => ({ ...prev, visibility: e.target.value })); setStatus('Có thay đổi') }}><option value="public">Công khai</option><option value="private">Riêng tư</option></select></label>{meta.visibility === 'private' ? <label>Mật khẩu<input type="password" value={meta.password} onChange={(e) => setMeta((prev) => ({ ...prev, password: e.target.value }))} placeholder="Tối thiểu 4 ký tự" /></label> : null}<label>Liên kết mã phòng lớp<input value={meta.linkedClassRoomId} onChange={(e) => setMeta((prev) => ({ ...prev, linkedClassRoomId: e.target.value }))} placeholder="Tuỳ chọn" /></label>{selectedElement ? <div className="presentation-selected-properties"><strong>Phần tử đã chọn</strong><button type="button" onClick={removeSelected}>Xóa phần tử</button><div className="presentation-element-fields"><label>X (%)<input type="number" min="0" max="100" value={Math.round(selectedElement.x)} onChange={(e) => updateElement({ x: Number(e.target.value) })} /></label><label>Y (%)<input type="number" min="0" max="100" value={Math.round(selectedElement.y)} onChange={(e) => updateElement({ y: Number(e.target.value) })} /></label><label>Rộng (%)<input type="number" min="1" max="100" value={Math.round(selectedElement.width)} onChange={(e) => updateElement({ width: Number(e.target.value) })} /></label><label>Cao (%)<input type="number" min="1" max="100" value={Math.round(selectedElement.height)} onChange={(e) => updateElement({ height: Number(e.target.value) })} /></label><label>Xoay (°)<input type="number" value={Math.round(selectedElement.rotation || 0)} onChange={(e) => updateElement({ rotation: Number(e.target.value) })} /></label><label>Lớp<input type="number" min="0" value={selectedElement.zIndex || 0} onChange={(e) => updateElement({ zIndex: Number(e.target.value) })} /></label></div>{selectedElement.type === 'image' ? <label>URL ảnh<input value={selectedElement.src || ''} onChange={(e) => updateElement({ src: e.target.value })} /></label> : null}{selectedElement.type === 'text' ? <label>Nội dung<textarea value={selectedElement.text} onChange={(e) => updateElement({ text: e.target.value })} /></label> : null}<label>Màu<input type="color" value={selectedElement.style?.color || selectedElement.style?.background || '#14324a'} onChange={(e) => updateElement({ style: { ...selectedElement.style, [selectedElement.type === 'shape' ? 'background' : 'color']: e.target.value } })} /></label></div> : <small>Chọn một phần tử trên canvas để chỉnh sửa.</small>}</aside>
-    </div>
-  </div>
+  const navigate = useNavigate(); const isDesktop = useIsDesktop(); const draftKey = `class-web:presentation-draft:${presentationId || 'new'}`
+  const [meta, setMeta] = useState({ title: '', description: '', visibility: 'public', password: '', linkedClassRoomId: '' }); const [slides, setSlides] = useState([blankSlide()]); const [active, setActive] = useState(0); const [selected, setSelected] = useState(null); const [editing, setEditing] = useState(null); const [history, setHistory] = useState([]); const [future, setFuture] = useState([]); const [status, setStatus] = useState('Unsaved'); const [error, setError] = useState(''); const [tab, setTab] = useState('Home'); const [zoom, setZoom] = useState(90); const [grid, setGrid] = useState(false); const dragRef = useRef(null); const saveTimer = useRef(null); const loaded = useRef(false)
+  const current = slides[active] || slides[0]; const selectedElement = current?.elements?.find((item) => item.id === selected)
+  const snapshot = useCallback(() => ({ slides: clone(slides), meta: clone(meta) }), [slides, meta])
+  const commit = useCallback((nextSlides, nextMeta = meta) => { setHistory((prev) => [...prev.slice(-39), snapshot()]); setFuture([]); setSlides(nextSlides); setMeta(nextMeta); setStatus('Unsaved') }, [meta, snapshot])
+  const changeSlide = useCallback((mutate) => commit(slides.map((slide, index) => index === active ? mutate(slide) : slide)), [active, commit, slides])
+  const updateElement = useCallback((patch) => { if (!selected) return; if (patch._delete) { changeSlide((slide) => ({ ...slide, elements: slide.elements.filter((item) => item.id !== selected) })); setSelected(null); return } changeSlide((slide) => ({ ...slide, elements: slide.elements.map((item) => item.id === selected ? { ...item, ...patch } : item) })) }, [changeSlide, selected])
+  const updateSlide = useCallback((patch) => changeSlide((slide) => ({ ...slide, ...patch })), [changeSlide])
+  const undo = useCallback(() => { const previous = history.at(-1); if (!previous) return; setFuture((prev) => [{ slides: clone(slides), meta: clone(meta) }, ...prev]); setSlides(previous.slides); setMeta(previous.meta); setHistory((prev) => prev.slice(0, -1)); setStatus('Unsaved') }, [history, meta, slides])
+  const redo = useCallback(() => { const next = future[0]; if (!next) return; setHistory((prev) => [...prev, { slides: clone(slides), meta: clone(meta) }]); setSlides(next.slides); setMeta(next.meta); setFuture((prev) => prev.slice(1)); setStatus('Unsaved') }, [future, meta, slides])
+  const save = useCallback(async (goPresent = false) => { if (!meta.title.trim()) { setError('Vui lòng nhập tên bài.'); return }; setStatus('Saving…'); setError(''); try { const data = presentationId ? await presentationService.updatePresentation(presentationId, { ...meta, slides }) : await presentationService.createPresentation({ ...meta, slides }); removeDraft(draftKey); setStatus('Saved'); if (!presentationId) navigate(`/tao-bai/${data.item.id}`, { replace: true }); if (goPresent) navigate(presentationViewPath(data.item.id, true)) } catch (err) { setStatus('Save failed'); setError(err.message || 'Không lưu được bài.') } }, [draftKey, meta, navigate, presentationId, slides])
+  useEffect(() => { if (!presentationId) return; presentationService.getPresentation(presentationId).then(({ item }) => { const draft = readDraft(draftKey); const useDraft = draft?.savedAt && new Date(draft.savedAt) > new Date(item.updatedAt || 0) && window.confirm('Tìm thấy bản nháp mới hơn. Khôi phục bản nháp?'); if (useDraft) { setMeta(draft.meta); setSlides(draft.slides); setStatus('Draft recovered') } else { setMeta({ title: item.title, description: item.description, visibility: item.visibility, password: '', linkedClassRoomId: item.linkedClassRoomId || '' }); setSlides(item.slides); setStatus('Loaded') } loaded.current = true }).catch((err) => setError(err.message)) }, [draftKey, presentationId])
+  useEffect(() => { if (!loaded.current && presentationId) return; writeDraft(draftKey, { savedAt: new Date().toISOString(), meta, slides }); if (status === 'Loaded' || status === 'Saved' || status === 'Draft recovered') return; clearTimeout(saveTimer.current); saveTimer.current = setTimeout(() => save(false), 1000); return () => clearTimeout(saveTimer.current) }, [draftKey, meta, save, slides, status])
+  const addElement = (type, shape = 'rectangle') => { const element = newElement(type, shape); if (type === 'image') { const src = window.prompt('Dán URL ảnh hoặc đường dẫn ảnh'); if (!src?.trim()) return; element.src = src.trim() } changeSlide((slide) => ({ ...slide, elements: [...slide.elements, element] })); setSelected(element.id) }
+  const duplicateSelected = () => { if (!selectedElement) return; const copy = { ...clone(selectedElement), id: uid(), x: Math.min(90, selectedElement.x + 4), y: Math.min(90, selectedElement.y + 4) }; changeSlide((slide) => ({ ...slide, elements: [...slide.elements, copy] })); setSelected(copy.id) }
+  const deleteSelected = () => updateElement({ _delete: true })
+  const reorderSlides = (from, to) => { if (from === to) return; const next = [...slides]; const [moved] = next.splice(from, 1); next.splice(to, 0, moved); commit(next); setActive(to) }
+  const duplicateSlide = (index = active) => { const copy = clone(slides[index]); copy.id = uid(); copy.title = `${copy.title} bản sao`; copy.elements.forEach((item) => { item.id = uid() }); commit([...slides.slice(0, index + 1), copy, ...slides.slice(index + 1)]); setActive(index + 1) }
+  const deleteSlide = (index = active) => { if (slides.length <= 1) return; commit(slides.filter((_, i) => i !== index)); setActive(Math.max(0, Math.min(index - 1, slides.length - 2))); setSelected(null) }
+  const onPointerDown = (event, element) => { event.stopPropagation(); setSelected(element.id); const rect = event.currentTarget.closest('.presentation-canvas')?.getBoundingClientRect(); dragRef.current = { id: element.id, mode: event.target.dataset.resize ? 'resize' : 'move', startX: event.clientX, startY: event.clientY, rect, before: snapshot(), start: { x: element.x, y: element.y, width: element.width, height: element.height } }; event.currentTarget.setPointerCapture?.(event.pointerId) }
+  const onPointerMove = (event) => { const drag = dragRef.current; if (!drag || !drag.rect) return; const dx = ((event.clientX - drag.startX) / drag.rect.width) * 100; const dy = ((event.clientY - drag.startY) / drag.rect.height) * 100; setSlides((prev) => prev.map((slide, index) => index !== active ? slide : { ...slide, elements: slide.elements.map((item) => item.id !== drag.id ? item : drag.mode === 'resize' ? { ...item, width: Math.max(2, Math.min(100 - item.x, drag.start.width + dx)), height: Math.max(2, Math.min(100 - item.y, drag.start.height + dy)) } : { ...item, x: Math.max(0, Math.min(100 - item.width, drag.start.x + dx)), y: Math.max(0, Math.min(100 - item.height, drag.start.y + dy)) }) })) ; setStatus('Unsaved') }
+  const onPointerUp = () => { if (dragRef.current) { setHistory((prev) => [...prev.slice(-39), dragRef.current.before]); setFuture([]) }; dragRef.current = null }
+  useEffect(() => { const onKey = (event) => { const target = event.target; const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable; const mod = event.metaKey || event.ctrlKey; if (typing && !(mod && ['s', 'z', 'y'].includes(event.key.toLowerCase()))) return; if (mod && event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) redo(); else undo() } else if (mod && event.key.toLowerCase() === 'y') { event.preventDefault(); redo() } else if (mod && event.key.toLowerCase() === 's') { event.preventDefault(); save(false) } else if (mod && event.key.toLowerCase() === 'd') { event.preventDefault(); duplicateSelected() } else if ((event.key === 'Delete' || event.key === 'Backspace') && selected) { event.preventDefault(); deleteSelected() } else if (event.key === 'Escape') setSelected(null) }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey) }, [deleteSelected, duplicateSelected, redo, save, selected, undo])
+  const present = () => save(true)
+  const selectLayer = (direction) => { if (!selectedElement) return; const sorted = [...current.elements].sort((a, b) => a.zIndex - b.zIndex); const index = sorted.findIndex((item) => item.id === selected); const target = sorted[Math.max(0, Math.min(sorted.length - 1, index + direction))]; if (target) updateElement({ zIndex: target.zIndex + (direction > 0 ? 1 : -1) }) }
+  if (!isDesktop) return <div className="presentation-desktop-only"><h2>Presentation Editor dành cho PC/Desktop</h2><p>Hãy mở bằng máy tính hoặc laptop để chỉnh sửa.</p></div>
+  return <div className="presentation-editor"><Toolbar tab={tab} setTab={setTab} status={status} onUndo={undo} onRedo={redo} canUndo={history.length > 0} canRedo={future.length > 0} onSave={() => save(false)} onPresent={present} onDuplicate={duplicateSelected} onDelete={deleteSelected} onInsertText={() => addElement('text')} onInsertShape={(shape) => addElement('shape', shape)} onInsertImage={() => addElement('image')} onBringFront={() => selectLayer(1)} onSendBack={() => selectLayer(-1)} onZoom={setZoom} zoom={zoom} grid={grid} setGrid={setGrid} /><div className="presentation-editor-subbar"><button type="button" onClick={() => navigate(presentationListPath())}>← Back to presentations</button><input value={meta.title} onChange={(event) => { setMeta((prev) => ({ ...prev, title: event.target.value })); setStatus('Unsaved') }} placeholder="Untitled presentation" /><span>{slides.length} slides</span></div>{error ? <p className="presentation-error">{error}</p> : null}<div className="presentation-workspace"><SlideSidebar slides={slides} active={active} setActive={(index) => { setActive(index); setSelected(null) }} onNew={() => { commit([...slides, blankSlide()]); setActive(slides.length) }} onDuplicate={duplicateSlide} onDelete={deleteSlide} onReorder={reorderSlides} /><main className="presentation-canvas-area"><div className={`presentation-canvas-shell${grid ? ' has-grid' : ''}`}><div className="presentation-canvas-zoom" style={{ transform: `scale(${zoom / 100})` }}><div className="presentation-canvas" style={{ background: current?.background?.value || '#fff' }} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} onPointerDown={() => { setSelected(null); setEditing(null) }}>{current?.elements?.map((element) => editing === element.id && element.type === 'text' ? <textarea key={element.id} autoFocus className="presentation-inline-editor" style={elementStyle(element)} value={element.text || ''} onChange={(event) => setSlides((prev) => prev.map((slide, index) => index === active ? { ...slide, elements: slide.elements.map((item) => item.id === element.id ? { ...item, text: event.target.value } : item) } : slide))} onBlur={() => setEditing(null)} /> : renderElement(element, { selected: selected === element.id, onPointerDown, onDoubleClick: (_event, item) => { setSelected(item.id); if (item.type === 'text') setEditing(item.id) } }))}</div></div></div><div className="presentation-canvas-footer"><span>Zoom {zoom}% · 16:9</span><button type="button" onClick={() => setZoom(90)}>Fit to screen</button><button type="button" onClick={() => setSelected(null)}>Deselect</button></div></main><PropertiesPanel slide={current} selected={selected} updateElement={updateElement} updateSlide={updateSlide} meta={meta} setMeta={setMeta} /></div></div>
 }
