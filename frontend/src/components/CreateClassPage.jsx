@@ -177,6 +177,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const [shuffleQuestions, setShuffleQuestions] = useState(!!editingClass?.shuffle)
   const [allowRetry, setAllowRetry] = useState(editingClass ? editingClass.allowRetry !== false : true)
   const [allowMultiTry, setAllowMultiTry] = useState(!!editingClass?.allowMultiTry)
+  const [autoAdvanceMultiTry, setAutoAdvanceMultiTry] = useState(!!editingClass?.autoAdvanceMultiTry)
   const [showEssayHints, setShowEssayHints] = useState(editingClass ? editingClass.showEssayHints !== false : true)
   const [enableLeaderboard, setEnableLeaderboard] = useState(!!editingClass?.enableLeaderboard)
   const canManageEditors = isEditing && editingClass?.canManageEditors === true
@@ -495,6 +496,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
         shuffle: shuffleQuestions,
         allowRetry,
         allowMultiTry,
+        autoAdvanceMultiTry,
         showEssayHints,
         enableLeaderboard,
         questions: uploadedQuestions,
@@ -987,6 +989,30 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
                   aria-checked={allowMultiTry}
                   aria-label="Cho phép thử nhiều đáp án"
                   onClick={() => setAllowMultiTry((v) => !v)}
+                >
+                  <span className="create-class-switch-knob" />
+                </button>
+              </div>
+
+              <div className={`create-class-privacy-row${allowMultiTry ? '' : ' is-disabled'}`}>
+                <div className="create-class-privacy-copy">
+                  <p className="create-class-privacy-q">Tự động qua câu tiếp theo</p>
+                  <p className="create-class-hint">
+                    {allowMultiTry
+                      ? autoAdvanceMultiTry
+                        ? 'Bật: sau khi trả lời đúng hoặc đã thử hết các đáp án, hệ thống tự chuyển câu.'
+                        : 'Tắt: sau khi trả lời đúng hoặc sai, vẫn ở lại để bạn tự bấm Câu tiếp theo/Hoàn thành.'
+                      : 'Chỉ áp dụng khi bật Cho phép thử nhiều đáp án.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={`create-class-switch${autoAdvanceMultiTry ? ' is-on' : ''}`}
+                  role="switch"
+                  aria-checked={autoAdvanceMultiTry}
+                  aria-label="Tự động qua câu tiếp theo"
+                  disabled={!allowMultiTry}
+                  onClick={() => setAutoAdvanceMultiTry((v) => !v)}
                 >
                   <span className="create-class-switch-knob" />
                 </button>

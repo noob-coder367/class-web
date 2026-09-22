@@ -237,6 +237,7 @@ export default function ClassPlayView({ classData, onClose }) {
   const q = current?.question
   const allowRetry = classData?.allowRetry !== false
   const allowMultiTry = classData?.allowMultiTry === true
+  const autoAdvanceMultiTry = classData?.autoAdvanceMultiTry === true
   const enableLeaderboard = classData?.enableLeaderboard === true
 
   const score = gradeClassPlay(questions, {
@@ -350,18 +351,22 @@ export default function ClassPlayView({ classData, onClose }) {
   }, [index, done])
 
   // Trắc nghiệm: mặc định sau khi chọn đáp án (đúng hay sai) thì tự chuyển câu.
-  // Khi bật "thử nhiều đáp án": chọn sai thì ở lại; chỉ tự chuyển khi chọn đúng.
+  // Khi bật "thử nhiều đáp án", chỉ tự chuyển nếu công tắc tự động được bật;
+  // nếu tắt thì người làm bài ở lại cho tới khi tự bấm nút chuyển câu.
   useEffect(() => {
     if (done || !isQuiz || !current) return
     const chosenId = selections[current.id]
     if (!chosenId) return
     if (allowMultiTry) {
+      if (!autoAdvanceMultiTry) return
       const answers = q?.answers || []
       const hasKey = answers.some((a) => a.isCorrect)
       if (hasKey) {
         const tried = quizTried[current.id] || []
         const pickedCorrect = answers.some((a) => a.isCorrect && tried.includes(a.id))
-        if (!pickedCorrect) return
+        const wrongCount = tried.filter((id) => !answers.find((a) => a.id === id)?.isCorrect).length
+        const exhausted = answers.length >= 2 && wrongCount >= answers.length - 1
+        if (!pickedCorrect && !exhausted) return
       }
     }
     const timer = setTimeout(() => {
@@ -369,7 +374,7 @@ export default function ClassPlayView({ classData, onClose }) {
     }, AUTO_ADVANCE_DELAY_MS)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selections[current?.id], quizTried[current?.id], index, done])
+  }, [selections[current?.id], quizTried[current?.id], index, done, autoAdvanceMultiTry])
 
   // Đúng/Sai: khi đã chọn hết các ý thì hiện màu rồi tự chuyển câu.
   useEffect(() => {
@@ -575,7 +580,9 @@ export default function ClassPlayView({ classData, onClose }) {
               <>
                 <p className="class-play-exam-instruction">
                   {allowMultiTry
-                    ? 'Chọn đáp án đúng. Nếu sai, bạn có thể thử tiếp.'
+                    ? autoAdvanceMultiTry
+                      ? 'Chọn đáp án đúng. Đúng hoặc thử hết đáp án sai sẽ tự qua câu.'
+                      : 'Chọn đáp án đúng. Nếu sai, bạn có thể thử tiếp và tự bấm để qua câu.'
                     : 'Chọn một đáp án đúng'}
                 </p>
                 <div className={`quiz-answers ${answerLayoutClass}`}>
