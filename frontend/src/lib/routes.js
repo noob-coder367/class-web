@@ -46,6 +46,7 @@ export const CLASS_TAB_PATH = {
   rules: 'noi-quy-lop',
   'cleaning-duty': 've-sinh-chung',
   'class-space': 'lop-hoc',
+  presentation: 'thuyet-trinh',
   ai: 'AI',
   utilities: 'tien-ich-phu',
 }

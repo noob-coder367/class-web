@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { supabase, initialAuthRedirect, clearAuthRedirectFromUrl } from '../lib/supabaseClient.js'
-import { ROUTES, classTabPath, parsePresentationPath, presentationListPath } from '../lib/routes.js'
+import { ROUTES, classTabPath, parsePresentationPath } from '../lib/routes.js'
 import AuthPage from './AuthPage.jsx'
 import SettingsPanel from '../components/SettingsPanel.jsx'
 import { getStoredAvatar } from '../components/ProfileMenu.jsx'
@@ -48,7 +48,7 @@ const PHOTO_PLACEHOLDER_COUNT = 6
 let emailLinkNoticeShown = false
 
 export default function HomePage() {
-  const { session, profile, authReady, isAdmin, logout, passwordRecovery } = useAuth()
+  const { session, profile, authReady, logout, passwordRecovery } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -515,16 +515,6 @@ export default function HomePage() {
                     {unreadTotal > 99 ? '99+' : unreadTotal}
                   </span>
                 ) : null}
-              </button>
-            )}
-
-            {profile?.is_member && (
-              <button
-                type="button"
-                className="btn-presentation"
-                onClick={() => navigate(presentationListPath())}
-              >
-                ▣ Thuyết trình
               </button>
             )}
 

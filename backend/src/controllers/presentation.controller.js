@@ -27,4 +27,3 @@ export async function update(req, res, next) {
 export async function remove(req, res, next) {
   try { noStore(res); res.json(await presentationService.deletePresentation(req.params.id, req.profile)) } catch (err) { next(err) }
 }
-EOF
