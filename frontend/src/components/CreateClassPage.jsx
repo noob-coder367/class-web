@@ -184,6 +184,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
   const [editorEmail, setEditorEmail] = useState('')
   const [editorError, setEditorError] = useState('')
   const [submitError, setSubmitError] = useState('')
+  const [conflictInfo, setConflictInfo] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const fileInputRef = useRef(null)
   const backdropFileRef = useRef(null)
@@ -232,6 +233,30 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
       window.cancelAnimationFrame(id)
     }
   }, [archiveOpen, themePickerOpen])
+
+  // Phát hiện thay đổi từ editor khác trong lúc đang mở form. Backend vẫn là
+  // lớp bảo vệ cuối cùng bằng expectedUpdatedAt, còn polling giúp cảnh báo sớm
+  // để người dùng không mất nhiều công sức soạn rồi mới biết bị xung đột.
+  useEffect(() => {
+    if (!editingClass?.id || !editingClass?.updatedAt || conflictInfo) return undefined
+    let cancelled = false
+    const checkForRemoteChange = async () => {
+      try {
+        const { item } = await classroomService.getClassSpace(editingClass.id)
+        if (cancelled || !item?.updatedAt) return
+        if (item.updatedAt !== editingClass.updatedAt) {
+          setConflictInfo({ updatedAt: item.updatedAt })
+        }
+      } catch {
+        // Không biến lỗi mạng tạm thời thành cảnh báo xung đột giả.
+      }
+    }
+    const timer = window.setInterval(checkForRemoteChange, 4000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [editingClass?.id, editingClass?.updatedAt, conflictInfo])
 
   useEffect(() => {
     const onKey = (e) => {
@@ -473,6 +498,7 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
         showEssayHints,
         enableLeaderboard,
         questions: uploadedQuestions,
+        ...(isEditing ? { expectedUpdatedAt: editingClass.updatedAt } : {}),
         ...(canManageEditors ? { editorEmails: editors.map((editor) => editor.email) } : {}),
       }
 
@@ -482,6 +508,9 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
 
       onSaved?.(item)
     } catch (err) {
+      if (err?.status === 409 || err?.code === 'CLASS_SPACE_CONFLICT') {
+        setConflictInfo({ updatedAt: err.currentUpdatedAt || null })
+      }
       setSubmitError(err?.message || 'Không lưu được phòng, vui lòng thử lại.')
     } finally {
       setSubmitting(false)
@@ -500,6 +529,18 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
           <p className="create-class-kicker">Phòng · 10A4</p>
           <h1>{isEditing ? 'Chỉnh sửa phòng' : 'Tạo phòng'}</h1>
         </header>
+
+        {conflictInfo ? (
+          <div className="class-space-conflict-banner" role="alert">
+            <div>
+              <strong>Phòng đã được cập nhật ở nơi khác.</strong>
+              <p>Để tránh ghi đè thay đổi của editor khác, bản chỉnh sửa hiện tại chưa được lưu.</p>
+            </div>
+            <button type="button" className="create-class-ghost" onClick={() => window.location.reload()}>
+              Tải bản mới nhất
+            </button>
+          </div>
+        ) : null}
 
         <div className="create-class-field">
           <label htmlFor="create-class-title">Tiêu đề phòng</label>

@@ -629,6 +629,16 @@ export async function updateClassSpace(id, payload, profile) {
   if (!canEditClassSpace(current, profile)) {
     throw new AppError('Bạn không có quyền chỉnh sửa lớp học này.', 403)
   }
+  const expectedUpdatedAt = String(payload?.expectedUpdatedAt || '').trim()
+  if (expectedUpdatedAt && expectedUpdatedAt !== String(current.updatedAt || '')) {
+    const conflict = new AppError(
+      'Phòng học đã được người khác cập nhật. Hãy tải lại bản mới nhất trước khi lưu.',
+      409
+    )
+    conflict.code = 'CLASS_SPACE_CONFLICT'
+    conflict.currentUpdatedAt = current.updatedAt
+    throw conflict
+  }
   const isOwner = isOwnerOf(current, profile)
 
   const title = String(payload?.title || '').trim()

@@ -2209,3 +2209,40 @@
 .class-space-editor-item .quiz-icon-btn {
   flex: 0 0 auto;
 }
+
+.class-space-conflict-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #f0b44d;
+  border-radius: 14px;
+  background: #fff8e7;
+  color: #694b00;
+}
+
+.class-space-conflict-banner strong,
+.class-space-conflict-banner p {
+  margin: 0;
+}
+
+.class-space-conflict-banner p {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.class-space-conflict-banner .create-class-ghost {
+  flex: 0 0 auto;
+  border-color: #d29424;
+  color: #694b00;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .class-space-conflict-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
