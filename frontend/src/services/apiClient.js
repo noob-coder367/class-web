@@ -67,7 +67,7 @@ async function request(path, { method = 'GET', body, auth = false, _retried = fa
     res = await fetch(`${BASE_URL}${path}`, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      ...(body && method !== 'GET' && method !== 'HEAD' ? { body: JSON.stringify(body) } : {}),
       signal: controller.signal,
     })
   } catch (err) {

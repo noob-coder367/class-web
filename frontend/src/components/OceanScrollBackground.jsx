@@ -79,13 +79,6 @@ function readScrollMetrics() {
   return { scrollY, maxScroll, documentHeight, viewportHeight };
 }
 
-function computeProgress() {
-  const { scrollY, maxScroll } = readScrollMetrics();
-  if (scrollY <= TOP_EPSILON) return 0;
-  if (maxScroll < MIN_SCROLLABLE) return 0;
-  return clamp(scrollY / maxScroll);
-}
-
 function computeTimeOfDay() {
   const now = new Date();
   const hour = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;

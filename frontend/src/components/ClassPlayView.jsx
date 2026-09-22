@@ -653,7 +653,7 @@ export default function ClassPlayView({ classData, onClose }) {
                       triedIds: quizTried[current.id],
                       allowMultiTry,
                     })
-                    const { answers, hasKey, tried, pickedCorrect, exhausted, revealed, locked } = progress
+                    const { answers, hasKey, tried, revealed, locked } = progress
                     return answers.map((answer) => {
                       const selected = chosenId === answer.id
                       const wrongTried = tried.includes(answer.id) && !answer.isCorrect

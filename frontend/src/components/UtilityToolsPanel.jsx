@@ -66,7 +66,7 @@ function PlayView({ tool, onEdit }) {
   const [winner, setWinner] = useState(null)
   const [running, setRunning] = useState(false)
   const [rotation, setRotation] = useState(0)
-  const [seed, setSeed] = useState(0)
+  const [, setSeed] = useState(0)
   const [countdown, setCountdown] = useState(null)
   const [raceParticipants, setRaceParticipants] = useState([])
   const [rankings, setRankings] = useState([])
