@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { supabase, initialAuthRedirect, clearAuthRedirectFromUrl } from '../lib/supabaseClient.js'
-import { ROUTES, classTabPath, parsePresentationPath, presentationListPath } from '../lib/routes.js'
+import { ROUTES, classTabPath, parsePresentationPath } from '../lib/routes.js'
 import AuthPage from './AuthPage.jsx'
 import SettingsPanel from '../components/SettingsPanel.jsx'
 import { getStoredAvatar } from '../components/ProfileMenu.jsx'
@@ -441,8 +441,19 @@ export default function HomePage() {
     }
   }
 
+  // Danh sách /thuyet-trinh chuyển vào tab Thuyết trình trong ClassRoomView
+  // để không có hai cửa vào. Editor / trình chiếu vẫn dùng route hiện có.
+  useEffect(() => {
+    if (presentationPath.type === 'list') {
+      navigate(classTabPath('presentation'), { replace: true })
+    }
+  }, [presentationPath.type, navigate])
+
+  const presentationOverlay =
+    showPresentation && presentationPath.type && presentationPath.type !== 'list'
+
   return (
-    <div className={`page ${showAuth || showClassRoom || showProfileSetting || showPresentation ? 'no-scroll' : ''}`}>
+    <div className={`page ${showAuth || showClassRoom || showProfileSetting || presentationOverlay ? 'no-scroll' : ''}`}>
       {showAuth && (
         <AuthPage
           key={authInitialStep}
@@ -466,7 +477,7 @@ export default function HomePage() {
         />
       )}
 
-      {showPresentation && (
+      {presentationOverlay && (
         <PresentationHome
           mode={presentationPath.type}
           presentationId={presentationPath.id}
@@ -515,16 +526,6 @@ export default function HomePage() {
                     {unreadTotal > 99 ? '99+' : unreadTotal}
                   </span>
                 ) : null}
-              </button>
-            )}
-
-            {profile?.is_member && (
-              <button
-                type="button"
-                className="btn-presentation"
-                onClick={() => navigate(presentationListPath())}
-              >
-                ▣ Thuyết trình
               </button>
             )}
 

@@ -46,8 +46,9 @@ export const CLASS_TAB_PATH = {
   rules: 'noi-quy-lop',
   'cleaning-duty': 've-sinh-chung',
   'class-space': 'lop-hoc',
-  ai: 'AI',
   utilities: 'tien-ich-phu',
+  presentation: 'thuyet-trinh',
+  ai: 'AI',
 }
 
 const PATH_TAB = Object.fromEntries(

@@ -93,8 +93,10 @@ async function request(path, { method = 'GET', body, auth = false, _retried = fa
     // no JSON body
   }
 
-  // 401 + auth → thử refresh 1 lần rồi gọi lại
-  if (res.status === 401 && auth && !_retried) {
+  // 401 + auth → thử refresh 1 lần rồi gọi lại.
+  // Bỏ qua khi backend báo cần mật khẩu (presentation / class space) — không phải phiên hết hạn.
+  const passwordChallenge = data?.code && String(data.code).includes('PASSWORD')
+  if (res.status === 401 && auth && !_retried && !passwordChallenge) {
     try {
       const { data: refreshed, error } = await supabase.auth.refreshSession()
       if (!error && refreshed?.session?.access_token) {
@@ -114,6 +116,7 @@ async function request(path, { method = 'GET', body, auth = false, _retried = fa
     const message = data?.message || `Lỗi yêu cầu (${res.status})`
     const err = new Error(message)
     err.status = res.status
+    if (data?.code) err.code = data.code
     throw err
   }
 

@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import CreateClassPage from './CreateClassPage.jsx'
 import ClassPlayView from './ClassPlayView.jsx'
 import UtilityToolsPanel, { IconWrench } from './UtilityToolsPanel.jsx'
+import PresentationHome from './presentation/PresentationHome.jsx'
 import { isRoomCompletedLocked } from '../lib/classPlayScore.js'
 import {
   classTabPath,
@@ -150,6 +151,17 @@ function IconArrowRight() {
   )
 }
 
+function IconPresentation() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3.5" y="4.5" width="17" height="12" rx="1.8" />
+      <path d="M8 21h8" />
+      <path d="M12 16.5V21" />
+      <path d="M7.5 8.5h9M7.5 12h6" />
+    </svg>
+  )
+}
+
 function IconAI() {
   return (
     <svg
@@ -223,11 +235,12 @@ const TABS = [
   { id: 'rules', label: 'Nội quy lớp', icon: IconShield },
   { id: 'cleaning-duty', label: 'Vệ sinh lớp', icon: IconBroom },
   { id: 'class-space', label: 'Lớp học', icon: IconDoor },
+  { id: 'utilities', label: 'Tiện ích', icon: IconWrench },
+  { id: 'presentation', label: 'Thuyết trình', icon: IconPresentation },
   { id: 'ai', label: 'AI', icon: IconAI },
-  { id: 'utilities', label: 'Tiện ích phụ', icon: IconWrench },
 ]
 
-const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty'])
+const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty', 'presentation'])
 const EMPTY_CAPS = capabilitiesFor('user')
 
 export default function ClassRoomView({ onClose, initialTab = 'announcements' }) {
@@ -491,6 +504,11 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           setViolations([])
           setItems([])
         } else if (activeTab === 'utilities') {
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
+          setItems([])
+        } else if (activeTab === 'presentation') {
           setTimetable(null)
           setRules(null)
           setViolations([])
@@ -903,7 +921,8 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
         activeTab !== 'cleaning-duty' &&
         activeTab !== 'class-space' &&
         activeTab !== 'ai' &&
-        activeTab !== 'utilities'
+        activeTab !== 'utilities' &&
+        activeTab !== 'presentation'
     ) {
       return (
         <div className="classroom-state">
@@ -1093,6 +1112,10 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     }
 
     if (activeTab === 'utilities') return null
+
+    if (activeTab === 'presentation') {
+      return <PresentationHome mode="list" embedded />
+    }
 
     if (activeTab === 'timetable') {
       if (!timetable) return <p className="classroom-empty">Chưa có thời khoá biểu</p>

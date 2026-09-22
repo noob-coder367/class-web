@@ -1,1 +1,326 @@
-.presentation-editor{position:fixed;inset:0;z-index:300;overflow:auto;min-height:100vh;background:#edf4f7;color:#14324a;font-family:'Be Vietnam Pro','Segoe UI',sans-serif}.presentation-editor-head{height:62px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid #cde3ec;background:#fff}.presentation-editor-head button{border:1px solid #b9d4dd;border-radius:8px;padding:8px 11px;background:#fff;color:#0b7687;font:inherit;font-size:12px;font-weight:800;cursor:pointer}.presentation-editor-head input{min-width:180px;flex:1;border:0;outline:0;font:inherit;font-size:18px;font-weight:800;color:#14324a}.presentation-save-status{color:#68818c;font-size:11px}.presentation-editor-grid{display:grid;grid-template-columns:210px minmax(0,1fr) 250px;gap:14px;max-width:1500px;margin:0 auto;padding:18px}.presentation-slides,.presentation-properties{display:flex;flex-direction:column;gap:9px;padding:14px;border:1px solid #cde3ec;border-radius:14px;background:#fff}.presentation-panel-title{color:#0b91a3;font-size:11px;font-weight:900;letter-spacing:.16em}.presentation-slides>button{border:1px solid #d6e6eb;border-radius:8px;padding:9px;text-align:left;background:#f7fbfc;color:#496879;font:inherit;font-size:11px;cursor:pointer}.presentation-slides>button span{display:inline-block;width:25px;color:#0b91a3;font-weight:900}.presentation-slides>button.is-active{border-color:#0b91a3;background:#e8f8fa;color:#14324a}.presentation-editor-grid main{min-width:0}.presentation-canvas{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border:2px solid #b9d4dd;border-radius:12px;box-shadow:0 12px 30px #173b4d18;touch-action:none}.presentation-element{position:absolute;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:pre-wrap;user-select:none;cursor:grab}.presentation-element:active{cursor:grabbing}.presentation-element--text{padding:4px}.presentation-element--shape{box-sizing:border-box}.presentation-element.is-selected{outline:2px solid #f5a623;outline-offset:3px}.presentation-bottom-toolbar{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.presentation-bottom-toolbar button{border:1px solid #b9d4dd;border-radius:8px;padding:9px 11px;background:#fff;color:#0b7687;font:inherit;font-size:11px;font-weight:800;cursor:pointer}.presentation-bottom-toolbar button:disabled{opacity:.45;cursor:not-allowed}.presentation-properties hr{width:100%;border:0;border-top:1px solid #e1edf0}.presentation-properties small{color:#718792;font-size:11px;line-height:1.5}.presentation-selected-properties{display:grid;gap:9px;padding-top:10px;border-top:1px solid #e1edf0}.presentation-selected-properties button{border:0;color:#b42318;background:transparent;text-align:left;font:inherit;font-size:11px;font-weight:800;cursor:pointer}@media(max-width:900px){.presentation-editor-grid{grid-template-columns:170px minmax(0,1fr)}.presentation-properties{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.presentation-properties .presentation-panel-title,.presentation-properties hr,.presentation-selected-properties{grid-column:1/-1}}@media(max-width:600px){.presentation-editor-head{height:auto;min-height:62px;flex-wrap:wrap;padding:10px}.presentation-editor-head input{order:2;flex-basis:100%;min-width:0}.presentation-save-status{margin-left:auto}.presentation-editor-grid{display:flex;flex-direction:column;padding:10px}.presentation-slides{order:2;overflow-x:auto;flex-direction:row}.presentation-slides .presentation-panel-title{display:none}.presentation-slides>button{min-width:110px}.presentation-properties{order:3;display:flex}.presentation-editor-grid main{order:1}.presentation-canvas{min-height:200px}}
+.presentation-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  overflow: auto;
+  min-height: 100vh;
+  background: #edf4f7;
+  color: #14324a;
+  font-family: 'Be Vietnam Pro', 'Segoe UI', sans-serif;
+}
+
+.presentation-editor-head {
+  height: 62px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid #cde3ec;
+  background: #fff;
+}
+
+.presentation-editor-head button {
+  border: 1px solid #b9d4dd;
+  border-radius: 8px;
+  padding: 8px 11px;
+  background: #fff;
+  color: #0b7687;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.presentation-editor-head input {
+  min-width: 180px;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  color: #14324a;
+}
+
+.presentation-save-status {
+  color: #68818c;
+  font-size: 11px;
+}
+
+.presentation-editor-grid {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) 250px;
+  gap: 14px;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 18px;
+}
+
+.presentation-slides,
+.presentation-properties {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid #cde3ec;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.presentation-panel-title {
+  color: #0b91a3;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+
+.presentation-slides > button {
+  border: 1px solid #d6e6eb;
+  border-radius: 8px;
+  padding: 9px;
+  text-align: left;
+  background: #f7fbfc;
+  color: #496879;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.presentation-slides > button span {
+  display: inline-block;
+  width: 25px;
+  color: #0b91a3;
+  font-weight: 900;
+}
+
+.presentation-slides > button.is-active {
+  border-color: #0b91a3;
+  background: #e8f8fa;
+  color: #14324a;
+}
+
+.presentation-slide-order {
+  display: flex;
+  gap: 6px;
+}
+
+.presentation-slide-order button {
+  flex: 1;
+}
+
+.presentation-editor-grid main {
+  min-width: 0;
+}
+
+.presentation-canvas {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 2px solid #b9d4dd;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px #173b4d18;
+  touch-action: none;
+}
+
+.presentation-element {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  white-space: pre-wrap;
+  user-select: none;
+  cursor: grab;
+}
+
+.presentation-element:active {
+  cursor: grabbing;
+}
+
+.presentation-element--text {
+  padding: 4px;
+}
+
+.presentation-element--shape {
+  box-sizing: border-box;
+}
+
+.presentation-element--image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.presentation-element.is-selected {
+  outline: 2px solid #f5a623;
+  outline-offset: 3px;
+}
+
+.presentation-resize-handle {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: #f5a623;
+  cursor: nwse-resize;
+  z-index: 5;
+}
+
+.presentation-bottom-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.presentation-bottom-toolbar button {
+  border: 1px solid #b9d4dd;
+  border-radius: 8px;
+  padding: 9px 11px;
+  background: #fff;
+  color: #0b7687;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.presentation-bottom-toolbar button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.presentation-properties hr {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid #e1edf0;
+}
+
+.presentation-properties small {
+  color: #718792;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.presentation-selected-properties {
+  display: grid;
+  gap: 9px;
+  padding-top: 10px;
+  border-top: 1px solid #e1edf0;
+}
+
+.presentation-selected-properties button {
+  border: 0;
+  color: #b42318;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.presentation-layer-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.presentation-layer-btns button {
+  color: #0b7687 !important;
+}
+
+.presentation-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #102839d9;
+}
+
+.presentation-preview-frame {
+  width: min(1100px, 94vw);
+  display: grid;
+  gap: 12px;
+}
+
+.presentation-preview-frame header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #fff;
+}
+
+.presentation-preview-frame header button {
+  border: 1px solid #7aa;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+}
+
+@media (max-width: 900px) {
+  .presentation-editor-grid {
+    grid-template-columns: 170px minmax(0, 1fr);
+  }
+  .presentation-properties {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .presentation-properties .presentation-panel-title,
+  .presentation-properties hr,
+  .presentation-selected-properties {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .presentation-editor-head {
+    height: auto;
+    min-height: 62px;
+    flex-wrap: wrap;
+    padding: 10px;
+  }
+  .presentation-editor-head input {
+    order: 2;
+    flex-basis: 100%;
+    min-width: 0;
+  }
+  .presentation-save-status {
+    margin-left: auto;
+  }
+  .presentation-editor-grid {
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+  }
+  .presentation-slides {
+    order: 2;
+    overflow-x: auto;
+    flex-direction: row;
+  }
+  .presentation-slides .presentation-panel-title {
+    display: none;
+  }
+  .presentation-slides > button {
+    min-width: 110px;
+  }
+  .presentation-properties {
+    order: 3;
+    display: flex;
+  }
+  .presentation-editor-grid main {
+    order: 1;
+  }
+  .presentation-canvas {
+    min-height: 200px;
+  }
+}

@@ -110,6 +110,13 @@ export function createApp() {
   })
   app.use('/api/classroom', classroomLimiter)
 
+  const presentationLimiter = rateLimit({
+    ...limiterBase,
+    windowMs: 15 * 60 * 1000,
+    limit: 800,
+  })
+  app.use('/api/presentations', presentationLimiter)
+
   const pushReceiptLimiter = rateLimit({
     ...limiterBase,
     windowMs: 15 * 60 * 1000,

@@ -576,6 +576,48 @@ export async function getClassSpaceById(id, { password, profile } = {}) {
   return toFullPayload(item, profile)
 }
 
+/** Tra cứu phòng theo id hoặc mã 6 số — dùng khi gắn Presentation với Class Space. */
+export async function findClassSpaceRecord(idOrCode) {
+  const key = String(idOrCode || '').trim()
+  if (!key) return null
+  const data = await loadAll()
+  return data.items.find((row) => row.id === key || row.code === key) || null
+}
+
+/**
+ * Đánh giá quyền vào phòng theo cơ chế hiện tại (công khai / chủ-editor / mật khẩu hash).
+ * Không lộ passwordHash. Presentation tái sử dụng hàm này, không tự tạo mật khẩu thứ hai.
+ */
+export function evaluateClassSpaceAccess(item, profile, password) {
+  if (!item) return { allowed: false, code: 'NOT_FOUND' }
+  if (item.isPublic || canEditClassSpace(item, profile)) {
+    return {
+      allowed: true,
+      code: 'OK',
+      meta: { id: item.id, code: item.code, title: item.title, isPublic: item.isPublic },
+    }
+  }
+  if (!password) {
+    return {
+      allowed: false,
+      code: 'PASSWORD_REQUIRED',
+      meta: { id: item.id, code: item.code, title: item.title, isPublic: false },
+    }
+  }
+  if (hashPassword(password) !== item.passwordHash) {
+    return {
+      allowed: false,
+      code: 'WRONG_PASSWORD',
+      meta: { id: item.id, code: item.code, title: item.title, isPublic: false },
+    }
+  }
+  return {
+    allowed: true,
+    code: 'OK',
+    meta: { id: item.id, code: item.code, title: item.title, isPublic: item.isPublic },
+  }
+}
+
 export async function createClassSpace(payload, profile) {
   const title = String(payload?.title || '').trim()
   if (!title) throw new AppError('Vui lòng nhập tiêu đề lớp học.', 400)
