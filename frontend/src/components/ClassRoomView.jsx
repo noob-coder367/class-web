@@ -496,6 +496,13 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
           setRules(null)
           setViolations([])
           setItems([])
+        } else if (activeTab === 'presentation') {
+          // Presentation có API và persistence riêng, không đi qua
+          // classroomService.getTabContent() (chỉ nhận các tab lớp cũ).
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
+          setItems([])
         } else if (activeTab === 'ai') {
           setTimetable(null)
           setRules(null)
