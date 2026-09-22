@@ -3,6 +3,7 @@ import { answerColorOf, formatCountdown } from './QuizArchivePanel.jsx'
 import { statementLabel } from './TrueFalseArchivePanel.jsx'
 import { normalizePlayBackdrop } from '../lib/playBackdrops.js'
 import { essayKeys, gradeClassPlay, normalizeAnswer } from '../lib/classPlayScore.js'
+import { getQuizQuestionProgress, shouldAutoAdvanceQuestion } from '../lib/classPlayAdvance.js'
 import * as classroomService from '../services/classroomService.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import './ClassPlayView.css'
@@ -213,6 +214,10 @@ export default function ClassPlayView({ classData, onClose }) {
     Array.isArray(classData?.leaderboard) ? classData.leaderboard : []
   )
   const submittedRef = useRef(false)
+  const autoAdvanceTimerRef = useRef(0)
+  const advancingRef = useRef(false)
+  const autoAdvancedQuestionRef = useRef(new Set())
+  const questionGenRef = useRef(0)
 
   // Ghi mốc bắt đầu làm bài ở SERVER (không dùng đồng hồ client) để tính thời
   // gian làm bài một cách đáng tin cậy cho BXH. Gọi lại mỗi khi bấm "Làm lại".
@@ -262,6 +267,13 @@ export default function ClassPlayView({ classData, onClose }) {
 
   const handleRetry = () => {
     submittedRef.current = false
+    advancingRef.current = false
+    autoAdvancedQuestionRef.current = new Set()
+    questionGenRef.current += 1
+    if (autoAdvanceTimerRef.current) {
+      window.clearTimeout(autoAdvanceTimerRef.current)
+      autoAdvanceTimerRef.current = 0
+    }
     setAnswerFx(null)
     setIndex(0)
     setSelections({})
@@ -291,17 +303,44 @@ export default function ClassPlayView({ classData, onClose }) {
     }
   }, [onClose, rankOpen])
 
+  const clearAutoAdvanceTimer = () => {
+    if (!autoAdvanceTimerRef.current) return
+    window.clearTimeout(autoAdvanceTimerRef.current)
+    autoAdvanceTimerRef.current = 0
+  }
+
   const goNext = () => {
-    if (index >= total - 1) {
-      setDone(true)
-      return
-    }
-    setIndex((i) => i + 1)
+    clearAutoAdvanceTimer()
+    if (advancingRef.current) return
+    advancingRef.current = true
+    setIndex((i) => {
+      if (i >= total - 1) {
+        setDone(true)
+        advancingRef.current = false
+        return i
+      }
+      return i + 1
+    })
   }
 
   const goPrev = () => {
     if (index <= 0) return
-    setIndex((i) => i - 1)
+    clearAutoAdvanceTimer()
+    advancingRef.current = false
+    setIndex((i) => (i <= 0 ? i : i - 1))
+  }
+
+  const scheduleAutoAdvance = (questionId) => {
+    if (!questionId || autoAdvancedQuestionRef.current.has(questionId)) return
+    clearAutoAdvanceTimer()
+    const gen = questionGenRef.current
+    autoAdvanceTimerRef.current = window.setTimeout(() => {
+      autoAdvanceTimerRef.current = 0
+      if (questionGenRef.current !== gen) return
+      if (autoAdvancedQuestionRef.current.has(questionId)) return
+      autoAdvancedQuestionRef.current.add(questionId)
+      goNext()
+    }, AUTO_ADVANCE_DELAY_MS)
   }
 
   const gradeEssayAndMaybeAdvance = (value, autoAdvance, { skipIfWrong = false } = {}) => {
@@ -320,7 +359,7 @@ export default function ClassPlayView({ classData, onClose }) {
         goNext()
         return
       }
-      window.setTimeout(() => goNext(), AUTO_ADVANCE_DELAY_MS)
+      scheduleAutoAdvance(current.id)
     }
   }
 
@@ -350,31 +389,52 @@ export default function ClassPlayView({ classData, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, done])
 
-  // Trắc nghiệm: mặc định sau khi chọn đáp án (đúng hay sai) thì tự chuyển câu.
-  // Khi bật "thử nhiều đáp án", chỉ tự chuyển nếu công tắc tự động được bật;
-  // nếu tắt thì người làm bài ở lại cho tới khi tự bấm nút chuyển câu.
   useEffect(() => {
-    if (done || !isQuiz || !current) return
-    const chosenId = selections[current.id]
-    if (!chosenId) return
-    if (allowMultiTry) {
-      if (!autoAdvanceMultiTry) return
-      const answers = q?.answers || []
-      const hasKey = answers.some((a) => a.isCorrect)
-      if (hasKey) {
-        const tried = quizTried[current.id] || []
-        const pickedCorrect = answers.some((a) => a.isCorrect && tried.includes(a.id))
-        const wrongCount = tried.filter((id) => !answers.find((a) => a.id === id)?.isCorrect).length
-        const exhausted = answers.length >= 2 && wrongCount >= answers.length - 1
-        if (!pickedCorrect && !exhausted) return
-      }
+    questionGenRef.current += 1
+    advancingRef.current = false
+    clearAutoAdvanceTimer()
+  }, [index])
+
+  useEffect(() => {
+    return () => {
+      advancingRef.current = false
+      clearAutoAdvanceTimer()
     }
-    const timer = setTimeout(() => {
-      goNext()
-    }, AUTO_ADVANCE_DELAY_MS)
-    return () => clearTimeout(timer)
+  }, [])
+
+  // Trắc nghiệm: chỉ auto-advance khi câu đã complete VÀ công tắc tự qua câu đang bật.
+  // Multi-try: complete khi đúng hoặc đã hết đáp án để thử — không auto-skip sau 1 lần sai.
+  useEffect(() => {
+    if (done || !isQuiz || !current) {
+      clearAutoAdvanceTimer()
+      return
+    }
+    const progress = getQuizQuestionProgress(q, {
+      chosenId: selections[current.id],
+      triedIds: quizTried[current.id],
+      allowMultiTry,
+    })
+    const shouldAdvance = shouldAutoAdvanceQuestion({
+      autoAdvance: autoAdvanceMultiTry,
+      questionCompleted: progress.questionCompleted,
+    })
+    if (!shouldAdvance) {
+      clearAutoAdvanceTimer()
+      return
+    }
+    scheduleAutoAdvance(current.id)
+    return () => clearAutoAdvanceTimer()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selections[current?.id], quizTried[current?.id], index, done, autoAdvanceMultiTry])
+  }, [
+    current?.id,
+    selections[current?.id],
+    quizTried[current?.id],
+    index,
+    done,
+    isQuiz,
+    allowMultiTry,
+    autoAdvanceMultiTry,
+  ])
 
   // Đúng/Sai: khi đã chọn hết các ý thì hiện màu rồi tự chuyển câu.
   useEffect(() => {
@@ -384,10 +444,8 @@ export default function ClassPlayView({ classData, onClose }) {
     const chosen = tfSelections[current.id] || {}
     const allAnswered = statements.every((s) => typeof chosen[s.id] === 'boolean')
     if (!allAnswered) return
-    const timer = setTimeout(() => {
-      goNext()
-    }, AUTO_ADVANCE_DELAY_MS)
-    return () => clearTimeout(timer)
+    scheduleAutoAdvance(current.id)
+    return () => clearAutoAdvanceTimer()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tfSelections[current?.id], index, done])
 
@@ -581,22 +639,21 @@ export default function ClassPlayView({ classData, onClose }) {
                 <p className="class-play-exam-instruction">
                   {allowMultiTry
                     ? autoAdvanceMultiTry
-                      ? 'Chọn đáp án đúng. Đúng hoặc thử hết đáp án sai sẽ tự qua câu.'
+                      ? 'Chọn đáp án đúng. Sai thì được thử tiếp. Đúng hoặc hết đáp án sẽ tự qua câu.'
                       : 'Chọn đáp án đúng. Nếu sai, bạn có thể thử tiếp và tự bấm để qua câu.'
-                    : 'Chọn một đáp án đúng'}
+                    : autoAdvanceMultiTry
+                      ? 'Chọn một đáp án. Sau khi chọn, hệ thống tự chuyển câu.'
+                      : 'Chọn một đáp án. Sau khi chọn, bấm Câu tiếp theo/Hoàn thành để đi tiếp.'}
                 </p>
                 <div className={`quiz-answers ${answerLayoutClass}`}>
                   {(() => {
-                    const answers = q?.answers || []
-                    const hasKey = answers.some((a) => a.isCorrect)
                     const chosenId = selections[current.id]
-                    const tried = quizTried[current.id] || (chosenId ? [chosenId] : [])
-                    const pickedCorrect = hasKey && answers.some((a) => a.isCorrect && tried.includes(a.id))
-                    const wrongCount = tried.filter((id) => !answers.find((a) => a.id === id)?.isCorrect).length
-                    const exhausted =
-                      allowMultiTry && hasKey && answers.length >= 2 && wrongCount >= answers.length - 1
-                    const revealed = hasKey && (allowMultiTry ? pickedCorrect || exhausted : !!chosenId)
-                    const locked = allowMultiTry ? pickedCorrect || exhausted : !!chosenId
+                    const progress = getQuizQuestionProgress(q, {
+                      chosenId,
+                      triedIds: quizTried[current.id],
+                      allowMultiTry,
+                    })
+                    const { answers, hasKey, tried, pickedCorrect, exhausted, revealed, locked } = progress
                     return answers.map((answer) => {
                       const selected = chosenId === answer.id
                       const wrongTried = tried.includes(answer.id) && !answer.isCorrect
@@ -641,17 +698,19 @@ export default function ClassPlayView({ classData, onClose }) {
                 </div>
                 {allowMultiTry
                   ? (() => {
-                      const answers = q?.answers || []
-                      const hasKey = answers.some((a) => a.isCorrect)
-                      const tried = quizTried[current.id] || []
-                      const pickedCorrect = hasKey && answers.some((a) => a.isCorrect && tried.includes(a.id))
-                      const wrongCount = tried.filter((id) => !answers.find((a) => a.id === id)?.isCorrect).length
-                      const exhausted = hasKey && answers.length >= 2 && wrongCount >= answers.length - 1
+                      const progress = getQuizQuestionProgress(q, {
+                        chosenId: selections[current.id],
+                        triedIds: quizTried[current.id],
+                        allowMultiTry,
+                      })
+                      const { pickedCorrect, exhausted, wrongCount } = progress
                       const skipLabel = index >= total - 1 ? 'Hoàn thành' : 'Câu tiếp theo'
                       if (exhausted && !pickedCorrect) {
                         return (
                           <p className="class-play-retry-hint">
-                            Đã hiện đáp án đúng. Bấm {skipLabel} để đi tiếp.
+                            {autoAdvanceMultiTry
+                              ? 'Đã hiện đáp án đúng. Tự chuyển câu tiếp theo.'
+                              : `Đã hiện đáp án đúng. Bấm ${skipLabel} để đi tiếp.`}
                           </p>
                         )
                       }

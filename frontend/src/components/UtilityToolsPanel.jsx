@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import * as classroomService from '../services/classroomService.js'
 import './UtilityToolsPanel.css'
@@ -49,6 +49,17 @@ function ToolTab({ tool, index, active, onSelect }) { return <button type="butto
 
 function Celebration({ winner }) { return winner ? <div className="utility-celebration"><span>🎉</span><strong>Chúc mừng!</strong><b>{winner.name || winner}</b></div> : null }
 
+function duckIdOf(item, index, seed = 0) {
+  return `${String(item?.name || item)}-${index}-${seed}`
+}
+
+function applyDuckTransform(node, duck, field) {
+  if (!node || !field) return
+  const x = duck.x * field.clientWidth
+  const y = duck.y * field.clientHeight
+  node.style.transform = `translate3d(${x}px, ${y}px, 0)`
+}
+
 function PlayView({ tool, onEdit }) {
   const items = tool.type === 'names' ? tool.names : tool.rewards
   const [remaining, setRemaining] = useState(items)
@@ -59,8 +70,33 @@ function PlayView({ tool, onEdit }) {
   const [countdown, setCountdown] = useState(null)
   const [raceParticipants, setRaceParticipants] = useState([])
   const [rankings, setRankings] = useState([])
-  const raceRef = useRef({ frame: 0, timers: [], cancelled: false })
+  const raceRef = useRef({ frame: 0, timers: [], cancelled: false, participants: [] })
+  const fieldRef = useRef(null)
+  const duckNodeRefs = useRef(new Map())
   const pool = tool.removeWinners ? remaining : items
+  const ducks = raceParticipants.length
+    ? raceParticipants
+    : pool.map((item, index) => ({
+        id: duckIdOf(item, index, 'idle'),
+        item,
+        x: 0.02,
+        y: 0.18 + ((index + 0.5) / Math.max(pool.length, 1)) * 0.64,
+      }))
+  const racing = running && countdown === null
+
+  const setDuckNode = (id, node) => {
+    if (!id) return
+    if (node) duckNodeRefs.current.set(id, node)
+    else duckNodeRefs.current.delete(id)
+  }
+
+  const paintDucks = (list) => {
+    const field = fieldRef.current
+    if (!field) return
+    for (const duck of list || []) {
+      applyDuckTransform(duckNodeRefs.current.get(duck.id), duck, field)
+    }
+  }
 
   useEffect(() => () => {
     raceRef.current.cancelled = true
@@ -68,10 +104,29 @@ function PlayView({ tool, onEdit }) {
     raceRef.current.timers.forEach((timer) => window.clearTimeout(timer))
   }, [])
 
+  useLayoutEffect(() => {
+    const live = raceRef.current.participants
+    paintDucks(live?.length ? live : ducks)
+  })
+
+  useEffect(() => {
+    const field = fieldRef.current
+    if (!field || typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(() => {
+      const live = raceRef.current.participants
+      paintDucks(live?.length ? live : ducks)
+    })
+    observer.observe(field)
+    return () => observer.disconnect()
+  }, [raceParticipants, running])
+
   const finishDuckRace = (ordered, first) => {
+    raceRef.current.participants = ordered
+    setRaceParticipants(ordered)
     setRankings(ordered)
     setWinner(first.item)
     setRunning(false)
+    paintDucks(ordered)
     playUtilitySound('win')
     if (tool.removeWinners) setRemaining((prev) => prev.filter((item) => item !== first.item))
     raceRef.current.frame = 0
@@ -80,7 +135,7 @@ function PlayView({ tool, onEdit }) {
   const startDuckRace = () => {
     const startedAt = performance.now()
     const participants = pool.map((item, index) => ({
-      id: `${String(item?.name || item)}-${index}-${startedAt}`,
+      id: duckIdOf(item, index, startedAt),
       item,
       x: 0.02,
       y: 0.18 + ((index + 0.5) / Math.max(pool.length, 1)) * 0.64,
@@ -93,8 +148,11 @@ function PlayView({ tool, onEdit }) {
       finishTime: null,
     }))
     raceRef.current.cancelled = false
+    raceRef.current.participants = participants
     raceRef.current.timers.forEach((timer) => window.clearTimeout(timer))
     raceRef.current.timers = []
+    if (raceRef.current.frame) window.cancelAnimationFrame(raceRef.current.frame)
+    raceRef.current.frame = 0
     setWinner(null); setRankings([]); setRaceParticipants(participants); setRunning(true); setCountdown(3)
     playUtilitySound('spin')
     let count = 3
@@ -126,7 +184,8 @@ function PlayView({ tool, onEdit }) {
               return x >= 1 ? { ...duck, x: 1, y, vx, vy, finished: true, finishTime: now } : { ...duck, x, y, vx, vy }
             })
             participants.splice(0, participants.length, ...next)
-            setRaceParticipants(next)
+            raceRef.current.participants = next
+            paintDucks(next)
             const finished = next.filter((duck) => duck.finished).sort((a, b) => a.finishTime - b.finishTime)
             if (finished.length) {
               const ordered = [...finished, ...next.filter((duck) => !duck.finished).sort((a, b) => b.x - a.x)]
@@ -163,10 +222,68 @@ function PlayView({ tool, onEdit }) {
 
   const labels = pool.map((item) => item.name || item)
   const slice = 360 / Math.max(labels.length, 1)
-  const ducks = raceParticipants.length ? raceParticipants : pool.map((item, index) => ({ item, x: 0.02, y: 0.18 + ((index + 0.5) / Math.max(pool.length, 1)) * 0.64 }))
-  return <section className="utility-play-view"><div className="utility-play-head"><div><span className="utility-kicker">{tool.mode === 'wheel' ? 'WHEEL' : 'DUCK RACE'}</span><h3>{tool.type === 'names' ? 'Quay tên' : 'Quay phần thưởng'}</h3></div><button type="button" className="utility-edit-button" onClick={onEdit}>Chỉnh sửa</button></div>
-    {tool.mode === 'wheel' ? <div className="utility-wheel-wrap"><div className="utility-pointer" /><div className={`utility-wheel${running ? ' is-running' : ''}`} style={{ transform: `rotate(${rotation}deg)`, background: `conic-gradient(${labels.map((_, i) => `hsl(${(i * 47) % 360} 75% 62%) ${i * slice}deg ${(i + 1) * slice}deg`).join(', ')})` }}>{labels.map((label, i) => <span key={`${label}-${i}`} className="utility-wheel-label" style={{ '--wheel-angle': `${i * slice + slice / 2}deg` }}>{label}</span>)}</div></div> : <div className="utility-race"><div className="utility-race-start">START</div><div className="utility-race-finish">🏁</div><div className="utility-race-field">{ducks.map((duck, i) => { const label = duck.item?.name || duck.item; const rank = rankings.indexOf(duck); return <div key={`${label}-${i}-${seed}`} className={`utility-duck${rank === 0 && !running ? ' is-race-winner' : ''}`} style={{ left: `${duck.x * 100}%`, top: `${duck.y * 100}%` }}><span>🦆</span><b>{rank >= 0 ? `${rank + 1}. ` : ''}{label}</b></div> })}<div className="utility-start-line" /><div className="utility-finish-line" /></div>{countdown !== null ? <div className="utility-countdown">{countdown}</div> : null}</div>}
-    <div className="utility-play-actions"><button type="button" className="utility-primary utility-spin-button" onClick={run} disabled={!pool.length || running || countdown !== null}>{running ? (tool.mode === 'duck' ? 'Đang đua…' : 'Đang xoay…') : tool.mode === 'duck' ? 'Bắt đầu đua' : 'Xoay'}</button>{tool.removeWinners ? <span>Còn lại: {remaining.length}/{items.length}</span> : <span>Có thể trúng lại</span>}</div><Celebration winner={winner} />{!pool.length ? <p className="utility-empty">Đã hết kết quả để quay.</p> : null}</section>
+
+  return (
+    <section className="utility-play-view">
+      <div className="utility-play-head">
+        <div>
+          <span className="utility-kicker">{tool.mode === 'wheel' ? 'WHEEL' : 'DUCK RACE'}</span>
+          <h3>{tool.type === 'names' ? 'Quay tên' : 'Quay phần thưởng'}</h3>
+        </div>
+        <button type="button" className="utility-edit-button" onClick={onEdit}>Chỉnh sửa</button>
+      </div>
+      {tool.mode === 'wheel' ? (
+        <div className="utility-wheel-wrap">
+          <div className="utility-pointer" />
+          <div
+            className={`utility-wheel${running ? ' is-running' : ''}`}
+            style={{
+              transform: `rotate(${rotation}deg)`,
+              background: `conic-gradient(${labels.map((_, i) => `hsl(${(i * 47) % 360} 75% 62%) ${i * slice}deg ${(i + 1) * slice}deg`).join(', ')})`,
+            }}
+          >
+            {labels.map((label, i) => (
+              <span key={`${label}-${i}`} className="utility-wheel-label" style={{ '--wheel-angle': `${i * slice + slice / 2}deg` }}>{label}</span>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="utility-race">
+          <div className="utility-race-start">START</div>
+          <div className="utility-race-finish">🏁</div>
+          <div className="utility-race-field" ref={fieldRef}>
+            {ducks.map((duck, i) => {
+              const label = duck.item?.name || duck.item
+              const rank = rankings.findIndex((row) => row.id === duck.id)
+              return (
+                <div
+                  key={duck.id || `${label}-${i}`}
+                  ref={(node) => setDuckNode(duck.id, node)}
+                  className={`utility-duck-track${rank === 0 && !running ? ' is-race-winner' : ''}`}
+                >
+                  <div className={`utility-duck${rank === 0 && !running ? ' is-race-winner' : ''}${racing ? ' is-racing' : ''}`}>
+                    <span className="utility-duck-visual">🦆</span>
+                    <b>{rank >= 0 ? `${rank + 1}. ` : ''}{label}</b>
+                  </div>
+                </div>
+              )
+            })}
+            <div className="utility-start-line" />
+            <div className="utility-finish-line" />
+          </div>
+          {countdown !== null ? <div className="utility-countdown">{countdown}</div> : null}
+        </div>
+      )}
+      <div className="utility-play-actions">
+        <button type="button" className="utility-primary utility-spin-button" onClick={run} disabled={!pool.length || running || countdown !== null}>
+          {running ? (tool.mode === 'duck' ? 'Đang đua…' : 'Đang xoay…') : tool.mode === 'duck' ? 'Bắt đầu đua' : 'Xoay'}
+        </button>
+        {tool.removeWinners ? <span>Còn lại: {remaining.length}/{items.length}</span> : <span>Có thể trúng lại</span>}
+      </div>
+      <Celebration winner={winner} />
+      {!pool.length ? <p className="utility-empty">Đã hết kết quả để quay.</p> : null}
+    </section>
+  )
 }
 
 function ConfigureView({ tool, onChange, onRemove, onCreate }) {

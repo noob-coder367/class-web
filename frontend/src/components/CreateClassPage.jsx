@@ -978,8 +978,8 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
                   <p className="create-class-privacy-q">Cho phép thử nhiều đáp án</p>
                   <p className="create-class-hint">
                     {allowMultiTry
-                      ? 'Bật: chọn sai thì ô đó đỏ, vẫn ở câu hiện tại và được thử tiếp. Sai n-1 đáp án thì hiện luôn đáp án đúng (xanh). Có nút chuyển câu / kết thúc để đi tiếp.'
-                      : 'Tắt: chọn một đáp án là hiện đúng/sai rồi chuyển câu (trắc nghiệm).'}
+                      ? 'Bật: chọn sai thì ô đó đỏ, vẫn ở câu hiện tại và được thử tiếp. Sai hết đáp án sai thì hiện đáp án đúng. Không tự qua câu chỉ vì một lần chọn sai.'
+                      : 'Tắt: chỉ được chọn một lần. Đúng/sai hiện ngay. Có tự qua câu hay không do công tắc bên dưới.'}
                   </p>
                 </div>
                 <button
@@ -994,15 +994,17 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
                 </button>
               </div>
 
-              <div className={`create-class-privacy-row${allowMultiTry ? '' : ' is-disabled'}`}>
+              <div className="create-class-privacy-row">
                 <div className="create-class-privacy-copy">
                   <p className="create-class-privacy-q">Tự động qua câu tiếp theo</p>
                   <p className="create-class-hint">
                     {allowMultiTry
                       ? autoAdvanceMultiTry
-                        ? 'Bật: sau khi trả lời đúng hoặc đã thử hết các đáp án, hệ thống tự chuyển câu.'
-                        : 'Tắt: sau khi trả lời đúng hoặc sai, vẫn ở lại để bạn tự bấm Câu tiếp theo/Hoàn thành.'
-                      : 'Chỉ áp dụng khi bật Cho phép thử nhiều đáp án.'}
+                        ? 'Bật: sai thì ở lại để thử tiếp. Chỉ tự qua câu khi trả lời đúng hoặc đã hết đáp án để thử.'
+                        : 'Tắt: đúng hay sai đều ở lại. Tự bấm Câu tiếp theo/Hoàn thành để đi tiếp.'
+                      : autoAdvanceMultiTry
+                        ? 'Bật: sau khi chọn 1 đáp án (đúng hoặc sai), hệ thống tự chuyển câu.'
+                        : 'Tắt: sau khi chọn đáp án vẫn ở lại câu hiện tại, tự bấm Câu tiếp theo/Hoàn thành.'}
                   </p>
                 </div>
                 <button
@@ -1011,7 +1013,6 @@ export default function CreateClassPage({ onBack, editingClass, onSaved }) {
                   role="switch"
                   aria-checked={autoAdvanceMultiTry}
                   aria-label="Tự động qua câu tiếp theo"
-                  disabled={!allowMultiTry}
                   onClick={() => setAutoAdvanceMultiTry((v) => !v)}
                 >
                   <span className="create-class-switch-knob" />
