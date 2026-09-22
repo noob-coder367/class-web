@@ -192,15 +192,10 @@ function PlayView({ tool, onEdit }) {
               finishDuckRace(ordered, finished[0])
               return
             }
-            if (elapsed < 14) {
-              raceRef.current.frame = window.requestAnimationFrame(updateRace)
-              return
-            }
-            const ordered = [...next].sort((a, b) => b.x - a.x)
-            const first = ordered[0]
-            finishDuckRace(ordered, first)
+            // Không chọn người thắng theo timeout hoặc theo vị trí gần đích.
+            // Race chỉ kết thúc khi một participant thật sự đạt finish line.
+            raceRef.current.frame = window.requestAnimationFrame(updateRace)
           }
-          raceRef.current.frame = window.requestAnimationFrame(updateRace)
         }, 500)
         raceRef.current.timers.push(goTimer)
       }
