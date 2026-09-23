@@ -88,7 +88,11 @@ router.delete(
   classroomController.deleteCleaningPhoto
 )
 router.get('/cleaning-duty/review', classroomController.getCleaningReview)
-router.put('/cleaning-duty/review', classroomController.putCleaningReview)
+router.put(
+  '/cleaning-duty/review',
+  requireCapability('cleaningDuty'),
+  classroomController.putCleaningReview
+)
 
 router.get('/members', classroomController.getMembers)
 router.get('/directory', requireCapability('directory'), classroomController.getDirectory)
