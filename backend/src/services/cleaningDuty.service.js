@@ -101,7 +101,11 @@ function normalizeStatus(raw) {
 
 function mediaDataError(error, fallback) {
   const message = String(error?.message || '')
-  if (/relation .* does not exist|undefined table|schema cache/i.test(message)) {
+  // Chỉ coi là thiếu bảng khi đúng là table chưa có / chưa vào PostgREST cache.
+  // Lỗi "Could not find the 'xyz' column ... in the schema cache" là bug payload, không phải chưa chạy SQL.
+  if (/relation .*cleaning_duty_(photos|reviews).* does not exist/i.test(message)
+    || /could not find the table ['"]?public\.cleaning_duty_(photos|reviews)['"]? in the schema cache/i.test(message)
+    || /undefined table.*cleaning_duty_(photos|reviews)/i.test(message)) {
     return new AppError('Tính năng ảnh và đánh giá trực nhật chưa được cấu hình. Admin cần chạy cleaning-duty-media-schema.sql.', 503)
   }
   return new AppError(`${fallback}: ${message || 'lỗi không xác định'}`, 500)
@@ -445,17 +449,40 @@ export async function deleteDutyPhoto(id) {
 
 export async function getDutyReview(weekStartRaw, dutyDateRaw, dayIdRaw, profile) {
   const target = validateDutyTarget(weekStartRaw, dutyDateRaw, dayIdRaw)
-  const { data, error } = await supabaseAdmin.from('cleaning_duty_reviews').select('*').eq('week_start', target.weekStartISO).eq('duty_date', target.dutyDateISO).eq('updated_by', profile?.id || '').maybeSingle()
+  const userId = asText(profile?.id)
+  if (!userId) return { ...target, review: { rating: 0, comment: '' } }
+  const { data, error } = await supabaseAdmin
+    .from('cleaning_duty_reviews')
+    .select('*')
+    .eq('week_start', target.weekStartISO)
+    .eq('duty_date', target.dutyDateISO)
+    .eq('updated_by', userId)
+    .maybeSingle()
   if (error) throw mediaDataError(error, 'Không tải được đánh giá trực nhật')
   return { ...target, review: data || { rating: 0, comment: '' } }
 }
 
 export async function saveDutyReview(weekStartRaw, dutyDateRaw, dayIdRaw, payload, profile) {
   const target = validateDutyTarget(weekStartRaw, dutyDateRaw, dayIdRaw)
+  const userId = asText(profile?.id)
+  if (!userId) throw new AppError('Cần đăng nhập để đánh giá trực nhật.', 401)
   const rating = Number(payload?.rating)
   if (!Number.isInteger(rating) || rating < 0 || rating > 5) throw new AppError('Mức đánh giá phải từ 0 đến 5 sao.')
-  const row = { ...target, rating, comment: asText(payload?.comment).slice(0, 1000), updated_by: profile?.id || null, updated_by_name: asText(profile?.username) || null, updated_at: new Date().toISOString() }
-  const { data, error } = await supabaseAdmin.from('cleaning_duty_reviews').upsert([row], { onConflict: 'week_start,duty_date,updated_by' }).select('*').maybeSingle()
+  const row = {
+    week_start: target.weekStartISO,
+    duty_date: target.dutyDateISO,
+    day_of_week: target.dayId,
+    rating,
+    comment: asText(payload?.comment).slice(0, 1000),
+    updated_by: userId,
+    updated_by_name: asText(profile?.username) || null,
+    updated_at: new Date().toISOString(),
+  }
+  const { data, error } = await supabaseAdmin
+    .from('cleaning_duty_reviews')
+    .upsert([row], { onConflict: 'week_start,duty_date,updated_by' })
+    .select('*')
+    .maybeSingle()
   if (error) throw mediaDataError(error, 'Không lưu được đánh giá trực nhật')
   return { ...target, review: data }
 }

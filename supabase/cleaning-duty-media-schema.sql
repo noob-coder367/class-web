@@ -52,6 +52,9 @@ ALTER TABLE public.cleaning_duty_reviews ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.cleaning_duty_photos FROM anon, authenticated;
 REVOKE ALL ON TABLE public.cleaning_duty_reviews FROM anon, authenticated;
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.cleaning_duty_photos TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.cleaning_duty_reviews TO service_role;
+
 -- Backend service_role thực hiện toàn bộ đọc/ghi; không mở quyền ghi trực tiếp cho client.
 DO $$
 DECLARE pol record;
@@ -64,3 +67,5 @@ BEGIN
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, pol.tablename);
   END LOOP;
 END $$;
+
+NOTIFY pgrst, 'reload schema';
