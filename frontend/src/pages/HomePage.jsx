@@ -321,26 +321,32 @@ export default function HomePage() {
   }, [goToLegacyClassHash])
 
   useEffect(() => {
-    fetchAnnouncements()
     loadSiteImages()
 
     const onImagesUpdated = () => loadSiteImages()
     window.addEventListener('site-images-updated', onImagesUpdated)
 
+    return () => {
+      window.removeEventListener('site-images-updated', onImagesUpdated)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!authReady || !profile?.is_member) return undefined
+    fetchAnnouncements()
+
     const onHomeRefresh = () => {
       fetchAnnouncements()
-      loadSiteImages()
       refreshUnread()
     }
     window.addEventListener('classweb-home-refresh', onHomeRefresh)
     window.addEventListener('classweb-class-refresh', onHomeRefresh)
 
     return () => {
-      window.removeEventListener('site-images-updated', onImagesUpdated)
       window.removeEventListener('classweb-home-refresh', onHomeRefresh)
       window.removeEventListener('classweb-class-refresh', onHomeRefresh)
     }
-  }, [refreshUnread])
+  }, [authReady, profile?.is_member, refreshUnread])
 
   useEffect(() => {
     if (!authReady || !showClassRoom) return

@@ -5,6 +5,8 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api
 const ACCESS_TOKEN_KEY = 'class-web:access_token'
 const FETCH_TIMEOUT_MS = 20_000
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504])
+let sessionSnapshot = null
+let sessionLookupPromise = null
 
 export function saveAccessToken(token) {
   if (token) {
@@ -18,18 +20,36 @@ export function getAccessToken() {
   return localStorage.getItem(ACCESS_TOKEN_KEY)
 }
 
+export function setSessionSnapshot(session) {
+  sessionSnapshot = session || null
+  saveAccessToken(session?.access_token || null)
+}
+
 /**
  * Supabase tự refresh access_token ngầm.
  * Trước mỗi request cần auth: lấy token mới nhất từ getSession().
  */
 async function getFreshAccessToken() {
+  const now = Math.floor(Date.now() / 1000)
+  if (sessionSnapshot?.access_token && (!sessionSnapshot.expires_at || sessionSnapshot.expires_at > now + 30)) {
+    return sessionSnapshot.access_token
+  }
+
+  if (sessionLookupPromise) return sessionLookupPromise
+
+  sessionLookupPromise = (async () => {
   const {
     data: { session },
   } = await supabase.auth.getSession()
+    setSessionSnapshot(session)
+    return session?.access_token || null
+  })()
 
-  const token = session?.access_token || null
-  saveAccessToken(token)
-  return token
+  try {
+    return await sessionLookupPromise
+  } finally {
+    sessionLookupPromise = null
+  }
 }
 
 function wait(ms) {
@@ -98,7 +118,7 @@ async function request(path, { method = 'GET', body, auth = false, _retried = fa
     try {
       const { data: refreshed, error } = await supabase.auth.refreshSession()
       if (!error && refreshed?.session?.access_token) {
-        saveAccessToken(refreshed.session.access_token)
+        setSessionSnapshot(refreshed.session)
         return request(path, { method, body, auth, _retried: true, _attempt })
       }
     } catch {

@@ -1,4 +1,5 @@
-import { apiClient, saveAccessToken } from './apiClient.js'
+import { apiClient, saveAccessToken, setSessionSnapshot } from './apiClient.js'
+import { clearClassroomCache } from './classroomService.js'
 import { supabase } from '../lib/supabaseClient.js'
 
 export async function register({ username, email, password, isMember, secretCode }) {
@@ -67,11 +68,13 @@ export async function getUsernameChangeStatus() {
 
 export async function logout() {
   saveAccessToken(null)
+  setSessionSnapshot(null)
+  clearClassroomCache()
   await supabase.auth.signOut()
 }
 
 async function applySession(session) {
-  saveAccessToken(session.access_token)
+  setSessionSnapshot(session)
 
   await supabase.auth.setSession({
     access_token: session.access_token,

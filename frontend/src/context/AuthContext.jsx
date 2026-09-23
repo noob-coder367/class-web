@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { supabase, initialAuthRedirect } from '../lib/supabaseClient.js'
 import * as authService from '../services/authService.js'
-import { saveAccessToken } from '../services/apiClient.js'
+import { saveAccessToken, setSessionSnapshot } from '../services/apiClient.js'
 import { capabilitiesFor, hasCapability, isAdminRole } from '../lib/roles.js'
 
 const AuthContext = createContext(null)
@@ -51,6 +51,7 @@ export function AuthProvider({ children }) {
     () => initialAuthRedirect.type === 'recovery' && !initialAuthRedirect.error
   )
   const profileRef = useRef(null)
+  const profileRequestRef = useRef(null)
 
   useEffect(() => {
     profileRef.current = profile
@@ -94,35 +95,47 @@ export function AuthProvider({ children }) {
         return applyProfile(p, userId)
       }
 
-      try {
-        return await tryFetch()
-      } catch (err) {
-        console.warn('Lỗi lấy profile (lần 1):', err?.message || err)
+      const requestKey = `${userId}:${activeSession.access_token || ''}`
+      if (profileRequestRef.current?.key === requestKey) return profileRequestRef.current.promise
 
-        if (err?.status === 401) {
-          try {
-            const { data, error } = await supabase.auth.refreshSession()
-            if (!error && data?.session) {
-              saveAccessToken(data.session.access_token)
-              setSession(data.session)
-              try {
-                return await tryFetch()
-              } catch (err2) {
-                console.warn('Lỗi lấy profile sau refresh:', err2?.message || err2)
+      const request = (async () => {
+        try {
+          return await tryFetch()
+        } catch (err) {
+          console.warn('Lỗi lấy profile (lần 1):', err?.message || err)
+
+          if (err?.status === 401) {
+            try {
+              const { data, error } = await supabase.auth.refreshSession()
+              if (!error && data?.session) {
+                setSessionSnapshot(data.session)
+                setSession(data.session)
+                try {
+                  return await tryFetch()
+                } catch (err2) {
+                  console.warn('Lỗi lấy profile sau refresh:', err2?.message || err2)
+                }
               }
+            } catch (refreshErr) {
+              console.warn('Refresh session thất bại:', refreshErr?.message || refreshErr)
             }
-          } catch (refreshErr) {
-            console.warn('Refresh session thất bại:', refreshErr?.message || refreshErr)
           }
-        }
 
-        if (profileRef.current) return profileRef.current
-        const cached = readCachedProfile(userId)
-        if (cached) {
-          setProfile(cached)
-          return cached
+          if (profileRef.current) return profileRef.current
+          const cached = readCachedProfile(userId)
+          if (cached) {
+            setProfile(cached)
+            return cached
+          }
+          return null
         }
-        return null
+      })()
+
+      profileRequestRef.current = { key: requestKey, promise: request }
+      try {
+        return await request
+      } finally {
+        if (profileRequestRef.current?.promise === request) profileRequestRef.current = null
       }
     },
     [applyProfile]
@@ -139,14 +152,15 @@ export function AuthProvider({ children }) {
 
       if (!mounted) return
       setSession(currentSession)
+      setSessionSnapshot(currentSession)
 
       if (currentSession?.user) {
         // Hiện cache ngay trước khi await API
         const cached = readCachedProfile(currentSession.user.id)
         if (cached) setProfile(cached)
-        await loadProfile(currentSession)
       }
       setAuthReady(true)
+      if (currentSession?.user) void loadProfile(currentSession)
     }
 
     init()
@@ -157,10 +171,11 @@ export function AuthProvider({ children }) {
       if (!mounted) return
       if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true)
       setSession(newSession)
+      setSessionSnapshot(newSession)
       if (newSession?.user) {
         if (event === 'TOKEN_REFRESHED' && profileRef.current) {
           if (newSession.access_token) {
-            saveAccessToken(newSession.access_token)
+            setSessionSnapshot(newSession)
           }
           return
         }

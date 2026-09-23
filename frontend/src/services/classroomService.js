@@ -1,5 +1,34 @@
 import { apiClient } from './apiClient.js'
 
+const GET_CACHE_TTL_MS = 5_000
+const getCache = new Map()
+
+function cachedGet(key, loader) {
+  const now = Date.now()
+  const hit = getCache.get(key)
+  if (hit && (hit.promise || hit.expiresAt > now)) return hit.promise || Promise.resolve(hit.value)
+
+  const promise = loader()
+    .then((value) => {
+      getCache.set(key, { value, expiresAt: Date.now() + GET_CACHE_TTL_MS })
+      return value
+    })
+    .finally(() => {
+      const current = getCache.get(key)
+      if (current?.promise === promise) getCache.delete(key)
+    })
+  getCache.set(key, { promise })
+  return promise
+}
+
+function invalidate(...keys) {
+  keys.forEach((key) => getCache.delete(key))
+}
+
+export function clearClassroomCache() {
+  getCache.clear()
+}
+
 export async function checkAccess() {
   return apiClient.get('/classroom/access', { auth: true })
 }
@@ -11,61 +40,77 @@ export async function getTabContent(tab) {
 }
 
 export async function getTimetable() {
-  return apiClient.get('/classroom/timetable', { auth: true })
+  return cachedGet('timetable', () => apiClient.get('/classroom/timetable', { auth: true }))
 }
 
 export async function saveTimetable(timetable) {
-  return apiClient.put('/classroom/timetable', { timetable }, { auth: true })
+  const result = await apiClient.put('/classroom/timetable', { timetable }, { auth: true })
+  invalidate('timetable')
+  return result
 }
 
 /** Ẩn thông báo thay đổi TKB. Ưu tiên POST để tránh host/proxy chặn DELETE. */
 export async function dismissTimetableNotice() {
   try {
-    return await apiClient.post('/classroom/timetable/notice/dismiss', {}, { auth: true })
+    const result = await apiClient.post('/classroom/timetable/notice/dismiss', {}, { auth: true })
+    invalidate('timetable')
+    return result
   } catch (err) {
     if (err?.status === 404) {
-      return apiClient.delete('/classroom/timetable/notice', { auth: true })
+      const result = await apiClient.delete('/classroom/timetable/notice', { auth: true })
+      invalidate('timetable')
+      return result
     }
     throw err
   }
 }
 
 export async function getAnnouncements() {
-  return apiClient.get('/classroom/announcements', { auth: true })
+  return cachedGet('announcements', () => apiClient.get('/classroom/announcements', { auth: true }))
 }
 
 export async function createAnnouncement(payload) {
-  return apiClient.post('/classroom/announcements', payload, { auth: true })
+  const result = await apiClient.post('/classroom/announcements', payload, { auth: true })
+  invalidate('announcements')
+  return result
 }
 
 export async function deleteAnnouncement(id) {
-  return apiClient.delete(`/classroom/announcements/${encodeURIComponent(id)}`, {
+  const result = await apiClient.delete(`/classroom/announcements/${encodeURIComponent(id)}`, {
     auth: true,
   })
+  invalidate('announcements')
+  return result
 }
 
 export async function updateAnnouncementExpiry(id, expires_at) {
-  return apiClient.patch(
+  const result = await apiClient.patch(
     `/classroom/announcements/${encodeURIComponent(id)}/expiry`,
     { expires_at },
     { auth: true }
   )
+  invalidate('announcements')
+  return result
 }
 
 export async function hideAnnouncement(id) {
-  return apiClient.patch(
+  const result = await apiClient.patch(
     `/classroom/announcements/${encodeURIComponent(id)}/hide`,
     {},
     { auth: true }
   )
+  invalidate('announcements')
+  return result
 }
 
 export async function unhideAnnouncement(id) {
-  return apiClient.patch(
+  const result = await apiClient.patch(
     `/classroom/announcements/${encodeURIComponent(id)}/unhide`,
     {},
     { auth: true }
   )
+  invalidate('announcements')
+  return result
 }
 
 export async function getAnnouncementsArchive(section) {
@@ -74,39 +119,49 @@ export async function getAnnouncementsArchive(section) {
 }
 
 export async function getHomework() {
-  return apiClient.get('/classroom/homework', { auth: true })
+  return cachedGet('homework', () => apiClient.get('/classroom/homework', { auth: true }))
 }
 
 export async function createHomework(payload) {
-  return apiClient.post('/classroom/homework', payload, { auth: true })
+  const result = await apiClient.post('/classroom/homework', payload, { auth: true })
+  invalidate('homework', 'announcements')
+  return result
 }
 
 export async function deleteHomework(id) {
-  return apiClient.delete(`/classroom/homework/${encodeURIComponent(id)}`, {
+  const result = await apiClient.delete(`/classroom/homework/${encodeURIComponent(id)}`, {
     auth: true,
   })
+  invalidate('homework', 'announcements')
+  return result
 }
 
 export async function getRules() {
-  return apiClient.get('/classroom/rules', { auth: true })
+  return cachedGet('rules', () => apiClient.get('/classroom/rules', { auth: true }))
 }
 
 export async function saveRules(rules) {
-  return apiClient.put('/classroom/rules', { rules }, { auth: true })
+  const result = await apiClient.put('/classroom/rules', { rules }, { auth: true })
+  invalidate('rules')
+  return result
 }
 
 export async function getViolations() {
-  return apiClient.get('/classroom/violations', { auth: true })
+  return cachedGet('violations', () => apiClient.get('/classroom/violations', { auth: true }))
 }
 
 export async function addViolation(violation) {
-  return apiClient.post('/classroom/violations', { violation }, { auth: true })
+  const result = await apiClient.post('/classroom/violations', { violation }, { auth: true })
+  invalidate('violations')
+  return result
 }
 
 export async function deleteViolation(id) {
-  return apiClient.delete(`/classroom/violations/${encodeURIComponent(id)}`, {
+  const result = await apiClient.delete(`/classroom/violations/${encodeURIComponent(id)}`, {
     auth: true,
   })
+  invalidate('violations')
+  return result
 }
 
 export async function getMembers() {

@@ -20,6 +20,7 @@ const MAX_CHANGES_PER_WEEK = 2
 const GHOST_EMAIL_PREFIX = 'taikhoanma-'
 const GHOST_EMAIL_DOMAIN = 'ghost.com'
 export const GHOST_DAILY_LIMIT = 2
+const profileInflight = new Map()
 
 export function isPendingUsername(username) {
   return !username || String(username).startsWith(PENDING_USERNAME_PREFIX)
@@ -681,15 +682,28 @@ async function getAuthUserByAccessToken(accessToken) {
   }
 }
 
+async function getProfileForUser(user) {
+  const existing = profileInflight.get(user.id)
+  if (existing) return existing
+
+  const task = (async () => {
+    let profile = await findProfileById(user.id)
+    if (!profile) profile = await ensureProfile(user)
+    else profile = await forcePendingIfAutoNamed(user, profile)
+    return profile
+  })()
+  profileInflight.set(user.id, task)
+  try {
+    return await task
+  } finally {
+    profileInflight.delete(user.id)
+  }
+}
+
 export async function getUserFromAccessToken(accessToken) {
   const user = await getAuthUserByAccessToken(accessToken)
   if (!user) return null
 
-  let profile = await findProfileById(user.id)
-  if (!profile) {
-    profile = await ensureProfile(user)
-  } else {
-    profile = await forcePendingIfAutoNamed(user, profile)
-  }
+  const profile = await getProfileForUser(user)
   return { user, profile }
 }
