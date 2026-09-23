@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
+import { randomUUID } from 'node:crypto'
 
 /**
  * Dữ liệu "Lịch trực vệ sinh" do LPLĐ (Lớp phó Lao động) + Admin quản lý.
@@ -28,6 +29,10 @@ export const DAY_LABELS = Object.freeze({
  * Giữ tương thích ngược với dữ liệu cũ: pending → preparing, not_done → not_clean.
  */
 const STATUS_VALUES = new Set(['preparing', 'doing', 'done', 'not_clean', 'pending', 'not_done'])
+const MEDIA_BUCKET = 'classroom-data'
+const MAX_PHOTOS_PER_UPLOAD = 20
+const MAX_PHOTO_BYTES = 15 * 1024 * 1024
+const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'])
 
 function asText(value, fallback = '') {
   return String(value ?? fallback).trim()
@@ -91,6 +96,14 @@ function normalizeStatus(raw) {
   if (s === 'not_done') return 'not_clean'
   if (STATUS_VALUES.has(s)) return s
   return 'preparing'
+}
+
+function mediaDataError(error, fallback) {
+  const message = String(error?.message || '')
+  if (/relation .* does not exist|undefined table|schema cache/i.test(message)) {
+    return new AppError('Tính năng ảnh và đánh giá trực nhật chưa được cấu hình. Admin cần chạy cleaning-duty-media-schema.sql.', 503)
+  }
+  return new AppError(`${fallback}: ${message || 'lỗi không xác định'}`, 500)
 }
 
 function normalizeDaySlot(raw) {
@@ -315,6 +328,93 @@ export async function updateDayStatus(dutyDateRaw, payload, profile) {
     ...data,
     status: normalizeStatus(data?.status),
   }
+}
+
+function validateDutyTarget(weekStartRaw, dutyDateRaw, dayIdRaw) {
+  const weekStart = weekStartRaw && isValidISODate(weekStartRaw) ? getWeekStart(weekStartRaw) : getWeekStart()
+  const weekStartISO = toISODate(weekStart)
+  if (!isValidISODate(dutyDateRaw)) throw new AppError('Ngày trực không hợp lệ.')
+  const dutyDate = toMidnight(dutyDateRaw)
+  const dayId = dayIdRaw || DAY_IDS[((dutyDate.getDay() + 6) % 7)]
+  if (!DAY_IDS.includes(dayId) || toISODate(dateForDay(weekStart, dayId)) !== toISODate(dutyDate)) {
+    throw new AppError('Ngày trực không thuộc tuần đã chọn.')
+  }
+  return { weekStartISO, dutyDateISO: toISODate(dutyDate), dayId }
+}
+
+async function ensureMediaBucket() {
+  const { data, error } = await supabaseAdmin.storage.getBucket(MEDIA_BUCKET)
+  if (error || !data) throw new AppError(`Kho dữ liệu "${MEDIA_BUCKET}" chưa được cấu hình trên Supabase.`, 503)
+}
+
+export async function listDutyPhotos(weekStartRaw, dutyDateRaw, dayIdRaw) {
+  const target = validateDutyTarget(weekStartRaw, dutyDateRaw, dayIdRaw)
+  await ensureMediaBucket()
+  const { data, error } = await supabaseAdmin.from('cleaning_duty_photos').select('id, week_start, duty_date, day_of_week, storage_path, original_name, mime_type, size_bytes, uploaded_by, uploaded_by_name, created_at')
+    .eq('week_start', target.weekStartISO).eq('duty_date', target.dutyDateISO).order('created_at', { ascending: false })
+  if (error) throw mediaDataError(error, 'Không tải được ảnh trực nhật')
+  const items = await Promise.all((data || []).map(async (row) => {
+    const { data: signed, error: signedError } = await supabaseAdmin.storage.from(MEDIA_BUCKET).createSignedUrl(row.storage_path, 3600)
+    if (signedError) throw new AppError('Không tạo được liên kết ảnh trực nhật.', 502)
+    return { ...row, url: signed?.signedUrl || null }
+  }))
+  return { ...target, items }
+}
+
+export async function uploadDutyPhotos({ weekStart, dutyDate, dayId, files }, profile) {
+  const target = validateDutyTarget(weekStart, dutyDate, dayId)
+  const list = Array.isArray(files) ? files : []
+  if (!list.length) throw new AppError('Chưa chọn ảnh trực nhật.')
+  if (list.length > MAX_PHOTOS_PER_UPLOAD) throw new AppError(`Mỗi lượt chỉ được tải tối đa ${MAX_PHOTOS_PER_UPLOAD} ảnh.`)
+  for (const file of list) {
+    if (!IMAGE_TYPES.has(String(file.mimetype || '').toLowerCase())) throw new AppError('Chỉ nhận file ảnh hợp lệ (JPG, PNG, WEBP, GIF, HEIC).')
+    if (Number(file.size) > MAX_PHOTO_BYTES) throw new AppError('Mỗi ảnh không được vượt quá 15MB.')
+  }
+  await ensureMediaBucket()
+  const uploaded = []
+  try {
+    for (const file of list) {
+      const ext = String(file.originalname || '').split('.').pop().replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg'
+      const storagePath = `cleaning-duty/${target.weekStartISO}/${target.dayId}/${randomUUID()}.${ext}`
+      const { error: uploadError } = await supabaseAdmin.storage.from(MEDIA_BUCKET).upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false })
+      if (uploadError) throw new AppError('Không tải được ảnh lên Supabase Storage: ' + uploadError.message, 502)
+      uploaded.push({ storage_path: storagePath, original_name: asText(file.originalname).slice(0, 180) || 'image', mime_type: file.mimetype, size_bytes: file.size, week_start: target.weekStartISO, duty_date: target.dutyDateISO, day_of_week: target.dayId, uploaded_by: profile?.id || null, uploaded_by_name: asText(profile?.username) || null })
+    }
+    const { data, error } = await supabaseAdmin.from('cleaning_duty_photos').insert(uploaded).select('*')
+    if (error) throw mediaDataError(error, 'Ảnh đã tải lên nhưng không lưu được metadata')
+    return { items: data || [] }
+  } catch (err) {
+    await supabaseAdmin.storage.from(MEDIA_BUCKET).remove(uploaded.map((item) => item.storage_path)).catch(() => {})
+    throw err
+  }
+}
+
+export async function deleteDutyPhoto(id) {
+  const { data: row, error: readError } = await supabaseAdmin.from('cleaning_duty_photos').select('id, storage_path').eq('id', String(id || '')).maybeSingle()
+  if (readError) throw mediaDataError(readError, 'Không đọc được metadata ảnh')
+  if (!row) throw new AppError('Không tìm thấy ảnh trực nhật.', 404)
+  const { error: storageError } = await supabaseAdmin.storage.from(MEDIA_BUCKET).remove([row.storage_path])
+  if (storageError) throw new AppError('Không xóa được file ảnh trong Storage: ' + storageError.message, 502)
+  const { error } = await supabaseAdmin.from('cleaning_duty_photos').delete().eq('id', row.id)
+  if (error) throw mediaDataError(error, 'Đã xóa file ảnh nhưng chưa xóa được metadata')
+  return { id: row.id }
+}
+
+export async function getDutyReview(weekStartRaw, dutyDateRaw, dayIdRaw, profile) {
+  const target = validateDutyTarget(weekStartRaw, dutyDateRaw, dayIdRaw)
+  const { data, error } = await supabaseAdmin.from('cleaning_duty_reviews').select('*').eq('week_start', target.weekStartISO).eq('duty_date', target.dutyDateISO).eq('updated_by', profile?.id || '').maybeSingle()
+  if (error) throw mediaDataError(error, 'Không tải được đánh giá trực nhật')
+  return { ...target, review: data || { rating: 0, comment: '' } }
+}
+
+export async function saveDutyReview(weekStartRaw, dutyDateRaw, dayIdRaw, payload, profile) {
+  const target = validateDutyTarget(weekStartRaw, dutyDateRaw, dayIdRaw)
+  const rating = Number(payload?.rating)
+  if (!Number.isInteger(rating) || rating < 0 || rating > 5) throw new AppError('Mức đánh giá phải từ 0 đến 5 sao.')
+  const row = { ...target, rating, comment: asText(payload?.comment).slice(0, 1000), updated_by: profile?.id || null, updated_by_name: asText(profile?.username) || null, updated_at: new Date().toISOString() }
+  const { data, error } = await supabaseAdmin.from('cleaning_duty_reviews').upsert([row], { onConflict: 'week_start,duty_date,updated_by' }).select('*').maybeSingle()
+  if (error) throw mediaDataError(error, 'Không lưu được đánh giá trực nhật')
+  return { ...target, review: data }
 }
 
 /**

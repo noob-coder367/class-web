@@ -71,8 +71,8 @@ function shouldRetry(method, status, networkError, attempt) {
   return false
 }
 
-async function request(path, { method = 'GET', body, auth = false, _retried = false, _attempt = 0 } = {}) {
-  const headers = { 'Content-Type': 'application/json' }
+async function request(path, { method = 'GET', body, auth = false, formData = false, _retried = false, _attempt = 0 } = {}) {
+  const headers = formData ? {} : { 'Content-Type': 'application/json' }
 
   if (auth) {
     const token = await getFreshAccessToken()
@@ -87,14 +87,14 @@ async function request(path, { method = 'GET', body, auth = false, _retried = fa
     res = await fetch(`${BASE_URL}${path}`, {
       method,
       headers,
-      ...(body && method !== 'GET' && method !== 'HEAD' ? { body: JSON.stringify(body) } : {}),
+      ...(body && method !== 'GET' && method !== 'HEAD' ? { body: formData ? body : JSON.stringify(body) } : {}),
       signal: controller.signal,
     })
   } catch (err) {
     clearTimeout(timer)
     if (shouldRetry(method, 0, true, _attempt)) {
       await wait(retryDelayMs(_attempt))
-      return request(path, { method, body, auth, _retried, _attempt: _attempt + 1 })
+      return request(path, { method, body, auth, formData, _retried, _attempt: _attempt + 1 })
     }
     const failed = new Error(
       err?.name === 'AbortError'
@@ -119,7 +119,7 @@ async function request(path, { method = 'GET', body, auth = false, _retried = fa
       const { data: refreshed, error } = await supabase.auth.refreshSession()
       if (!error && refreshed?.session?.access_token) {
         setSessionSnapshot(refreshed.session)
-        return request(path, { method, body, auth, _retried: true, _attempt })
+        return request(path, { method, body, auth, formData, _retried: true, _attempt })
       }
     } catch {
       /* fall through */
@@ -129,7 +129,7 @@ async function request(path, { method = 'GET', body, auth = false, _retried = fa
   if (!res.ok) {
     if (shouldRetry(method, res.status, false, _attempt)) {
       await wait(retryDelayMs(_attempt, res.headers.get('Retry-After')))
-      return request(path, { method, body, auth, _retried, _attempt: _attempt + 1 })
+      return request(path, { method, body, auth, formData, _retried, _attempt: _attempt + 1 })
     }
     if (res.status === 401 && path.startsWith('/classroom') && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('classweb-auth-required', { detail: { path, status: res.status } }))
@@ -146,6 +146,7 @@ async function request(path, { method = 'GET', body, auth = false, _retried = fa
 export const apiClient = {
   get: (path, opts) => request(path, { ...opts, method: 'GET' }),
   post: (path, body, opts) => request(path, { ...opts, method: 'POST', body }),
+  postForm: (path, body, opts) => request(path, { ...opts, method: 'POST', body, formData: true }),
   patch: (path, body, opts) => request(path, { ...opts, method: 'PATCH', body }),
   put: (path, body, opts) => request(path, { ...opts, method: 'PUT', body }),
   delete: (path, opts) => request(path, { ...opts, method: 'DELETE' }),

@@ -6,6 +6,7 @@ import RulesBoard from './RulesBoard.jsx'
 import AnnouncementsBoard from './AnnouncementsBoard.jsx'
 import HomeworkBoard from './HomeworkBoard.jsx'
 import CleaningBoard from './CleaningBoard.jsx'
+import CleaningDutyDetail from './CleaningDutyDetail.jsx'
 import { markSeen, countNewer, countUnseenPosts } from '../lib/unreadStore.js'
 import { capabilitiesFor, isAdminRole } from '../lib/roles.js'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -21,6 +22,7 @@ import {
   classSpaceCreatePath,
   classSpaceRoomPath,
   classSpaceEditPath,
+  parseCleaningPath,
 } from '../lib/routes.js'
 import './ClassRoomView.css'
 
@@ -955,7 +957,13 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     }
 
     if (activeTab === 'homework') return <HomeworkBoard isAdmin={!!caps.homework} />
-    if (activeTab === 'cleaning-duty') return <CleaningBoard isAdmin={!!caps.cleaningDuty} />
+    if (activeTab === 'cleaning-duty') {
+      const cleaningPath = parseCleaningPath(urlRest)
+      if (cleaningPath.dayId) {
+        return <CleaningDutyDetail dayId={cleaningPath.dayId} gallery={cleaningPath.gallery} canUpload={!!caps.cleaningDuty} />
+      }
+      return <CleaningBoard isAdmin={!!caps.cleaningDuty} />
+    }
 
     if (activeTab === 'class-space') {
       if (classSpaceLoading && !classSpaceItems.length) {

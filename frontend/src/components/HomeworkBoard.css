@@ -272,6 +272,22 @@
   color: #fff;
 }
 
+.hw-btn-share {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hw-btn-share:hover {
+  background: #dbeafe;
+}
+
 /* FAB — góc dưới bên phải (chỉ admin) */
 .hw-fab {
   position: fixed;

@@ -110,9 +110,10 @@ Sau khi tạo project, chạy các file SQL này **một lần trên Supabase Da
 1. `supabase/secure-roles.sql` — khóa role, trạng thái thành viên và quyền ghi events.
 2. `supabase/rls-hardening.sql` — bật RLS cho `profiles`/`announcements` và khóa bucket `classroom-data` ở chế độ private.
 3. `supabase/cleaning-duty-schema.sql` — tạo schema và policy cho lịch trực.
-4. `supabase/push-subscriptions.sql` — tạo bảng subscription Web Push (nếu dùng Web Push).
+4. `supabase/cleaning-duty-media-schema.sql` — tạo metadata ảnh/đánh giá theo tuần cho vệ sinh lớp.
+5. `supabase/push-subscriptions.sql` — tạo bảng subscription Web Push (nếu dùng Web Push).
 
-Bucket `classroom-data` **phải private**; dữ liệu JSON classroom chỉ được backend đọc/ghi bằng `service_role`, không cấp public read hoặc quyền insert/update/delete cho client.
+Bucket `classroom-data` **phải private**; dữ liệu JSON classroom và ảnh trực nhật chỉ được backend đọc/ghi bằng `service_role`, không cấp public read hoặc quyền insert/update/delete cho client. Tính năng ảnh trực nhật dùng bucket này, **không tự tạo bucket mới**.
 
 ### 2. Backend
 

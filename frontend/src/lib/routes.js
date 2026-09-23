@@ -141,3 +141,15 @@ export function classSpaceEditPath(code) {
 
 // ---- Vệ sinh lớp: /vo-lop/ve-sinh-chung (alias chia sẻ: /vo-lop/ve-sinh) ----
 export const CLEANING_SHARE_PATH = `${ROUTES.classRoot}/ve-sinh`
+
+export function cleaningDayPath(dayId, gallery = false) {
+  const labels = { t2: 'thu-hai', t3: 'thu-ba', t4: 'thu-tu', t5: 'thu-nam', t6: 'thu-sau', t7: 'thu-bay' }
+  const segment = labels[dayId] || 'thu-hai'
+  return classTabPath('cleaning-duty', segment, ...(gallery ? ['anh-truc'] : []))
+}
+
+export function parseCleaningPath(rest) {
+  const reverse = { 'thu-hai': 't2', 'thu-ba': 't3', 'thu-tu': 't4', 'thu-nam': 't5', 'thu-sau': 't6', 'thu-bay': 't7' }
+  const dayId = reverse[String(rest?.[0] || '').toLowerCase()] || null
+  return { dayId, gallery: dayId ? String(rest?.[1] || '').toLowerCase() === 'anh-truc' : false }
+}

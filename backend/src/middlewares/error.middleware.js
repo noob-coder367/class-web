@@ -5,6 +5,13 @@ export function errorHandler(err, req, res, _next) {
     return res.status(err.statusCode).json({ message: err.message })
   }
 
+  if (err?.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ message: 'Mỗi ảnh không được vượt quá 15MB.' })
+  }
+  if (err?.code === 'LIMIT_FILE_COUNT' || err?.code === 'LIMIT_UNEXPECTED_FILE') {
+    return res.status(400).json({ message: 'Mỗi lượt chỉ được tải tối đa 20 ảnh.' })
+  }
+
   console.error('[Unhandled Error]', err)
   return res.status(500).json({ message: 'Lỗi máy chủ nội bộ.' })
 }

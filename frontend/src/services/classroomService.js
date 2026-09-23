@@ -285,3 +285,30 @@ export async function updateCleaningStatus(date, payload) {
     { auth: true }
   )
 }
+
+export async function getCleaningPhotos({ weekStart, dutyDate, dayId }) {
+  const query = new URLSearchParams({ week_start: weekStart, duty_date: dutyDate, day_id: dayId })
+  return apiClient.get(`/classroom/cleaning-duty/photos?${query.toString()}`, { auth: true })
+}
+
+export async function uploadCleaningPhotos({ weekStart, dutyDate, dayId, files }) {
+  const form = new FormData()
+  form.set('week_start', weekStart)
+  form.set('duty_date', dutyDate)
+  form.set('day_id', dayId)
+  files.forEach((file) => form.append('photos', file, file.name))
+  return apiClient.postForm('/classroom/cleaning-duty/photos', form, { auth: true })
+}
+
+export async function deleteCleaningPhoto(id) {
+  return apiClient.delete(`/classroom/cleaning-duty/photos/${encodeURIComponent(id)}`, { auth: true })
+}
+
+export async function getCleaningReview({ weekStart, dutyDate, dayId }) {
+  const query = new URLSearchParams({ week_start: weekStart, duty_date: dutyDate, day_id: dayId })
+  return apiClient.get(`/classroom/cleaning-duty/review?${query.toString()}`, { auth: true })
+}
+
+export async function saveCleaningReview({ weekStart, dutyDate, dayId, rating, comment }) {
+  return apiClient.put('/classroom/cleaning-duty/review', { week_start: weekStart, duty_date: dutyDate, day_id: dayId, rating, comment }, { auth: true })
+}

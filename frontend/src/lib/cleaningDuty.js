@@ -130,6 +130,14 @@ export function dayIdFor(dateLike) {
   return DAY_IDS[day - 1]
 }
 
+export function dateForDayISO(weekStartISO, dayId) {
+  const index = DAY_IDS.indexOf(dayId)
+  if (index < 0) return ''
+  const d = toMidnight(weekStartISO)
+  d.setDate(d.getDate() + index)
+  return toISODate(d)
+}
+
 export function formatDateVN(value) {
   if (!value) return ''
   const [y, m, d] = String(value).split('-')

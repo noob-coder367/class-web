@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import * as classroomService from '../services/classroomService.js'
 import CleaningDutySettings from './CleaningDutySettings.jsx'
 import {
@@ -14,7 +15,7 @@ import {
   todayISO,
   tomorrowISO,
 } from '../lib/cleaningDuty.js'
-import { CLEANING_SHARE_PATH } from '../lib/routes.js'
+import { CLEANING_SHARE_PATH, cleaningDayPath } from '../lib/routes.js'
 import { shareHelper } from '../utils/shareHelper.js'
 import './CleaningBoard.css'
 
@@ -57,7 +58,7 @@ function getAssigneesForDate(schedule, dateISO) {
   return schedule.days[dayId]?.assignees || []
 }
 
-function DutyStatusCard({ title, dateISO, statusRow, assignees, isAdmin, onUpdate, updating }) {
+function DutyStatusCard({ title, dateISO, statusRow, assignees, isAdmin, onUpdate, updating, onOpen }) {
   const dayId = dayIdFor(dateISO)
   const displayStatus = effectiveStatus(dateISO, statusRow)
 
@@ -132,6 +133,10 @@ function DutyStatusCard({ title, dateISO, statusRow, assignees, isAdmin, onUpdat
               </button>
             </div>
           ) : null}
+          <div className="cleaning-status-media-actions">
+            <button type="button" onClick={() => onOpen(dayId, true)}>Xem ảnh trực</button>
+            {isAdmin ? <button type="button" className="cleaning-status-add" onClick={() => onOpen(dayId, true)} aria-label="Thêm ảnh trực nhật">+</button> : null}
+          </div>
         </>
       )}
     </div>
@@ -139,6 +144,7 @@ function DutyStatusCard({ title, dateISO, statusRow, assignees, isAdmin, onUpdat
 }
 
 export default function CleaningBoard({ isAdmin }) {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [schedule, setSchedule] = useState(null)
@@ -150,10 +156,16 @@ export default function CleaningBoard({ isAdmin }) {
   const todayDate = todayISO()
   const tomorrowDate = tomorrowISO()
   // Chủ nhật → tuần hiệu lực = tuần sau (T2–T7 sắp tới)
-  const currentWeekStart = useMemo(() => getActiveWeekStartISO(new Date()), [])
-  const currentWeekEnd = useMemo(() => getActiveWeekEndISO(new Date()), [])
+  const [activeWeekStart, setActiveWeekStart] = useState(() => getActiveWeekStartISO(new Date()))
+  const currentWeekStart = activeWeekStart
+  const currentWeekEnd = useMemo(() => getActiveWeekEndISO(activeWeekStart), [activeWeekStart])
   const todayWeekStart = useMemo(() => getWeekStartISO(todayDate), [todayDate])
   const tomorrowWeekStart = useMemo(() => getWeekStartISO(tomorrowDate), [tomorrowDate])
+
+  useEffect(() => {
+    const timer = setInterval(() => setActiveWeekStart(getActiveWeekStartISO(new Date())), 60_000)
+    return () => clearInterval(timer)
+  }, [])
 
   const load = async () => {
     setLoading(true)
@@ -219,6 +231,8 @@ export default function CleaningBoard({ isAdmin }) {
     })
   }
 
+  const openDay = (dayId, gallery = false) => navigate(cleaningDayPath(dayId, gallery))
+
   return (
     <div className="cleaning-board">
       {error ? <p className="cleaning-board-error">{error}</p> : null}
@@ -237,6 +251,7 @@ export default function CleaningBoard({ isAdmin }) {
               isAdmin={isAdmin}
               onUpdate={handleUpdateStatus}
               updating={updatingDate === todayDate}
+              onOpen={openDay}
             />
             <DutyStatusCard
               title="Ngày mai"
@@ -246,6 +261,7 @@ export default function CleaningBoard({ isAdmin }) {
               isAdmin={isAdmin}
               onUpdate={handleUpdateStatus}
               updating={updatingDate === tomorrowDate}
+              onOpen={openDay}
             />
           </div>
         )}
@@ -288,7 +304,7 @@ export default function CleaningBoard({ isAdmin }) {
                   const isToday = dayIdFor(todayDate) === dayId && currentWeekStart === todayWeekStart
                   return (
                     <tr key={dayId} className={isToday ? 'cleaning-row--today' : ''}>
-                      <td className="cleaning-table-day">{dayLabel(dayId)}</td>
+                      <td className="cleaning-table-day"><button type="button" className="cleaning-table-day-link" onClick={() => openDay(dayId)}>{dayLabel(dayId)}</button></td>
                       <td>
                         {day?.assignees?.length ? (
                           <div className="cleaning-assignees">

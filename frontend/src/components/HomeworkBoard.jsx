@@ -202,6 +202,20 @@ export default function HomeworkBoard({ isAdmin }) {
     }
   }
 
+  const handleSharePost = async (post) => {
+    const url = new URL(homeworkDetailPath(post.id), window.location.origin).toString()
+    const text = `${post.title || 'Bài tập về nhà'}\n${url}`
+    try {
+      if (navigator.share) await navigator.share({ title: post.title || 'Bài tập về nhà', text: post.title || 'Bài tập về nhà', url })
+      else {
+        await navigator.clipboard.writeText(text)
+        alert('Đã sao chép liên kết bài tập.')
+      }
+    } catch (err) {
+      if (err?.name !== 'AbortError') alert('Không thể chia sẻ bài tập. Bạn có thể sao chép URL trên thanh địa chỉ.')
+    }
+  }
+
   const openDetail = (post, opts = {}) => {
     if (!post) return
     setDetailPost(post)
@@ -389,6 +403,16 @@ export default function HomeworkBoard({ isAdmin }) {
                     Xóa
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  className="hw-btn-share"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleSharePost(post)
+                  }}
+                >
+                  Chia sẻ
+                </button>
               </div>
             </article>
           ))}

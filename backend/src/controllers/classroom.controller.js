@@ -317,6 +317,46 @@ export async function patchCleaningStatus(req, res, next) {
   }
 }
 
+export async function listCleaningPhotos(req, res, next) {
+  try {
+    noStore(res)
+    res.json(await cleaningDutyService.listDutyPhotos(req.query?.week_start, req.query?.duty_date, req.query?.day_id))
+  } catch (err) { next(err) }
+}
+
+export async function uploadCleaningPhotos(req, res, next) {
+  try {
+    noStore(res)
+    res.status(201).json(await cleaningDutyService.uploadDutyPhotos({
+      weekStart: req.body?.week_start,
+      dutyDate: req.body?.duty_date,
+      dayId: req.body?.day_id,
+      files: req.files,
+    }, req.profile))
+  } catch (err) { next(err) }
+}
+
+export async function deleteCleaningPhoto(req, res, next) {
+  try {
+    noStore(res)
+    res.json(await cleaningDutyService.deleteDutyPhoto(req.params.id))
+  } catch (err) { next(err) }
+}
+
+export async function getCleaningReview(req, res, next) {
+  try {
+    noStore(res)
+    res.json(await cleaningDutyService.getDutyReview(req.query?.week_start, req.query?.duty_date, req.query?.day_id, req.profile))
+  } catch (err) { next(err) }
+}
+
+export async function putCleaningReview(req, res, next) {
+  try {
+    noStore(res)
+    res.json(await cleaningDutyService.saveDutyReview(req.body?.week_start, req.body?.duty_date, req.body?.day_id, req.body || {}, req.profile))
+  } catch (err) { next(err) }
+}
+
 export async function getLeaderboard(req, res, next) {
   try {
     noStore(res)
