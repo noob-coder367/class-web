@@ -393,7 +393,11 @@ export default function HomePage() {
   const fetchAnnouncements = async () => {
     try {
       const result = await classroomService.getAnnouncements()
-      if (Array.isArray(result?.items)) setAnnouncements(result.items)
+      if (Array.isArray(result?.items)) {
+        // Bài tập có thể tạo một announcement liên kết để báo trong khu vực lớp,
+        // nhưng không được xuất hiện ở phần "Trò chuyện lớp" ngoài trang chủ.
+        setAnnouncements(result.items.filter((item) => !item?.source_homework_id))
+      }
     } catch (error) {
       console.error('Lỗi lấy dữ liệu:', error)
     }

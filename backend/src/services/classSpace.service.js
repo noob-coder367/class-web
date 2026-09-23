@@ -46,14 +46,22 @@ function generateUniqueRoomCode(existingCodes) {
 }
 
 async function ensureDataBucket() {
-  const { data, error } =
-    await supabaseAdmin.storage.getBucket(DATA_BUCKET)
+  const { data, error } = await supabaseAdmin.storage.getBucket(DATA_BUCKET)
+  if (data) return
 
-  if (error || !data) {
-    throw new AppError(
-      `Kho dữ liệu "${DATA_BUCKET}" chưa được cấu hình trên Supabase.`,
-      500
-    )
+  // Supabase trả 404/"not found" khi bucket chưa tồn tại. Chỉ trường hợp này
+  // mới được phép tự tạo; lỗi auth/network không được báo nhầm là thiếu bucket.
+  const isMissing = error && (error.statusCode === 404 || error.statusCode === '404' || /not found|does not exist|404/i.test(error.message || ''))
+  if (error && !isMissing) {
+    throw new AppError(`Không kiểm tra được kho dữ liệu "${DATA_BUCKET}": ${error.message}`, 502)
+  }
+
+  const { error: createError } = await supabaseAdmin.storage.createBucket(DATA_BUCKET, {
+    public: false,
+    fileSizeLimit: 2 * 1024 * 1024,
+  })
+  if (createError && !/already exists|duplicate|exists/i.test(createError.message || '')) {
+    throw new AppError(`Không tạo được kho dữ liệu "${DATA_BUCKET}": ${createError.message}`, 502)
   }
 }
 
