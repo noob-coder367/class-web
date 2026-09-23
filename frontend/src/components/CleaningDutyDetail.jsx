@@ -52,16 +52,21 @@ export default function CleaningDutyDetail({ dayId, gallery = false, canUpload =
     setLoading(true)
     setError('')
     try {
-      const [scheduleData, statusData, photoData, reviewData] = await Promise.all([
+      const [scheduleData, statusData, photoData, reviewResult] = await Promise.all([
         classroomService.getCleaningSchedule(weekStart),
         classroomService.getCleaningStatus(weekStart),
         classroomService.getCleaningPhotos({ weekStart, dutyDate: dutyDate, dayId }),
-        classroomService.getCleaningReview({ weekStart, dutyDate, dayId }),
+        classroomService.getCleaningReview({ weekStart, dutyDate, dayId }).catch((err) => ({ __error: err })),
       ])
       setSchedule(scheduleData?.schedule || null)
       setStatus((statusData?.days || []).find((item) => item.duty_date === dutyDate) || null)
       setPhotos(photoData?.items || [])
-      setReview({ rating: Number(reviewData?.review?.rating) || 0, comment: reviewData?.review?.comment || '' })
+      if (reviewResult?.__error) {
+        setReview({ rating: 0, comment: '' })
+        setError(reviewResult.__error.message || 'Không tải được đánh giá trực nhật.')
+      } else {
+        setReview({ rating: Number(reviewResult?.review?.rating) || 0, comment: reviewResult?.review?.comment || '' })
+      }
     } catch (err) {
       setError(err.message || 'Không tải được thông tin trực nhật.')
     } finally {
