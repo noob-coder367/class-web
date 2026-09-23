@@ -1,0 +1,49 @@
+CREATE TABLE IF NOT EXISTS public.homework_assignments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  allow_resubmit BOOLEAN NOT NULL DEFAULT false,
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_by_name TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (end_date >= start_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_homework_assignments_created
+  ON public.homework_assignments (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS public.homework_submissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  assignment_id UUID NOT NULL REFERENCES public.homework_assignments(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  user_name TEXT,
+  files JSONB NOT NULL DEFAULT '[]'::jsonb,
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (assignment_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_homework_submissions_assignment
+  ON public.homework_submissions (assignment_id);
+
+ALTER TABLE public.homework_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.homework_submissions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.homework_assignments FROM anon, authenticated;
+REVOKE ALL ON TABLE public.homework_submissions FROM anon, authenticated;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.homework_assignments TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.homework_submissions TO service_role;
+
+DO $$
+DECLARE pol record;
+BEGIN
+  FOR pol IN
+    SELECT policyname, tablename FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename IN ('homework_assignments', 'homework_submissions')
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, pol.tablename);
+  END LOOP;
+END $$;
+
+NOTIFY pgrst, 'reload schema';
