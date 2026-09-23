@@ -12,8 +12,16 @@ import {
 import { cleaningDayPath } from '../lib/routes.js'
 import './CleaningDutyDetail.css'
 
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'])
+
+function isImageFile(file) {
+  if (String(file?.type || '').toLowerCase().startsWith('image/')) return true
+  const ext = String(file?.name || '').split('.').pop().toLowerCase()
+  return IMAGE_EXTENSIONS.has(ext)
+}
+
 function imageFiles(files) {
-  return Array.from(files || []).filter((file) => file.type.startsWith('image/'))
+  return Array.from(files || []).filter(isImageFile)
 }
 
 export default function CleaningDutyDetail({ dayId, gallery = false, canUpload = false }) {

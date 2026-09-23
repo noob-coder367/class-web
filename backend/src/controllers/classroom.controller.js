@@ -327,11 +327,14 @@ export async function listCleaningPhotos(req, res, next) {
 export async function uploadCleaningPhotos(req, res, next) {
   try {
     noStore(res)
+    const files = Array.isArray(req.files)
+      ? req.files
+      : Object.values(req.files || {}).flat()
     res.status(201).json(await cleaningDutyService.uploadDutyPhotos({
       weekStart: req.body?.week_start,
       dutyDate: req.body?.duty_date,
       dayId: req.body?.day_id,
-      files: req.files,
+      files,
     }, req.profile))
   } catch (err) { next(err) }
 }

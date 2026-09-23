@@ -16,7 +16,10 @@ const uploadCleaningImages = multer({
   limits: { files: 20, fileSize: 15 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'])
-    cb(allowed.has(String(file.mimetype || '').toLowerCase()) ? null : new AppError('Chỉ nhận file ảnh hợp lệ (JPG, PNG, WEBP, GIF, HEIC).', 400))
+    const ext = String(file.originalname || '').split('.').pop().toLowerCase()
+    const allowedExt = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'])
+    const valid = allowed.has(String(file.mimetype || '').toLowerCase()) || allowedExt.has(ext)
+    cb(valid ? null : new AppError('Chỉ nhận file ảnh hợp lệ (JPG, PNG, WEBP, GIF, HEIC).', 400))
   },
 })
 

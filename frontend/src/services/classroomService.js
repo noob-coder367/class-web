@@ -296,7 +296,14 @@ export async function uploadCleaningPhotos({ weekStart, dutyDate, dayId, files }
   form.set('week_start', weekStart)
   form.set('duty_date', dutyDate)
   form.set('day_id', dayId)
-  files.forEach((file) => form.append('photos', file, file.name))
+  files.forEach((file) => {
+    const ext = String(file.name || '').split('.').pop().toLowerCase()
+    const inferredType = ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', heic: 'image/heic', heif: 'image/heif' })[ext]
+    const uploadFile = !file.type && inferredType && typeof File === 'function'
+      ? new File([file], file.name || `cleaning-photo.${ext || 'jpg'}`, { type: inferredType, lastModified: file.lastModified })
+      : file
+    form.append('photos', uploadFile, uploadFile.name)
+  })
   return apiClient.postForm('/classroom/cleaning-duty/photos', form, { auth: true })
 }
 
