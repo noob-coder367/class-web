@@ -104,8 +104,13 @@ const duckJs = await readFile(new URL('../frontend/src/components/UtilityToolsPa
 const duckCss = await readFile(new URL('../frontend/src/components/UtilityToolsPanel.css', import.meta.url), 'utf8')
 assert.match(duckJs, /translate3d/)
 assert.match(duckJs, /utility-duck-track/)
+assert.match(duckJs, /createPortal/)
+assert.match(duckJs, /fullscreenElement/)
+assert.match(duckJs, /utility-float-host/)
 assert.match(duckCss, /utility-duck-track/)
 assert.equal(duckCss.includes('transition: left'), false)
 assert.match(duckCss, /utility-duck-visual/)
+assert.match(duckCss, /utility-float-host/)
+assert.match(duckCss, /\.class-play-view > \.utility-float-host/)
 
 console.log('auto-advance: PASS — 4 combo multi-try/auto-skip + không skip khi còn đáp án')
