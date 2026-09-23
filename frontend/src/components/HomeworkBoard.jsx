@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import * as classroomService from '../services/classroomService.js'
 import { parseClassPath, homeworkDetailPath, parseHomeworkSegment, classTabPath } from '../lib/routes.js'
+import HomeworkSubmissionPanel from './HomeworkSubmissionPanel.jsx'
 import './HomeworkBoard.css'
 
 const SUBJECT_OPTIONS = [
@@ -57,7 +58,7 @@ function defaultTitle(isoDate) {
   return `Báo bài ngày ${formatVNDate(isoDate) || '…'}`
 }
 
-export default function HomeworkBoard({ isAdmin }) {
+function HomeworkReportBoard({ isAdmin }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [posts, setPosts] = useState([])
@@ -647,6 +648,40 @@ export default function HomeworkBoard({ isAdmin }) {
           </div>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+/** Bài tập về nhà: 2 chế độ — Báo bài (mặc định) / Nộp bài. */
+export default function HomeworkBoard({ isAdmin }) {
+  const [mode, setMode] = useState('report')
+  return (
+    <div className="hw-root">
+      <div className="hw-mode-tabs" role="tablist" aria-label="Chế độ bài tập về nhà">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'report'}
+          className={`hw-mode-tab${mode === 'report' ? ' is-active' : ''}`}
+          onClick={() => setMode('report')}
+        >
+          Báo bài
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'submit'}
+          className={`hw-mode-tab${mode === 'submit' ? ' is-active' : ''}`}
+          onClick={() => setMode('submit')}
+        >
+          Nộp bài
+        </button>
+      </div>
+      {mode === 'submit' ? (
+        <HomeworkSubmissionPanel canManage={isAdmin === true} />
+      ) : (
+        <HomeworkReportBoard isAdmin={isAdmin} />
+      )}
     </div>
   )
 }
