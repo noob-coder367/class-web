@@ -111,6 +111,9 @@ async function request(path, { method = 'GET', body, auth = false, _retried = fa
       await wait(retryDelayMs(_attempt, res.headers.get('Retry-After')))
       return request(path, { method, body, auth, _retried, _attempt: _attempt + 1 })
     }
+    if (res.status === 401 && path.startsWith('/classroom') && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('classweb-auth-required', { detail: { path, status: res.status } }))
+    }
     const message = data?.message || `Lỗi yêu cầu (${res.status})`
     const err = new Error(message)
     err.status = res.status

@@ -46,6 +46,25 @@ const PHOTO_PLACEHOLDER_COUNT = 6
 
 // Thông báo kết quả khi user vừa bấm link trong email chỉ hiện đúng 1 lần.
 let emailLinkNoticeShown = false
+const CLASSROOM_RETURN_KEY = 'classweb_return_to'
+
+function saveClassroomReturn(path) {
+  try {
+    sessionStorage.setItem(CLASSROOM_RETURN_KEY, path)
+  } catch {
+    // sessionStorage có thể bị chặn trong private mode.
+  }
+}
+
+function takeClassroomReturn() {
+  try {
+    const target = sessionStorage.getItem(CLASSROOM_RETURN_KEY) || ''
+    sessionStorage.removeItem(CLASSROOM_RETURN_KEY)
+    return target
+  } catch {
+    return ''
+  }
+}
 
 export default function HomePage() {
   const { session, profile, authReady, logout, passwordRecovery } = useAuth()
@@ -324,6 +343,34 @@ export default function HomePage() {
   }, [refreshUnread])
 
   useEffect(() => {
+    if (!authReady || !showClassRoom) return
+    const current = `${location.pathname}${location.search}`
+    if (!session) {
+      saveClassroomReturn(current)
+      setAuthInitialStep('login')
+      setShowAuth(true)
+      return
+    }
+
+    if (profile) {
+      const target = takeClassroomReturn()
+      setShowAuth(false)
+      if (profile.is_member && target && target !== current) navigate(target, { replace: true })
+    }
+  }, [authReady, location.pathname, location.search, navigate, profile, session, showClassRoom])
+
+  useEffect(() => {
+    const onAuthRequired = () => {
+      if (!showClassRoom) return
+      saveClassroomReturn(`${location.pathname}${location.search}`)
+      setAuthInitialStep('login')
+      setShowAuth(true)
+    }
+    window.addEventListener('classweb-auth-required', onAuthRequired)
+    return () => window.removeEventListener('classweb-auth-required', onAuthRequired)
+  }, [location.pathname, location.search, showClassRoom])
+
+  useEffect(() => {
     const sectionIds = NAV_LINKS.map((link) => link.href.replace('#', ''))
 
     const observer = new IntersectionObserver(
@@ -431,6 +478,9 @@ export default function HomePage() {
     setShowAuth(false)
     if (location.pathname === ROUTES.login || location.pathname === ROUTES.register) {
       navigate(ROUTES.home)
+    } else if (showClassRoom && !session) {
+      takeClassroomReturn()
+      navigate(ROUTES.home)
     }
   }
 
@@ -440,6 +490,7 @@ export default function HomePage() {
         <AuthPage
           key={authInitialStep}
           initialStep={authInitialStep}
+          deferCloseOnSuccess={showClassRoom}
           onClose={closeAuth}
         />
       )}
@@ -452,7 +503,7 @@ export default function HomePage() {
         />
       )}
 
-      {showClassRoom && (
+      {showClassRoom && authReady && session && (
         <ClassRoomView
           onClose={closeClassRoom}
           initialTab={classInitialTab}

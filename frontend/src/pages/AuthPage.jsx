@@ -35,7 +35,7 @@ function GhostIcon({ size = 20 }) {
  *  - Đăng nhập Google vẫn dùng supabase trực tiếp vì OAuth không
  *    chứa thông tin nhạy cảm cần giấu.
  */
-export default function AuthPage({ onClose, initialStep = 'login' }) {
+export default function AuthPage({ onClose, initialStep = 'login', deferCloseOnSuccess = false }) {
   const { setSession, reloadProfile, logout, setProfile, profile, clearPasswordRecovery } = useAuth()
 
   const [authStep, setAuthStep] = useState(
@@ -152,7 +152,7 @@ export default function AuthPage({ onClose, initialStep = 'login' }) {
         setAuthStep('display-name')
         return
       }
-      if (nextProfile) onClose?.()
+      if (nextProfile && !deferCloseOnSuccess) onClose?.()
     } catch (err) {
       alert(err.message || 'Username hoặc mật khẩu không chính xác!')
     } finally {

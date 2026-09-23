@@ -105,6 +105,15 @@ Thành viên bấm **Vô Lớp 10A4** vào màn nội bộ (thông báo, TKB, b�
 - `anon` key → **frontend**
 - `service_role` key → **backend** (không lộ ra ngoài)
 
+Sau khi tạo project, chạy các file SQL này **một lần trên Supabase Dashboard → SQL Editor**, theo đúng thứ tự:
+
+1. `supabase/secure-roles.sql` — khóa role, trạng thái thành viên và quyền ghi events.
+2. `supabase/rls-hardening.sql` — bật RLS cho `profiles`/`announcements` và khóa bucket `classroom-data` ở chế độ private.
+3. `supabase/cleaning-duty-schema.sql` — tạo schema và policy cho lịch trực.
+4. `supabase/push-subscriptions.sql` — tạo bảng subscription Web Push (nếu dùng Web Push).
+
+Bucket `classroom-data` **phải private**; dữ liệu JSON classroom chỉ được backend đọc/ghi bằng `service_role`, không cấp public read hoặc quyền insert/update/delete cho client.
+
 ### 2. Backend
 
 ```bash
@@ -129,5 +138,5 @@ npm run dev
 
 - `.env` đã bị `.gitignore` — không commit.
 - Không đưa `SUPABASE_SERVICE_ROLE_KEY` / `SECRET_CODE` vào `frontend/`.
-- Bảng `profiles` nên bật RLS; thao tác quan trọng vẫn enforce ở backend.
-- Chạy `supabase/secure-roles.sql` nếu có trong repo để khóa role/events từ client.
+- Bảng `profiles` và `announcements` phải bật RLS; thao tác quan trọng vẫn enforce ở backend.
+- Chạy các file SQL trong mục cấu hình Supabase theo thứ tự đã liệt kê để khóa role/events và các bảng nhạy cảm từ client.
