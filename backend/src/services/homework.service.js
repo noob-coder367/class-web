@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
 import * as announcementsService from './announcements.service.js'
+import { enqueueJsonWrite, readJsonFile } from '../utils/classroomDataStore.js'
 
 const DATA_BUCKET = 'classroom-data'
 const DATA_PATH = 'homework.json'
@@ -26,15 +27,8 @@ async function ensureDataBucket() {
 }
 
 async function readStore() {
-  const { data, error } = await supabaseAdmin.storage.from(DATA_BUCKET).download(DATA_PATH)
-  if (error || !data) return { items: [] }
-  try {
-    const text = await data.text()
-    const parsed = JSON.parse(text)
-    return { items: Array.isArray(parsed.items) ? parsed.items : [] }
-  } catch {
-    return { items: [] }
-  }
+  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: DATA_PATH, empty: { items: [] }, label: 'báo bài' })
+  return { items: Array.isArray(parsed?.items) ? parsed.items : [] }
 }
 
 async function writeStore(store) {
@@ -73,17 +67,27 @@ function normalizeItem(raw) {
 }
 
 async function loadAll() {
-  if (memoryCache) return clone(memoryCache)
   await ensureDataBucket()
   const store = await readStore()
   const items = store.items.map(normalizeItem).filter(Boolean)
-  memoryCache = { items }
-  return clone(memoryCache)
+  return { items }
 }
 
 async function saveAll(items) {
-  memoryCache = { items }
-  await writeStore({ items })
+  await enqueueJsonWrite(`${DATA_BUCKET}/${DATA_PATH}`, async () => {
+    await writeStore({ items })
+    memoryCache = { items }
+  })
+}
+
+async function mutateStore(mutator) {
+  return enqueueJsonWrite(`${DATA_BUCKET}/${DATA_PATH}`, async () => {
+    const data = await loadAll()
+    const result = await mutator(data.items)
+    await writeStore({ items: data.items })
+    memoryCache = { items: data.items }
+    return result
+  })
 }
 
 function defaultTitleForDate(isoDate) {
@@ -192,43 +196,22 @@ export async function createHomework(payload, profile) {
 
   let examAnnouncementId = null
   if (hasExam && examDate) {
-    try {
-      const content = buildExamReminderContent({
-        examDate,
-        subject: examSubject,
-        examContent,
-      })
-      const ann = await announcementsService.createExamReminderAnnouncement(
-        {
-          content,
-          expires_at: examExpiryISO(examDate),
-          source_homework_id: homeworkId,
-        },
-        profile
-      )
-      examAnnouncementId = ann?.id || null
-    } catch (err) {
-      console.warn('[homework] không tạo được thông báo kiểm tra:', err.message)
-    }
+    const content = buildExamReminderContent({ examDate, subject: examSubject, examContent })
+    const ann = await announcementsService.createExamReminderAnnouncement(
+      { content, expires_at: examExpiryISO(examDate), source_homework_id: homeworkId },
+      profile
+    )
+    examAnnouncementId = ann?.id || null
   } else if (experimentContent || homeworkContent) {
     // Báo bài thường (không phải exam reminder) → ô "Báo bài quan trọng".
-    try {
-      const ann = await announcementsService.createImportantHomeworkAnnouncement(
-        {
-          content: buildImportantHomeworkContent({
-            title,
-            experimentContent,
-            homeworkContent,
-            reportDate,
-          }),
-          source_homework_id: homeworkId,
-        },
-        profile
-      )
-      examAnnouncementId = ann?.id || null
-    } catch (err) {
-      console.warn('[homework] không tạo được thông báo báo bài:', err.message)
-    }
+    const ann = await announcementsService.createImportantHomeworkAnnouncement(
+      {
+        content: buildImportantHomeworkContent({ title, experimentContent, homeworkContent, reportDate }),
+        source_homework_id: homeworkId,
+      },
+      profile
+    )
+    examAnnouncementId = ann?.id || null
   }
 
   const item = {
@@ -247,9 +230,10 @@ export async function createHomework(payload, profile) {
     created_by_name: String(profile?.username || 'Admin').trim() || 'Admin',
   }
 
-  const data = await loadAll()
-  const next = [item, ...data.items]
-  await saveAll(next)
+  await mutateStore((items) => {
+    items.unshift(item)
+    return item
+  })
   return item
 }
 
@@ -257,22 +241,16 @@ export async function deleteHomework(id) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã báo bài.', 400)
 
-  const data = await loadAll()
-  const found = data.items.find((row) => row.id === targetId)
-  if (!found) throw new AppError('Không tìm thấy báo bài.', 404)
+  let found = null
+  await mutateStore((items) => {
+    found = items.find((row) => row.id === targetId)
+    if (!found) throw new AppError('Không tìm thấy báo bài.', 404)
+    items.splice(0, items.length, ...items.filter((row) => row.id !== targetId))
+  })
 
-  // Xóa luôn thông báo liên quan trên tab Thông báo chung (ô Báo bài quan trọng)
-  try {
-    if (found.exam_announcement_id) {
-      await announcementsService.deleteAnnouncement(found.exam_announcement_id).catch(() => {})
-    }
-    await announcementsService.deleteAnnouncementsByHomeworkId(targetId).catch(() => {})
-  } catch (err) {
-    console.warn('[homework] xóa thông báo kiểm tra liên quan thất bại:', err.message)
-  }
-
-  const next = data.items.filter((row) => row.id !== targetId)
-  await saveAll(next)
+  // Xóa luôn thông báo liên quan trên tab Thông báo chung (ô Báo bài quan trọng).
+  if (found.exam_announcement_id) await announcementsService.deleteAnnouncement(found.exam_announcement_id)
+  await announcementsService.deleteAnnouncementsByHomeworkId(targetId)
   return { id: targetId }
 }
 
@@ -282,14 +260,14 @@ const PATCHABLE = new Set(['exam_announcement_id', 'exam_today_notified_at', 'ex
 export async function patchHomework(id, fields) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã báo bài.', 400)
-  const data = await loadAll()
-  const idx = data.items.findIndex((row) => row.id === targetId)
-  if (idx === -1) throw new AppError('Không tìm thấy báo bài.', 404)
   const nextFields = {}
   for (const [key, value] of Object.entries(fields || {})) {
     if (PATCHABLE.has(key)) nextFields[key] = value == null ? null : String(value)
   }
-  data.items[idx] = { ...data.items[idx], ...nextFields }
-  await saveAll(data.items)
-  return data.items[idx]
+  return mutateStore((items) => {
+    const idx = items.findIndex((row) => row.id === targetId)
+    if (idx === -1) throw new AppError('Không tìm thấy báo bài.', 404)
+    items[idx] = { ...items[idx], ...nextFields }
+    return items[idx]
+  })
 }

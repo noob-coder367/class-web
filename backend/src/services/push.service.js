@@ -3,6 +3,7 @@ import webpush from 'web-push'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { env } from '../config/env.js'
 import { AppError } from './auth.service.js'
+import { readJsonFile } from '../utils/classroomDataStore.js'
 
 const DATA_BUCKET = 'classroom-data'
 const DATA_PATH = 'push-subscriptions.json'
@@ -122,16 +123,9 @@ async function ensureDataBucket() {
 }
 
 async function readStore() {
-  const { data, error } = await supabaseAdmin.storage.from(DATA_BUCKET).download(DATA_PATH)
-  if (error || !data) return { subscriptions: [] }
-  try {
-    const text = await data.text()
-    const parsed = JSON.parse(text)
-    const list = Array.isArray(parsed.subscriptions) ? parsed.subscriptions : []
-    return { subscriptions: list.map(normalizeSub).filter(Boolean) }
-  } catch {
-    return { subscriptions: [] }
-  }
+  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: DATA_PATH, empty: { subscriptions: [] }, label: 'subscription Web Push' })
+  const list = Array.isArray(parsed?.subscriptions) ? parsed.subscriptions : []
+  return { subscriptions: list.map(normalizeSub).filter(Boolean) }
 }
 
 async function writeStore(store) {

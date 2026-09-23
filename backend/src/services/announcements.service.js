@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
+import { enqueueJsonWrite, readJsonFile } from '../utils/classroomDataStore.js'
 
 const DATA_BUCKET = 'classroom-data'
 const DATA_PATH = 'announcements.json'
@@ -56,15 +57,8 @@ function publicImageUrl(path) {
 }
 
 async function readStore() {
-  const { data, error } = await supabaseAdmin.storage.from(DATA_BUCKET).download(DATA_PATH)
-  if (error || !data) return { items: [] }
-  try {
-    const text = await data.text()
-    const parsed = JSON.parse(text)
-    return { items: Array.isArray(parsed.items) ? parsed.items : [] }
-  } catch {
-    return { items: [] }
-  }
+  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: DATA_PATH, empty: { items: [] }, label: 'thông báo' })
+  return { items: Array.isArray(parsed?.items) ? parsed.items : [] }
 }
 
 async function writeStore(store) {
@@ -125,17 +119,27 @@ function normalizeItem(raw) {
 }
 
 async function loadAll() {
-  if (memoryCache) return clone(memoryCache)
   await ensureDataBucket()
   const store = await readStore()
   const items = store.items.map(normalizeItem).filter(Boolean)
-  memoryCache = { items }
-  return clone(memoryCache)
+  return { items }
 }
 
 async function saveAll(items) {
-  memoryCache = { items }
-  await writeStore({ items })
+  await enqueueJsonWrite(`${DATA_BUCKET}/${DATA_PATH}`, async () => {
+    await writeStore({ items })
+    memoryCache = { items }
+  })
+}
+
+async function mutateStore(mutator) {
+  return enqueueJsonWrite(`${DATA_BUCKET}/${DATA_PATH}`, async () => {
+    const data = await loadAll()
+    const result = await mutator(data.items)
+    await writeStore({ items: data.items })
+    memoryCache = { items: data.items }
+    return result
+  })
 }
 
 function stripDataUrl(contentBase64) {
@@ -215,19 +219,18 @@ function sortNewest(items) {
 }
 
 export async function purgeExpired() {
-  const data = await loadAll()
-  const now = Date.now()
-  const alive = []
-  const expired = []
-  for (const item of data.items) {
-    if (isExpired(item, now)) expired.push(item)
-    else alive.push(item)
-  }
-  if (expired.length) {
+  return mutateStore(async (items) => {
+    const now = Date.now()
+    const alive = []
+    const expired = []
+    for (const item of items) {
+      if (isExpired(item, now)) expired.push(item)
+      else alive.push(item)
+    }
     for (const item of expired) await removeImages(item.images)
-    await saveAll(alive)
-  }
-  return sortNewest(alive)
+    items.splice(0, items.length, ...alive)
+    return sortNewest(alive)
+  })
 }
 
 export async function listAnnouncements() {
@@ -299,9 +302,10 @@ export async function createAnnouncement(payload, profile) {
     hidden_by: null,
     hidden_by_name: null,
   }
-  const data = await loadAll()
-  const next = [item, ...data.items.filter((row) => !isExpired(row))]
-  await saveAll(next)
+  await mutateStore((items) => {
+    const next = [item, ...items.filter((row) => !isExpired(row))]
+    items.splice(0, items.length, ...next)
+  })
   void notifyPush(item)
   return item
 }
@@ -332,9 +336,10 @@ export async function createExamReminderAnnouncement(payload, profile) {
     hidden_by: null,
     hidden_by_name: null,
   }
-  const data = await loadAll()
-  const next = [item, ...data.items.filter((row) => !isExpired(row))]
-  await saveAll(next)
+  await mutateStore((items) => {
+    const next = [item, ...items.filter((row) => !isExpired(row))]
+    items.splice(0, items.length, ...next)
+  })
   void notifyPush(item)
   return item
 }
@@ -365,9 +370,10 @@ export async function createImportantHomeworkAnnouncement(payload, profile) {
     hidden_by: null,
     hidden_by_name: null,
   }
-  const data = await loadAll()
-  const next = [item, ...data.items.filter((row) => !isExpired(row))]
-  await saveAll(next)
+  await mutateStore((items) => {
+    const next = [item, ...items.filter((row) => !isExpired(row))]
+    items.splice(0, items.length, ...next)
+  })
   void notifyPush(item)
   return item
 }
@@ -402,9 +408,10 @@ export async function createSystemDisciplineAnnouncement(payload) {
     from_level: payload?.fromLevel ? String(payload.fromLevel) : null,
     to_level: payload?.toLevel ? String(payload.toLevel) : null,
   }
-  const data = await loadAll()
-  const next = [item, ...data.items.filter((row) => !isExpired(row))]
-  await saveAll(next)
+  await mutateStore((items) => {
+    const next = [item, ...items.filter((row) => !isExpired(row))]
+    items.splice(0, items.length, ...next)
+  })
   void notifyPush(item)
   return item
 }
@@ -412,91 +419,75 @@ export async function createSystemDisciplineAnnouncement(payload) {
 export async function hideAnnouncement(id, profile) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã thông báo.', 400)
-  const data = await loadAll()
-  const idx = data.items.findIndex((row) => row.id === targetId)
-  if (idx === -1) throw new AppError('Không tìm thấy thông báo.', 404)
-  const current = data.items[idx]
-  if (isExpired(current)) throw new AppError('Thông báo đã hết hạn.', 404)
-  if (current.hidden === true) return current
-  data.items[idx] = {
-    ...current,
-    hidden: true,
-    hidden_at: new Date().toISOString(),
-    hidden_by: profile?.id || null,
-    hidden_by_name: String(profile?.username || '').trim() || null,
-  }
-  await saveAll(data.items)
-  return data.items[idx]
+  return mutateStore((items) => {
+    const idx = items.findIndex((row) => row.id === targetId)
+    if (idx === -1) throw new AppError('Không tìm thấy thông báo.', 404)
+    const current = items[idx]
+    if (isExpired(current)) throw new AppError('Thông báo đã hết hạn.', 404)
+    if (current.hidden === true) return current
+    items[idx] = { ...current, hidden: true, hidden_at: new Date().toISOString(), hidden_by: profile?.id || null, hidden_by_name: String(profile?.username || '').trim() || null }
+    return items[idx]
+  })
 }
 
 export async function unhideAnnouncement(id) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã thông báo.', 400)
-  const data = await loadAll()
-  const idx = data.items.findIndex((row) => row.id === targetId)
-  if (idx === -1) throw new AppError('Không tìm thấy thông báo.', 404)
-  const current = data.items[idx]
-  if (isExpired(current)) throw new AppError('Thông báo đã hết hạn.', 404)
-  data.items[idx] = {
-    ...current,
-    hidden: false,
-    hidden_at: null,
-    hidden_by: null,
-    hidden_by_name: null,
-  }
-  await saveAll(data.items)
-  return data.items[idx]
+  return mutateStore((items) => {
+    const idx = items.findIndex((row) => row.id === targetId)
+    if (idx === -1) throw new AppError('Không tìm thấy thông báo.', 404)
+    const current = items[idx]
+    if (isExpired(current)) throw new AppError('Thông báo đã hết hạn.', 404)
+    items[idx] = { ...current, hidden: false, hidden_at: null, hidden_by: null, hidden_by_name: null }
+    return items[idx]
+  })
 }
 
 export async function deleteAnnouncement(id) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã thông báo.', 400)
-  const data = await loadAll()
-  const found = data.items.find((row) => row.id === targetId)
-  if (!found) throw new AppError('Không tìm thấy thông báo.', 404)
-  await removeImages(found.images)
-  const next = data.items.filter((row) => row.id !== targetId)
-  await saveAll(next)
-  return { id: targetId }
+  return mutateStore(async (items) => {
+    const found = items.find((row) => row.id === targetId)
+    if (!found) throw new AppError('Không tìm thấy thông báo.', 404)
+    await removeImages(found.images)
+    items.splice(0, items.length, ...items.filter((row) => row.id !== targetId))
+    return { id: targetId }
+  })
 }
 
 export async function deleteAnnouncementsByHomeworkId(homeworkId) {
   const target = String(homeworkId || '').trim()
   if (!target) return { deleted: 0 }
-  const data = await loadAll()
-  const toRemove = data.items.filter((row) => row.source_homework_id === target)
-  if (!toRemove.length) return { deleted: 0 }
-  for (const item of toRemove) await removeImages(item.images)
-  const next = data.items.filter((row) => row.source_homework_id !== target)
-  await saveAll(next)
-  return { deleted: toRemove.length }
+  return mutateStore(async (items) => {
+    const toRemove = items.filter((row) => row.source_homework_id === target)
+    if (!toRemove.length) return { deleted: 0 }
+    for (const item of toRemove) await removeImages(item.images)
+    items.splice(0, items.length, ...items.filter((row) => row.source_homework_id !== target))
+    return { deleted: toRemove.length }
+  })
 }
 
 /** Chỉ xóa thông báo kiểm tra (is_exam_reminder) gắn với báo bài — giữ bài báo bài thường. */
 export async function deleteExamRemindersByHomeworkId(homeworkId) {
   const target = String(homeworkId || '').trim()
   if (!target) return { deleted: 0 }
-  const data = await loadAll()
-  const toRemove = data.items.filter(
-    (row) => row.source_homework_id === target && row.is_exam_reminder === true
-  )
-  if (!toRemove.length) return { deleted: 0 }
-  for (const item of toRemove) await removeImages(item.images)
-  const next = data.items.filter(
-    (row) => !(row.source_homework_id === target && row.is_exam_reminder === true)
-  )
-  await saveAll(next)
-  return { deleted: toRemove.length }
+  return mutateStore(async (items) => {
+    const toRemove = items.filter((row) => row.source_homework_id === target && row.is_exam_reminder === true)
+    if (!toRemove.length) return { deleted: 0 }
+    for (const item of toRemove) await removeImages(item.images)
+    items.splice(0, items.length, ...items.filter((row) => !(row.source_homework_id === target && row.is_exam_reminder === true)))
+    return { deleted: toRemove.length }
+  })
 }
 
 export async function updateAnnouncementExpiry(id, expiresAtRaw) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã thông báo.', 400)
   const expiresAt = parseExpiresAt(expiresAtRaw)
-  const data = await loadAll()
-  const idx = data.items.findIndex((row) => row.id === targetId)
-  if (idx === -1) throw new AppError('Không tìm thấy thông báo.', 404)
-  data.items[idx] = { ...data.items[idx], expires_at: expiresAt }
-  await saveAll(data.items)
-  return data.items[idx]
+  return mutateStore((items) => {
+    const idx = items.findIndex((row) => row.id === targetId)
+    if (idx === -1) throw new AppError('Không tìm thấy thông báo.', 404)
+    items[idx] = { ...items[idx], expires_at: expiresAt }
+    return items[idx]
+  })
 }

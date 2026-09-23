@@ -4,6 +4,7 @@ import { AppError, isPendingUsername, normalizeDisplayName } from './auth.servic
 import { normalizeRole } from '../lib/roles.js'
 import * as rulesService from './rules.service.js'
 import * as cleaningDutyService from './cleaningDuty.service.js'
+import { readJsonFile } from '../utils/classroomDataStore.js'
 
 const BUCKET = 'classroom-data'
 const ROSTER_FILE = 'class-roster.json'
@@ -83,10 +84,8 @@ async function ensureBucket() {
 }
 
 async function readJson() {
-  const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(ROSTER_FILE)
-  if (error || !data) return null
-  const text = await data.text()
-  return JSON.parse(text)
+  await ensureBucket()
+  return readJsonFile({ bucket: BUCKET, path: ROSTER_FILE, empty: null, label: 'danh sách lớp' })
 }
 
 async function writeRoster(payload) {
@@ -100,15 +99,10 @@ async function writeRoster(payload) {
 }
 
 async function loadRoster() {
-  if (rosterCache) return clone(rosterCache)
-  try {
-    const stored = await readJson()
-    if (stored) {
-      rosterCache = normalizeRoster(stored)
-      return clone(rosterCache)
-    }
-  } catch (err) {
-    console.warn('[class-roster] đọc storage thất bại:', err.message)
+  const stored = await readJson()
+  if (stored) {
+    rosterCache = normalizeRoster(stored)
+    return clone(rosterCache)
   }
   rosterCache = { items: [], updatedAt: new Date().toISOString() }
   return clone(rosterCache)

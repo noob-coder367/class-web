@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
+import { readJsonFile } from '../utils/classroomDataStore.js'
 import { env } from '../config/env.js'
 import { normalizeRole } from '../lib/roles.js'
 
@@ -108,15 +109,9 @@ async function findProfileById(userId) {
 }
 
 async function readUsernameChanges() {
-  const { data, error } = await supabaseAdmin.storage.from(DATA_BUCKET).download(USERNAME_CHANGES_PATH)
-  if (error || !data) return {}
-  try {
-    const text = await data.text()
-    const parsed = JSON.parse(text)
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
+  await ensureDataBucket()
+  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: USERNAME_CHANGES_PATH, empty: {}, label: 'lịch sử đổi tên' })
+  return parsed && typeof parsed === 'object' ? parsed : {}
 }
 
 async function writeUsernameChanges(map) {
@@ -145,16 +140,11 @@ async function ensureDataBucket() {
 }
 
 async function readGhostState() {
-  const { data, error } = await supabaseAdmin.storage.from(DATA_BUCKET).download(GHOST_STATE_PATH)
-  if (error || !data) return { nextIndex: 1, created: [] }
-  try {
-    const parsed = JSON.parse(await data.text())
-    const nextIndex = Math.max(1, Number(parsed?.nextIndex) || 1)
-    const created = Array.isArray(parsed?.created) ? parsed.created : []
-    return { nextIndex, created }
-  } catch {
-    return { nextIndex: 1, created: [] }
-  }
+  await ensureDataBucket()
+  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: GHOST_STATE_PATH, empty: { nextIndex: 1, created: [] }, label: 'bộ đếm tài khoản ma' })
+  const nextIndex = Math.max(1, Number(parsed?.nextIndex) || 1)
+  const created = Array.isArray(parsed?.created) ? parsed.created : []
+  return { nextIndex, created }
 }
 
 async function writeGhostState(state) {

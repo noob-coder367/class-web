@@ -6,6 +6,7 @@ import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
 import { isStatusDrop, statusFor } from '../lib/reputationStatus.js'
 import * as announcementsService from './announcements.service.js'
+import { readJsonFile } from '../utils/classroomDataStore.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_PATH = join(__dirname, '../data/rules.default.json')
@@ -275,10 +276,8 @@ async function ensurePhotoBucket() {
 }
 
 async function readJson(path) {
-  const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(path)
-  if (error || !data) return null
-  const text = await data.text()
-  return JSON.parse(text)
+  await ensureBucket()
+  return readJsonFile({ bucket: BUCKET, path, empty: null, label: path })
 }
 
 async function writeJson(path, payload, label) {
@@ -355,15 +354,10 @@ async function deletePhotoPaths(paths) {
 }
 
 export async function getRules() {
-  if (rulesCache) return clone(rulesCache)
-  try {
-    const stored = await readJson(RULES_FILE)
-    if (stored) {
-      rulesCache = normalizeRules(stored)
-      return clone(rulesCache)
-    }
-  } catch (err) {
-    console.warn('[rules] đọc storage thất bại, dùng mặc định:', err.message)
+  const stored = await readJson(RULES_FILE)
+  if (stored) {
+    rulesCache = normalizeRules(stored)
+    return clone(rulesCache)
   }
   rulesCache = normalizeRules(loadDefaultRules())
   return clone(rulesCache)
@@ -378,16 +372,11 @@ export async function saveRules(payload) {
 }
 
 export async function getViolations() {
-  if (violationsCache) return clone(violationsCache)
   const rules = await getRules()
-  try {
-    const stored = await readJson(VIOLATIONS_FILE)
-    if (stored) {
-      violationsCache = normalizeViolations(stored, rules)
-      return clone(violationsCache)
-    }
-  } catch (err) {
-    console.warn('[violations] đọc storage thất bại:', err.message)
+  const stored = await readJson(VIOLATIONS_FILE)
+  if (stored) {
+    violationsCache = normalizeViolations(stored, rules)
+    return clone(violationsCache)
   }
   violationsCache = { items: [], updatedAt: new Date().toISOString() }
   return clone(violationsCache)

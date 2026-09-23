@@ -1,6 +1,7 @@
 import { randomUUID, createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
+import { readJsonFile } from '../utils/classroomDataStore.js'
 
 // Project hiện dùng Supabase Storage JSON cho các module classroom chưa có bảng
 // riêng. Presentation dùng cùng convention, không reset hay thay đổi các bảng hiện có.
@@ -171,18 +172,19 @@ function normalizeItem(raw) {
 
 async function ensureDataBucket() {
   const { data, error } = await supabaseAdmin.storage.getBucket(DATA_BUCKET)
-  if (error || !data) throw new AppError(`Kho dữ liệu "${DATA_BUCKET}" chưa được cấu hình trên Supabase.`, 500)
+  if (data) return
+  const missing = error && (error.statusCode === 404 || error.statusCode === '404' || /not found|does not exist|404/i.test(error.message || ''))
+  if (error && !missing) throw new AppError(`Không kiểm tra được kho dữ liệu "${DATA_BUCKET}": ${error.message}`, 502)
+  const { error: createError } = await supabaseAdmin.storage.createBucket(DATA_BUCKET, { public: false, fileSizeLimit: 2 * 1024 * 1024 })
+  if (createError && !/already exists|duplicate|exists/i.test(createError.message || '')) {
+    throw new AppError(`Không tạo được kho dữ liệu "${DATA_BUCKET}": ${createError.message}`, 502)
+  }
 }
 
 async function readAll() {
-  const { data, error } = await supabaseAdmin.storage.from(DATA_BUCKET).download(DATA_PATH)
-  if (error || !data) return []
-  try {
-    const parsed = JSON.parse(await data.text())
-    return Array.isArray(parsed.items) ? parsed.items.map(normalizeItem).filter(Boolean) : []
-  } catch {
-    throw new AppError('Dữ liệu bài thuyết trình bị hỏng.', 500)
-  }
+  await ensureDataBucket()
+  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: DATA_PATH, empty: { items: [] }, label: 'bài thuyết trình' })
+  return Array.isArray(parsed?.items) ? parsed.items.map(normalizeItem).filter(Boolean) : []
 }
 
 async function writeAll(items) {

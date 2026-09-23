@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
+import { readJsonFile } from '../utils/classroomDataStore.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_PATH = join(__dirname, '../data/timetable.default.json')
@@ -214,10 +215,8 @@ async function ensureBucket() {
 }
 
 async function readFromStorage() {
-  const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(FILE_PATH)
-  if (error || !data) return null
-  const text = await data.text()
-  return JSON.parse(text)
+  await ensureBucket()
+  return readJsonFile({ bucket: BUCKET, path: FILE_PATH, empty: null, label: 'thời khoá biểu' })
 }
 
 async function writeToStorage(payload) {
@@ -233,16 +232,10 @@ async function writeToStorage(payload) {
 }
 
 export async function getTimetable() {
-  if (memoryCache) return clone(memoryCache)
-
-  try {
-    const stored = await readFromStorage()
-    if (stored) {
-      memoryCache = normalizeTimetable(stored)
-      return clone(memoryCache)
-    }
-  } catch (err) {
-    console.warn('[timetable] đọc storage thất bại, dùng mặc định:', err.message)
+  const stored = await readFromStorage()
+  if (stored) {
+    memoryCache = normalizeTimetable(stored)
+    return clone(memoryCache)
   }
 
   memoryCache = normalizeTimetable(loadDefault())

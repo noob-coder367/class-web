@@ -2,6 +2,7 @@ import { randomUUID, createHash } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
 import { isAdminRole } from '../lib/roles.js'
+import { enqueueJsonWrite, readJsonFile } from '../utils/classroomDataStore.js'
 
 const DATA_BUCKET = 'classroom-data'
 const DATA_PATH = 'class-space.json'
@@ -83,15 +84,8 @@ function publicImageUrl(path) {
 }
 
 async function readStore() {
-  const { data, error } = await supabaseAdmin.storage.from(DATA_BUCKET).download(DATA_PATH)
-  if (error || !data) return { items: [] }
-  try {
-    const text = await data.text()
-    const parsed = JSON.parse(text)
-    return { items: Array.isArray(parsed.items) ? parsed.items : [] }
-  } catch {
-    return { items: [] }
-  }
+  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: DATA_PATH, empty: { items: [] }, label: 'lớp học' })
+  return { items: Array.isArray(parsed?.items) ? parsed.items : [] }
 }
 
 async function writeStore(store) {
@@ -107,30 +101,26 @@ async function writeStore(store) {
 }
 
 async function readUtilityRoster() {
-  const { data, error } = await supabaseAdmin.storage.from(DATA_BUCKET).download(UTILITY_ROSTER_PATH)
-  if (error || !data) return { names: [], fileName: '', updatedAt: '' }
-  try {
-    const parsed = JSON.parse(await data.text())
-    return {
-      names: Array.isArray(parsed.names)
-        ? parsed.names.filter((item) => item && typeof item === 'object' && String(item.name || '').trim())
-        : [],
-      fileName: String(parsed.fileName || ''),
-      updatedAt: String(parsed.updatedAt || ''),
-    }
-  } catch {
-    return { names: [], fileName: '', updatedAt: '' }
+  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: UTILITY_ROSTER_PATH, empty: { names: [], fileName: '', updatedAt: '' }, label: 'danh sách PDF' })
+  return {
+    names: Array.isArray(parsed?.names)
+      ? parsed.names.filter((item) => item && typeof item === 'object' && String(item.name || '').trim())
+      : [],
+    fileName: String(parsed?.fileName || ''),
+    updatedAt: String(parsed?.updatedAt || ''),
   }
 }
 
 async function writeUtilityRoster(roster) {
-  await ensureDataBucket()
-  const body = Buffer.from(JSON.stringify(roster, null, 2) + '\n', 'utf8')
-  const { error } = await supabaseAdmin.storage.from(DATA_BUCKET).upload(UTILITY_ROSTER_PATH, body, {
-    contentType: 'application/json',
-    upsert: true,
+  await enqueueJsonWrite(`${DATA_BUCKET}/${UTILITY_ROSTER_PATH}`, async () => {
+    await ensureDataBucket()
+    const body = Buffer.from(JSON.stringify(roster, null, 2) + '\n', 'utf8')
+    const { error } = await supabaseAdmin.storage.from(DATA_BUCKET).upload(UTILITY_ROSTER_PATH, body, {
+      contentType: 'application/json',
+      upsert: true,
+    })
+    if (error) throw new AppError('Không lưu được danh sách PDF: ' + error.message, 502)
   })
-  if (error) throw new AppError('Không lưu được danh sách PDF: ' + error.message, 502)
 }
 
 function normalizeBackdrop(raw) {
@@ -342,7 +332,6 @@ function normalizeItem(raw) {
 }
 
 async function loadAll() {
-  if (memoryCache) return clone(memoryCache)
   await ensureDataBucket()
   const store = await readStore()
   const items = store.items.map(normalizeItem).filter(Boolean)
@@ -357,22 +346,18 @@ async function loadAll() {
       row.code = generateUniqueRoomCode(taken)
       taken.add(row.code)
     }
-    memoryCache = { items }
-    try {
-      await writeStore({ items })
-    } catch {
-      // Không lưu được lúc này thì lần sau sẽ tự thử lại, không làm hỏng luồng đọc.
-    }
-    return clone(memoryCache)
+    await writeStore({ items })
+    return { items }
   }
 
-  memoryCache = { items }
-  return clone(memoryCache)
+  return { items }
 }
 
 async function saveAll(items) {
-  memoryCache = { items }
-  await writeStore({ items })
+  await enqueueJsonWrite(`${DATA_BUCKET}/${DATA_PATH}`, async () => {
+    await writeStore({ items })
+    memoryCache = { items }
+  })
 }
 
 function toPublicMeta(item, profile) {
