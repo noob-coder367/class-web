@@ -7,6 +7,24 @@ import { PRESENTATION_TEMPLATES, templateById } from './presentationTemplates.js
 import { useIsDesktop } from '../../hooks/useDesktopDetection.js'
 import './PresentationHome.css'
 
+function renderPlayerContent(element) {
+  if (element.type === 'table') {
+    return <table className="presentation-data-table"><tbody>{element.rows?.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex} className={rowIndex === 0 ? 'is-header' : ''}>{cell}</td>)}</tr>)}</tbody></table>
+  }
+  if (element.type === 'chart') {
+    const max = Math.max(...(element.data || []).map((entry) => Number(entry.value) || 0), 1)
+    return <div className={`presentation-chart presentation-chart-${element.chartType || 'bar'}`}><strong>{element.title}</strong><div className="presentation-chart-bars">{element.data?.map((entry) => <div className="presentation-chart-item" key={entry.label}><i style={{ height: `${Math.max(8, (Number(entry.value) || 0) / max * 100)}%`, background: element.style?.color || '#0b91a3' }} /><span>{entry.label}</span><small>{entry.value}</small></div>)}</div></div>
+  }
+  if (element.type === 'diagram') {
+    return <div className={`presentation-diagram presentation-diagram-${element.diagramType || 'flow'}`}>{element.nodes?.map((node, nodeIndex) => <div className="presentation-diagram-node" key={nodeIndex}><span>{typeof node === 'object' ? node.label || node.text || '' : node}</span>{nodeIndex < element.nodes.length - 1 ? <b>→</b> : null}</div>)}</div>
+  }
+  if (element.type === 'text') return element.text
+  if (element.type === 'image' && element.src) return <img src={element.src} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: element.style?.objectFit || 'contain', borderRadius: element.style?.borderRadius || 0 }} />
+  if (element.type === 'video' && element.src) return <video src={element.src} controls={element.controls !== false} loop={element.loop} autoPlay={element.autoplay} style={{ maxWidth: '100%', maxHeight: '100%' }} />
+  if (element.type === 'audio' && element.src) return <audio src={element.src} controls={element.controls !== false} loop={element.loop} autoPlay={element.autoplay} />
+  return null
+}
+
 function Player({ item }) {
   const [index, setIndex] = useState(0)
   const [transitioning, setTransitioning] = useState(false)
@@ -21,7 +39,7 @@ function Player({ item }) {
   useEffect(() => { setTransitioning(true); const timer = setTimeout(() => setTransitioning(false), reducedMotion ? 1 : Math.max(250, Number(transition.duration || 0.5) * 1000)); return () => clearTimeout(timer) }, [index, reducedMotion, transition.duration])
   useEffect(() => { if (transition.advance !== 'after' || index >= item.slides.length - 1 || reducedMotion) return undefined; const timer = setTimeout(next, Math.max(1000, Number(transition.duration || 0.5) * 1000 + 1200)); return () => clearTimeout(timer) }, [index, item.slides.length, reducedMotion, transition.advance, transition.duration])
   useEffect(() => { const onKey = (event) => { if (event.key === 'ArrowRight' || event.key === ' ') { event.preventDefault(); next() }; if (event.key === 'ArrowLeft') { event.preventDefault(); previous() }; if (event.key === 'Escape' && document.fullscreenElement) document.exitFullscreen?.() }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey) }, [item.slides.length])
-  return <div ref={playerRef} className="presentation-player"><div key={slide?.id} className={`presentation-player-slide presentation-transition-${transition.type || 'fade'}${transitioning ? ' is-transitioning' : ''}`} style={{ background: slide?.background?.value || '#fff', '--transition-duration': `${reducedMotion ? 0 : Number(transition.duration || 0.5)}s` }} onClick={next}>{slide?.elements?.map((element, elementIndex) => <div key={element.id} className={`presentation-element presentation-element--${element.type} presentation-animation-${element.animation?.entrance || 'none'}`} style={{ left: `${element.x}%`, top: `${element.y}%`, width: `${element.width}%`, height: `${element.height}%`, transform: `rotate(${element.rotation || 0}deg)`, opacity: element.opacity, zIndex: element.zIndex, '--animation-delay': `${reducedMotion ? 0 : Number(element.animation?.delay || elementIndex * 0.05)}s`, '--animation-duration': `${reducedMotion ? 0 : Number(element.animation?.duration || 0.5)}s`, ...element.style }}>{element.type === 'text' ? element.text : element.type === 'image' && element.src ? <img src={element.src} alt="" style={{ maxWidth: '100%', maxHeight: '100%' }} /> : element.type === 'video' && element.src ? <video src={element.src} controls style={{ maxWidth: '100%', maxHeight: '100%' }} /> : element.type === 'audio' && element.src ? <audio src={element.src} controls /> : null}</div>)}</div><div className="presentation-player-controls"><button type="button" onClick={previous}>Previous</button><span>{index + 1} / {item.slides.length}</span><button type="button" onClick={next}>Next</button><button type="button" onClick={enterFullscreen}>Fullscreen</button><button type="button" onClick={() => document.fullscreenElement ? document.exitFullscreen?.() : null}>Exit</button></div></div>
+  return <div ref={playerRef} className="presentation-player"><div key={slide?.id} className={`presentation-player-slide presentation-transition-${transition.type || 'fade'}${transitioning ? ' is-transitioning' : ''}`} style={{ background: slide?.background?.value || '#fff', '--transition-duration': `${reducedMotion ? 0 : Number(transition.duration || 0.5)}s` }} onClick={next}>{slide?.elements?.map((element, elementIndex) => element.visible === false ? null : <div key={element.id} className={`presentation-element presentation-element--${element.type} presentation-animation-${element.animation?.entrance || 'none'}`} style={{ left: `${element.x}%`, top: `${element.y}%`, width: `${element.width}%`, height: `${element.height}%`, transform: `rotate(${element.rotation || 0}deg)`, opacity: element.opacity, zIndex: element.zIndex, '--animation-delay': `${reducedMotion ? 0 : Number(element.animation?.delay || elementIndex * 0.05)}s`, '--animation-duration': `${reducedMotion ? 0 : Number(element.animation?.duration || 0.5)}s`, ...element.style }}>{renderPlayerContent(element)}</div>)}</div><div className="presentation-player-controls"><button type="button" onClick={previous}>Previous</button><span>{index + 1} / {item.slides.length}</span><button type="button" onClick={next}>Next</button><button type="button" onClick={enterFullscreen}>Fullscreen</button><button type="button" onClick={() => document.fullscreenElement ? document.exitFullscreen?.() : null}>Exit</button></div></div>
 }
 
 function CreatePresentation() {

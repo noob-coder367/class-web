@@ -5,8 +5,10 @@ export async function listPresentations() {
 }
 
 export async function getPresentation(id, password = '') {
-  const query = password ? `?password=${encodeURIComponent(password)}` : ''
-  return apiClient.get(`/presentations/${encodeURIComponent(id)}${query}`, { auth: true })
+  if (password) {
+    return apiClient.post(`/presentations/${encodeURIComponent(id)}/unlock`, { password }, { auth: true })
+  }
+  return apiClient.get(`/presentations/${encodeURIComponent(id)}`, { auth: true })
 }
 
 export async function createPresentation(payload) {

@@ -11,7 +11,15 @@ export async function list(req, res, next) {
 export async function get(req, res, next) {
   try {
     noStore(res)
-    const item = await presentationService.getPresentation(req.params.id, req.profile, req.body?.password || req.query?.password)
+    const item = await presentationService.getPresentation(req.params.id, req.profile)
+    res.json({ item })
+  } catch (err) { next(err) }
+}
+
+export async function unlock(req, res, next) {
+  try {
+    noStore(res)
+    const item = await presentationService.unlockPresentation(req.params.id, req.profile, req.body?.password)
     res.json({ item })
   } catch (err) { next(err) }
 }

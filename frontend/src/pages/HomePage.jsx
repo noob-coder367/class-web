@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { supabase, initialAuthRedirect, clearAuthRedirectFromUrl } from '../lib/supabaseClient.js'
+import { initialAuthRedirect, clearAuthRedirectFromUrl } from '../lib/supabaseClient.js'
 import { ROUTES, classTabPath, parsePresentationPath } from '../lib/routes.js'
 import AuthPage from './AuthPage.jsx'
 import SettingsPanel from '../components/SettingsPanel.jsx'
@@ -316,22 +316,10 @@ export default function HomePage() {
     window.addEventListener('classweb-home-refresh', onHomeRefresh)
     window.addEventListener('classweb-class-refresh', onHomeRefresh)
 
-    const channel = supabase
-      .channel('realtime-announcements')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'announcements' },
-        (payload) => {
-          setAnnouncements((prev) => [payload.new, ...prev])
-        }
-      )
-      .subscribe()
-
     return () => {
       window.removeEventListener('site-images-updated', onImagesUpdated)
       window.removeEventListener('classweb-home-refresh', onHomeRefresh)
       window.removeEventListener('classweb-class-refresh', onHomeRefresh)
-      supabase.removeChannel(channel)
     }
   }, [refreshUnread])
 
@@ -356,13 +344,12 @@ export default function HomePage() {
   }, [])
 
   const fetchAnnouncements = async () => {
-    const { data, error } = await supabase
-      .from('announcements')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (data) setAnnouncements(data)
-    if (error) console.error('Loi lay du lieu:', error)
+    try {
+      const result = await classroomService.getAnnouncements()
+      if (Array.isArray(result?.items)) setAnnouncements(result.items)
+    } catch (error) {
+      console.error('Lỗi lấy dữ liệu:', error)
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -370,23 +357,29 @@ export default function HomePage() {
     if (!title || !content) return alert('Vui lòng nhập đủ tiêu đề và nội dung!')
 
     setSubmitting(true)
-    const { error } = await supabase
-      .from('announcements')
-      .insert([{ title, content, sender: sender || 'Ẩn danh' }])
+    let result
+    try {
+      result = await classroomService.createAnnouncement({ title, content })
+    } catch (error) {
+      setSubmitting(false)
+      return alert('Lỗi đăng thông báo: ' + error.message)
+    }
     setSubmitting(false)
-
-    if (error) return alert('Lỗi đăng thông báo: ' + error.message)
 
     setTitle('')
     setContent('')
     setSender('')
+    if (result?.item) setAnnouncements((prev) => [result.item, ...prev])
   }
 
   const handleDeleteAnnouncement = async (id) => {
     if (!window.confirm('Bạn có chắc muốn xóa thông báo này?')) return
 
-    const { error } = await supabase.from('announcements').delete().eq('id', id)
-    if (error) return alert('Xóa thông báo thất bại: ' + error.message)
+    try {
+      await classroomService.deleteAnnouncement(id)
+    } catch (error) {
+      return alert('Xóa thông báo thất bại: ' + error.message)
+    }
 
     setAnnouncements((prev) => prev.filter((a) => a.id !== id))
   }
