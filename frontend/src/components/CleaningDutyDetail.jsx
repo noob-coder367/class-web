@@ -172,28 +172,43 @@ export default function CleaningDutyDetail({ dayId, gallery = false, canUpload =
               <div><span>Trạng thái</span><strong>{statusLabel(displayStatus)}</strong></div>
               <div><span>Ghi chú</span><strong>{day.note || status?.note || '—'}</strong></div>
             </div>
-            <div className="cleaning-detail-actions">
-              <button type="button" onClick={() => navigate(cleaningDayPath(dayId, true))}>Xem ảnh</button>
-              <button type="button" onClick={() => document.getElementById('cleaning-review')?.scrollIntoView({ behavior: 'smooth' })}>Bấm để xem chi tiết</button>
-            </div>
+            {canUpload && !gallery ? (
+              <div className="cleaning-detail-actions">
+                <button type="button" onClick={() => navigate(cleaningDayPath(dayId, true))}>Thêm ảnh trực nhật</button>
+              </div>
+            ) : null}
           </section>
 
-          {!gallery ? (
-            <section id="cleaning-review" className="cleaning-detail-card">
-              <h3>Đánh giá trực nhật</h3>
-              <div className="cleaning-stars" aria-label="Chọn số sao">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button key={star} type="button" className={star <= review.rating ? 'is-selected' : ''} onClick={() => setReview((value) => ({ ...value, rating: star }))} aria-label={`${star} sao`}>
-                    {star <= review.rating ? '★' : '☆'}
-                  </button>
-                ))}
-              </div>
-              <label className="cleaning-review-field">Nhận xét
-                <textarea value={review.comment} maxLength={1000} onChange={(event) => setReview((value) => ({ ...value, comment: event.target.value }))} placeholder="Nhận xét về mức độ sạch sẽ..." />
-              </label>
-              <button type="button" className="cleaning-detail-primary" onClick={saveReview} disabled={savingReview}>{savingReview ? 'Đang lưu...' : 'Lưu đánh giá'}</button>
-            </section>
-          ) : null}
+          <section id="cleaning-review" className="cleaning-detail-card">
+            <h3>Đánh giá trực nhật</h3>
+            {canUpload ? (
+              <>
+                <div className="cleaning-stars" aria-label="Chọn số sao">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button key={star} type="button" className={star <= review.rating ? 'is-selected' : ''} onClick={() => setReview((value) => ({ ...value, rating: star }))} aria-label={`${star} sao`}>
+                      {star <= review.rating ? '★' : '☆'}
+                    </button>
+                  ))}
+                </div>
+                <label className="cleaning-review-field">Lời đánh giá
+                  <textarea value={review.comment} maxLength={1000} onChange={(event) => setReview((value) => ({ ...value, comment: event.target.value }))} placeholder="Nhận xét về mức độ sạch sẽ..." />
+                </label>
+                <button type="button" className="cleaning-detail-primary" onClick={saveReview} disabled={savingReview}>{savingReview ? 'Đang lưu...' : 'Đổi số sao & đánh giá'}</button>
+              </>
+            ) : review.rating > 0 || review.comment.trim() ? (
+              <>
+                {review.rating > 0 ? (
+                  <span className="cleaning-rating" role="img" aria-label={`${review.rating} trên 5 sao`}>
+                    {'★'.repeat(review.rating)}
+                    <span className="cleaning-rating-empty">{'★'.repeat(5 - review.rating)}</span>
+                  </span>
+                ) : null}
+                {review.comment.trim() ? <p className="cleaning-review-readonly">Lời đánh giá: {review.comment}</p> : null}
+              </>
+            ) : (
+              <p className="cleaning-detail-empty">Chưa có đánh giá</p>
+            )}
+          </section>
 
           {gallery && canUpload ? (
             <section className="cleaning-detail-card">
