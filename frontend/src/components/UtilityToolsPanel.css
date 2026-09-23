@@ -20,9 +20,9 @@
 .utility-dropzone { min-height: 70px; border: 1.5px dashed #77b9c7; border-radius: 13px; display: grid; place-items: center; padding: 12px; color: #0b7687; background: #f1fbfd; text-align: center; font-size: 12px; font-weight: 700; cursor: pointer; }
 .utility-pdf-ok { grid-column: 1 / -1; color: #16834d; font-size: 12px; font-weight: 700; }
 .utility-off-note { max-width: 980px; margin: 28px auto; padding: 16px; border-radius: 14px; background: #e5f3f7; color: #366070; text-align: center; font-size: 13px; }
-.utility-mini-chat { position: fixed; right: 22px; bottom: 22px; z-index: 245; display: inline-flex; align-items: center; gap: 7px; padding: 12px 15px; border: 2px solid #14324a; border-radius: 999px; color: #fff; background: #0b91a3; box-shadow: 0 8px 22px #14324a33; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.utility-mini-chat { position: fixed; right: 22px; bottom: 22px; z-index: 345; display: inline-flex; align-items: center; gap: 7px; padding: 12px 15px; border: 2px solid #14324a; border-radius: 999px; color: #fff; background: #0b91a3; box-shadow: 0 8px 22px #14324a33; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
 .utility-mini-chat svg { width: 18px; height: 18px; }
-.utility-window { position: fixed; right: 22px; bottom: 78px; z-index: 244; width: min(700px, calc(100vw - 30px)); max-height: min(760px, calc(100dvh - 110px)); overflow: auto; border: 2px solid #14324a; border-radius: 18px; background: #f8fcfd; box-shadow: 0 18px 55px #14324a44; }
+.utility-window { position: fixed; right: 22px; bottom: 78px; z-index: 344; width: min(700px, calc(100vw - 30px)); max-height: min(760px, calc(100dvh - 110px)); overflow: auto; border: 2px solid #14324a; border-radius: 18px; background: #f8fcfd; box-shadow: 0 18px 55px #14324a44; }
 .utility-window-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 17px; color: #fff; background: #14324a; }
 .utility-window-head strong { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .utility-window-head svg { width: 19px; height: 19px; }
@@ -128,6 +128,25 @@
 .utility-tools-panel--floating .utility-mini-chat,
 .utility-tools-panel--floating .utility-window { pointer-events: auto; }
 .utility-tools-panel--floating .utility-window { position: fixed; }
+.utility-float-host {
+  position: fixed;
+  inset: 0;
+  z-index: 345;
+  pointer-events: none;
+}
+.utility-float-host .utility-mini-chat,
+.utility-float-host .utility-window {
+  pointer-events: auto;
+}
+/* Fullscreen chỉ hiện descendants của element đang fullscreen (phòng học / player). */
+.class-play-view > .utility-float-host,
+.presentation-player > .utility-float-host,
+.presentation-editor > .utility-float-host {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+}
 .utility-mini-chat { touch-action: none; user-select: none; }
 .utility-mini-chat { width: 48px; height: 48px; padding: 0; border-width: 2px; justify-content: center; border-radius: 50%; }
 .utility-mini-chat span { display: none; }

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
 import * as classroomService from '../services/classroomService.js'
 import './UtilityToolsPanel.css'
@@ -7,6 +8,36 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mi
 
 const TOOL_TYPES = [{ value: 'names', label: 'Quay tên' }, { value: 'rewards', label: 'Quay phần thưởng' }]
 const SPIN_MODES = [{ value: 'wheel', label: 'Wheel', hint: 'Vòng quay hình tròn' }, { value: 'duck', label: 'Duck Race', hint: 'Đua vịt 5 giây' }]
+const UTILITY_ENABLED_KEY = 'classweb_utility_enabled_v1'
+
+function readUtilityEnabled() {
+  try {
+    const stored = localStorage.getItem(UTILITY_ENABLED_KEY)
+    if (stored === '0') return false
+    if (stored === '1') return true
+  } catch {
+    // private mode / blocked storage
+  }
+  return true
+}
+
+function persistUtilityEnabled(value) {
+  try {
+    localStorage.setItem(UTILITY_ENABLED_KEY, value ? '1' : '0')
+  } catch {
+    // private mode / blocked storage
+  }
+}
+
+function getUtilityFloatHost() {
+  if (typeof document === 'undefined') return null
+  return (
+    document.fullscreenElement ||
+    document.webkitFullscreenElement ||
+    document.querySelector('.classroom-view') ||
+    document.body
+  )
+}
 
 export function IconWrench() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14.7 6.3a4.1 4.1 0 0 0-5.35-5l2.2 2.2-3.18 3.18-2.2-2.2a4.1 4.1 0 0 0 5 5.35l7.6 7.6a2.1 2.1 0 1 0 2.97-2.97l-7.04-7.04Z" /><path d="m14 14 6.5 6.5M5.2 18.8l3.6-3.6M3.5 20.5l1.7-1.7" /></svg> }
 function IconPlus() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg> }
@@ -293,9 +324,10 @@ function ConfigureView({ tool, onChange, onRemove, onCreate }) {
 }
 
 export default function UtilityToolsPanel({ isAdmin = false, isPage = false }) {
-  const [enabled, setEnabled] = useState(false); const [open, setOpen] = useState(false); const [pdfState, setPdfState] = useState({ status: 'idle', message: '', names: [], fileName: '' }); const [active, setActive] = useState(0); const inputRef = useRef(null)
+  const [enabled, setEnabled] = useState(readUtilityEnabled); const [open, setOpen] = useState(false); const [pdfState, setPdfState] = useState({ status: 'idle', message: '', names: [], fileName: '' }); const [active, setActive] = useState(0); const inputRef = useRef(null)
   const [dock, setDock] = useState({ side: 'right', y: 24 }); const dragRef = useRef(null)
   const [storedRoster, setStoredRoster] = useState({ names: [], fileName: '', updatedAt: '' })
+  const [floatHost, setFloatHost] = useState(getUtilityFloatHost)
   const makeTool = (id, names = []) => ({ id, label: `Tiện ích ${id}`, type: 'names', mode: 'wheel', names, rewards: [], removeWinners: true, created: false })
   const [tools, setTools] = useState([makeTool(1)]); const activeTool = tools[active]
   useEffect(() => {
@@ -308,6 +340,16 @@ export default function UtilityToolsPanel({ isAdmin = false, isPage = false }) {
       setTools((prev) => prev.map((tool) => ({ ...tool, names: roster.names, fileName: roster.fileName })))
     }).catch(() => {})
     return () => { cancelled = true }
+  }, [])
+  useLayoutEffect(() => {
+    const syncHost = () => setFloatHost(getUtilityFloatHost())
+    syncHost()
+    document.addEventListener('fullscreenchange', syncHost)
+    document.addEventListener('webkitfullscreenchange', syncHost)
+    return () => {
+      document.removeEventListener('fullscreenchange', syncHost)
+      document.removeEventListener('webkitfullscreenchange', syncHost)
+    }
   }, [])
   const loadPdf = async (file) => {
     if (!file) return
@@ -330,11 +372,24 @@ export default function UtilityToolsPanel({ isAdmin = false, isPage = false }) {
   const updateActive = (patch) => setTools((prev) => prev.map((tool, index) => index === active ? { ...tool, ...patch } : tool))
   const addTab = () => { setTools((prev) => [...prev, makeTool(prev.length + 1, pdfState.names)]); setActive(tools.length) }
   const removeTab = () => { if (tools.length === 1) return; setTools((prev) => prev.filter((_, index) => index !== active)); setActive((prev) => Math.max(0, prev - 1)) }
-  const toggle = (value) => { setEnabled(value); setOpen(value); if (!value) { setTools([makeTool(1)]); setPdfState({ status: storedRoster.names.length ? 'ready' : 'idle', message: storedRoster.names.length ? `Đã lưu ${storedRoster.names.length} tên.` : '', names: storedRoster.names, fileName: storedRoster.fileName }); setActive(0) } else if (storedRoster.names.length) { setTools([makeTool(1, storedRoster.names)]) } }
+  const toggle = (value) => { persistUtilityEnabled(value); setEnabled(value); setOpen(value); if (!value) { setTools([makeTool(1)]); setPdfState({ status: storedRoster.names.length ? 'ready' : 'idle', message: storedRoster.names.length ? `Đã lưu ${storedRoster.names.length} tên.` : '', names: storedRoster.names, fileName: storedRoster.fileName }); setActive(0) } else if (storedRoster.names.length) { setTools([makeTool(1, storedRoster.names)]) } }
   const onPointerDown = (event) => { if (event.button !== undefined && event.button !== 0) return; event.currentTarget.setPointerCapture?.(event.pointerId); dragRef.current = { startX: event.clientX, startY: event.clientY, moved: false, y: dock.y } }
   const onPointerMove = (event) => { if (!dragRef.current) return; const dy = event.clientY - dragRef.current.startY; if (Math.abs(event.clientX - dragRef.current.startX) + Math.abs(dy) > 6) dragRef.current.moved = true; setDock((prev) => ({ ...prev, y: Math.max(12, Math.min(window.innerHeight - 72, dragRef.current.y + dy)) })) }
   const onPointerUp = (event) => { if (!dragRef.current) return; const wasMoved = dragRef.current.moved; dragRef.current = null; if (wasMoved) { setDock((prev) => ({ side: event.clientX < window.innerWidth / 2 ? 'left' : 'right', y: prev.y })); return } setDock((prev) => ({ side: 'right', y: prev.y < window.innerHeight / 2 ? 18 : Math.max(18, window.innerHeight - 78) })); setOpen((prev) => !prev) }
   const floatingStyle = dock.side === 'right' ? { right: 16, top: dock.y } : { left: 16, top: dock.y }
   const body = <>{isAdmin ? <div className="utility-pdf-card"><div><strong>Nguồn tên — đã lưu trên Supabase</strong><p>{pdfState.message || 'Chưa có PDF. Hãy thả file danh sách lớp vào đây.'}</p></div><div className="utility-pdf-actions"><input ref={inputRef} type="file" accept="application/pdf,.pdf" hidden onChange={(e) => loadPdf(e.target.files?.[0])} />{pdfState.status === 'ready' ? <><span className="utility-pdf-file">{pdfState.fileName}</span><button type="button" className="utility-pdf-change" onClick={() => inputRef.current?.click()}>Đổi PDF</button></> : <div className="utility-dropzone" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); loadPdf(e.dataTransfer.files?.[0]) }} onClick={() => inputRef.current?.click()}><span>Thả PDF vào đây hoặc bấm để chọn</span></div>}</div>{pdfState.status === 'ready' ? <span className="utility-pdf-ok">✓ {pdfState.names.length} tên đã sẵn sàng</span> : null}</div> : null}{!enabled ? <div className="utility-off-note">Bật ON để hiện mini chat Tiện ích phụ ở góc màn hình.</div> : null}</>
-  return <div className={`utility-tools-panel${isPage ? ' utility-tools-panel--page' : ' utility-tools-panel--floating'}`}><header className="utility-title-row"><div><span className="utility-kicker">CLASSROOM TOOLS</span><h2>Các công cụ</h2><p>Tiện ích quay ngẫu nhiên cho hoạt động trong lớp.</p></div><label className="utility-switch-label"><span>{enabled ? 'ON' : 'OFF'}</span><input type="checkbox" checked={enabled} onChange={(e) => toggle(e.target.checked)} /><i aria-hidden="true" /></label></header><div className="utility-first-card"><div><h3>Tiện ích quay ngẫu nhiên</h3><p>Chọn yêu cầu, tạo vòng quay rồi mới bắt đầu chơi.</p></div><button type="button" className="utility-open-button" onClick={() => setOpen(true)} disabled={!enabled}>Mở công cụ</button></div>{body}{enabled ? <button type="button" className="utility-mini-chat" style={floatingStyle} aria-label="Mở Tiện ích phụ" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}><IconWrench /><span>Tiện ích</span></button> : null}{enabled && open ? <div className="utility-window" role="dialog" aria-label="Tiện ích quay ngẫu nhiên"><div className="utility-window-head"><strong><IconWrench /> Tiện ích phụ</strong><button type="button" onClick={() => setOpen(false)} aria-label="Đóng">×</button></div><div className="utility-tabs">{tools.map((tool, index) => <ToolTab key={tool.id} tool={tool} index={index} active={index === active} onSelect={setActive} />)}<button type="button" className="utility-add-tab" onClick={addTab} aria-label="Thêm tab"><IconPlus /></button></div>{activeTool ? (activeTool.created ? <PlayView tool={activeTool} onEdit={() => updateActive({ created: false })} /> : <ConfigureView tool={activeTool} onChange={updateActive} onRemove={removeTab} onCreate={() => updateActive({ created: true })} />) : null}</div> : null}</div>
+  const floatingUi = enabled ? (
+    <div className="utility-float-host">
+      <button type="button" className="utility-mini-chat" style={floatingStyle} aria-label="Mở Tiện ích phụ" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}><IconWrench /><span>Tiện ích</span></button>
+      {open ? <div className="utility-window" role="dialog" aria-label="Tiện ích quay ngẫu nhiên"><div className="utility-window-head"><strong><IconWrench /> Tiện ích phụ</strong><button type="button" onClick={() => setOpen(false)} aria-label="Đóng">×</button></div><div className="utility-tabs">{tools.map((tool, index) => <ToolTab key={tool.id} tool={tool} index={index} active={index === active} onSelect={setActive} />)}<button type="button" className="utility-add-tab" onClick={addTab} aria-label="Thêm tab"><IconPlus /></button></div>{activeTool ? (activeTool.created ? <PlayView tool={activeTool} onEdit={() => updateActive({ created: false })} /> : <ConfigureView tool={activeTool} onChange={updateActive} onRemove={removeTab} onCreate={() => updateActive({ created: true })} />) : null}</div> : null}
+    </div>
+  ) : null
+  return (
+    <div className={`utility-tools-panel${isPage ? ' utility-tools-panel--page' : ' utility-tools-panel--floating'}`}>
+      <header className="utility-title-row"><div><span className="utility-kicker">CLASSROOM TOOLS</span><h2>Các công cụ</h2><p>Tiện ích quay ngẫu nhiên cho hoạt động trong lớp.</p></div><label className="utility-switch-label"><span>{enabled ? 'ON' : 'OFF'}</span><input type="checkbox" checked={enabled} onChange={(e) => toggle(e.target.checked)} /><i aria-hidden="true" /></label></header>
+      <div className="utility-first-card"><div><h3>Tiện ích quay ngẫu nhiên</h3><p>Chọn yêu cầu, tạo vòng quay rồi mới bắt đầu chơi.</p></div><button type="button" className="utility-open-button" onClick={() => setOpen(true)} disabled={!enabled}>Mở công cụ</button></div>
+      {body}
+      {floatHost && floatingUi ? createPortal(floatingUi, floatHost) : floatingUi}
+    </div>
+  )
 }
