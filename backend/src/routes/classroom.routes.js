@@ -1,5 +1,6 @@
 import express, { Router } from 'express'
 import * as classroomController from '../controllers/classroom.controller.js'
+import * as homeworkSubmissionController from '../controllers/homeworkSubmission.controller.js'
 import { requireAuth } from '../middlewares/auth.middleware.js'
 import { requireMember } from '../middlewares/member.middleware.js'
 import {
@@ -56,6 +57,31 @@ router.patch(
 router.get('/homework', classroomController.listHomework)
 router.post('/homework', requireCapability('homework'), classroomController.createHomework)
 router.delete('/homework/:id', requireCapability('homework'), classroomController.deleteHomework)
+
+// Nộp bài: Admin / LPHT tạo bài tập; mọi thành viên nộp + xem tình trạng.
+router.get('/homework-assignments', homeworkSubmissionController.listAssignments)
+router.post(
+  '/homework-assignments',
+  requireCapability('homework'),
+  homeworkSubmissionController.createAssignment
+)
+router.delete(
+  '/homework-assignments/:id',
+  requireCapability('homework'),
+  homeworkSubmissionController.deleteAssignment
+)
+// Body JSON/base64 lớn: app.js bỏ qua parser 15MB cho đúng đường dẫn này.
+router.post(
+  '/homework-assignments/:id/submit',
+  express.json({ limit: '300mb' }),
+  homeworkSubmissionController.submitAssignment
+)
+router.get('/homework-assignments/:id/status', homeworkSubmissionController.getAssignmentStatus)
+router.get(
+  '/homework-assignments/:id/submissions/:userId',
+  requireCapability('homework'),
+  homeworkSubmissionController.getSubmissionDetail
+)
 
 router.get('/rules', classroomController.getRules)
 router.put('/rules', requireCapability('rules'), classroomController.putRules)
