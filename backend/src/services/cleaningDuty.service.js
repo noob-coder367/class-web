@@ -254,6 +254,33 @@ async function ensureStatusRowsForWeek(weekStart) {
   }
 }
 
+/**
+ * Đánh giá mới nhất của từng ngày trong tuần (Admin/LPLĐ nào lưu sau cùng thì hiển thị).
+ * Lỗi (vd chưa chạy SQL tạo bảng) chỉ cảnh báo, không làm hỏng trạng thái vệ sinh.
+ */
+async function getLatestReviewsByDate(weekStartISO) {
+  const { data, error } = await supabaseAdmin
+    .from('cleaning_duty_reviews')
+    .select('duty_date, rating, comment, updated_by_name, updated_at')
+    .eq('week_start', weekStartISO)
+    .order('updated_at', { ascending: false })
+  if (error) {
+    console.warn('[cleaningDuty] không tải được đánh giá theo tuần:', error.message)
+    return {}
+  }
+  const byDate = {}
+  for (const row of data || []) {
+    if (byDate[row.duty_date]) continue
+    byDate[row.duty_date] = {
+      rating: Number(row.rating) || 0,
+      comment: asText(row.comment),
+      updated_by_name: row.updated_by_name || null,
+      updated_at: row.updated_at || null,
+    }
+  }
+  return byDate
+}
+
 /** Trạng thái vệ sinh của các ngày trong 1 tuần (mặc định tuần hiện tại). */
 export async function getWeekStatus(weekStartRaw) {
   const weekStart = weekStartRaw && isValidISODate(weekStartRaw)
@@ -273,14 +300,17 @@ export async function getWeekStatus(weekStartRaw) {
   for (const row of data || []) {
     byDay[row.day_of_week] = row
   }
+  const reviewsByDate = await getLatestReviewsByDate(weekStartISO)
 
   return {
     week_start: weekStartISO,
     days: DAY_IDS.map((dayId) => {
       const row = byDay[dayId]
+      const dutyDate = row?.duty_date || toISODate(dateForDay(weekStart, dayId))
       return {
         day_of_week: dayId,
-        duty_date: row?.duty_date || toISODate(dateForDay(weekStart, dayId)),
+        duty_date: dutyDate,
+        review: reviewsByDate[dutyDate] || null,
         status: normalizeStatus(row?.status),
         note: asText(row?.note),
         marked_by_name: row?.marked_by_name || null,
@@ -447,16 +477,16 @@ export async function deleteDutyPhoto(id) {
   return { id: row.id }
 }
 
-export async function getDutyReview(weekStartRaw, dutyDateRaw, dayIdRaw, profile) {
+/** Đánh giá mới nhất của 1 ngày trực — mọi thành viên đều xem được. */
+export async function getDutyReview(weekStartRaw, dutyDateRaw, dayIdRaw) {
   const target = validateDutyTarget(weekStartRaw, dutyDateRaw, dayIdRaw)
-  const userId = asText(profile?.id)
-  if (!userId) return { ...target, review: { rating: 0, comment: '' } }
   const { data, error } = await supabaseAdmin
     .from('cleaning_duty_reviews')
     .select('*')
     .eq('week_start', target.weekStartISO)
     .eq('duty_date', target.dutyDateISO)
-    .eq('updated_by', userId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
     .maybeSingle()
   if (error) throw mediaDataError(error, 'Không tải được đánh giá trực nhật')
   return { ...target, review: data || { rating: 0, comment: '' } }
