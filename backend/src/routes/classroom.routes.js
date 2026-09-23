@@ -1,5 +1,4 @@
-import { Router } from 'express'
-import multer from 'multer'
+import express, { Router } from 'express'
 import * as classroomController from '../controllers/classroom.controller.js'
 import { requireAuth } from '../middlewares/auth.middleware.js'
 import { requireMember } from '../middlewares/member.middleware.js'
@@ -8,21 +7,8 @@ import {
   requireAnnouncementAction,
   requireCapability,
 } from '../middlewares/admin.middleware.js'
-import { AppError } from '../services/auth.service.js'
 
 const router = Router()
-const uploadCleaningImages = multer({
-  storage: multer.memoryStorage(),
-  limits: { files: 20, fileSize: 15 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'])
-    const ext = String(file.originalname || '').split('.').pop().toLowerCase()
-    const allowedExt = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'])
-    const valid = allowed.has(String(file.mimetype || '').toLowerCase()) || allowedExt.has(ext)
-    cb(valid ? null : new AppError('Chỉ nhận file ảnh hợp lệ (JPG, PNG, WEBP, GIF, HEIC).', 400))
-  },
-})
-
 // Mọi route: phải đăng nhập + là thành viên 10A4 (hoặc cán sự).
 router.use(requireAuth, requireMember)
 
@@ -93,7 +79,7 @@ router.get('/cleaning-duty/photos', classroomController.listCleaningPhotos)
 router.post(
   '/cleaning-duty/photos',
   requireCapability('cleaningDuty'),
-  uploadCleaningImages.array('photos', 20),
+  express.json({ limit: '700mb' }),
   classroomController.uploadCleaningPhotos
 )
 router.delete(

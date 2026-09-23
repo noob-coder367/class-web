@@ -15,11 +15,18 @@ CREATE TABLE IF NOT EXISTS public.cleaning_duty_photos (
   storage_path TEXT NOT NULL UNIQUE,
   original_name TEXT NOT NULL,
   mime_type TEXT NOT NULL,
-  size_bytes INTEGER NOT NULL CHECK (size_bytes > 0 AND size_bytes <= 15728640),
+  size_bytes INTEGER NOT NULL CHECK (size_bytes > 0 AND size_bytes <= 26214400),
   uploaded_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   uploaded_by_name TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Nâng giới hạn ảnh hiện có từ 15MB lên 25MB, không đổi bảng/bucket/cột.
+ALTER TABLE public.cleaning_duty_photos
+  DROP CONSTRAINT IF EXISTS cleaning_duty_photos_size_bytes_check;
+ALTER TABLE public.cleaning_duty_photos
+  ADD CONSTRAINT cleaning_duty_photos_size_bytes_check
+  CHECK (size_bytes > 0 AND size_bytes <= 26214400);
 
 CREATE INDEX IF NOT EXISTS idx_cleaning_duty_photos_week_day
   ON public.cleaning_duty_photos (week_start, duty_date, created_at DESC);

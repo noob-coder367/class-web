@@ -86,9 +86,9 @@ export default function CleaningDutyDetail({ dayId, gallery = false, canUpload =
       setError('Mỗi lượt chỉ được chọn tối đa 20 ảnh.')
       return
     }
-    const tooLarge = next.find((file) => file.size > 15 * 1024 * 1024)
+    const tooLarge = next.find((file) => file.size > 25 * 1024 * 1024)
     if (tooLarge) {
-      setError(`Ảnh "${tooLarge.name}" vượt quá giới hạn 15MB.`)
+      setError(`Ảnh "${tooLarge.name}" vượt quá giới hạn 25MB.`)
       return
     }
     setError('')
@@ -201,7 +201,7 @@ export default function CleaningDutyDetail({ dayId, gallery = false, canUpload =
                 </div>
                 <input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={(event) => { addFiles(event.target.files); event.target.value = '' }} />
                 <input ref={galleryRef} hidden type="file" accept="image/*" multiple onChange={(event) => { addFiles(event.target.files); event.target.value = '' }} />
-                <small>Tối đa 20 ảnh/lượt, mỗi ảnh không quá 15MB.</small>
+                <small>Tối đa 20 ảnh/lượt, mỗi ảnh không quá 25MB.</small>
               </div>
               {selected.length ? <div className="cleaning-preview-grid">{selected.map((file, index) => <div key={`${file.name}-${index}`}><img src={file.preview} alt={file.name} /><button type="button" onClick={() => removeSelected(index)}>×</button></div>)}</div> : null}
               <button type="button" className="cleaning-detail-primary" onClick={upload} disabled={!selected.length || uploading}>{uploading ? `Đang tải ${selected.length} ảnh...` : `Tải ${selected.length || ''} ảnh lên`}</button>

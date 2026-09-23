@@ -55,8 +55,13 @@ export function createApp() {
       credentials: true,
     })
   )
-  // 15MB để nhận ảnh base64 (ảnh gốc tối đa 10MB) khi admin upload lên GitHub.
-  app.use(express.json({ limit: '15mb' }))
+  // Cleaning Duty dùng JSON/base64 và có thể nhận tối đa 20 ảnh x 25MB.
+  // Bỏ qua global parser ở đúng endpoint này để route tự dùng limit 700MB;
+  // các route khác vẫn giữ giới hạn 15MB như trước.
+  app.use(express.json({
+    limit: '15mb',
+    type: (req) => !req.originalUrl.split('?')[0].endsWith('/api/classroom/cleaning-duty/photos'),
+  }))
   app.use(
     morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev', {
       skip: (req, res) =>

@@ -292,19 +292,32 @@ export async function getCleaningPhotos({ weekStart, dutyDate, dayId }) {
 }
 
 export async function uploadCleaningPhotos({ weekStart, dutyDate, dayId, files }) {
-  const form = new FormData()
-  form.set('week_start', weekStart)
-  form.set('duty_date', dutyDate)
-  form.set('day_id', dayId)
-  files.forEach((file) => {
-    const ext = String(file.name || '').split('.').pop().toLowerCase()
-    const inferredType = ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', heic: 'image/heic', heif: 'image/heif' })[ext]
-    const uploadFile = !file.type && inferredType && typeof File === 'function'
-      ? new File([file], file.name || `cleaning-photo.${ext || 'jpg'}`, { type: inferredType, lastModified: file.lastModified })
-      : file
-    form.append('photos', uploadFile, uploadFile.name)
+  if (!Array.isArray(files) || !files.length) throw new Error('Chưa chọn ảnh trực nhật.')
+  if (files.length > 20) throw new Error('Mỗi lượt chỉ được tải tối đa 20 ảnh.')
+  const tooLarge = files.find((file) => Number(file.size) > 25 * 1024 * 1024)
+  if (tooLarge) throw new Error(`Ảnh "${tooLarge.name || 'không tên'}" vượt quá giới hạn 25MB.`)
+  const mimeByExt = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', heic: 'image/heic', heif: 'image/heif' }
+  const toDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(new Error(`Không đọc được ảnh "${file.name || 'không tên'}".`))
+    reader.readAsDataURL(file)
   })
-  return apiClient.postForm('/classroom/cleaning-duty/photos', form, { auth: true })
+  const photos = []
+  for (const file of files) {
+    const ext = String(file.name || '').split('.').pop().toLowerCase()
+    photos.push({
+      name: file.name || `cleaning-photo.${ext || 'jpg'}`,
+      mimeType: String(file.type || '').toLowerCase() || mimeByExt[ext] || '',
+      contentBase64: await toDataUrl(file),
+    })
+  }
+  try {
+    return await apiClient.post('/classroom/cleaning-duty/photos', { week_start: weekStart, duty_date: dutyDate, day_id: dayId, photos }, { auth: true, retry: false, timeoutMs: 300_000 })
+  } catch (error) {
+    if (error?.status === 408) throw new Error('Upload ảnh quá thời gian chờ. Hãy kiểm tra mạng hoặc thử ít ảnh hơn.')
+    throw error
+  }
 }
 
 export async function deleteCleaningPhoto(id) {
