@@ -6,10 +6,10 @@ export function errorHandler(err, req, res, _next) {
   }
 
   if (err?.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json({ message: 'Mỗi ảnh không được vượt quá 15MB.' })
+    return res.status(413).json({ error: 'FILE_TOO_LARGE', message: 'Mỗi ảnh không được vượt quá 15MB.' })
   }
   if (err?.code === 'LIMIT_FILE_COUNT' || err?.code === 'LIMIT_UNEXPECTED_FILE') {
-    return res.status(400).json({ message: 'Mỗi lượt chỉ được tải tối đa 20 ảnh.' })
+    return res.status(400).json({ error: 'TOO_MANY_FILES', message: 'Mỗi lượt chỉ được tải tối đa 20 ảnh.' })
   }
 
   console.error('[Unhandled Error]', err)

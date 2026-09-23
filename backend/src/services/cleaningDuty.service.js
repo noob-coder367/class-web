@@ -33,9 +33,19 @@ const MEDIA_BUCKET = 'classroom-data'
 const MAX_PHOTOS_PER_UPLOAD = 20
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'])
+const MIME_BY_EXT = Object.freeze({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', heic: 'image/heic', heif: 'image/heif' })
+const STORAGE_UPLOAD_TIMEOUT_MS = 100_000
 
 function asText(value, fallback = '') {
   return String(value ?? fallback).trim()
+}
+
+function withTimeout(promise, timeoutMs, message) {
+  let timer
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new AppError(message, 504)), timeoutMs)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
 
 function namesEqual(a, b) {
@@ -367,7 +377,9 @@ export async function uploadDutyPhotos({ weekStart, dutyDate, dayId, files }, pr
   if (!list.length) throw new AppError('Chưa chọn ảnh trực nhật.')
   if (list.length > MAX_PHOTOS_PER_UPLOAD) throw new AppError(`Mỗi lượt chỉ được tải tối đa ${MAX_PHOTOS_PER_UPLOAD} ảnh.`)
   for (const file of list) {
-    if (!IMAGE_TYPES.has(String(file.mimetype || '').toLowerCase())) throw new AppError('Chỉ nhận file ảnh hợp lệ (JPG, PNG, WEBP, GIF, HEIC).')
+    const ext = String(file.originalname || '').split('.').pop().toLowerCase()
+    const mimeType = String(file.mimetype || '').toLowerCase() || MIME_BY_EXT[ext]
+    if (!IMAGE_TYPES.has(mimeType)) throw new AppError('Chỉ nhận file ảnh hợp lệ (JPG, PNG, WEBP, GIF, HEIC).', 400)
     if (Number(file.size) > MAX_PHOTO_BYTES) throw new AppError('Mỗi ảnh không được vượt quá 15MB.')
   }
   await ensureMediaBucket()
@@ -376,12 +388,20 @@ export async function uploadDutyPhotos({ weekStart, dutyDate, dayId, files }, pr
     for (const file of list) {
       const ext = String(file.originalname || '').split('.').pop().replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg'
       const storagePath = `cleaning-duty/${target.weekStartISO}/${target.dayId}/${randomUUID()}.${ext}`
-      const { error: uploadError } = await supabaseAdmin.storage.from(MEDIA_BUCKET).upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false })
+      const mimeType = String(file.mimetype || '').toLowerCase() || MIME_BY_EXT[ext]
+      console.info('[cleaning-upload] storage start', { fileCount: list.length, index: uploaded.length + 1, size: file.size, mimeType, path: storagePath })
+      const { error: uploadError } = await withTimeout(
+        supabaseAdmin.storage.from(MEDIA_BUCKET).upload(storagePath, file.buffer, { contentType: mimeType, upsert: false }),
+        STORAGE_UPLOAD_TIMEOUT_MS,
+        'Supabase Storage phản hồi quá lâu. Vui lòng thử lại với ảnh nhỏ hơn hoặc mạng ổn định hơn.'
+      )
       if (uploadError) throw new AppError('Không tải được ảnh lên Supabase Storage: ' + uploadError.message, 502)
-      uploaded.push({ storage_path: storagePath, original_name: asText(file.originalname).slice(0, 180) || 'image', mime_type: file.mimetype, size_bytes: file.size, week_start: target.weekStartISO, duty_date: target.dutyDateISO, day_of_week: target.dayId, uploaded_by: profile?.id || null, uploaded_by_name: asText(profile?.username) || null })
+      console.info('[cleaning-upload] storage success', { path: storagePath, size: file.size })
+      uploaded.push({ storage_path: storagePath, original_name: asText(file.originalname).slice(0, 180) || 'image', mime_type: mimeType, size_bytes: file.size, week_start: target.weekStartISO, duty_date: target.dutyDateISO, day_of_week: target.dayId, uploaded_by: profile?.id || null, uploaded_by_name: asText(profile?.username) || null })
     }
     const { data, error } = await supabaseAdmin.from('cleaning_duty_photos').insert(uploaded).select('*')
     if (error) throw mediaDataError(error, 'Ảnh đã tải lên nhưng không lưu được metadata')
+    console.info('[cleaning-upload] metadata success', { fileCount: data?.length || 0 })
     return { items: data || [] }
   } catch (err) {
     await supabaseAdmin.storage.from(MEDIA_BUCKET).remove(uploaded.map((item) => item.storage_path)).catch(() => {})

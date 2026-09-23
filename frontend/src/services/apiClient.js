@@ -4,6 +4,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api
 
 const ACCESS_TOKEN_KEY = 'class-web:access_token'
 const FETCH_TIMEOUT_MS = 20_000
+const UPLOAD_TIMEOUT_MS = 120_000
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504])
 let sessionSnapshot = null
 let sessionLookupPromise = null
@@ -71,7 +72,7 @@ function shouldRetry(method, status, networkError, attempt) {
   return false
 }
 
-async function request(path, { method = 'GET', body, auth = false, formData = false, _retried = false, _attempt = 0 } = {}) {
+async function request(path, { method = 'GET', body, auth = false, formData = false, retry = true, timeoutMs = FETCH_TIMEOUT_MS, _retried = false, _attempt = 0 } = {}) {
   const headers = formData ? {} : { 'Content-Type': 'application/json' }
 
   if (auth) {
@@ -80,7 +81,7 @@ async function request(path, { method = 'GET', body, auth = false, formData = fa
   }
 
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
 
   let res
   try {
@@ -92,16 +93,16 @@ async function request(path, { method = 'GET', body, auth = false, formData = fa
     })
   } catch (err) {
     clearTimeout(timer)
-    if (shouldRetry(method, 0, true, _attempt)) {
+    if (retry && shouldRetry(method, 0, true, _attempt)) {
       await wait(retryDelayMs(_attempt))
-      return request(path, { method, body, auth, formData, _retried, _attempt: _attempt + 1 })
+      return request(path, { method, body, auth, formData, retry, timeoutMs, _retried, _attempt: _attempt + 1 })
     }
     const failed = new Error(
       err?.name === 'AbortError'
-        ? 'Máy chủ phản hồi chậm, thử lại sau.'
+        ? (formData ? 'Upload quá thời gian chờ 120 giây. Hãy thử ảnh nhỏ hơn hoặc dùng mạng ổn định hơn.' : 'Máy chủ phản hồi chậm, thử lại sau.')
         : 'Không kết nối được máy chủ. Thử lại sau vài giây.'
     )
-    failed.status = 0
+    failed.status = err?.name === 'AbortError' ? 408 : 0
     throw failed
   }
   clearTimeout(timer)
@@ -119,7 +120,7 @@ async function request(path, { method = 'GET', body, auth = false, formData = fa
       const { data: refreshed, error } = await supabase.auth.refreshSession()
       if (!error && refreshed?.session?.access_token) {
         setSessionSnapshot(refreshed.session)
-        return request(path, { method, body, auth, formData, _retried: true, _attempt })
+        return request(path, { method, body, auth, formData, retry, timeoutMs, _retried: true, _attempt })
       }
     } catch {
       /* fall through */
@@ -127,9 +128,9 @@ async function request(path, { method = 'GET', body, auth = false, formData = fa
   }
 
   if (!res.ok) {
-    if (shouldRetry(method, res.status, false, _attempt)) {
+    if (retry && shouldRetry(method, res.status, false, _attempt)) {
       await wait(retryDelayMs(_attempt, res.headers.get('Retry-After')))
-      return request(path, { method, body, auth, formData, _retried, _attempt: _attempt + 1 })
+      return request(path, { method, body, auth, formData, retry, timeoutMs, _retried, _attempt: _attempt + 1 })
     }
     if (res.status === 401 && path.startsWith('/classroom') && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('classweb-auth-required', { detail: { path, status: res.status } }))
@@ -146,7 +147,14 @@ async function request(path, { method = 'GET', body, auth = false, formData = fa
 export const apiClient = {
   get: (path, opts) => request(path, { ...opts, method: 'GET' }),
   post: (path, body, opts) => request(path, { ...opts, method: 'POST', body }),
-  postForm: (path, body, opts) => request(path, { ...opts, method: 'POST', body, formData: true }),
+  postForm: (path, body, opts) => request(path, {
+    ...opts,
+    method: 'POST',
+    body,
+    formData: true,
+    retry: false,
+    timeoutMs: UPLOAD_TIMEOUT_MS,
+  }),
   patch: (path, body, opts) => request(path, { ...opts, method: 'PATCH', body }),
   put: (path, body, opts) => request(path, { ...opts, method: 'PUT', body }),
   delete: (path, opts) => request(path, { ...opts, method: 'DELETE' }),

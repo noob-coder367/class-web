@@ -107,10 +107,11 @@ export default function CleaningDutyDetail({ dayId, gallery = false, canUpload =
     setError('')
     setSuccess('')
     try {
+      const uploadedCount = selected.length
       await classroomService.uploadCleaningPhotos({ weekStart, dutyDate, dayId, files: selected })
       selected.forEach((file) => file.preview && URL.revokeObjectURL(file.preview))
       setSelected([])
-      setSuccess('Đã tải ảnh trực nhật lên.')
+      setSuccess(`Đã tải lên ${uploadedCount} ảnh trực nhật.`)
       await load()
     } catch (err) {
       setError(err.message || 'Không tải được ảnh trực nhật.')
@@ -203,7 +204,7 @@ export default function CleaningDutyDetail({ dayId, gallery = false, canUpload =
                 <small>Tối đa 20 ảnh/lượt, mỗi ảnh không quá 15MB.</small>
               </div>
               {selected.length ? <div className="cleaning-preview-grid">{selected.map((file, index) => <div key={`${file.name}-${index}`}><img src={file.preview} alt={file.name} /><button type="button" onClick={() => removeSelected(index)}>×</button></div>)}</div> : null}
-              <button type="button" className="cleaning-detail-primary" onClick={upload} disabled={!selected.length || uploading}>{uploading ? 'Đang tải...' : `Tải ${selected.length || ''} ảnh lên`}</button>
+              <button type="button" className="cleaning-detail-primary" onClick={upload} disabled={!selected.length || uploading}>{uploading ? `Đang tải ${selected.length} ảnh...` : `Tải ${selected.length || ''} ảnh lên`}</button>
             </section>
           ) : null}
 
