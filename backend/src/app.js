@@ -56,11 +56,13 @@ export function createApp() {
     })
   )
   // Cleaning Duty dùng JSON/base64 và có thể nhận tối đa 20 ảnh x 25MB.
-  // Bỏ qua global parser ở đúng endpoint này để route tự dùng limit 700MB;
+  // Nộp bài tập (/homework-assignments/:id/submit) tối đa 10 file x 20MB.
+  // Bỏ qua global parser ở đúng các endpoint này để route tự dùng limit riêng;
   // các route khác vẫn giữ giới hạn 15MB như trước.
+  const BIG_BODY_PATH = /\/api\/classroom\/(cleaning-duty\/photos|homework-assignments\/[^/]+\/submit)$/
   app.use(express.json({
     limit: '15mb',
-    type: (req) => !req.originalUrl.split('?')[0].endsWith('/api/classroom/cleaning-duty/photos'),
+    type: (req) => !BIG_BODY_PATH.test(req.originalUrl.split('?')[0]),
   }))
   app.use(
     morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev', {
