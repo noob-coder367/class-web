@@ -30,6 +30,23 @@ function IconClose() {
   )
 }
 
+function IconFullscreen({ active = false }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {active ? (
+        <>
+          <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M20 15v5h-5" />
+          <path d="M4 4l6 6M20 4l-6 6M4 20l6-6M20 20l-6-6" />
+        </>
+      ) : (
+        <>
+          <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+        </>
+      )}
+    </svg>
+  )
+}
+
 function IconChevronLeft() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -194,6 +211,7 @@ function playStyle(answer, settings, { selected, revealed, wrongTried, showCorre
 export default function ClassPlayView({ classData, onClose }) {
   const { profile } = useAuth()
   const questions = classData?.questions || []
+  const playViewRef = useRef(null)
 
   const [order] = useState(() => {
     const base = questions.map((_, i) => i)
@@ -213,11 +231,39 @@ export default function ClassPlayView({ classData, onClose }) {
   const [leaderboard, setLeaderboard] = useState(() =>
     Array.isArray(classData?.leaderboard) ? classData.leaderboard : []
   )
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const submittedRef = useRef(false)
   const autoAdvanceTimerRef = useRef(0)
   const advancingRef = useRef(false)
   const autoAdvancedQuestionRef = useRef(new Set())
   const questionGenRef = useRef(0)
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      setIsFullscreen(document.fullscreenElement === playViewRef.current)
+    }
+    document.addEventListener('fullscreenchange', syncFullscreenState)
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreenState)
+      if (document.fullscreenElement === playViewRef.current) {
+        document.exitFullscreen?.().catch?.(() => {})
+      }
+    }
+  }, [])
+
+  const toggleFullscreen = async () => {
+    const element = playViewRef.current
+    if (!element) return
+    try {
+      if (document.fullscreenElement === element) {
+        await document.exitFullscreen?.()
+      } else if (!document.fullscreenElement) {
+        await element.requestFullscreen?.()
+      }
+    } catch {
+      // Trình duyệt có thể chặn fullscreen; giữ nguyên trải nghiệm phòng học.
+    }
+  }
 
   // Ghi mốc bắt đầu làm bài ở SERVER (không dùng đồng hồ client) để tính thời
   // gian làm bài một cách đáng tin cậy cho BXH. Gọi lại mỗi khi bấm "Làm lại".
@@ -540,6 +586,7 @@ export default function ClassPlayView({ classData, onClose }) {
 
   return (
     <div
+      ref={playViewRef}
       className={playClassName}
       style={playStyleBg}
       role="dialog"
@@ -868,6 +915,16 @@ export default function ClassPlayView({ classData, onClose }) {
           </footer>
         </div>
       )}
+
+      <button
+        type="button"
+        className="class-play-fullscreen"
+        onClick={toggleFullscreen}
+        aria-label={isFullscreen ? 'Thoát toàn màn hình' : 'Phóng to toàn màn hình'}
+        title={isFullscreen ? 'Thoát toàn màn hình' : 'Phóng to toàn màn hình'}
+      >
+        <IconFullscreen active={isFullscreen} />
+      </button>
 
       {rankOpen ? (
         <div className="play-rank-overlay" onClick={() => setRankOpen(false)}>
