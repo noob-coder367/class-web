@@ -332,3 +332,55 @@ export async function getCleaningReview({ weekStart, dutyDate, dayId }) {
 export async function saveCleaningReview({ weekStart, dutyDate, dayId, rating, comment }) {
   return apiClient.put('/classroom/cleaning-duty/review', { week_start: weekStart, duty_date: dutyDate, day_id: dayId, rating, comment }, { auth: true })
 }
+
+// ---- Bài tập về nhà → Nộp bài ----------------------------------------------
+export async function getHomeworkAssignments() {
+  return apiClient.get('/classroom/homework-assignments', { auth: true })
+}
+
+export async function createHomeworkAssignment(payload) {
+  return apiClient.post('/classroom/homework-assignments', payload, { auth: true })
+}
+
+export async function deleteHomeworkAssignment(id) {
+  return apiClient.delete(`/classroom/homework-assignments/${encodeURIComponent(id)}`, { auth: true })
+}
+
+export async function getHomeworkAssignmentStatus(id) {
+  return apiClient.get(`/classroom/homework-assignments/${encodeURIComponent(id)}/status`, { auth: true })
+}
+
+export async function getHomeworkSubmissionDetail(id, userId) {
+  return apiClient.get(
+    `/classroom/homework-assignments/${encodeURIComponent(id)}/submissions/${encodeURIComponent(userId)}`,
+    { auth: true }
+  )
+}
+
+export async function submitHomeworkAssignment(id, fileList) {
+  const files = Array.from(fileList || [])
+  if (!files.length) throw new Error('Chưa chọn ảnh hoặc file để nộp.')
+  if (files.length > 10) throw new Error('Mỗi lần nộp tối đa 10 file.')
+  const tooLarge = files.find((file) => Number(file.size) > 20 * 1024 * 1024)
+  if (tooLarge) throw new Error(`File "${tooLarge.name || 'không tên'}" vượt quá giới hạn 20MB.`)
+  const toDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(new Error(`Không đọc được file "${file.name || 'không tên'}".`))
+    reader.readAsDataURL(file)
+  })
+  const payload = []
+  for (const file of files) {
+    payload.push({ name: file.name || 'file', contentBase64: await toDataUrl(file) })
+  }
+  try {
+    return await apiClient.post(
+      `/classroom/homework-assignments/${encodeURIComponent(id)}/submit`,
+      { files: payload },
+      { auth: true, retry: false, timeoutMs: 300_000 }
+    )
+  } catch (error) {
+    if (error?.status === 408) throw new Error('Nộp bài quá thời gian chờ. Hãy kiểm tra mạng hoặc thử ít file hơn.')
+    throw error
+  }
+}
