@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as classroomService from '../services/classroomService.js'
 import CleaningDutySettings from './CleaningDutySettings.jsx'
 import {
   DAY_IDS,
+  dateForDayISO,
   dayIdFor,
   dayLabel,
   effectiveStatus,
@@ -58,9 +59,99 @@ function getAssigneesForDate(schedule, dateISO) {
   return schedule.days[dayId]?.assignees || []
 }
 
-function DutyStatusCard({ title, dateISO, statusRow, assignees, isAdmin, onUpdate, updating, onOpen }) {
+function StarRating({ rating }) {
+  const n = Math.max(0, Math.min(5, Number(rating) || 0))
+  if (!n) return null
+  return (
+    <span className="cleaning-rating" role="img" aria-label={`${n} trên 5 sao`}>
+      {'★'.repeat(n)}
+      <span className="cleaning-rating-empty">{'★'.repeat(5 - n)}</span>
+    </span>
+  )
+}
+
+function ReviewComment({ review }) {
+  const comment = String(review?.comment || '').trim()
+  if (!comment) return null
+  return <p className="cleaning-review-comment">Lời đánh giá: {comment}</p>
+}
+
+/** Ô chỉ chứa ảnh trực nhật của 1 ngày (cuộn được nếu nhiều ảnh). */
+function DutyPhotosModal({ dateISO, dayId, onClose }) {
+  const [photos, setPhotos] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [zoom, setZoom] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const data = await classroomService.getCleaningPhotos({
+          weekStart: getWeekStartISO(dateISO),
+          dutyDate: dateISO,
+          dayId,
+        })
+        if (!cancelled) setPhotos(data?.items || [])
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Không tải được ảnh trực nhật.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [dateISO, dayId])
+
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key !== 'Escape') return
+      if (zoom) setZoom(null)
+      else onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [zoom, onClose])
+
+  return (
+    <div className="cleaning-photos-overlay" role="presentation" onClick={onClose}>
+      <div
+        className="cleaning-photos-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Ảnh trực nhật"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button type="button" className="cleaning-photos-close" onClick={onClose} aria-label="Đóng">×</button>
+        {loading ? <p className="cleaning-photos-state">Đang tải ảnh...</p> : null}
+        {error ? <p className="cleaning-photos-state cleaning-photos-state--error">{error}</p> : null}
+        {!loading && !error && !photos.length ? <p className="cleaning-photos-state">Chưa có ảnh trực nhật</p> : null}
+        {photos.length ? (
+          <div className="cleaning-photos-scroll">
+            {photos.map((photo) => (
+              <button key={photo.id} type="button" className="cleaning-photos-item" onClick={() => setZoom(photo)}>
+                <img src={photo.url} alt={photo.original_name || 'Ảnh trực nhật'} loading="lazy" />
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      {zoom ? (
+        <div
+          className="cleaning-photos-zoom"
+          role="presentation"
+          onClick={(event) => { event.stopPropagation(); setZoom(null) }}
+        >
+          <img src={zoom.url} alt={zoom.original_name || 'Ảnh trực nhật'} />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function DutyStatusCard({ title, dateISO, statusRow, assignees, isAdmin, onUpdate, updating, onOpen, onOpenPhotos }) {
   const dayId = dayIdFor(dateISO)
   const displayStatus = effectiveStatus(dateISO, statusRow)
+  const review = statusRow?.review || null
 
   return (
     <div className={`cleaning-status-card cleaning-status-card--${displayStatus}`}>
@@ -86,7 +177,9 @@ function DutyStatusCard({ title, dateISO, statusRow, assignees, isAdmin, onUpdat
           <div className="cleaning-status-row">
             <span className={statusDotClass(displayStatus)} aria-hidden="true" />
             <span className="cleaning-status-text">{statusLabel(displayStatus)}</span>
+            <StarRating rating={review?.rating} />
           </div>
+          <ReviewComment review={review} />
 
           {statusRow?.marked_by_name ? (
             <p className="cleaning-status-meta">
@@ -134,8 +227,11 @@ function DutyStatusCard({ title, dateISO, statusRow, assignees, isAdmin, onUpdat
             </div>
           ) : null}
           <div className="cleaning-status-media-actions">
-            <button type="button" onClick={() => onOpen(dayId, true)}>Xem ảnh trực</button>
+            <button type="button" className="cleaning-link-btn" onClick={() => onOpenPhotos(dateISO, dayId)}>Xem ảnh trực</button>
             {isAdmin ? <button type="button" className="cleaning-status-add" onClick={() => onOpen(dayId, true)} aria-label="Thêm ảnh trực nhật">+</button> : null}
+          </div>
+          <div className="cleaning-status-media-actions">
+            <button type="button" className="cleaning-link-btn" onClick={() => onOpen(dayId)}>Xem chi tiết <span aria-hidden="true">→</span></button>
           </div>
         </>
       )}
@@ -148,8 +244,8 @@ export default function CleaningBoard({ isAdmin }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [schedule, setSchedule] = useState(null)
-  const [todayWeekStatus, setTodayWeekStatus] = useState(null)
-  const [tomorrowWeekStatus, setTomorrowWeekStatus] = useState(null)
+  const [weekStatuses, setWeekStatuses] = useState({})
+  const [photosTarget, setPhotosTarget] = useState(null)
   const [openSettings, setOpenSettings] = useState(false)
   const [updatingDate, setUpdatingDate] = useState('')
 
@@ -171,17 +267,14 @@ export default function CleaningBoard({ isAdmin }) {
     setLoading(true)
     setError('')
     try {
-      const needsSeparateFetch = tomorrowWeekStart !== todayWeekStart
-      const [scheduleData, todayStatusData, tomorrowStatusData] = await Promise.all([
+      // Trạng thái + đánh giá của mọi tuần cần hiển thị (hôm nay, ngày mai, bảng trực)
+      const weekStarts = [...new Set([todayWeekStart, tomorrowWeekStart, currentWeekStart])]
+      const [scheduleData, ...statusList] = await Promise.all([
         classroomService.getCleaningSchedule(currentWeekStart),
-        classroomService.getCleaningStatus(todayWeekStart),
-        needsSeparateFetch
-          ? classroomService.getCleaningStatus(tomorrowWeekStart)
-          : Promise.resolve(null),
+        ...weekStarts.map((ws) => classroomService.getCleaningStatus(ws)),
       ])
       setSchedule(scheduleData?.schedule || null)
-      setTodayWeekStatus(todayStatusData || null)
-      setTomorrowWeekStatus(needsSeparateFetch ? tomorrowStatusData : todayStatusData)
+      setWeekStatuses(Object.fromEntries(weekStarts.map((ws, i) => [ws, statusList[i] || null])))
     } catch (err) {
       setError(err.message || 'Không tải được dữ liệu vệ sinh lớp.')
     } finally {
@@ -211,8 +304,8 @@ export default function CleaningBoard({ isAdmin }) {
     await load()
   }
 
-  const todayStatusRow = findStatusRow(todayWeekStatus, todayDate)
-  const tomorrowStatusRow = findStatusRow(tomorrowWeekStatus, tomorrowDate)
+  const todayStatusRow = findStatusRow(weekStatuses[todayWeekStart], todayDate)
+  const tomorrowStatusRow = findStatusRow(weekStatuses[tomorrowWeekStart], tomorrowDate)
   const todayAssignees = getAssigneesForDate(schedule, todayDate)
   const tomorrowAssignees = getAssigneesForDate(schedule, tomorrowDate)
 
@@ -232,6 +325,7 @@ export default function CleaningBoard({ isAdmin }) {
   }
 
   const openDay = (dayId, gallery = false) => navigate(cleaningDayPath(dayId, gallery))
+  const openPhotos = (dateISO, dayId) => setPhotosTarget({ dateISO, dayId })
 
   return (
     <div className="cleaning-board">
@@ -252,6 +346,7 @@ export default function CleaningBoard({ isAdmin }) {
               onUpdate={handleUpdateStatus}
               updating={updatingDate === todayDate}
               onOpen={openDay}
+              onOpenPhotos={openPhotos}
             />
             <DutyStatusCard
               title="Ngày mai"
@@ -262,6 +357,7 @@ export default function CleaningBoard({ isAdmin }) {
               onUpdate={handleUpdateStatus}
               updating={updatingDate === tomorrowDate}
               onOpen={openDay}
+              onOpenPhotos={openPhotos}
             />
           </div>
         )}
@@ -302,9 +398,13 @@ export default function CleaningBoard({ isAdmin }) {
                 {DAY_IDS.map((dayId) => {
                   const day = schedule?.days?.[dayId]
                   const isToday = dayIdFor(todayDate) === dayId && currentWeekStart === todayWeekStart
+                  const rowDate = dateForDayISO(currentWeekStart, dayId)
+                  const review = findStatusRow(weekStatuses[currentWeekStart], rowDate)?.review || null
+                  const rowClass = isToday ? 'cleaning-row--today' : ''
                   return (
-                    <tr key={dayId} className={isToday ? 'cleaning-row--today' : ''}>
-                      <td className="cleaning-table-day"><button type="button" className="cleaning-table-day-link" onClick={() => openDay(dayId)}>{dayLabel(dayId)}</button></td>
+                    <Fragment key={dayId}>
+                    <tr className={`cleaning-row-main ${rowClass}`}>
+                      <td className="cleaning-table-day">{dayLabel(dayId)}</td>
                       <td>
                         {day?.assignees?.length ? (
                           <div className="cleaning-assignees">
@@ -318,6 +418,20 @@ export default function CleaningBoard({ isAdmin }) {
                       </td>
                       <td className="cleaning-table-note">{day?.note || '—'}</td>
                     </tr>
+                    <tr className={`cleaning-row-extra ${rowClass}`}>
+                      <td colSpan={3}>
+                        <div className="cleaning-row-review">
+                          <div className="cleaning-row-review-text">
+                            <StarRating rating={review?.rating} />
+                            <ReviewComment review={review} />
+                          </div>
+                          <button type="button" className="cleaning-link-btn" onClick={() => openDay(dayId)}>
+                            Xem chi tiết <span aria-hidden="true">→</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    </Fragment>
                   )
                 })}
               </tbody>
@@ -337,6 +451,14 @@ export default function CleaningBoard({ isAdmin }) {
         >
           <IconGear />
         </button>
+      ) : null}
+
+      {photosTarget ? (
+        <DutyPhotosModal
+          dateISO={photosTarget.dateISO}
+          dayId={photosTarget.dayId}
+          onClose={() => setPhotosTarget(null)}
+        />
       ) : null}
 
       {openSettings ? (
