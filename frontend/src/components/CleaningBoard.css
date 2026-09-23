@@ -359,9 +359,187 @@
   height: 22px;
 }
 
+/* Sao + lời đánh giá */
+.cleaning-rating {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  color: #eab308;
+  font-size: 16px;
+  letter-spacing: 1px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.cleaning-rating-empty {
+  color: #cbd5e1;
+}
+
+.cleaning-review-comment {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #334155;
+  overflow-wrap: anywhere;
+}
+
+/* Nút dạng chữ gạch chân (không khung) */
+.cleaning-link-btn,
+.cleaning-status-media-actions .cleaning-link-btn {
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  border-radius: 0;
+  color: #1d4ed8;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cleaning-link-btn:hover {
+  color: #14324a;
+}
+
+/* Hàng phụ dưới mỗi thứ trong bảng: sao + lời đánh giá + Xem chi tiết */
+.cleaning-table .cleaning-row-main td {
+  border-bottom: 0;
+  padding-bottom: 6px;
+}
+
+.cleaning-table .cleaning-row-extra td {
+  padding-top: 0;
+  padding-bottom: 12px;
+}
+
+.cleaning-row-review {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cleaning-row-review-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.cleaning-row-review .cleaning-link-btn {
+  margin-left: auto;
+  flex: none;
+}
+
+/* Ô ảnh trực (popup chỉ chứa ảnh) */
+.cleaning-photos-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(8, 18, 28, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.cleaning-photos-modal {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 16px 40px rgba(8, 18, 28, 0.35);
+}
+
+.cleaning-photos-close {
+  align-self: flex-end;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 8px;
+  border: 0;
+  border-radius: 50%;
+  background: #eef2f6;
+  color: #14324a;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cleaning-photos-scroll {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
+}
+
+.cleaning-photos-item {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f1f5f9;
+  cursor: zoom-in;
+}
+
+.cleaning-photos-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cleaning-photos-state {
+  margin: 0;
+  padding: 24px 8px;
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.cleaning-photos-state--error {
+  color: #b91c1c;
+}
+
+.cleaning-photos-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 410;
+  background: rgba(8, 18, 28, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  cursor: zoom-out;
+}
+
+.cleaning-photos-zoom img {
+  max-width: 100%;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
 @media (max-width: 560px) {
   .cleaning-status-grid {
     grid-template-columns: 1fr;
+  }
+
+  .cleaning-photos-scroll {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .cleaning-fab {
