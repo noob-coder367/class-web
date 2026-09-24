@@ -36,4 +36,8 @@ export const env = {
 
   // Public origin của /api (vd https://xxx.onrender.com/api). Dùng cho push receipt URL.
   API_PUBLIC_URL: String(process.env.API_PUBLIC_URL || '').replace(/\/$/, ''),
+
+  // Groq chỉ được gọi từ backend; tuyệt đối không đưa khóa này sang frontend.
+  GROQ_API_KEY: process.env.GROQ_API_KEY || '',
+  GROQ_MODEL: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
 }

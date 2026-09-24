@@ -32,6 +32,7 @@ import {
 } from '../services/pushService.js'
 import { countNewer } from '../lib/unreadStore.js'
 import PresentationHome from '../components/presentation/PresentationHome.jsx'
+import AIAssistantPage from './AIAssistantPage.jsx'
 
 const NAV_LINKS = [
   { href: '#trang-chu', label: 'Trang chủ' },
@@ -74,6 +75,7 @@ export default function HomePage() {
   // /vo-lop và mọi sub-route của nó -> mở khu vực lớp. /profile-setting -> mở
   // Cài đặt. Các route này điều khiển trực tiếp bằng URL thay vì state rời rạc.
   const showClassRoom = location.pathname === ROUTES.classRoot || location.pathname.startsWith(`${ROUTES.classRoot}/`)
+  const showAIAssistant = location.pathname === ROUTES.ai
   const showProfileSetting = location.pathname === ROUTES.profileSetting
   const presentationPath = parsePresentationPath(location.pathname)
   const showPresentation = presentationPath.type !== null
@@ -201,6 +203,12 @@ export default function HomePage() {
       setShowAuth(true)
     }
   }, [authReady, passwordRecovery, profile?.needs_display_name])
+
+  useEffect(() => {
+    if (!authReady || location.pathname !== ROUTES.ai || session) return
+    setAuthInitialStep('login')
+    setShowAuth(true)
+  }, [authReady, location.pathname, session])
 
   // Push + SW: moi tai khoan da login (da co ten) deu bat thong bao day duoc.
   // - Dang nhap ten hien thi: KHONG hoi / khong che form ten.
@@ -486,7 +494,7 @@ export default function HomePage() {
 
   const closeAuth = () => {
     setShowAuth(false)
-    if (location.pathname === ROUTES.login || location.pathname === ROUTES.register) {
+    if (location.pathname === ROUTES.login || location.pathname === ROUTES.register || location.pathname === ROUTES.ai) {
       navigate(ROUTES.home)
     } else if (showClassRoom && !session) {
       takeClassroomReturn()
@@ -495,7 +503,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className={`page ${showAuth || showClassRoom || showProfileSetting || showPresentation ? 'no-scroll' : ''}`}>
+    <div className={`page ${showAuth || showClassRoom || showAIAssistant || showProfileSetting || showPresentation ? 'no-scroll' : ''}`}>
       {showAuth && (
         <AuthPage
           key={authInitialStep}
@@ -519,6 +527,8 @@ export default function HomePage() {
           initialTab={classInitialTab}
         />
       )}
+
+      {showAIAssistant && authReady && session && <AIAssistantPage />}
 
       {showPresentation && (
         <PresentationHome

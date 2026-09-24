@@ -1114,11 +1114,19 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
 
     if (activeTab === 'ai') {
       return (
-        <div className="classroom-state classroom-state--soon">
-          <h2>Đang được xây dựng</h2>
-          <p className="classroom-state-sub">
-            Tính năng AI đang được phát triển. Vui lòng quay lại sau!
-          </p>
+        <div className="classroom-ai-entry">
+          <div className="classroom-ai-entry-copy">
+            <span className="classroom-ai-entry-icon"><IconAI /></span>
+            <div>
+              <p className="classroom-ai-entry-kicker">AI Assistant</p>
+              <h2>Trợ lý AI dành riêng cho Class-Web</h2>
+              <p>Hỏi nhanh về thời khóa biểu, bài tập, kiểm tra và thông báo của lớp.</p>
+            </div>
+          </div>
+          <button type="button" className="classroom-ai-entry-button" onClick={() => navigate('/app')}>
+            <span>Trò chuyện với AI</span>
+            <IconArrowRight />
+          </button>
         </div>
       )
     }
