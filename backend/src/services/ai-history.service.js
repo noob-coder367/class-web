@@ -13,7 +13,7 @@ function todayInVietnam() {
     day: '2-digit',
   }).formatToParts(new Date())
   const get = (type) => parts.find((part) => part.type === type)?.value
-  return `\( {get('year')}- \){get('month')}-${get('day')}`
+  return `${get('year')}-${get('month')}-${get('day')}`
 }
 
 function cleanText(value, max) {
@@ -65,7 +65,7 @@ export async function releaseQuota(userId, usageDate) {
 }
 
 function normalizeConversation(row, userId) {
-  if (!row || row.user_id !== userId) throw new AppError('Không tìm thấy cuộc trò chuyện.', 404)
+  if (!row || String(row.user_id) !== String(userId)) throw new AppError('Không tìm thấy cuộc trò chuyện.', 404)
   return {
     id: row.id,
     title: row.title,
@@ -102,7 +102,12 @@ export async function createConversation(userId, title = 'Cuộc trò chuyện m
     .select('id, user_id, title, created_at, updated_at')
     .single()
   throwDatabaseError(error, 'Không tạo được cuộc trò chuyện, vui lòng thử lại sau.')
-  return normalizeConversation(data, userId)
+  if (!data?.id) {
+    console.error('[AI history] insert conversation returned no row')
+    throw new AppError('Không tạo được cuộc trò chuyện, vui lòng thử lại sau.', 503)
+  }
+  // Vừa insert bằng đúng userId nên không cần check ownership (tránh 404 giả).
+  return toConversationSummary(data)
 }
 
 async function getOwnedConversation(userId, conversationId) {
