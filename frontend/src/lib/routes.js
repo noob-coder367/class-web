@@ -9,11 +9,29 @@ export const ROUTES = {
   home: '/',
   login: '/dang-nhap',
   register: '/dang-ky',
-  ai: '/app',
+  ai: '/vo-lop/AI/app',
   profileSetting: '/profile-setting',
   classRoot: '/vo-lop',
   presentationRoot: '/thuyet-trinh',
   presentationCreate: '/tao-bai',
+}
+
+// Đường dẫn cũ của trang AI (trước đây là /app). Vẫn nhận để link cũ không bị chết,
+// HomePage sẽ tự chuyển sang ROUTES.ai.
+export const LEGACY_AI_PATH = '/app'
+
+function normalizePathname(pathname) {
+  return String(pathname || '').replace(/\/+$/, '').toLowerCase()
+}
+
+/** Trang chat AI: /vo-lop/AI/app (không phân biệt hoa/thường, bỏ qua dấu / cuối). */
+export function isAIAssistantPath(pathname) {
+  return normalizePathname(pathname) === ROUTES.ai.toLowerCase()
+}
+
+/** Link cũ /app -> cần chuyển sang ROUTES.ai. */
+export function isLegacyAIPath(pathname) {
+  return normalizePathname(pathname) === LEGACY_AI_PATH
 }
 
 export function presentationListPath() {
