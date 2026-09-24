@@ -16,6 +16,7 @@ import UtilityToolsPanel, { IconWrench } from './UtilityToolsPanel.jsx'
 import { isRoomCompletedLocked } from '../lib/classPlayScore.js'
 import PresentationHome from './presentation/PresentationHome.jsx'
 import {
+  ROUTES,
   classTabPath,
   parseClassPath,
   classSpaceListPath,
@@ -1123,7 +1124,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
               <p>Hỏi nhanh về thời khóa biểu, bài tập, kiểm tra và thông báo của lớp.</p>
             </div>
           </div>
-          <button type="button" className="classroom-ai-entry-button" onClick={() => navigate('/app')}>
+          <button type="button" className="classroom-ai-entry-button" onClick={() => navigate(ROUTES.ai)}>
             <span>Trò chuyện với AI</span>
             <IconArrowRight />
           </button>
