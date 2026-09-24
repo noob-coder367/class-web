@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { initialAuthRedirect, clearAuthRedirectFromUrl } from '../lib/supabaseClient.js'
-import { ROUTES, classTabPath, parsePresentationPath } from '../lib/routes.js'
+import { ROUTES, classTabPath, parsePresentationPath, isAIAssistantPath, isLegacyAIPath } from '../lib/routes.js'
 import AuthPage from './AuthPage.jsx'
 import SettingsPanel from '../components/SettingsPanel.jsx'
 import { getStoredAvatar } from '../components/ProfileMenu.jsx'
@@ -74,8 +74,11 @@ export default function HomePage() {
 
   // /vo-lop và mọi sub-route của nó -> mở khu vực lớp. /profile-setting -> mở
   // Cài đặt. Các route này điều khiển trực tiếp bằng URL thay vì state rời rạc.
-  const showClassRoom = location.pathname === ROUTES.classRoot || location.pathname.startsWith(`${ROUTES.classRoot}/`)
-  const showAIAssistant = location.pathname === ROUTES.ai
+  // Trang chat AI (/vo-lop/AI/app) nằm dưới /vo-lop nhưng là màn hình riêng,
+  // nên phải loại khỏi khu vực lớp để 2 màn không hiện chồng lên nhau.
+  const showAIAssistant = isAIAssistantPath(location.pathname)
+  const showClassRoom = !showAIAssistant
+    && (location.pathname === ROUTES.classRoot || location.pathname.startsWith(`${ROUTES.classRoot}/`))
   const showProfileSetting = location.pathname === ROUTES.profileSetting
   const presentationPath = parsePresentationPath(location.pathname)
   const showPresentation = presentationPath.type !== null
@@ -205,10 +208,15 @@ export default function HomePage() {
   }, [authReady, passwordRecovery, profile?.needs_display_name])
 
   useEffect(() => {
-    if (!authReady || location.pathname !== ROUTES.ai || session) return
+    if (!authReady || !showAIAssistant || session) return
     setAuthInitialStep('login')
     setShowAuth(true)
-  }, [authReady, location.pathname, session])
+  }, [authReady, showAIAssistant, session])
+
+  // Link cũ /app -> đường dẫn mới /vo-lop/AI/app.
+  useEffect(() => {
+    if (isLegacyAIPath(location.pathname)) navigate(ROUTES.ai, { replace: true })
+  }, [location.pathname, navigate])
 
   // Push + SW: moi tai khoan da login (da co ten) deu bat thong bao day duoc.
   // - Dang nhap ten hien thi: KHONG hoi / khong che form ten.
@@ -494,7 +502,7 @@ export default function HomePage() {
 
   const closeAuth = () => {
     setShowAuth(false)
-    if (location.pathname === ROUTES.login || location.pathname === ROUTES.register || location.pathname === ROUTES.ai) {
+    if (location.pathname === ROUTES.login || location.pathname === ROUTES.register || showAIAssistant) {
       navigate(ROUTES.home)
     } else if (showClassRoom && !session) {
       takeClassroomReturn()
