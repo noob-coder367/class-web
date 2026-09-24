@@ -485,7 +485,8 @@
 .classroom-body--timetable,
 .classroom-body--rules,
 .classroom-body--announcements,
-.classroom-body--cleaning-duty {
+.classroom-body--cleaning-duty,
+.classroom-body--presentation {
   display: block;
   padding: 18px 20px 96px;
   overflow-x: auto;
@@ -657,7 +658,8 @@
   .classroom-body--timetable,
   .classroom-body--rules,
   .classroom-body--announcements,
-  .classroom-body--cleaning-duty {
+  .classroom-body--cleaning-duty,
+  .classroom-body--presentation {
     padding: 12px 12px 88px;
   }
 
