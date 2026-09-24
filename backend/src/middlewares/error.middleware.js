@@ -2,7 +2,10 @@ import { AppError } from '../services/auth.service.js'
 
 export function errorHandler(err, req, res, _next) {
   if (err instanceof AppError) {
-    return res.status(err.statusCode).json({ message: err.message })
+    return res.status(err.statusCode).json({
+      message: err.message,
+      ...(err.quota ? { quota: err.quota } : {}),
+    })
   }
 
   if (err?.code === 'LIMIT_FILE_SIZE' || err?.type === 'entity.too.large') {

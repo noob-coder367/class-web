@@ -493,3 +493,367 @@
     flex-direction: column;
   }
 }
+
+
+.ai-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ai-exit-button,
+.ai-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid #dbe8ee;
+  border-radius: 13px;
+  background: #f1f7fa;
+  color: #14324a;
+  cursor: pointer;
+  transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+}
+
+.ai-exit-button:hover,
+.ai-icon-button:hover {
+  background: #e4f1f7;
+  border-color: #c5dbe5;
+  transform: translateY(-1px);
+}
+
+.ai-exit-button svg,
+.ai-icon-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ai-online-dot {
+  margin: 0 4px 0 5px;
+}
+
+.ai-quota-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-left: 1px;
+}
+
+.ai-quota-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: conic-gradient(#4b8aa5 var(--ai-quota-percent), #e1edf1 0);
+  position: relative;
+}
+
+.ai-quota-circle::after {
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: #ffffff;
+  content: '';
+}
+
+.ai-quota-circle span {
+  position: relative;
+  z-index: 1;
+  color: #31566b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.ai-sidebar-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  border: 0;
+  background: rgba(10, 28, 40, 0.32);
+  cursor: pointer;
+}
+
+.ai-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 410;
+  display: flex;
+  width: min(86vw, 330px);
+  padding: 20px 14px;
+  flex-direction: column;
+  background: #ffffff;
+  box-shadow: 10px 0 30px rgba(20, 50, 74, 0.14);
+  transform: translateX(-105%);
+  transition: transform 0.22s ease;
+}
+
+.ai-sidebar.is-open {
+  transform: translateX(0);
+}
+
+.ai-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 5px 18px;
+  border-bottom: 1px solid #e5eef2;
+}
+
+.ai-sidebar-head p,
+.ai-sidebar-head h2 {
+  margin: 0;
+}
+
+.ai-sidebar-head p {
+  color: #4b8aa5;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.ai-sidebar-head h2 {
+  margin-top: 3px;
+  color: #14324a;
+  font-size: 18px;
+}
+
+.ai-icon-button {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: 11px;
+}
+
+.ai-icon-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.ai-new-chat-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 43px;
+  margin: 16px 2px 13px;
+  border: 1px solid #cfe1e8;
+  border-radius: 12px;
+  background: #eef8fb;
+  color: #1d4a6b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+
+.ai-new-chat-button:hover {
+  background: #e1f2f7;
+  transform: translateY(-1px);
+}
+
+.ai-new-chat-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.ai-conversation-list {
+  display: flex;
+  min-height: 0;
+  padding: 0 2px;
+  flex-direction: column;
+  gap: 5px;
+  overflow-y: auto;
+}
+
+.ai-conversation-item {
+  display: flex;
+  min-width: 0;
+  padding: 11px 10px;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: #31566b;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ai-conversation-item:hover,
+.ai-conversation-item.is-active {
+  border-color: #dbeaf0;
+  background: #f1f8fa;
+}
+
+.ai-conversation-title {
+  overflow: hidden;
+  color: #24485d;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-conversation-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #8aa0ab;
+  font-size: 11px;
+}
+
+.ai-delete-conversation {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  margin: -5px -5px -5px 0;
+  border-radius: 7px;
+  color: #9aabb3;
+  cursor: pointer;
+}
+
+.ai-delete-conversation:hover {
+  background: #ffeceb;
+  color: #b43b35;
+}
+
+.ai-delete-conversation svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ai-history-empty {
+  margin: 24px 8px;
+  color: #91a4ae;
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.ai-message-row--assistant .ai-message-bubble--assistant {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.ai-message-row--assistant .ai-avatar {
+  flex: 0 0 28px;
+  margin-top: 1px;
+}
+
+.ai-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 28, 40, 0.38);
+}
+
+.ai-quota-modal {
+  width: min(100%, 390px);
+  padding: 27px 23px 22px;
+  border: 1px solid #dbe8ee;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #14324a;
+  box-shadow: 0 18px 50px rgba(20, 50, 74, 0.2);
+  text-align: center;
+}
+
+.ai-quota-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 13px;
+  border-radius: 15px;
+  background: #e4f1f7;
+  color: #1d4a6b;
+}
+
+.ai-quota-modal-icon svg {
+  width: 25px;
+  height: 25px;
+}
+
+.ai-quota-modal h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.ai-quota-modal p {
+  margin: 10px 0 20px;
+  color: #6d8391;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.ai-quota-modal button {
+  width: 100%;
+  min-height: 42px;
+  border: 0;
+  border-radius: 11px;
+  background: #14324a;
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ai-quota-modal button:hover {
+  background: #1d4a6b;
+}
+
+@media (max-width: 420px) {
+  .ai-page-header {
+    gap: 8px;
+  }
+
+  .ai-header-actions {
+    gap: 5px;
+  }
+
+  .ai-exit-button,
+  .ai-back-button {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+    border-radius: 11px;
+  }
+
+  .ai-online-dot {
+    margin-left: 2px;
+    margin-right: 0;
+  }
+
+  .ai-quota-wrap {
+    width: 43px;
+    height: 43px;
+  }
+
+  .ai-quota-circle {
+    width: 37px;
+    height: 37px;
+  }
+}

@@ -3,6 +3,7 @@ import { AppError } from './auth.service.js'
 import * as timetableService from './timetable.service.js'
 import * as homeworkService from './homework.service.js'
 import * as announcementsService from './announcements.service.js'
+import * as aiHistoryService from './ai-history.service.js'
 
 const TIME_ZONE = 'Asia/Ho_Chi_Minh'
 const DEFAULT_MODEL = 'openai/gpt-oss-20b'
@@ -218,35 +219,60 @@ async function askGroq(messages) {
   return reply
 }
 
-export async function chat({ message, conversation = [] }) {
+export async function chat({ userId, message, conversation = [], conversationId = null }) {
   const question = cleanText(message, MAX_MESSAGE_LENGTH)
   if (!question) throw new AppError('Vui lòng nhập câu hỏi cho AI.')
   if (question.length > MAX_MESSAGE_LENGTH) throw new AppError(`Câu hỏi tối đa ${MAX_MESSAGE_LENGTH} ký tự.`)
 
-  const intent = detectIntent(question)
-  let context
-  try {
-    context = await buildContext(intent, question)
-  } catch (error) {
-    console.error('[AI] classroom data unavailable:', error?.message || 'unknown error')
-    throw new AppError('Dữ liệu lớp hiện không khả dụng, vui lòng thử lại sau.', 503)
+  const reservation = await aiHistoryService.reserveQuota(userId)
+  if (!reservation.allowed) {
+    const error = new AppError('Bạn đã sử dụng hết lượt chat hôm nay. Vui lòng quay lại vào ngày mai để tiếp tục trò chuyện với AI.', 429)
+    error.quota = { used: reservation.used, limit: reservation.limit, remaining: 0 }
+    throw error
   }
 
-  const messages = [
-    { role: 'system', content: `${SYSTEM_PROMPT}\n\nCONTEXT (JSON):\n${JSON.stringify(context)}` },
-    ...normalizeConversation(conversation),
-    { role: 'user', content: question },
-  ]
-
-  let reply
+  let completed = false
   try {
-    reply = await askGroq(messages)
-  } catch (error) {
-    console.error('[AI] Groq request failed:', error?.message || 'unknown error')
-    throw new AppError('AI hiện đang bận, vui lòng thử lại sau.', 503)
+    const intent = detectIntent(question)
+    let context
+    try {
+      context = await buildContext(intent, question)
+    } catch (error) {
+      console.error('[AI] classroom data unavailable:', error?.message || 'unknown error')
+      throw new AppError('Dữ liệu lớp hiện không khả dụng, vui lòng thử lại sau.', 503)
+    }
+    const storedConversation = conversationId
+      ? await aiHistoryService.storedConversationMessages(userId, conversationId)
+      : normalizeConversation(conversation)
+    const messages = [
+      { role: 'system', content: `${SYSTEM_PROMPT}\n\nCONTEXT (JSON):\n${JSON.stringify(context)}` },
+      ...storedConversation,
+      { role: 'user', content: question },
+    ]
+    let reply
+    try {
+      reply = await askGroq(messages)
+    } catch (error) {
+      console.error('[AI] Groq request failed:', error?.message || 'unknown error')
+      throw new AppError('AI hiện đang bận, vui lòng thử lại sau.', 503)
+    }
+    const conversation = await aiHistoryService.appendTurn({
+      userId,
+      conversationId,
+      question,
+      reply,
+    })
+    completed = true
+    return {
+      reply,
+      intent,
+      conversationId: conversation.id,
+      quota: { used: reservation.used, limit: reservation.limit, remaining: reservation.remaining },
+      meta: { date: context.requested_date, timezone: TIME_ZONE },
+    }
+  } finally {
+    if (!completed) await aiHistoryService.releaseQuota(userId, reservation.usageDate)
   }
-
-  return { reply, intent, meta: { date: context.requested_date, timezone: TIME_ZONE } }
 }
 
 export { detectIntent, parseRequestedDate }
