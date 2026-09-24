@@ -13,7 +13,7 @@ function todayInVietnam() {
     day: '2-digit',
   }).formatToParts(new Date())
   const get = (type) => parts.find((part) => part.type === type)?.value
-  return `${get('year')}-${get('month')}-${get('day')}`
+  return `\( {get('year')}- \){get('month')}-${get('day')}`
 }
 
 function cleanText(value, max) {
@@ -74,6 +74,16 @@ function normalizeConversation(row, userId) {
   }
 }
 
+/** Map row đã được filter theo user_id — không cần check ownership lại. */
+function toConversationSummary(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
+
 export async function listConversations(userId) {
   const { data, error } = await supabaseAdmin
     .from('ai_conversations')
@@ -81,12 +91,7 @@ export async function listConversations(userId) {
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
   throwDatabaseError(error, 'Không tải được lịch sử chat, vui lòng thử lại sau.')
-  return (data || []).map((row) => ({
-    id: row.id,
-    title: row.title,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  }))
+  return (data || []).map(toConversationSummary)
 }
 
 export async function createConversation(userId, title = 'Cuộc trò chuyện mới') {
@@ -94,7 +99,7 @@ export async function createConversation(userId, title = 'Cuộc trò chuyện m
   const { data, error } = await supabaseAdmin
     .from('ai_conversations')
     .insert({ user_id: userId, title: safeTitle })
-    .select('id, title, created_at, updated_at')
+    .select('id, user_id, title, created_at, updated_at')
     .single()
   throwDatabaseError(error, 'Không tạo được cuộc trò chuyện, vui lòng thử lại sau.')
   return normalizeConversation(data, userId)
@@ -140,7 +145,16 @@ export async function deleteConversation(userId, conversationId) {
 export async function appendTurn({ userId, conversationId, question, reply }) {
   const safeQuestion = cleanText(question, MAX_CONTENT_LENGTH)
   const safeReply = cleanText(reply, MAX_CONTENT_LENGTH)
-  let conversation = conversationId ? await getOwnedConversation(userId, conversationId) : null
+  let conversation = null
+
+  if (conversationId) {
+    try {
+      conversation = await getOwnedConversation(userId, conversationId)
+    } catch (err) {
+      if (!(err instanceof AppError && err.statusCode === 404)) throw err
+      conversation = null
+    }
+  }
 
   if (!conversation) {
     conversation = await createConversation(userId, safeQuestion.slice(0, MAX_TITLE_LENGTH))
