@@ -34,9 +34,6 @@ const limiterBase = {
   keyGenerator: clientKey,
   handler: tooManyRequestsHandler,
   skip: (req) => req.method === 'OPTIONS',
-  validate: {
-    keyGeneratorIpFallback: false,
-  },
 }
 
 export function createApp() {

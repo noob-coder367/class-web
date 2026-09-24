@@ -128,7 +128,9 @@ export default function AIAssistantPage() {
     } catch (err) { setError(err?.message || 'Không xóa được cuộc trò chuyện.') }
   }
 
-  const submit = async (rawMessage = draft) => {
+  const isConversationNotFound = (err) => err?.status === 404 && /Không tìm thấy cuộc trò chuyện/.test(String(err?.message || ''))
+
+  const submit = async (rawMessage = draft, forcedConversationId = conversationId) => {
     const message = String(rawMessage || '').trim()
     if (!message || loading) return
     if (Number(quota.remaining) <= 0) { setQuotaModal(true); return }
@@ -137,17 +139,31 @@ export default function AIAssistantPage() {
     setMessages((prev) => [...prev, { role: 'user', content: message }])
     setLoading(true)
     try {
-      const result = await chatWithAI(message, conversation, conversationId)
+      const result = await chatWithAI(message, conversation, forcedConversationId)
       setMessages((prev) => [...prev, { role: 'assistant', content: result?.reply || 'AI hiện không thể trả lời. Vui lòng thử lại sau.' }])
       if (result?.conversationId) setConversationId(result.conversationId)
       if (result?.quota) setQuota(result.quota)
       await refreshConversations()
     } catch (err) {
-      if (err?.status === 429) {
+      let finalError = err
+      if (isConversationNotFound(err) && forcedConversationId) {
+        setConversationId(null)
+        try {
+          const result = await chatWithAI(message, conversation, null)
+          setMessages((prev) => [...prev, { role: 'assistant', content: result?.reply || 'AI hiện không thể trả lời. Vui lòng thử lại sau.' }])
+          if (result?.conversationId) setConversationId(result.conversationId)
+          if (result?.quota) setQuota(result.quota)
+          await refreshConversations()
+          return
+        } catch (retryError) {
+          finalError = retryError
+        }
+      }
+      if (finalError?.status === 429) {
         setQuotaModal(true)
         await refreshQuota().catch(() => {})
       }
-      setError(err?.message || 'AI hiện không thể trả lời. Vui lòng thử lại sau.')
+      setError(finalError?.message || 'AI hiện không thể trả lời. Vui lòng thử lại sau.')
     } finally {
       setLoading(false)
       requestAnimationFrame(() => textareaRef.current?.focus())
@@ -176,7 +192,7 @@ export default function AIAssistantPage() {
     </header>
     <section className="ai-chat-shell">
       <div className="ai-messages" ref={messagesRef} aria-live="polite">
-        {!hasConversation ? <div className="ai-welcome"><div className="ai-welcome-icon"><IconSparkles /></div><p className="ai-eyebrow">Trợ lý lớp học 10A4</p><h2>Xin chào! Tôi có thể giúp gì cho bạn?</h2><p className="ai-welcome-subtitle">Hỏi mình về thời khóa biểu, bài tập, kiểm tra hoặc thông báo của lớp.</p><div className="ai-suggestions" aria-label="Câu hỏi gợi ý">{SUGGESTIONS.map((suggestion) => <button type="button" key={suggestion} onClick={() => submit(suggestion)} disabled={loading}>{suggestion}</button>)}</div></div> : <div className="ai-message-list">{messages.map((item, index) => <div className={`ai-message-row ai-message-row--${item.role}`} key={`${item.role}-${index}`}><div className={`ai-message-bubble ai-message-bubble--${item.role}`}>{item.role === 'assistant' ? <div className="ai-avatar" aria-hidden="true"><IconSparkles /></div> : null}<SafeMessage content={item.content} /></div></div>)}{loading ? <div className="ai-message-row ai-message-row--assistant"><div className="ai-message-bubble ai-message-bubble--assistant ai-thinking"><span /><span /><span /><em>Đang suy nghĩ...</em></div></div> : null}{error ? <div className="ai-error-state" role="alert"><span>{error}</span><button type="button" onClick={() => submit(messages.findLast((item) => item.role === 'user')?.content)} disabled={loading}>Thử lại</button></div> : null}</div>}
+        {!hasConversation ? <div className="ai-welcome"><div className="ai-welcome-icon"><IconSparkles /></div><p className="ai-eyebrow">Trợ lý lớp học 10A4</p><h2>Xin chào! Tôi có thể giúp gì cho bạn?</h2><p className="ai-welcome-subtitle">Hỏi mình về thời khóa biểu, bài tập, kiểm tra hoặc thông báo của lớp.</p><div className="ai-suggestions" aria-label="Câu hỏi gợi ý">{SUGGESTIONS.map((suggestion) => <button type="button" key={suggestion} onClick={() => submit(suggestion)} disabled={loading}>{suggestion}</button>)}</div></div> : <div className="ai-message-list">{messages.map((item, index) => <div className={`ai-message-row ai-message-row--${item.role}`} key={`${item.role}-${index}`}><div className={`ai-message-bubble ai-message-bubble--${item.role}`}>{item.role === 'assistant' ? <div className="ai-avatar" aria-hidden="true"><IconSparkles /></div> : null}<SafeMessage content={item.content} /></div></div>)}{loading ? <div className="ai-message-row ai-message-row--assistant"><div className="ai-message-bubble ai-message-bubble--assistant ai-thinking"><span /><span /><span /><em>Đang suy nghĩ...</em></div></div> : null}{error ? <div className="ai-error-state" role="alert"><span>{error}</span><button type="button" onClick={() => submit(messages.findLast((item) => item.role === 'user')?.content, isConversationNotFound({ status: 404, message: error }) ? null : conversationId)} disabled={loading}>Thử lại</button></div> : null}</div>}
       </div>
       <form className="ai-composer" onSubmit={(event) => { event.preventDefault(); submit() }}><label className="sr-only" htmlFor="ai-message-input">Hỏi AI về lớp học</label><textarea id="ai-message-input" ref={textareaRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKeyDown} placeholder="Hỏi AI về lớp học..." rows={1} maxLength={2000} disabled={loading} /><button type="submit" className="ai-send-button" aria-label="Gửi tin nhắn" title="Gửi tin nhắn" disabled={!draft.trim() || loading}><IconArrowUp /></button></form>
       <p className="ai-composer-hint">Enter để gửi · Shift + Enter để xuống dòng</p>

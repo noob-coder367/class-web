@@ -81,7 +81,12 @@ export async function listConversations(userId) {
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
   throwDatabaseError(error, 'Không tải được lịch sử chat, vui lòng thử lại sau.')
-  return (data || []).map((row) => normalizeConversation(row, userId))
+  return (data || []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }))
 }
 
 export async function createConversation(userId, title = 'Cuộc trò chuyện mới') {

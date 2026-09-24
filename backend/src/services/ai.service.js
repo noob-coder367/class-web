@@ -241,9 +241,22 @@ export async function chat({ userId, message, conversation = [], conversationId 
       console.error('[AI] classroom data unavailable:', error?.message || 'unknown error')
       throw new AppError('Dữ liệu lớp hiện không khả dụng, vui lòng thử lại sau.', 503)
     }
-    const storedConversation = conversationId
-  ? await aiHistoryService.storedConversationMessages(userId, conversationId)
-  : []
+    let effectiveConversationId = conversationId
+    let storedConversation
+    if (conversationId) {
+      try {
+        storedConversation = await aiHistoryService.storedConversationMessages(userId, conversationId)
+      } catch (error) {
+        if (error?.statusCode === 404 && error?.message === 'Không tìm thấy cuộc trò chuyện.') {
+          effectiveConversationId = null
+          storedConversation = []
+        } else {
+          throw error
+        }
+      }
+    } else {
+      storedConversation = []
+    }
     const messages = [
       { role: 'system', content: `${SYSTEM_PROMPT}\n\nCONTEXT (JSON):\n${JSON.stringify(context)}` },
       ...storedConversation,
@@ -258,7 +271,7 @@ export async function chat({ userId, message, conversation = [], conversationId 
     }
     const conversation = await aiHistoryService.appendTurn({
       userId,
-      conversationId,
+      conversationId: effectiveConversationId,
       question,
       reply,
     })
