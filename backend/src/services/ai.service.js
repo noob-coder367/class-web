@@ -5,7 +5,7 @@ import * as homeworkService from './homework.service.js'
 import * as announcementsService from './announcements.service.js'
 
 const TIME_ZONE = 'Asia/Ho_Chi_Minh'
-const DEFAULT_MODEL = 'llama-3.1-8b-instant'
+const DEFAULT_MODEL = 'openai/gpt-oss-20b'
 const MAX_MESSAGE_LENGTH = 2000
 const MAX_CONVERSATION_MESSAGES = 12
 

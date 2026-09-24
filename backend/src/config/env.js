@@ -39,5 +39,5 @@ export const env = {
 
   // Groq chỉ được gọi từ backend; tuyệt đối không đưa khóa này sang frontend.
   GROQ_API_KEY: process.env.GROQ_API_KEY || '',
-  GROQ_MODEL: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+  GROQ_MODEL: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
 }
