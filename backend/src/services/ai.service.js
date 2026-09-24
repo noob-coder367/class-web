@@ -202,20 +202,29 @@ function normalizeConversation(conversation) {
 
 async function askGroq(messages) {
   if (!env.GROQ_API_KEY) throw new AppError('AI hiện chưa được cấu hình.', 503)
+  const model = env.GROQ_MODEL || DEFAULT_MODEL
+  const body = {
+    model,
+    messages,
+    temperature: 0.2,
+    // Model reasoning (gpt-oss) tính cả token "suy nghĩ" vào giới hạn này,
+    // để 500 dễ bị hết token trước khi ra câu trả lời -> reply rỗng.
+    max_tokens: 1500,
+  }
+  if (/gpt-oss/i.test(model)) body.reasoning_effort = 'low'
+
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: env.GROQ_MODEL || DEFAULT_MODEL,
-      messages,
-      temperature: 0.2,
-      max_tokens: 500,
-    }),
+    body: JSON.stringify(body),
   })
-  if (!response.ok) throw new Error(`Groq request failed with status ${response.status}`)
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Groq request failed with status ${response.status}: ${detail.slice(0, 300)}`)
+  }
   const payload = await response.json()
   const reply = cleanText(payload?.choices?.[0]?.message?.content, 4000)
-  if (!reply) throw new Error('Groq returned an empty response')
+  if (!reply) throw new Error(`Groq returned an empty response (finish_reason=${payload?.choices?.[0]?.finish_reason})`)
   return reply
 }
 
@@ -247,7 +256,7 @@ export async function chat({ userId, message, conversation = [], conversationId 
       try {
         storedConversation = await aiHistoryService.storedConversationMessages(userId, conversationId)
       } catch (error) {
-        if (error?.statusCode === 404 && error?.message === 'Không tìm thấy cuộc trò chuyện.') {
+        if (error?.statusCode === 404) {
           effectiveConversationId = null
           storedConversation = []
         } else {
