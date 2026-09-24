@@ -242,8 +242,8 @@ export async function chat({ userId, message, conversation = [], conversationId 
       throw new AppError('Dữ liệu lớp hiện không khả dụng, vui lòng thử lại sau.', 503)
     }
     const storedConversation = conversationId
-      ? await aiHistoryService.storedConversationMessages(userId, conversationId)
-      : normalizeConversation(conversation)
+  ? await aiHistoryService.storedConversationMessages(userId, conversationId)
+  : []
     const messages = [
       { role: 'system', content: `${SYSTEM_PROMPT}\n\nCONTEXT (JSON):\n${JSON.stringify(context)}` },
       ...storedConversation,
