@@ -241,7 +241,7 @@ const TABS = [
   { id: 'utilities', label: 'Tiện ích phụ', icon: IconWrench },
 ]
 
-const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty'])
+const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty', 'presentation'])
 const EMPTY_CAPS = capabilitiesFor('user')
 
 export default function ClassRoomView({ onClose, initialTab = 'announcements' }) {
