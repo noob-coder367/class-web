@@ -430,6 +430,40 @@
   flex: 1;
 }
 
+.cleaning-row-review-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 22px;
+}
+
+.cleaning-row-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid #cbdde7;
+  border-radius: 999px;
+  background: #f3f8fa;
+  color: #1d4a6b;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cleaning-row-share:hover {
+  border-color: #8fb7c8;
+  background: #e7f3f7;
+}
+
+.cleaning-row-share svg {
+  width: 14px;
+  height: 14px;
+}
+
 .cleaning-row-review .cleaning-link-btn {
   margin-left: auto;
   flex: none;

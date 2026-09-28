@@ -324,6 +324,16 @@ export default function CleaningBoard({ isAdmin }) {
     })
   }
 
+  const handleShareDay = (dayId) => {
+    const label = dayLabel(dayId)
+    shareHelper({
+      title: `Trực vệ sinh ${label}`,
+      text: `Xem chi tiết lịch trực vệ sinh ${label} · tuần ${weekTitleFrom} đến ${weekTitleTo}`,
+      path: cleaningDayPath(dayId),
+      fullText: true,
+    })
+  }
+
   const openDay = (dayId, gallery = false) => navigate(cleaningDayPath(dayId, gallery))
   const openPhotos = (dateISO, dayId) => setPhotosTarget({ dateISO, dayId })
 
@@ -422,7 +432,19 @@ export default function CleaningBoard({ isAdmin }) {
                       <td colSpan={3}>
                         <div className="cleaning-row-review">
                           <div className="cleaning-row-review-text">
-                            <StarRating rating={review?.rating} />
+                            <div className="cleaning-row-review-top">
+                              <StarRating rating={review?.rating} />
+                              <button
+                                type="button"
+                                className="cleaning-row-share"
+                                onClick={() => handleShareDay(dayId)}
+                                aria-label={`Chia sẻ lịch trực vệ sinh ${dayLabel(dayId)}`}
+                                title={`Chia sẻ lịch trực vệ sinh ${dayLabel(dayId)}`}
+                              >
+                                <IconShare />
+                                <span>Chia sẻ</span>
+                              </button>
+                            </div>
                             <ReviewComment review={review} />
                           </div>
                           <button type="button" className="cleaning-link-btn" onClick={() => openDay(dayId)}>
