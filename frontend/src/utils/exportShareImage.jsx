@@ -29,12 +29,13 @@ async function renderOfficialDoc(post) {
   const host = document.createElement('div')
   Object.assign(host.style, {
     position: 'fixed',
-    left: '0',
+    left: '-12000px',
     top: '0',
     zIndex: '-1',
     width: '21cm',
+    height: '29.7cm',
     pointerEvents: 'none',
-    overflow: 'visible',
+    overflow: 'hidden',
     background: '#ffffff',
   })
   document.body.appendChild(host)
@@ -47,11 +48,13 @@ async function renderOfficialDoc(post) {
     await nextPaint()
     const node = host.firstElementChild
     const width = Math.ceil(node.offsetWidth || node.scrollWidth)
-    const height = Math.max(Math.ceil(node.scrollHeight), Math.ceil(node.offsetHeight))
-    const pixelRatio = Math.max(1000 / width, 1)
+    const height = Math.ceil(node.offsetHeight || node.scrollHeight)
+    const pixelRatio = Math.max(2.2, 1600 / width)
     const dataUrl = await toJpeg(node, {
-      quality: 0.8,
+      quality: 0.95,
       pixelRatio,
+      width,
+      height,
       backgroundColor: '#ffffff',
       cacheBust: true,
       skipAutoScale: true,
@@ -61,7 +64,7 @@ async function renderOfficialDoc(post) {
         transform: 'none',
         left: '0',
         top: '0',
-        overflow: 'visible',
+        overflow: 'hidden',
         background: '#ffffff',
       },
     })

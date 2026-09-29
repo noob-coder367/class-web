@@ -12,35 +12,33 @@ function pad2(value) {
 
 function formatVNDate(value) {
   const date = new Date(value || Date.now())
-  if (Number.isNaN(date.getTime())) {
-    return 'TP. Hồ Chí Minh, ngày -- tháng -- năm ----'
-  }
+  if (Number.isNaN(date.getTime())) return 'TP. Hồ Chí Minh, ngày -- tháng -- năm ----'
   return `TP. Hồ Chí Minh, ngày ${date.getDate()} tháng ${pad2(date.getMonth() + 1)} năm ${date.getFullYear()}`
 }
 
 function bodyParagraphs(content) {
   const lines = String(content || '').replace(/\r\n/g, '\n').split('\n')
-  const paras = []
-  let buf = []
+  const paragraphs = []
+  let buffer = []
   const flush = () => {
-    const text = buf.join(' ').trim()
-    if (text) paras.push(text)
-    buf = []
+    const text = buffer.join(' ').trim()
+    if (text) paragraphs.push(text)
+    buffer = []
   }
   for (const line of lines) {
     if (!line.trim()) {
       flush()
       continue
     }
-    if (/^\s*[-–•]/.test(line)) {
+    if (/^\s*[-–—•]\s*/.test(line)) {
       flush()
-      paras.push(line.trim())
-      continue
+      paragraphs.push(line.trim())
+    } else {
+      buffer.push(line.trim())
     }
-    buf.push(line.trim())
   }
   flush()
-  return paras
+  return paragraphs
 }
 
 export function documentCodeForPost(post) {
@@ -71,19 +69,19 @@ export default function OfficialDocShareCard({ post }) {
         </div>
       </header>
       <div className="official-doc-meta">
-        <div className="official-doc-number">Số: {shortId} /{code}-CĐ10A4</div>
+        <div className="official-doc-number">Số: {shortId}/{code}-CĐ10A4</div>
         <div className="official-doc-date">{formatVNDate(post?.created_at || post?.updated_at)}</div>
       </div>
       <h1>{kind}</h1>
       {post?.title ? <h2 className="official-doc-main-title">{post.title}</h2> : null}
       <main className="official-doc-content">
         {paragraphs.map((text, index) => (
-          <p key={index} className={/^\s*[-–•]/.test(text) ? 'official-doc-text official-doc-list' : 'official-doc-text'}>
+          <p key={index} className={`official-doc-text${/^\s*[-–—•]\s*/.test(text) ? ' official-doc-list' : ''}`}>
             {text}
           </p>
         ))}
         {images.length ? (
-          <section className={`official-doc-images official-doc-images--${Math.min(images.length, 2)}`}>
+          <section className={`official-doc-images official-doc-images--${images.length === 1 ? 'one' : 'many'}`}>
             <h3>Hình ảnh đính kèm</h3>
             <div className="official-doc-image-grid">
               {images.map((url, index) => (
