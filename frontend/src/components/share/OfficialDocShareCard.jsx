@@ -108,6 +108,8 @@ export default function OfficialDocShareCard({ post }) {
           <strong>Lớp trưởng 10A4</strong>
           <br />
           <strong>Đoàn chủ tịch</strong>
+          <img className="official-doc-signature-image" src="/assets/signature-pham-thanh-tung.png" alt="Chữ ký Phạm Thanh Tùng" />
+          <span className="official-doc-signed-label">(Đã ký)</span>
           <b>Phạm Thanh Tùng</b>
         </div>
       </footer>

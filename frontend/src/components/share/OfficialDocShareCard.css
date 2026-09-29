@@ -98,7 +98,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 1.2cm;
   margin-top: auto;
-  padding-top: .55cm;
+  padding-top: .75cm;
   font-size: 12pt;
   flex: 0 0 auto;
 }
@@ -106,4 +106,12 @@
 .official-doc-recipient em { font-style: italic; font-weight: 400; }
 .official-doc-signature { text-align: center; line-height: 1.35; font-size: 13pt; }
 .official-doc-signature strong { font-weight: 700; }
-.official-doc-signature b { display: inline-block; margin-top: 1.25cm; font-size: 14pt; font-weight: 700; }
+.official-doc-signature-image {
+  display: block;
+  width: 3.8cm;
+  height: 2.15cm;
+  object-fit: contain;
+  margin: .55cm auto .04cm;
+}
+.official-doc-signed-label { display: block; font-style: normal; }
+.official-doc-signature b { display: inline-block; margin-top: .42cm; font-size: 14pt; font-weight: 700; }
