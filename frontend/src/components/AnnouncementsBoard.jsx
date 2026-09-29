@@ -8,6 +8,7 @@ import {
   canPostToSection, postableSections, SECTION_LABELS,
 } from '../lib/roles.js'
 import { announcementDetailPath, classTabPath, parseAnnouncementId } from '../lib/routes.js'
+import { shareHelper } from '../utils/shareHelper.js'
 import { downloadOfficialDocImage, shareOfficialDocImage } from '../utils/exportShareImage.jsx'
 import './AnnouncementsBoard.css'
 
@@ -41,6 +42,15 @@ function excerpt(text, max = 160) {
   const clean = String(text || '').replace(/\s+/g, ' ').trim()
   if (clean.length <= max) return clean
   return `${clean.slice(0, max).trim()}…`
+}
+
+function detailContentBlocks(content) {
+  return String(content || '').split(/\r?\n/).map((line, index) => {
+    const text = line.trim()
+    if (!text) return <div className="ann-detail-spacer" key={`detail-space-${index}`} aria-hidden="true" />
+    const isList = /^[-–—•]\s*/.test(text)
+    return <p className={`ann-detail-paragraph${isList ? ' ann-detail-list' : ''}`} key={`detail-line-${index}`}>{text}</p>
+  })
 }
 
 function PostCard({
@@ -304,6 +314,14 @@ export default function AnnouncementsBoard({
   const handleShareImage = async (post) => {
     try { await shareOfficialDocImage(post) } catch (err) { alert(err.message || 'Không xuất được ảnh thông báo.') }
   }
+  const handleShareLink = async (post) => {
+    await shareHelper({
+      title: post.title || 'Thông báo lớp',
+      text: post.content || '',
+      path: `/vo-lop/thong-bao?id=${post.id}`,
+      fullText: true,
+    })
+  }
   const handleDownloadImage = async (post) => {
     try { await downloadOfficialDocImage(post) } catch (err) { alert(err.message || 'Không tải được ảnh thông báo.') }
   }
@@ -537,9 +555,7 @@ export default function AnnouncementsBoard({
         <div className="ann-detail-overlay" onClick={closeDetail} role="presentation">
           <div className="ann-detail-modal" role="dialog" aria-modal="true" aria-label="Chi tiết thông báo" onClick={(e) => e.stopPropagation()}>
             <header className="ann-detail-header">
-              <span className={`ann-badge ann-badge--${detailPost.notify_type || 'normal'}`}>
-                {NOTIFY_LABELS[detailPost.notify_type] || 'Thông thường'}
-              </span>
+              <span className="ann-detail-document-kind">{detailPost.document_kind === 'bao_cao' ? 'BÁO CÁO' : 'THÔNG BÁO'}</span>
               <button type="button" className="ann-detail-close" onClick={closeDetail} aria-label="Đóng">✕</button>
             </header>
             <div className="ann-detail-body">
@@ -552,8 +568,9 @@ export default function AnnouncementsBoard({
                   ))}
                 </div>
               ) : null}
-              {detailPost.title ? <h3 className="ann-post-title ann-detail-title">{detailPost.title}</h3> : null}
-              {detailPost.content ? <p className="ann-content ann-detail-content">{detailPost.content}</p> : null}
+              <h1 className="ann-detail-document-heading">{detailPost.document_kind === 'bao_cao' ? 'BÁO CÁO' : 'THÔNG BÁO'}</h1>
+              {detailPost.title ? <h2 className="ann-detail-title">{detailPost.title}</h2> : null}
+              {detailPost.content ? <div className="ann-detail-content">{detailContentBlocks(detailPost.content)}</div> : null}
             </div>
             <footer className="ann-detail-footer">
               <span className="ann-meta-info">{detailPost.document_kind === 'bao_cao' ? 'Báo cáo' : 'Thông báo'} · Số: {detailPost.short_id || '—'}</span>
@@ -561,16 +578,11 @@ export default function AnnouncementsBoard({
               {detailPost.expires_at ? (
                 <span className="ann-meta-info">Tự xóa: {new Date(detailPost.expires_at).toLocaleString('vi-VN')}</span>
               ) : null}
-              <button
-                type="button"
-                className="ann-btn-share"
-                onClick={() => handleShareImage(detailPost)}
-              >
-                Chia sẻ ảnh
-              </button>
-              <button type="button" className="ann-btn-share ann-btn-share--light" onClick={() => handleDownloadImage(detailPost)}>
-                Tải JPEG
-              </button>
+              <div className="ann-detail-actions">
+                <button type="button" className="ann-btn-share ann-btn-share--link" onClick={() => handleShareLink(detailPost)}>Chia sẻ</button>
+                <button type="button" className="ann-btn-share" onClick={() => handleShareImage(detailPost)}>Chia sẻ ảnh</button>
+                <button type="button" className="ann-btn-share ann-btn-share--light" onClick={() => handleDownloadImage(detailPost)}>Tải JPEG</button>
+              </div>
             </footer>
           </div>
         </div>
