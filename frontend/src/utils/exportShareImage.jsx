@@ -13,17 +13,61 @@ function waitForImages(container) {
   }))
 }
 
+function nextPaint() {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+}
+
+async function waitForSerifFonts() {
+  if (!document.fonts?.ready) return
+  await Promise.race([
+    document.fonts.ready,
+    new Promise((resolve) => setTimeout(resolve, 1500)),
+  ])
+}
+
 async function renderOfficialDoc(post) {
   const host = document.createElement('div')
-  Object.assign(host.style, { position: 'fixed', left: '-12000px', top: '0', zIndex: '-1', width: '1000px' })
+  Object.assign(host.style, {
+    position: 'fixed',
+    left: '0',
+    top: '0',
+    zIndex: '-1',
+    width: '1000px',
+    pointerEvents: 'none',
+    overflow: 'visible',
+    background: '#ffffff',
+  })
   document.body.appendChild(host)
   const root = createRoot(host)
   try {
     root.render(<OfficialDocShareCard post={post} />)
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    await nextPaint()
+    await waitForSerifFonts()
     await waitForImages(host)
+    await nextPaint()
     const node = host.firstElementChild
-    const dataUrl = await toJpeg(node, { quality: 0.82, pixelRatio: 1, backgroundColor: '#ffffff', cacheBust: true })
+    const width = 1000
+    const height = Math.max(Math.ceil(node.scrollHeight), Math.ceil(node.offsetHeight))
+    const dataUrl = await toJpeg(node, {
+      quality: 0.8,
+      pixelRatio: 1,
+      backgroundColor: '#ffffff',
+      cacheBust: true,
+      width,
+      height,
+      skipAutoScale: true,
+      style: {
+        margin: '0',
+        opacity: '1',
+        transform: 'none',
+        left: '0',
+        top: '0',
+        width: `${width}px`,
+        height: `${height}px`,
+        overflow: 'visible',
+        background: '#ffffff',
+      },
+    })
     const response = await fetch(dataUrl)
     return await response.blob()
   } finally {
