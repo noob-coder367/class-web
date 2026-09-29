@@ -51,6 +51,7 @@
 .official-doc-card h1 {
   margin: .48cm 0 .08cm;
   text-align: center;
+  color: #000;
   font-size: 18pt;
   line-height: 1.25;
   letter-spacing: .02em;
@@ -58,9 +59,10 @@
   flex: 0 0 auto;
 }
 .official-doc-main-title {
-  margin: 0 auto .38cm;
+  margin: 0 0 .38cm;
   max-width: 16cm;
-  text-align: center;
+  color: #000;
+  text-align: left;
   font-size: 15pt;
   line-height: 1.35;
   font-weight: 700;
