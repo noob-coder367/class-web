@@ -15,7 +15,32 @@ function formatVNDate(value) {
   if (Number.isNaN(date.getTime())) {
     return 'TP. Hồ Chí Minh, ngày -- tháng -- năm ----'
   }
-  return `TP. Hồ Chí Minh, ngày ${pad2(date.getDate())} tháng ${pad2(date.getMonth() + 1)} năm ${date.getFullYear()}`
+  return `TP. Hồ Chí Minh, ngày ${date.getDate()} tháng ${pad2(date.getMonth() + 1)} năm ${date.getFullYear()}`
+}
+
+function bodyParagraphs(content) {
+  const lines = String(content || '').replace(/\r\n/g, '\n').split('\n')
+  const paras = []
+  let buf = []
+  const flush = () => {
+    const text = buf.join(' ').trim()
+    if (text) paras.push(text)
+    buf = []
+  }
+  for (const line of lines) {
+    if (!line.trim()) {
+      flush()
+      continue
+    }
+    if (/^\s*[-–•]/.test(line)) {
+      flush()
+      paras.push(line.trim())
+      continue
+    }
+    buf.push(line.trim())
+  }
+  flush()
+  return paras
 }
 
 export function documentCodeForPost(post) {
@@ -27,6 +52,7 @@ export default function OfficialDocShareCard({ post }) {
   const kind = post?.document_kind === 'bao_cao' ? 'BÁO CÁO' : 'THÔNG BÁO'
   const shortId = Number(post?.short_id) > 0 ? post.short_id : '—'
   const images = Array.isArray(post?.images) ? post.images : []
+  const paragraphs = bodyParagraphs(post?.content)
   return (
     <article className="official-doc-card">
       <header className="official-doc-header">
@@ -45,17 +71,17 @@ export default function OfficialDocShareCard({ post }) {
         </div>
       </header>
       <div className="official-doc-meta">
-        <div className="official-doc-number">Số: {shortId}/{code}-CĐ10A4</div>
+        <div className="official-doc-number">Số: {shortId} /{code}-CĐ10A4</div>
         <div className="official-doc-date">{formatVNDate(post?.created_at || post?.updated_at)}</div>
       </div>
       <h1>{kind}</h1>
-      {post?.title ? (
-        <h2 className="official-doc-main-title">
-          <span className="official-doc-title-text">{post.title}</span>
-        </h2>
-      ) : null}
+      {post?.title ? <h2 className="official-doc-main-title">{post.title}</h2> : null}
       <main className="official-doc-content">
-        {post?.content ? <p className="official-doc-text">{post.content}</p> : null}
+        {paragraphs.map((text, index) => (
+          <p key={index} className={/^\s*[-–•]/.test(text) ? 'official-doc-text official-doc-list' : 'official-doc-text'}>
+            {text}
+          </p>
+        ))}
         {images.length ? (
           <section className={`official-doc-images official-doc-images--${Math.min(images.length, 2)}`}>
             <h3>Hình ảnh đính kèm</h3>
@@ -76,13 +102,14 @@ export default function OfficialDocShareCard({ post }) {
       </main>
       <footer className="official-doc-footer">
         <div className="official-doc-recipient">
-          <strong>Nơi nhận:</strong>
+          <em>Nơi nhận:</em>
           <br />- Lớp 10A4
           <br />- Lưu: Ban cán sự lớp
         </div>
         <div className="official-doc-signature">
           <strong>Lớp trưởng 10A4</strong>
-          <br />Đoàn chủ tịch
+          <br />
+          <strong>Đoàn chủ tịch</strong>
           <b>Phạm Thanh Tùng</b>
         </div>
       </footer>

@@ -21,7 +21,7 @@ async function waitForSerifFonts() {
   if (!document.fonts?.ready) return
   await Promise.race([
     document.fonts.ready,
-    new Promise((resolve) => setTimeout(resolve, 1500)),
+    new Promise((resolve) => setTimeout(resolve, 2000)),
   ])
 }
 
@@ -32,7 +32,7 @@ async function renderOfficialDoc(post) {
     left: '0',
     top: '0',
     zIndex: '-1',
-    width: '1000px',
+    width: '21cm',
     pointerEvents: 'none',
     overflow: 'visible',
     background: '#ffffff',
@@ -46,15 +46,14 @@ async function renderOfficialDoc(post) {
     await waitForImages(host)
     await nextPaint()
     const node = host.firstElementChild
-    const width = 1000
+    const width = Math.ceil(node.offsetWidth || node.scrollWidth)
     const height = Math.max(Math.ceil(node.scrollHeight), Math.ceil(node.offsetHeight))
+    const pixelRatio = Math.max(1000 / width, 1)
     const dataUrl = await toJpeg(node, {
       quality: 0.8,
-      pixelRatio: 1,
+      pixelRatio,
       backgroundColor: '#ffffff',
       cacheBust: true,
-      width,
-      height,
       skipAutoScale: true,
       style: {
         margin: '0',
@@ -62,8 +61,6 @@ async function renderOfficialDoc(post) {
         transform: 'none',
         left: '0',
         top: '0',
-        width: `${width}px`,
-        height: `${height}px`,
         overflow: 'visible',
         background: '#ffffff',
       },
