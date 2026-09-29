@@ -13,7 +13,7 @@ export async function overview(req, res, next) {
   try { noStore(res); res.json(await classMoneyService.getOverview(req.query?.bookId)) } catch (err) { next(err) }
 }
 export async function members(req, res, next) {
-  try { noStore(res); res.json({ members: await classMoneyService.getMembers() }) } catch (err) { next(err) }
+  try { noStore(res); res.json(await classMoneyService.getMembers()) } catch (err) { next(err) }
 }
 export async function books(req, res, next) {
   try { noStore(res); res.json({ books: await classMoneyService.listBooks() }) } catch (err) { next(err) }

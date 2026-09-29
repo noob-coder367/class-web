@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS public.class_money_collections (
 CREATE TABLE IF NOT EXISTS public.class_money_collection_members (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   collection_id uuid NOT NULL REFERENCES public.class_money_collections(id) ON DELETE CASCADE,
-  profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
+  profile_id uuid REFERENCES public.profiles(id) ON DELETE RESTRICT,
+  student_number integer CHECK (student_number IS NULL OR student_number > 0),
   display_name_snapshot text NOT NULL CHECK (char_length(trim(display_name_snapshot)) BETWEEN 1 AND 120),
   amount_due bigint NOT NULL CHECK (amount_due >= 0),
   amount_paid bigint NOT NULL DEFAULT 0 CHECK (amount_paid >= 0),
@@ -50,8 +51,7 @@ CREATE TABLE IF NOT EXISTS public.class_money_collection_members (
   paid_at timestamptz,
   paid_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (collection_id, profile_id)
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.class_money_expenses (
@@ -98,6 +98,12 @@ CREATE INDEX IF NOT EXISTS class_money_members_book_idx ON public.class_money_me
 CREATE INDEX IF NOT EXISTS class_money_members_profile_idx ON public.class_money_members (profile_id);
 CREATE INDEX IF NOT EXISTS class_money_collections_book_idx ON public.class_money_collections (book_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS class_money_collection_members_collection_idx ON public.class_money_collection_members (collection_id);
+CREATE UNIQUE INDEX IF NOT EXISTS class_money_collection_members_profile_uidx
+  ON public.class_money_collection_members (collection_id, profile_id)
+  WHERE profile_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS class_money_collection_members_stt_uidx
+  ON public.class_money_collection_members (collection_id, student_number)
+  WHERE student_number IS NOT NULL;
 CREATE INDEX IF NOT EXISTS class_money_collection_members_profile_idx ON public.class_money_collection_members (profile_id);
 CREATE INDEX IF NOT EXISTS class_money_expenses_book_spent_idx ON public.class_money_expenses (book_id, spent_at DESC);
 CREATE INDEX IF NOT EXISTS class_money_transactions_book_created_idx ON public.class_money_transactions (book_id, created_at DESC);

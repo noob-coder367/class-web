@@ -1,10 +1,15 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
-import * as classRosterService from './classRoster.service.js'
+import * as classSpaceService from './classSpace.service.js'
+import {
+  buildMoneyMembersFromUtilityRoster,
+  parseStudentNumber,
+  sortByStudentNumber,
+} from '../lib/classMoneyRoster.js'
 
 const MAX_MONEY = 9_000_000_000_000
 const PAGE_LIMIT = 50
-const COLLECTION_MEMBER_SELECT = 'id, collection_id, profile_id, display_name_snapshot, amount_due, amount_paid, amount_owed, amount_change, status, note, paid_at, paid_by, created_at, updated_at'
+const COLLECTION_MEMBER_SELECT = 'id, collection_id, profile_id, student_number, display_name_snapshot, amount_due, amount_paid, amount_owed, amount_change, status, note, paid_at, paid_by, created_at, updated_at'
 
 function text(value, max = 240) {
   return String(value ?? '').trim().slice(0, max)
@@ -130,10 +135,32 @@ export async function createBook(payload, actorId) {
 }
 
 export async function getMembers() {
-  const roster = await classRosterService.listClassRoster()
-  return roster
-    .filter((row) => row?.id && row?.is_placeholder !== true && row?.is_member === true)
-    .map((row) => ({ id: row.id, profile_id: row.id, name: row.username, role: row.role }))
+  // Nguồn: JSON đã parse của module Tiện ích (classroom-data/utility-roster.json)
+  // qua GET /classroom/utility-roster — không đọc PDF lại, không lấy từ profiles.
+  const roster = await classSpaceService.getUtilityRoster()
+  const names = Array.isArray(roster?.names) ? roster.names : []
+  if (!names.length) {
+    throw new AppError('Chưa có danh sách lớp từ Tiện ích. Hãy tải PDF danh sách lớp trong mục Tiện ích trước.', 400)
+  }
+
+  const { data: profiles, error } = await supabaseAdmin
+    .from('profiles')
+    .select('id, username, role, is_member')
+  dbError(error, 'Không đối chiếu được tài khoản với danh sách lớp.')
+
+  const members = buildMoneyMembersFromUtilityRoster(names, profiles || [])
+  if (!members.length) {
+    throw new AppError('Danh sách PDF từ Tiện ích không có học sinh hợp lệ.', 400)
+  }
+
+  return {
+    members,
+    source: {
+      fileName: String(roster.fileName || ''),
+      updatedAt: String(roster.updatedAt || ''),
+      count: members.length,
+    },
+  }
 }
 
 async function listCollectionMembers(collectionId) {
@@ -141,9 +168,9 @@ async function listCollectionMembers(collectionId) {
     .from('class_money_collection_members')
     .select(COLLECTION_MEMBER_SELECT)
     .eq('collection_id', collectionId)
-    .order('display_name_snapshot', { ascending: true })
+    .order('student_number', { ascending: true, nullsFirst: false })
   dbError(error, 'Không tải được danh sách thu tiền.')
-  return data || []
+  return sortByStudentNumber(data || [])
 }
 
 export async function listCollections(bookId) {
@@ -173,26 +200,33 @@ export async function createCollection(payload, actorId) {
   const name = text(payload?.name, 120)
   if (!name) throw new AppError('Tên đợt thu là bắt buộc.')
   const amount = positiveInteger(payload?.amountPerPerson, 'Số tiền cần thu mỗi người')
-  const profileIds = [...new Set((Array.isArray(payload?.profileIds) ? payload.profileIds : []).map((id) => text(id, 100)).filter(Boolean))]
-  if (!profileIds.length) throw new AppError('Hãy chọn ít nhất một thành viên.')
-  const { data: profiles, error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .select('id, username, is_member')
-    .in('id', profileIds)
-  dbError(profileError, 'Không kiểm tra được thành viên.')
-  const valid = (profiles || []).filter((row) => row.is_member === true && row.username)
-  if (valid.length !== profileIds.length) throw new AppError('Danh sách thành viên không hợp lệ hoặc có người không còn trong lớp.')
+  const requestedNumbers = [...new Set(
+    (Array.isArray(payload?.studentNumbers) ? payload.studentNumbers : [])
+      .map((value) => parseStudentNumber(value))
+      .filter((value) => value != null)
+  )]
+  if (!requestedNumbers.length) throw new AppError('Hãy chọn ít nhất một học sinh.')
 
-  const { error: bookMemberError } = await supabaseAdmin.from('class_money_members').upsert(
-    valid.map((profile) => ({
-      book_id: book.id,
-      profile_id: profile.id,
-      display_name_snapshot: text(profile.username, 120),
-      updated_at: new Date().toISOString(),
-    })),
-    { onConflict: 'book_id,profile_id' }
-  )
-  dbError(bookMemberError, 'Không lưu được danh sách thành viên trong sổ tiền.')
+  const { members: rosterMembers } = await getMembers()
+  const rosterByStt = new Map(rosterMembers.map((row) => [row.student_number, row]))
+  const selected = requestedNumbers.map((stt) => rosterByStt.get(stt)).filter(Boolean)
+  if (selected.length !== requestedNumbers.length) {
+    throw new AppError('Danh sách học sinh không khớp danh sách lớp từ Tiện ích.')
+  }
+
+  const withAccounts = selected.filter((row) => row.profile_id)
+  if (withAccounts.length) {
+    const { error: bookMemberError } = await supabaseAdmin.from('class_money_members').upsert(
+      withAccounts.map((row) => ({
+        book_id: book.id,
+        profile_id: row.profile_id,
+        display_name_snapshot: text(row.name, 120),
+        updated_at: new Date().toISOString(),
+      })),
+      { onConflict: 'book_id,profile_id' }
+    )
+    dbError(bookMemberError, 'Không lưu được danh sách thành viên trong sổ tiền.')
+  }
 
   const { data: collection, error } = await supabaseAdmin
     .from('class_money_collections')
@@ -208,10 +242,11 @@ export async function createCollection(payload, actorId) {
     .single()
   dbError(error, 'Không tạo được đợt thu.')
 
-  const rows = valid.map((profile) => ({
+  const rows = selected.map((row) => ({
     collection_id: collection.id,
-    profile_id: profile.id,
-    display_name_snapshot: text(profile.username, 120),
+    profile_id: row.profile_id || null,
+    student_number: row.student_number,
+    display_name_snapshot: text(row.name, 120),
     amount_due: amount,
     amount_paid: 0,
     amount_owed: amount,
@@ -224,7 +259,7 @@ export async function createCollection(payload, actorId) {
     throw new AppError('Không tạo được danh sách thành viên của đợt thu.', 503)
   }
   await audit({ bookId: book.id, actorId, action: 'create', entityType: 'collection', entityId: collection.id, newData: { ...collection, member_count: rows.length } })
-  return { collection, members: rows }
+  return { collection, members: sortByStudentNumber(rows) }
 }
 
 export async function updateCollectionMember(id, payload, actorId) {
