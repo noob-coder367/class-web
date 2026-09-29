@@ -25,6 +25,29 @@ async function waitForSerifFonts() {
   ])
 }
 
+function keepFooterTogether(node) {
+  const footer = node.querySelector('.official-doc-footer')
+  if (!footer) return
+  const pageHeight = node.offsetWidth * 297 / 210
+  const footerTop = footer.offsetTop
+  const remaining = pageHeight - (footerTop % pageHeight)
+  if (remaining < footer.offsetHeight + 8) {
+    const currentMargin = parseFloat(getComputedStyle(footer).marginTop) || 0
+    footer.style.marginTop = `${currentMargin + remaining + 10}px`
+  }
+}
+
+function pageHasInk(canvas, startY, endY) {
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  for (let y = Math.max(0, startY); y < Math.min(canvas.height, endY); y += 8) {
+    for (let x = 0; x < canvas.width; x += 8) {
+      const [r, g, b, a] = context.getImageData(x, y, 1, 1).data
+      if (a > 0 && (r < 238 || g < 238 || b < 238)) return true
+    }
+  }
+  return false
+}
+
 function canvasToBlob(canvas, quality = 0.95) {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Không tạo được ảnh công văn.'))), 'image/jpeg', quality)
@@ -53,6 +76,8 @@ async function renderOfficialDocPages(post) {
     await waitForImages(host)
     await nextPaint()
     const node = host.firstElementChild
+    keepFooterTogether(node)
+    await nextPaint()
     const width = Math.ceil(node.offsetWidth || node.scrollWidth)
     const height = Math.ceil(node.scrollHeight)
     const pixelRatio = Math.max(2.2, 1600 / width)
@@ -74,11 +99,12 @@ async function renderOfficialDocPages(post) {
       },
     })
     const pageHeight = Math.max(1, Math.round(rendered.width * 297 / 210))
-    const pageCount = Math.max(1, Math.ceil(rendered.height / pageHeight))
+    const pageCount = Math.max(1, Math.ceil((rendered.height - 2) / pageHeight))
     const pages = []
     for (let page = 0; page < pageCount; page += 1) {
       const sourceY = page * pageHeight
       const currentHeight = Math.min(pageHeight, rendered.height - sourceY)
+      if (page > 0 && !pageHasInk(rendered, sourceY, sourceY + currentHeight)) continue
       const pageCanvas = document.createElement('canvas')
       pageCanvas.width = rendered.width
       pageCanvas.height = pageHeight
