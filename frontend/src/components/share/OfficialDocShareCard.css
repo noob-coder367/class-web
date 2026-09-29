@@ -26,8 +26,8 @@
 }
 .official-doc-col { text-align: center; line-height: 1.2; }
 .official-doc-agency-sup,
-.official-doc-agency,
-.official-doc-agency-main { font-size: 12pt; font-weight: 400; }
+.official-doc-agency { font-size: 12pt; font-weight: 400; }
+.official-doc-agency-main { font-size: 12pt; font-weight: 700; }
 .official-doc-agency-main { margin-top: .03cm; }
 .official-doc-nation { font-size: 12pt; font-weight: 700; }
 .official-doc-motto { margin-top: .05cm; font-size: 13pt; font-weight: 700; }
