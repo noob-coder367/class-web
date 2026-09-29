@@ -2,8 +2,16 @@ import './OfficialDocShareCard.css'
 
 function dateVN(value) {
   if (!value) return '—'
-  const parts = String(value).split('-')
-  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : String(value)
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date)
 }
 function rulesItems(rules) {
   return (rules?.sections || []).flatMap((section) => (section.items || []).map((item) => ({
