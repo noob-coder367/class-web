@@ -18,6 +18,7 @@ import {
 } from '../lib/cleaningDuty.js'
 import { CLEANING_SHARE_PATH, cleaningDayPath } from '../lib/routes.js'
 import { shareHelper } from '../utils/shareHelper.js'
+import { shareClassroomReport } from '../utils/classroomShareImage.jsx'
 import './CleaningBoard.css'
 
 function IconShare() {
@@ -315,23 +316,32 @@ export default function CleaningBoard({ isAdmin }) {
   const todayDisplayStatus = effectiveStatus(todayDate, todayStatusRow)
   const tomorrowDisplayStatus = effectiveStatus(tomorrowDate, tomorrowStatusRow)
 
-  const handleShareStatus = () => {
-    shareHelper({
-      title: 'Lịch vệ sinh lớp...',
-      text: `Hôm nay: ${statusLabel(todayDisplayStatus)} · Ngày mai: ${statusLabel(tomorrowDisplayStatus)}`,
-      path: CLEANING_SHARE_PATH,
-      fullText: true,
-    })
+  const handleShareStatus = async () => {
+    try {
+      await shareClassroomReport('cleaning', {
+        rangeLabel: `Danh sách trực từ ngày ${weekTitleFrom} đến ngày ${weekTitleTo}`,
+        days: DAY_IDS.map((dayId) => {
+          const day = schedule?.days?.[dayId] || {}
+          const dateISO = dateForDayISO(currentWeekStart, dayId)
+          const review = findStatusRow(weekStatuses[currentWeekStart], dateISO)?.review
+          return { label: `${dayLabel(dayId)} · ${formatDateVN(dateISO)}`, ...day, rating: review?.rating }
+        }),
+        }, 1)
+    } catch {
+      shareHelper({ title: 'Lịch vệ sinh lớp...', text: `Hôm nay: ${statusLabel(todayDisplayStatus)} · Ngày mai: ${statusLabel(tomorrowDisplayStatus)}`, path: CLEANING_SHARE_PATH, fullText: true })
+    }
   }
 
-  const handleShareDay = (dayId) => {
+  const handleShareDay = async (dayId) => {
     const label = dayLabel(dayId)
-    shareHelper({
-      title: `Trực vệ sinh ${label}`,
-      text: `Xem chi tiết lịch trực vệ sinh ${label} · tuần ${weekTitleFrom} đến ${weekTitleTo}`,
-      path: cleaningDayPath(dayId),
-      fullText: true,
-    })
+    const day = schedule?.days?.[dayId] || {}
+    const dateISO = dateForDayISO(currentWeekStart, dayId)
+    const review = findStatusRow(weekStatuses[currentWeekStart], dateISO)?.review
+    try {
+      await shareClassroomReport('cleaning', { rangeLabel: `${label} · ${formatDateVN(dateISO)}`, days: [{ label, ...day, rating: review?.rating }] }, 1)
+    } catch {
+      shareHelper({ title: `Trực vệ sinh ${label}`, text: `Xem chi tiết lịch trực vệ sinh ${label} · tuần ${weekTitleFrom} đến ${weekTitleTo}`, path: cleaningDayPath(dayId), fullText: true })
+    }
   }
 
   const openDay = (dayId, gallery = false) => navigate(cleaningDayPath(dayId, gallery))

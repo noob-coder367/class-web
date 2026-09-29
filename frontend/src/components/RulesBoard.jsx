@@ -7,6 +7,7 @@ import { markSeen } from '../lib/unreadStore.js'
 import { ROLES, roleLabel } from '../lib/roles.js'
 import { parseClassPath, parseRulesPane, rulesPanePath, RULES_SHARE_PATH, RULES_VIOLATIONS_SHARE_PATH } from '../lib/routes.js'
 import { shareHelper } from '../utils/shareHelper.js'
+import { shareClassroomReport } from '../utils/classroomShareImage.jsx'
 import './RulesBoard.css'
 
 const PERIOD_OPTIONS = [
@@ -408,13 +409,12 @@ export default function RulesBoard({
 
   const classLabel = rules?.className || '10A4'
 
-  const handleShareRules = () => {
-    shareHelper({
-      title: `Nội quy lớp ${classLabel}`,
-      text: 'Xem chi tiết',
-      path: RULES_SHARE_PATH,
-      fullText: true,
-    })
+  const handleShareRules = async () => {
+    try {
+      await shareClassroomReport('rules', { rules }, rules?.revision || rules?.version || 1)
+    } catch {
+      shareHelper({ title: `Nội quy lớp ${classLabel}`, text: 'Xem chi tiết', path: RULES_SHARE_PATH, fullText: true })
+    }
   }
 
   const handleShareViolations = () => {
@@ -431,7 +431,8 @@ export default function RulesBoard({
         to = swap
       }
     }
-    const count = countPeopleInRange(violations, from, to)
+    const selectedViolations = (violations || []).filter((item) => item.date >= from && item.date <= to)
+    const count = countPeopleInRange(selectedViolations, from, to)
     const fromLabel = formatDate(from)
     const toLabel = formatDate(to)
     const title = shareMode === 'today'
@@ -440,12 +441,7 @@ export default function RulesBoard({
     const text = shareMode === 'today'
       ? `Danh sách vi phạm: có ${count} người có vi phạm trong hôm nay`
       : `Danh sách vi phạm: có ${count} người có vi phạm từ ngày ${fromLabel} đến ngày ${toLabel}`
-    shareHelper({
-      title,
-      text,
-      path: RULES_VIOLATIONS_SHARE_PATH,
-      fullText: true,
-    })
+    shareClassroomReport('violations', { violations: selectedViolations, from, to }, violations.length || 1).catch(() => shareHelper({ title, text, path: RULES_VIOLATIONS_SHARE_PATH, fullText: true }))
     setShareOpen(false)
   }
 

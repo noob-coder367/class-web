@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from 'react'
 import { ROLES, roleLabel } from '../lib/roles.js'
 import { RULES_RANK_SHARE_PATH } from '../lib/routes.js'
 import { shareHelper } from '../utils/shareHelper.js'
+import { shareClassroomReport } from '../utils/classroomShareImage.jsx'
 
 function medalFor(rank) {
   if (rank === 1) return { emoji: '🥇', label: 'Vàng' }
@@ -90,12 +91,12 @@ export default function ReputationBoard({
     return `Top 1: ${top.username} (${top.score}đ)`
   }, [rows])
 
-  const handleShareRank = () => {
-    shareHelper({
-      title: `Bảng xếp hạng lớp ${classLabel}...`,
-      text: topSummary,
-      path: RULES_RANK_SHARE_PATH,
-    })
+  const handleShareRank = async () => {
+    try {
+      await shareClassroomReport('rank', { rows, startingPoints, violations }, rows?.revision || 1)
+    } catch {
+      shareHelper({ title: `Bảng xếp hạng lớp ${classLabel}...`, text: topSummary, path: RULES_RANK_SHARE_PATH })
+    }
   }
 
   const podium = useMemo(() => {

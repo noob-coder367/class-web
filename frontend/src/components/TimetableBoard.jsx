@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import TimetableSettings from './TimetableSettings.jsx'
 import { shareHelper } from '../utils/shareHelper.js'
+import { shareClassroomReport } from '../utils/classroomShareImage.jsx'
 import { classTabPath } from '../lib/routes.js'
 import './TimetableBoard.css'
 
@@ -251,12 +252,14 @@ export default function TimetableBoard({ data, isAdmin, onSave, onDismissNotice 
   const shareTitle =
     `THỜI KHÓA BIỂU LỚP ${data.className || '10A4'} : Áp dụng từ ngày ${formatDateVN(applyRange.from)} đến ngày ${formatDateVN(applyRange.to)}`
 
-  const handleShare = () => {
-    shareHelper({
-      title: shareTitle,
-      text: 'Xem thời khóa biểu',
-      path: classTabPath('timetable'),
-    })
+  const handleShare = async () => {
+    const notice = data.changeNotice || {}
+    const changes = Array.isArray(notice.lines) ? notice.lines : []
+    try {
+      await shareClassroomReport('timetable', { ...data, from: applyRange.from, to: applyRange.to, changes }, notice.revision || notice.count || changes.length || 1)
+    } catch {
+      shareHelper({ title: shareTitle, text: 'Xem thời khóa biểu', path: classTabPath('timetable') })
+    }
   }
 
   return (
