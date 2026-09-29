@@ -45,14 +45,14 @@ export function documentCodeForPost(post) {
   return CODE_BY_POST[post?.section] || 'TBC'
 }
 
-export default function OfficialDocShareCard({ post }) {
+export default function OfficialDocShareCard({ post, longDocument = false }) {
   const code = documentCodeForPost(post)
   const kind = post?.document_kind === 'bao_cao' ? 'BÁO CÁO' : 'THÔNG BÁO'
   const shortId = Number(post?.short_id) > 0 ? post.short_id : '—'
   const images = Array.isArray(post?.images) ? post.images : []
   const paragraphs = bodyParagraphs(post?.content)
   return (
-    <article className="official-doc-card">
+    <article className={`official-doc-card${longDocument ? ' official-doc-card--long' : ''}`}>
       <header className="official-doc-header">
         <div className="official-doc-col official-doc-col--left">
           <div className="official-doc-agency-sup">Ban cán sự 10A4</div>

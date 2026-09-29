@@ -17,6 +17,11 @@
   display: flex;
   flex-direction: column;
 }
+.official-doc-card--long {
+  height: auto;
+  min-height: 29.7cm;
+  overflow: visible;
+}
 .official-doc-header {
   display: grid;
   grid-template-columns: 1.12fr 1fr;
@@ -69,6 +74,10 @@
   flex: 0 0 auto;
 }
 .official-doc-content { min-height: 0; flex: 1 1 auto; overflow: hidden; }
+.official-doc-card--long .official-doc-content {
+  flex: 0 0 auto;
+  overflow: visible;
+}
 .official-doc-text {
   margin: 0 0 .2cm;
   overflow-wrap: anywhere;
@@ -76,6 +85,12 @@
   text-indent: 1.1cm;
   line-height: 1.5;
   font-size: 14pt;
+}
+.official-doc-card--long .official-doc-text,
+.official-doc-card--long .official-doc-images,
+.official-doc-card--long .official-doc-footer {
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 .official-doc-list {
   text-indent: 0;
@@ -104,6 +119,7 @@
   font-size: 12pt;
   flex: 0 0 auto;
 }
+.official-doc-card--long .official-doc-footer { margin-top: .75cm; }
 .official-doc-recipient { line-height: 1.4; font-size: 12pt; }
 .official-doc-recipient em { font-style: italic; font-weight: 400; }
 .official-doc-signature { text-align: center; line-height: 1.35; font-size: 13pt; }
