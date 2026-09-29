@@ -22,6 +22,30 @@ function hasInk(canvas, start, end) {
   }
   return false
 }
+
+// Tìm một dải trắng gần biên A4 để không cắt qua chữ hoặc hàng bảng.
+function safeCutY(canvas, target, pageHeight) {
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  const radius = Math.min(Math.round(pageHeight * 0.18), 260)
+  const from = Math.max(24, target - radius)
+  const to = Math.min(canvas.height - 24, target + radius)
+  const scores = []
+  for (let y = from; y <= to; y += 2) {
+    let ink = 0
+    for (let x = 0; x < canvas.width; x += 6) {
+      const [r, g, b] = ctx.getImageData(x, y, 1, 1).data
+      if (r < 220 || g < 220 || b < 220) ink += 1
+    }
+    scores.push({ y, ink })
+  }
+  const maxInk = Math.max(3, Math.ceil(canvas.width / 90))
+  const candidates = scores.filter((item) => item.ink <= maxInk && scores
+    .filter((other) => Math.abs(other.y - item.y) <= 6)
+    .every((other) => other.ink <= maxInk))
+  if (!candidates.length) return target
+  return candidates.sort((a, b) => Math.abs(a.y - target) - Math.abs(b.y - target))[0].y
+}
+
 async function renderPages(type, data, number) {
   const host = document.createElement('div')
   Object.assign(host.style, { position: 'fixed', left: '-12000px', top: '0', width: '21cm', height: 'auto', overflow: 'visible', background: '#fff', pointerEvents: 'none' })
@@ -38,23 +62,31 @@ async function renderPages(type, data, number) {
     const ratio = Math.max(2.2, 1600 / width)
     const source = await toCanvas(node, { width, height, pixelRatio: ratio, backgroundColor: '#fff', cacheBust: true, skipAutoScale: true, style: { overflow: 'visible', background: '#fff' } })
     const pageHeight = Math.round(source.width * 297 / 210)
-    const count = Math.max(1, Math.ceil((source.height - 2) / pageHeight))
     const pages = []
-    for (let i = 0; i < count; i += 1) {
-      const y = i * pageHeight
-      const h = Math.min(pageHeight, source.height - y)
-      if (i > 0 && !hasInk(source, y, y + h)) continue
+    let y = 0
+    while (y < source.height - 2 || !pages.length) {
+      const end = Math.min(source.height, y + pageHeight)
+      const cut = end < source.height ? safeCutY(source, end, pageHeight) : end
+      const h = cut - y
+      if (h <= 0) break
+      if (pages.length > 0 && !hasInk(source, y, cut)) {
+        y = cut
+        continue
+      }
       const canvas = document.createElement('canvas')
-      canvas.width = source.width; canvas.height = pageHeight
+      canvas.width = source.width
+      canvas.height = pageHeight
       const ctx = canvas.getContext('2d')
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.fillStyle = '#fff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
       ctx.drawImage(source, 0, y, source.width, h, 0, 0, source.width, h)
       pages.push(await blobFromCanvas(canvas))
+      y = cut
     }
     return pages
   } finally { root.unmount(); host.remove() }
 }
-function stem(type) { return ({ timetable: 'tkb', rules: 'nql', violations: 'nql-danh-sach-vi-pham', rank: 'nql-bxh', cleaning: 'vsc' })[type] || 'bao-cao-lop' }
+function stem(type) { return ({ timetable: 'tkb', rules: 'nql', violations: 'nql-danh-sach-vi-pham', rank: 'nql-bxh', cleaning: 'vsc', homework: 'btvn' })[type] || 'bao-cao-lop' }
 export async function shareClassroomReport(type, data, number = 1) {
   const pages = await renderPages(type, data, number)
   const files = pages.map((blob, i) => new File([blob], `${stem(type)}-trang-${i + 1}.jpg`, { type: 'image/jpeg' }))

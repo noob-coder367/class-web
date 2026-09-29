@@ -370,6 +370,9 @@ export async function createExamReminderAnnouncement(payload, profile) {
     id: randomUUID(),
     content,
     images: [],
+    title: String(payload?.title || '').trim(),
+    document_kind: 'bao_cao',
+    short_id: null,
     notify_type: 'urgent',
     section: 'important',
     expires_at: expiresAt,
@@ -385,6 +388,7 @@ export async function createExamReminderAnnouncement(payload, profile) {
     hidden_by_name: null,
   }
   await mutateStore((items) => {
+    item.short_id = nextShortId(items, item.document_kind)
     const next = [item, ...items.filter((row) => !isExpired(row))]
     items.splice(0, items.length, ...next)
   })
@@ -404,6 +408,9 @@ export async function createImportantHomeworkAnnouncement(payload, profile) {
     id: randomUUID(),
     content,
     images: [],
+    title: String(payload?.title || '').trim(),
+    document_kind: 'bao_cao',
+    short_id: null,
     notify_type: NOTIFY_TYPES.has(payload?.notify_type) ? payload.notify_type : 'hot',
     section: 'important',
     expires_at: expiresAt,
@@ -419,6 +426,7 @@ export async function createImportantHomeworkAnnouncement(payload, profile) {
     hidden_by_name: null,
   }
   await mutateStore((items) => {
+    item.short_id = nextShortId(items, item.document_kind)
     const next = [item, ...items.filter((row) => !isExpired(row))]
     items.splice(0, items.length, ...next)
   })

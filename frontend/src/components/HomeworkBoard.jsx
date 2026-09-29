@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import * as classroomService from '../services/classroomService.js'
 import { parseClassPath, homeworkDetailPath, parseHomeworkSegment, classTabPath } from '../lib/routes.js'
 import HomeworkSubmissionPanel from './HomeworkSubmissionPanel.jsx'
+import { shareOfficialDocImage } from '../utils/exportShareImage.jsx'
 import './HomeworkBoard.css'
 
 const SUBJECT_OPTIONS = [
@@ -204,16 +205,25 @@ function HomeworkReportBoard({ isAdmin }) {
   }
 
   const handleSharePost = async (post) => {
-    const url = new URL(homeworkDetailPath(post.id), window.location.origin).toString()
-    const text = `${post.title || 'Bài tập về nhà'}\n${url}`
+    const content = [
+      post.report_date ? `Ngày báo bài: ${formatVNDate(post.report_date)}` : '',
+      post.has_exam && post.exam_content ? `Kiểm tra${post.exam_subject ? ` môn ${post.exam_subject}` : ''}${post.exam_date ? ` ngày ${formatVNDate(post.exam_date)}` : ''}:\n${post.exam_content}` : '',
+      post.experiment_content ? `Thí nghiệm:\n${post.experiment_content}` : '',
+      post.homework_content ? `Bài tập về nhà:\n${post.homework_content}` : '',
+    ].filter(Boolean).join('\n\n')
+    const report = {
+      ...post,
+      section: 'important',
+      document_kind: 'bao_cao',
+      short_id: post.announcement_short_id || 1,
+      title: post.title || 'Báo bài',
+      content,
+      images: [],
+    }
     try {
-      if (navigator.share) await navigator.share({ title: post.title || 'Bài tập về nhà', text: post.title || 'Bài tập về nhà', url })
-      else {
-        await navigator.clipboard.writeText(text)
-        alert('Đã sao chép liên kết bài tập.')
-      }
+      await shareOfficialDocImage(report)
     } catch (err) {
-      if (err?.name !== 'AbortError') alert('Không thể chia sẻ bài tập. Bạn có thể sao chép URL trên thanh địa chỉ.')
+      if (err?.name !== 'AbortError') alert(err.message || 'Không thể xuất ảnh bài tập về nhà.')
     }
   }
 

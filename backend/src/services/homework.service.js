@@ -37,6 +37,7 @@ function normalizeItem(raw) {
     experiment_content: String(raw.experiment_content || '').trim(),
     homework_content: String(raw.homework_content || '').trim(),
     exam_announcement_id: raw.exam_announcement_id ? String(raw.exam_announcement_id) : null,
+    announcement_short_id: Number(raw.announcement_short_id) > 0 ? Number(raw.announcement_short_id) : null,
     exam_today_notified_at: raw.exam_today_notified_at ? String(raw.exam_today_notified_at) : null,
     exam_cleared_at: raw.exam_cleared_at ? String(raw.exam_cleared_at) : null,
     created_at: String(raw.created_at || new Date().toISOString()),
@@ -169,23 +170,27 @@ export async function createHomework(payload, profile) {
   const homeworkId = randomUUID()
 
   let examAnnouncementId = null
+  let announcementShortId = null
   if (hasExam && examDate) {
     const content = buildExamReminderContent({ examDate, subject: examSubject, examContent })
     const ann = await announcementsService.createExamReminderAnnouncement(
-      { content, expires_at: examExpiryISO(examDate), source_homework_id: homeworkId },
+      { title, content, expires_at: examExpiryISO(examDate), source_homework_id: homeworkId },
       profile
     )
     examAnnouncementId = ann?.id || null
+    announcementShortId = ann?.short_id || null
   } else if (experimentContent || homeworkContent) {
     // Báo bài thường (không phải exam reminder) → ô "Báo bài quan trọng".
     const ann = await announcementsService.createImportantHomeworkAnnouncement(
       {
+        title,
         content: buildImportantHomeworkContent({ title, experimentContent, homeworkContent, reportDate }),
         source_homework_id: homeworkId,
       },
       profile
     )
     examAnnouncementId = ann?.id || null
+    announcementShortId = ann?.short_id || null
   }
 
   const item = {
@@ -199,6 +204,7 @@ export async function createHomework(payload, profile) {
     experiment_content: experimentContent,
     homework_content: homeworkContent,
     exam_announcement_id: examAnnouncementId,
+    announcement_short_id: announcementShortId,
     created_at: new Date().toISOString(),
     created_by: profile?.id || null,
     created_by_name: String(profile?.username || 'Admin').trim() || 'Admin',
