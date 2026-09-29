@@ -33,6 +33,7 @@ import {
 import { countNewer } from '../lib/unreadStore.js'
 import PresentationHome from '../components/presentation/PresentationHome.jsx'
 import AIAssistantPage from './AIAssistantPage.jsx'
+import ClassMoneyPage from './ClassMoneyPage.jsx'
 
 const NAV_LINKS = [
   { href: '#trang-chu', label: 'Trang chủ' },
@@ -77,7 +78,8 @@ export default function HomePage() {
   // Trang chat AI (/vo-lop/AI/app) nằm dưới /vo-lop nhưng là màn hình riêng,
   // nên phải loại khỏi khu vực lớp để 2 màn không hiện chồng lên nhau.
   const showAIAssistant = isAIAssistantPath(location.pathname)
-  const showClassRoom = !showAIAssistant
+  const showClassMoney = location.pathname === ROUTES.classMoney
+  const showClassRoom = !showAIAssistant && !showClassMoney
     && (location.pathname === ROUTES.classRoot || location.pathname.startsWith(`${ROUTES.classRoot}/`))
   const showProfileSetting = location.pathname === ROUTES.profileSetting
   const presentationPath = parsePresentationPath(location.pathname)
@@ -212,6 +214,13 @@ export default function HomePage() {
     setAuthInitialStep('login')
     setShowAuth(true)
   }, [authReady, showAIAssistant, session])
+
+  useEffect(() => {
+    if (!authReady || !showClassMoney || session) return
+    saveClassroomReturn(location.pathname)
+    setAuthInitialStep('login')
+    setShowAuth(true)
+  }, [authReady, showClassMoney, session, location.pathname])
 
   // Link cũ /app -> đường dẫn mới /vo-lop/AI/app.
   useEffect(() => {
@@ -463,7 +472,7 @@ export default function HomePage() {
     try {
       await logout()
       setShowAuth(false)
-      if (showClassRoom) navigate(ROUTES.home)
+      if (showClassRoom || showClassMoney) navigate(ROUTES.home)
       setUnreadTotal(0)
       setShowPushPrompt(false)
     } finally {
@@ -502,7 +511,7 @@ export default function HomePage() {
 
   const closeAuth = () => {
     setShowAuth(false)
-    if (location.pathname === ROUTES.login || location.pathname === ROUTES.register || showAIAssistant) {
+    if (location.pathname === ROUTES.login || location.pathname === ROUTES.register || showAIAssistant || showClassMoney) {
       navigate(ROUTES.home)
     } else if (showClassRoom && !session) {
       takeClassroomReturn()
@@ -511,12 +520,12 @@ export default function HomePage() {
   }
 
   return (
-    <div className={`page ${showAuth || showClassRoom || showAIAssistant || showProfileSetting || showPresentation ? 'no-scroll' : ''}`}>
+      <div className={`page ${showAuth || showClassRoom || showAIAssistant || showClassMoney || showProfileSetting || showPresentation ? 'no-scroll' : ''}`}>
       {showAuth && (
         <AuthPage
           key={authInitialStep}
           initialStep={authInitialStep}
-          deferCloseOnSuccess={showClassRoom}
+          deferCloseOnSuccess={showClassRoom || showClassMoney}
           onClose={closeAuth}
         />
       )}
@@ -537,6 +546,8 @@ export default function HomePage() {
       )}
 
       {showAIAssistant && authReady && session && <AIAssistantPage />}
+
+      {showClassMoney && authReady && session && <ClassMoneyPage onBack={() => navigate(ROUTES.classRoot)} />}
 
       {showPresentation && (
         <PresentationHome

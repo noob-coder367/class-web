@@ -1,6 +1,7 @@
 import express, { Router } from 'express'
 import * as classroomController from '../controllers/classroom.controller.js'
 import * as homeworkSubmissionController from '../controllers/homeworkSubmission.controller.js'
+import classMoneyRoutes from './classMoney.routes.js'
 import { requireAuth } from '../middlewares/auth.middleware.js'
 import { requireMember } from '../middlewares/member.middleware.js'
 import {
@@ -12,6 +13,9 @@ import {
 const router = Router()
 // Mọi route: phải đăng nhập + là thành viên 10A4 (hoặc cán sự).
 router.use(requireAuth, requireMember)
+
+// Tiền lớp là module admin-only; dữ liệu tài chính không mở cho lớp phó/user.
+router.use('/money', requireAdmin, classMoneyRoutes)
 
 router.get('/access', classroomController.getAccess)
 router.get('/tabs', classroomController.getTabs)

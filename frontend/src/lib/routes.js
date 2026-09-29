@@ -10,6 +10,7 @@ export const ROUTES = {
   login: '/dang-nhap',
   register: '/dang-ky',
   ai: '/vo-lop/AI/app',
+  classMoney: '/tien-lop',
   profileSetting: '/profile-setting',
   classRoot: '/vo-lop',
   presentationRoot: '/thuyet-trinh',

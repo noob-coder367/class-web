@@ -181,6 +181,16 @@ function IconPresentation() {
   )
 }
 
+function IconWallet() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H19a1 1 0 0 1 1 1v12.5a1.5 1.5 0 0 1-1.5 1.5H6.5A2.5 2.5 0 0 1 4 17.5z" />
+      <path d="M4 8h15.5A1.5 1.5 0 0 1 21 9.5v4H17a2 2 0 0 1 0-4h4" />
+      <path d="M8 5V3.5A1.5 1.5 0 0 1 9.5 2h7A1.5 1.5 0 0 1 18 3.5V5" />
+    </svg>
+  )
+}
+
 function IconPlus() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
@@ -239,6 +249,7 @@ const TABS = [
   { id: 'presentation', label: 'Thuyết trình', icon: IconPresentation },
   { id: 'ai', label: 'AI', icon: IconAI },
   { id: 'utilities', label: 'Tiện ích phụ', icon: IconWrench },
+  { id: 'class-money', label: 'Tiền lớp', icon: IconWallet, adminOnly: true },
 ]
 
 const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty', 'presentation'])
@@ -1194,7 +1205,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
             <span className="classroom-iso-lid" aria-hidden="true" />
 
             <nav className="classroom-iso-front" role="tablist" aria-label="Mục lớp 10A4" ref={navRef}>
-              {TABS.map((tab) => {
+              {TABS.filter((tab) => !tab.adminOnly || isAdminRole(role)).map((tab) => {
                 const Icon = tab.icon
                 const selected = activeTab === tab.id
                 const badge = tab.id === 'timetable' ? 0 : tabBadges[tab.id] || 0
@@ -1209,7 +1220,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
                     aria-controls="classroom-panel"
                     tabIndex={selected ? 0 : -1}
                     className={`classroom-tab${selected ? ' is-active' : ''}`}
-                    onClick={() => handleTabClick(tab.id)}
+                    onClick={() => tab.id === 'class-money' ? navigate(ROUTES.classMoney) : handleTabClick(tab.id)}
                     disabled={access === 'denied'}
                   >
                     <span className="classroom-tab-inner">
