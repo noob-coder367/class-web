@@ -36,6 +36,8 @@ export function getMoneyOverview(bookId) {
   return cachedGet(key, () => apiClient.get(`/classroom/money/overview${qs({ bookId })}`, { auth: true }))
 }
 export function getMoneyMembers() {
+  // Backend đọc danh sách PDF đã parse của Tiện ích (GET /classroom/utility-roster),
+  // không parse lại PDF và không lấy từ profiles/account.
   return cachedGet('money:members', () => apiClient.get('/classroom/money/members', { auth: true }))
 }
 export function getMoneyBooks() {
