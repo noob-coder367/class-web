@@ -24,7 +24,11 @@ function hasInk(canvas, start, end) {
 }
 
 // Tìm một dải trắng gần biên A4 để không cắt qua chữ hoặc hàng bảng.
-function safeCutY(canvas, target, pageHeight) {
+function safeCutY(canvas, target, pageHeight, breakpoints = []) {
+  const domCut = breakpoints
+    .filter((point) => point > 24 && point < canvas.height - 24 && Math.abs(point - target) <= Math.round(pageHeight * 0.2))
+    .sort((a, b) => Math.abs(a - target) - Math.abs(b - target))[0]
+  if (domCut) return domCut
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   const radius = Math.min(Math.round(pageHeight * 0.18), 260)
   const from = Math.max(24, target - radius)
@@ -62,11 +66,15 @@ async function renderPages(type, data, number) {
     const ratio = Math.max(2.2, 1600 / width)
     const source = await toCanvas(node, { width, height, pixelRatio: ratio, backgroundColor: '#fff', cacheBust: true, skipAutoScale: true, style: { overflow: 'visible', background: '#fff' } })
     const pageHeight = Math.round(source.width * 297 / 210)
+    const scaleY = source.height / Math.max(1, node.scrollHeight)
+    const breakpoints = Array.from(node.querySelectorAll('tr, p, li, figure, .official-doc-footer'))
+      .map((element) => Math.round((element.offsetTop + element.offsetHeight) * scaleY))
+      .filter((point, index, all) => all.indexOf(point) === index)
     const pages = []
     let y = 0
     while (y < source.height - 2 || !pages.length) {
       const end = Math.min(source.height, y + pageHeight)
-      const cut = end < source.height ? safeCutY(source, end, pageHeight) : end
+      const cut = end < source.height ? safeCutY(source, end, pageHeight, breakpoints) : end
       const h = cut - y
       if (h <= 0) break
       if (pages.length > 0 && !hasInk(source, y, cut)) {

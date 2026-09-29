@@ -34,7 +34,11 @@ function pageHasInk(canvas, startY, endY) {
   }
   return false
 }
-function safeCutY(canvas, target, pageHeight) {
+function safeCutY(canvas, target, pageHeight, breakpoints = []) {
+  const domCut = breakpoints
+    .filter((point) => point > 24 && point < canvas.height - 24 && Math.abs(point - target) <= Math.round(pageHeight * 0.2))
+    .sort((a, b) => Math.abs(a - target) - Math.abs(b - target))[0]
+  if (domCut) return domCut
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   const radius = Math.min(Math.round(pageHeight * 0.18), 260)
   const from = Math.max(24, target - radius)
@@ -73,11 +77,15 @@ async function renderOfficialDocPages(post) {
     const pixelRatio = Math.max(2.2, 1600 / width)
     const rendered = await toCanvas(node, { width, height, pixelRatio, backgroundColor: '#ffffff', cacheBust: true, skipAutoScale: true, style: { margin: '0', opacity: '1', transform: 'none', left: '0', top: '0', overflow: 'visible', background: '#ffffff' } })
     const pageHeight = Math.max(1, Math.round(rendered.width * 297 / 210))
+    const scaleY = rendered.height / Math.max(1, node.scrollHeight)
+    const breakpoints = Array.from(node.querySelectorAll('.official-doc-text, .official-doc-images, figure, tr, .official-doc-footer'))
+      .map((element) => Math.round((element.offsetTop + element.offsetHeight) * scaleY))
+      .filter((point, index, all) => all.indexOf(point) === index)
     const pages = []
     let sourceY = 0
     while (sourceY < rendered.height - 2 || !pages.length) {
       const end = Math.min(rendered.height, sourceY + pageHeight)
-      const cut = end < rendered.height ? safeCutY(rendered, end, pageHeight) : end
+      const cut = end < rendered.height ? safeCutY(rendered, end, pageHeight, breakpoints) : end
       const currentHeight = cut - sourceY
       if (currentHeight <= 0) break
       if (pages.length > 0 && !pageHasInk(rendered, sourceY, cut)) { sourceY = cut; continue }

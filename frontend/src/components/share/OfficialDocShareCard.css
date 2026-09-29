@@ -133,3 +133,13 @@
 }
 .official-doc-signed-label { display: block; font-style: normal; }
 .official-doc-signature b { display: inline-block; margin-top: .42cm; font-size: 14pt; font-weight: 700; }
+
+.official-doc-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11pt; line-height: 1.25; margin: .12cm 0 .3cm; }
+.official-doc-table thead { display: table-header-group; }
+.official-doc-table tr { break-inside: avoid; page-break-inside: avoid; }
+.official-doc-table th, .official-doc-table td { border: 1px solid #000; padding: 5px 6px; vertical-align: top; white-space: pre-wrap; overflow-wrap: anywhere; }
+.official-doc-table th { text-align: center; font-weight: 700; background: #f4f4f4; }
+.official-doc-subtitle { margin: .1cm 0 .35cm; font-style: italic; font-size: 13pt; }
+.official-doc-change { margin: .2cm 0 .35cm; font-size: 13pt; }
+.official-doc-change ul { margin: .08cm 0; padding-left: .55cm; }
+.official-doc-classroom-photo { display: inline-block; max-width: 45%; max-height: 6cm; object-fit: contain; margin: .25cm; break-inside: avoid; page-break-inside: avoid; }
