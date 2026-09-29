@@ -7,6 +7,8 @@ const DATA_BUCKET = 'classroom-data'
 const DATA_PATH = 'announcements.json'
 const IMAGE_BUCKET = 'announcement-images'
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
+// Toàn hệ thống chỉ giữ 20 file ảnh mới nhất của announcement.
+const MAX_ANNOUNCEMENT_IMAGES_SYSTEM = 20
 const ALLOWED_MIME = {
   'image/jpeg': 'jpg',
   'image/jpg': 'jpg',
@@ -193,6 +195,40 @@ async function removeImages(urls) {
   }
 }
 
+async function enforceAnnouncementImageQuota(max = MAX_ANNOUNCEMENT_IMAGES_SYSTEM) {
+  const { items } = await loadAll()
+  const refs = []
+  const seenPaths = new Set()
+  for (const item of items) {
+    const createdAt = new Date(item.created_at || 0).getTime() || 0
+    for (const [index, url] of (item.images || []).entries()) {
+      const path = extractStoragePath(url)
+      if (!path || !path.startsWith('posts/') || seenPaths.has(path)) continue
+      seenPaths.add(path)
+      refs.push({ item, url, path, createdAt, index })
+    }
+  }
+  if (refs.length <= max) return
+  refs.sort((a, b) => b.createdAt - a.createdAt || b.index - a.index)
+  const removeRefs = refs.slice(max)
+  const paths = removeRefs.map((ref) => ref.path)
+  const { error } = await supabaseAdmin.storage.from(IMAGE_BUCKET).remove(paths)
+  if (error) {
+    console.warn('[announcements] quota ảnh: không xóa được ảnh cũ:', error.message)
+    return
+  }
+  const removed = new Set(paths)
+  let changed = false
+  for (const item of items) {
+    const nextImages = (item.images || []).filter((url) => !removed.has(extractStoragePath(url)))
+    if (nextImages.length !== item.images.length) {
+      item.images = nextImages
+      changed = true
+    }
+  }
+  if (changed) await writeStore({ items })
+}
+
 async function notifyPush(item) {
   try {
     const { broadcastPush } = await import('./push.service.js')
@@ -237,13 +273,17 @@ export async function purgeExpired() {
 }
 
 export async function listAnnouncements() {
-  const alive = await purgeExpired()
-  return alive.filter((item) => item.hidden !== true)
+  await purgeExpired()
+  await enforceAnnouncementImageQuota()
+  const { items } = await loadAll()
+  return items.filter((item) => !isExpired(item) && item.hidden !== true)
 }
 
 export async function listArchive(section) {
-  const alive = await purgeExpired()
-  const hidden = alive.filter((item) => item.hidden === true)
+  await purgeExpired()
+  await enforceAnnouncementImageQuota()
+  const { items } = await loadAll()
+  const hidden = items.filter((item) => !isExpired(item) && item.hidden === true)
   if (!section) return hidden
   const key = parseSection(section)
   return hidden.filter((item) => item.section === key)
@@ -313,6 +353,7 @@ export async function createAnnouncement(payload, profile) {
     const next = [item, ...items.filter((row) => !isExpired(row))]
     items.splice(0, items.length, ...next)
   })
+  await enforceAnnouncementImageQuota()
   void notifyPush(item)
   return item
 }

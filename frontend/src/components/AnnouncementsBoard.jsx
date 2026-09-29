@@ -13,6 +13,7 @@ import './AnnouncementsBoard.css'
 
 const NOTIFY_OPTIONS = ['normal', 'hot', 'urgent']
 const NOTIFY_LABELS = { normal: 'Thông thường', hot: '🔥 Hot', urgent: '🚨 Khẩn cấp' }
+const MAX_ANNOUNCEMENT_IMAGES_PER_POST = 5
 const SECTION_META = [
   { id: 'main', title: 'Thông báo chính', hint: 'Thông tin chung của lớp' },
   { id: 'important', title: 'Báo bài quan trọng', hint: 'Kiểm tra & báo bài từ LPHT' },
@@ -217,8 +218,12 @@ export default function AnnouncementsBoard({
   const handleFilesChange = (e) => {
     const files = Array.from(e.target.files || []).filter((f) => String(f.type || '').startsWith('image/'))
     if (!files.length) return
-    setSelectedFiles((prev) => [...prev, ...files])
-    setPreviewUrls((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))])
+    const remaining = MAX_ANNOUNCEMENT_IMAGES_PER_POST - selectedFiles.length
+    const accepted = files.slice(0, Math.max(remaining, 0))
+    if (accepted.length < files.length) alert(`Mỗi bài tối đa ${MAX_ANNOUNCEMENT_IMAGES_PER_POST} ảnh.`)
+    if (!accepted.length) return
+    setSelectedFiles((prev) => [...prev, ...accepted])
+    setPreviewUrls((prev) => [...prev, ...accepted.map((f) => URL.createObjectURL(f))])
     e.target.value = ''
   }
 
@@ -447,6 +452,7 @@ export default function AnnouncementsBoard({
                     <div className="ann-upload-placeholder">
                       <span className="ann-upload-icon">📷</span>
                       <p>Chạm để chọn ảnh từ thư viện điện thoại</p>
+                      <small>Tối đa 5 ảnh/bài · hệ thống giữ khoảng 20 ảnh mới nhất</small>
                     </div>
                   ) : (
                     <div className="ann-upload-grid">

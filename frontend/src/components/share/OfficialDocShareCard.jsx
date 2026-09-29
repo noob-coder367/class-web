@@ -35,11 +35,13 @@ export default function OfficialDocShareCard({ post }) {
         </div>
       </header>
       <div className="official-doc-rule" />
-      <div className="official-doc-number">Số: {shortId}/{code}-CĐ10A4</div>
-      <div className="official-doc-date">{formatVNDate(post?.created_at || post?.updated_at)}</div>
+      <div className="official-doc-meta">
+        <div className="official-doc-number">Số: {shortId}/{code}-CĐ10A4</div>
+        <div className="official-doc-date">{formatVNDate(post?.created_at || post?.updated_at)}</div>
+      </div>
       <h1>{kind}</h1>
+      {post?.title ? <h2 className="official-doc-main-title">{post.title}</h2> : null}
       <main className="official-doc-content">
-        {post?.title ? <h2>{post.title}</h2> : null}
         {post?.content ? <p className="official-doc-text">{post.content}</p> : null}
         {images.length ? (
           <section className={`official-doc-images official-doc-images--${Math.min(images.length, 2)}`}>
