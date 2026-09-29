@@ -6,7 +6,7 @@ import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
 import { isStatusDrop, statusFor } from '../lib/reputationStatus.js'
 import * as announcementsService from './announcements.service.js'
-import { readJsonFile } from '../utils/classroomDataStore.js'
+import { readStore as readDbStore, writeStore as writeDbStore } from '../utils/classroomDbStore.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_PATH = join(__dirname, '../data/rules.default.json')
@@ -245,16 +245,7 @@ function normalizeViolations(raw, rules) {
 }
 
 async function ensureBucket() {
-  const { data } = await supabaseAdmin.storage.getBucket(BUCKET)
-  if (!data) {
-    const { error } = await supabaseAdmin.storage.createBucket(BUCKET, {
-      public: false,
-      fileSizeLimit: 512 * 1024,
-    })
-    if (error && !/already exists|duplicate|exists/i.test(error.message || '')) {
-      throw new AppError('Không tạo được kho nội quy: ' + error.message, 502)
-    }
-  }
+  return true
 }
 
 async function ensurePhotoBucket() {
@@ -276,18 +267,13 @@ async function ensurePhotoBucket() {
 }
 
 async function readJson(path) {
-  await ensureBucket()
-  return readJsonFile({ bucket: BUCKET, path, empty: null, label: path })
+  const key = path === RULES_FILE ? 'rules' : 'violations'
+  return readDbStore({ key, legacyPath: path, empty: null, label: path })
 }
 
 async function writeJson(path, payload, label) {
-  await ensureBucket()
-  const body = Buffer.from(JSON.stringify(payload, null, 2) + '\n', 'utf8')
-  const { error } = await supabaseAdmin.storage.from(BUCKET).upload(path, body, {
-    contentType: 'application/json',
-    upsert: true,
-  })
-  if (error) throw new AppError(`Không lưu được ${label}: ` + error.message, 502)
+  const key = path === RULES_FILE ? 'rules' : 'violations'
+  await writeDbStore({ key, value: payload, label })
 }
 
 async function decodePhotoPayload(photo) {

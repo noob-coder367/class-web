@@ -2,7 +2,7 @@ import { randomUUID, createHash } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
 import { isAdminRole } from '../lib/roles.js'
-import { enqueueJsonWrite, readJsonFile } from '../utils/classroomDataStore.js'
+import { readStore as readDbStore, writeStore as writeDbStore } from '../utils/classroomDbStore.js'
 
 const DATA_BUCKET = 'classroom-data'
 const DATA_PATH = 'class-space.json'
@@ -47,23 +47,7 @@ function generateUniqueRoomCode(existingCodes) {
 }
 
 async function ensureDataBucket() {
-  const { data, error } = await supabaseAdmin.storage.getBucket(DATA_BUCKET)
-  if (data) return
-
-  // Supabase trả 404/"not found" khi bucket chưa tồn tại. Chỉ trường hợp này
-  // mới được phép tự tạo; lỗi auth/network không được báo nhầm là thiếu bucket.
-  const isMissing = error && (error.statusCode === 404 || error.statusCode === '404' || /not found|does not exist|404/i.test(error.message || ''))
-  if (error && !isMissing) {
-    throw new AppError(`Không kiểm tra được kho dữ liệu "${DATA_BUCKET}": ${error.message}`, 502)
-  }
-
-  const { error: createError } = await supabaseAdmin.storage.createBucket(DATA_BUCKET, {
-    public: false,
-    fileSizeLimit: 2 * 1024 * 1024,
-  })
-  if (createError && !/already exists|duplicate|exists/i.test(createError.message || '')) {
-    throw new AppError(`Không tạo được kho dữ liệu "${DATA_BUCKET}": ${createError.message}`, 502)
-  }
+  return true
 }
 
 async function ensureImageBucket() {
@@ -84,24 +68,16 @@ function publicImageUrl(path) {
 }
 
 async function readStore() {
-  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: DATA_PATH, empty: { items: [] }, label: 'lớp học' })
+  const parsed = await readDbStore({ key: 'class-space', legacyPath: DATA_PATH, empty: { items: [] }, label: 'lớp học' })
   return { items: Array.isArray(parsed?.items) ? parsed.items : [] }
 }
 
 async function writeStore(store) {
-  await ensureDataBucket()
-  const body = Buffer.from(JSON.stringify(store, null, 2) + '\n', 'utf8')
-  const { error } = await supabaseAdmin.storage.from(DATA_BUCKET).upload(DATA_PATH, body, {
-    contentType: 'application/json',
-    upsert: true,
-  })
-  if (error) {
-    throw new AppError('Không lưu được lớp học: ' + error.message, 502)
-  }
+  await writeDbStore({ key: 'class-space', value: store, label: 'lớp học' })
 }
 
 async function readUtilityRoster() {
-  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: UTILITY_ROSTER_PATH, empty: { names: [], fileName: '', updatedAt: '' }, label: 'danh sách PDF' })
+  const parsed = await readDbStore({ key: 'utility-roster', legacyPath: UTILITY_ROSTER_PATH, empty: { names: [], fileName: '', updatedAt: '' }, label: 'danh sách PDF' })
   return {
     names: Array.isArray(parsed?.names)
       ? parsed.names.filter((item) => item && typeof item === 'object' && String(item.name || '').trim())
@@ -112,15 +88,7 @@ async function readUtilityRoster() {
 }
 
 async function writeUtilityRoster(roster) {
-  await enqueueJsonWrite(`${DATA_BUCKET}/${UTILITY_ROSTER_PATH}`, async () => {
-    await ensureDataBucket()
-    const body = Buffer.from(JSON.stringify(roster, null, 2) + '\n', 'utf8')
-    const { error } = await supabaseAdmin.storage.from(DATA_BUCKET).upload(UTILITY_ROSTER_PATH, body, {
-      contentType: 'application/json',
-      upsert: true,
-    })
-    if (error) throw new AppError('Không lưu được danh sách PDF: ' + error.message, 502)
-  })
+  await writeDbStore({ key: 'utility-roster', value: roster, label: 'danh sách PDF' })
 }
 
 function normalizeBackdrop(raw) {
@@ -332,7 +300,6 @@ function normalizeItem(raw) {
 }
 
 async function loadAll() {
-  await ensureDataBucket()
   const store = await readStore()
   const items = store.items.map(normalizeItem).filter(Boolean)
 
@@ -354,10 +321,8 @@ async function loadAll() {
 }
 
 async function saveAll(items) {
-  await enqueueJsonWrite(`${DATA_BUCKET}/${DATA_PATH}`, async () => {
-    await writeStore({ items })
-    memoryCache = { items }
-  })
+  await writeStore({ items })
+  memoryCache = { items }
 }
 
 function toPublicMeta(item, profile) {

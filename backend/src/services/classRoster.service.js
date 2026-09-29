@@ -4,7 +4,7 @@ import { AppError, isPendingUsername, normalizeDisplayName } from './auth.servic
 import { normalizeRole } from '../lib/roles.js'
 import * as rulesService from './rules.service.js'
 import * as cleaningDutyService from './cleaningDuty.service.js'
-import { readJsonFile } from '../utils/classroomDataStore.js'
+import { readStore as readDbStore, writeStore as writeDbStore } from '../utils/classroomDbStore.js'
 
 const BUCKET = 'classroom-data'
 const ROSTER_FILE = 'class-roster.json'
@@ -71,31 +71,15 @@ function normalizeRoster(raw) {
 }
 
 async function ensureBucket() {
-  const { data } = await supabaseAdmin.storage.getBucket(BUCKET)
-  if (!data) {
-    const { error } = await supabaseAdmin.storage.createBucket(BUCKET, {
-      public: false,
-      fileSizeLimit: 512 * 1024,
-    })
-    if (error && !/already exists|duplicate|exists/i.test(error.message || '')) {
-      throw new AppError('Không tạo được kho danh sách lớp: ' + error.message, 502)
-    }
-  }
+  return true
 }
 
 async function readJson() {
-  await ensureBucket()
-  return readJsonFile({ bucket: BUCKET, path: ROSTER_FILE, empty: null, label: 'danh sách lớp' })
+  return readDbStore({ key: 'class-roster', legacyPath: ROSTER_FILE, empty: null, label: 'danh sách lớp' })
 }
 
 async function writeRoster(payload) {
-  await ensureBucket()
-  const body = Buffer.from(JSON.stringify(payload, null, 2) + '\n', 'utf8')
-  const { error } = await supabaseAdmin.storage.from(BUCKET).upload(ROSTER_FILE, body, {
-    contentType: 'application/json',
-    upsert: true,
-  })
-  if (error) throw new AppError('Không lưu được danh sách lớp: ' + error.message, 502)
+  await writeDbStore({ key: 'class-roster', value: payload, label: 'danh sách lớp' })
 }
 
 async function loadRoster() {

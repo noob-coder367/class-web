@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
-import { readJsonFile } from '../utils/classroomDataStore.js'
+import { readStore as readDbStore, writeStore as writeDbStore } from '../utils/classroomDbStore.js'
 import { env } from '../config/env.js'
 import { normalizeRole } from '../lib/roles.js'
 
@@ -110,52 +110,27 @@ async function findProfileById(userId) {
 }
 
 async function readUsernameChanges() {
-  await ensureDataBucket()
-  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: USERNAME_CHANGES_PATH, empty: {}, label: 'lịch sử đổi tên' })
+  const parsed = await readDbStore({ key: 'username-changes', legacyPath: USERNAME_CHANGES_PATH, empty: {}, label: 'lịch sử đổi tên' })
   return parsed && typeof parsed === 'object' ? parsed : {}
 }
 
 async function writeUsernameChanges(map) {
-  const { data: bucket } = await supabaseAdmin.storage.getBucket(DATA_BUCKET)
-  if (!bucket) {
-    await supabaseAdmin.storage.createBucket(DATA_BUCKET, { public: false, fileSizeLimit: 2 * 1024 * 1024 })
-  }
-  const body = Buffer.from(JSON.stringify(map, null, 2) + '\n', 'utf8')
-  const { error } = await supabaseAdmin.storage.from(DATA_BUCKET).upload(USERNAME_CHANGES_PATH, body, {
-    contentType: 'application/json',
-    upsert: true,
-  })
-  if (error) throw new AppError('Không lưu được lịch sử đổi tên: ' + error.message, 502)
+  await writeDbStore({ key: 'username-changes', value: map, label: 'lịch sử đổi tên' })
 }
 
 async function ensureDataBucket() {
-  const { data: bucket, error } =
-    await supabaseAdmin.storage.getBucket(DATA_BUCKET)
-
-  if (error || !bucket) {
-    throw new AppError(
-      `Kho dữ liệu "${DATA_BUCKET}" chưa được cấu hình trên Supabase.`,
-      500
-    )
-  }
+  return true
 }
 
 async function readGhostState() {
-  await ensureDataBucket()
-  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: GHOST_STATE_PATH, empty: { nextIndex: 1, created: [] }, label: 'bộ đếm tài khoản ma' })
+  const parsed = await readDbStore({ key: 'ghost-state', legacyPath: GHOST_STATE_PATH, empty: { nextIndex: 1, created: [] }, label: 'bộ đếm tài khoản ma' })
   const nextIndex = Math.max(1, Number(parsed?.nextIndex) || 1)
   const created = Array.isArray(parsed?.created) ? parsed.created : []
   return { nextIndex, created }
 }
 
 async function writeGhostState(state) {
-  await ensureDataBucket()
-  const body = Buffer.from(JSON.stringify(state, null, 2) + '\n', 'utf8')
-  const { error } = await supabaseAdmin.storage.from(DATA_BUCKET).upload(GHOST_STATE_PATH, body, {
-    contentType: 'application/json',
-    upsert: true,
-  })
-  if (error) throw new AppError('Không lưu được bộ đếm tài khoản ma: ' + error.message, 502)
+  await writeDbStore({ key: 'ghost-state', value: state, label: 'bộ đếm tài khoản ma' })
 }
 
 function remainingGhostToday(created) {

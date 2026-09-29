@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
-import { enqueueJsonWrite, readJsonFile } from '../utils/classroomDataStore.js'
+import { readStore as readDbStore, writeStore as writeDbStore } from '../utils/classroomDbStore.js'
 
 const DATA_BUCKET = 'classroom-data'
 const DATA_PATH = 'announcements.json'
@@ -23,17 +23,13 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value))
 }
 
-async function ensureDataBucket() {
-  const { data } = await supabaseAdmin.storage.getBucket(DATA_BUCKET)
-  if (!data) {
-    const { error } = await supabaseAdmin.storage.createBucket(DATA_BUCKET, {
-      public: false,
-      fileSizeLimit: 2 * 1024 * 1024,
-    })
-    if (error && !/already exists|duplicate|exists/i.test(error.message || '')) {
-      throw new AppError('Không tạo được kho dữ liệu lớp: ' + error.message, 502)
-    }
-  }
+async function readStore() {
+  const parsed = await readDbStore({ key: 'announcements', legacyPath: DATA_PATH, empty: { items: [] }, label: 'thông báo' })
+  return { items: Array.isArray(parsed?.items) ? parsed.items : [] }
+}
+
+async function writeStore(store) {
+  await writeDbStore({ key: 'announcements', value: store, label: 'thông báo' })
 }
 
 async function ensureImageBucket() {
@@ -54,23 +50,6 @@ async function ensureImageBucket() {
 function publicImageUrl(path) {
   const { data } = supabaseAdmin.storage.from(IMAGE_BUCKET).getPublicUrl(path)
   return data?.publicUrl || ''
-}
-
-async function readStore() {
-  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: DATA_PATH, empty: { items: [] }, label: 'thông báo' })
-  return { items: Array.isArray(parsed?.items) ? parsed.items : [] }
-}
-
-async function writeStore(store) {
-  await ensureDataBucket()
-  const body = Buffer.from(JSON.stringify(store, null, 2) + '\n', 'utf8')
-  const { error } = await supabaseAdmin.storage.from(DATA_BUCKET).upload(DATA_PATH, body, {
-    contentType: 'application/json',
-    upsert: true,
-  })
-  if (error) {
-    throw new AppError('Không lưu được thông báo: ' + error.message, 502)
-  }
 }
 
 function isExpired(item, now = Date.now()) {
@@ -119,27 +98,22 @@ function normalizeItem(raw) {
 }
 
 async function loadAll() {
-  await ensureDataBucket()
   const store = await readStore()
   const items = store.items.map(normalizeItem).filter(Boolean)
   return { items }
 }
 
 async function saveAll(items) {
-  await enqueueJsonWrite(`${DATA_BUCKET}/${DATA_PATH}`, async () => {
-    await writeStore({ items })
-    memoryCache = { items }
-  })
+  await writeStore({ items })
+  memoryCache = { items }
 }
 
 async function mutateStore(mutator) {
-  return enqueueJsonWrite(`${DATA_BUCKET}/${DATA_PATH}`, async () => {
-    const data = await loadAll()
-    const result = await mutator(data.items)
-    await writeStore({ items: data.items })
-    memoryCache = { items: data.items }
-    return result
-  })
+  const data = await loadAll()
+  const result = await mutator(data.items)
+  await writeStore({ items: data.items })
+  memoryCache = { items: data.items }
+  return result
 }
 
 function stripDataUrl(contentBase64) {

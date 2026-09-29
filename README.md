@@ -95,7 +95,7 @@ Thành viên bấm **Vô Lớp 10A4** vào màn nội bộ (thông báo, TKB, b�
 - Push **đã bật** khi backend đang lưu ít nhất một subscription hợp lệ của tài khoản (không dùng localStorage / `Notification.permission`).
 - **Nhận thông báo** = Service Worker đã nhận payload và `showNotification` thành công, rồi gửi receipt (`POST /api/push/receipt`). Không dùng thời điểm server gọi `webpush.sendNotification()`.
 - Admin chỉ nhận `push_enabled`, `push_devices`, `push_last_received_at` — không nhận endpoint / keys / receiptToken.
-- Nên chạy `supabase/push-subscriptions.sql` một lần trên Supabase (bảng `push_subscriptions`, endpoint unique). Nếu chưa chạy, backend tạm dùng JSON Storage với ghi tuần tự.
+- Chạy `supabase/push-subscriptions.sql` một lần trên Supabase (bảng `push_subscriptions`, endpoint unique). Web Push dùng bảng này; không còn tạo hoặc ghi file JSON subscription trong `classroom-data`.
 
 ## Cách chạy
 
@@ -112,8 +112,12 @@ Sau khi tạo project, chạy các file SQL này **một lần trên Supabase Da
 3. `supabase/cleaning-duty-schema.sql` — tạo schema và policy cho lịch trực.
 4. `supabase/cleaning-duty-media-schema.sql` — tạo metadata ảnh/đánh giá theo tuần cho vệ sinh lớp.
 5. `supabase/push-subscriptions.sql` — tạo bảng subscription Web Push (nếu dùng Web Push).
+6. `supabase/classroom-store-schema.sql` — tạo `classroom_store`, nơi backend migrate lazy các JSON nghiệp vụ từ Storage sang PostgreSQL.
+7. `supabase/class-money-schema.sql` — tạo các bảng riêng cho module Tiền lớp (nếu sử dụng module này).
 
-Bucket `classroom-data` **phải private**; dữ liệu JSON classroom và ảnh trực nhật chỉ được backend đọc/ghi bằng `service_role`, không cấp public read hoặc quyền insert/update/delete cho client. Tính năng ảnh trực nhật dùng bucket này, **không tự tạo bucket mới**.
+Bucket `classroom-data` **phải private**. Sau khi chạy `classroom-store-schema.sql`, backend sẽ đọc mỗi file JSON legacy còn tồn tại tối đa một lần khi key tương ứng chưa có trong `classroom_store`, ghi dữ liệu vào PostgreSQL, rồi dùng PostgreSQL cho các lần đọc/ghi sau. File Storage cũ không bị xóa và được giữ làm bản sao lưu. Tất cả dữ liệu vẫn chỉ đi qua backend `service_role`; client không có quyền đọc/ghi `classroom_store`.
+
+Sau khi chạy SQL, redeploy/restart backend. Không cần chạy script parse PDF thủ công: roster PDF hiện có cũng được migrate lazy qua key `utility-roster` và được module Classroom đọc lại từ DB.
 
 ### 2. Backend
 

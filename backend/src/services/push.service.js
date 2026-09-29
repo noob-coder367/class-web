@@ -3,7 +3,6 @@ import webpush from 'web-push'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { env } from '../config/env.js'
 import { AppError } from './auth.service.js'
-import { readJsonFile } from '../utils/classroomDataStore.js'
 
 const DATA_BUCKET = 'classroom-data'
 const DATA_PATH = 'push-subscriptions.json'
@@ -12,19 +11,6 @@ const TABLE = 'push_subscriptions'
 let vapidReady = false
 /** 'unknown' | 'table' | 'json' */
 let storeMode = 'unknown'
-let jsonMigrated = false
-
-/** Serialize JSON-storage writes trong cùng process để tránh đọc-sửa-ghi chồng chéo. */
-const jsonWriteChain = { p: Promise.resolve() }
-
-function enqueueJsonWrite(fn) {
-  const run = jsonWriteChain.p.then(fn, fn)
-  jsonWriteChain.p = run.then(
-    () => undefined,
-    () => undefined
-  )
-  return run
-}
 
 function newReceiptToken() {
   return randomBytes(32).toString('hex')
@@ -110,44 +96,21 @@ function rowToSub(row) {
 }
 
 async function ensureDataBucket() {
-  const { data } = await supabaseAdmin.storage.getBucket(DATA_BUCKET)
-  if (!data) {
-    const { error } = await supabaseAdmin.storage.createBucket(DATA_BUCKET, {
-      public: false,
-      fileSizeLimit: 2 * 1024 * 1024,
-    })
-    if (error && !/already exists|duplicate|exists/i.test(error.message || '')) {
-      throw new AppError('Không tạo được kho dữ liệu: ' + error.message, 502)
-    }
-  }
+  throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
 }
 
 async function readStore() {
-  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: DATA_PATH, empty: { subscriptions: [] }, label: 'subscription Web Push' })
-  const list = Array.isArray(parsed?.subscriptions) ? parsed.subscriptions : []
-  return { subscriptions: list.map(normalizeSub).filter(Boolean) }
+  throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
 }
 
 async function writeStore(store) {
-  await ensureDataBucket()
-  const body = Buffer.from(JSON.stringify(store, null, 2) + '\n', 'utf8')
-  const { error } = await supabaseAdmin.storage.from(DATA_BUCKET).upload(DATA_PATH, body, {
-    contentType: 'application/json',
-    upsert: true,
-  })
-  if (error) throw new AppError('Không lưu được subscription: ' + error.message, 502)
+  void store
+  throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
 }
 
 async function mutateJson(mutator) {
-  return enqueueJsonWrite(async () => {
-    await ensureDataBucket()
-    const store = await readStore()
-    const current = store.subscriptions || []
-    const next = await mutator(current)
-    const list = Array.isArray(next) ? next : current
-    await writeStore({ subscriptions: list })
-    return list
-  })
+  void mutator
+  throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
 }
 
 async function detectStoreMode() {
@@ -159,14 +122,14 @@ async function detectStoreMode() {
     return storeMode
   }
   if (isMissingTableError(error)) {
-    storeMode = 'json'
+    throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
     console.warn(
       '[push] Bảng push_subscriptions chưa có — dùng JSON storage. Hãy chạy supabase/push-subscriptions.sql trên Supabase.'
     )
     return storeMode
   }
   console.warn('[push] không kiểm tra được bảng push_subscriptions:', error.message)
-  storeMode = 'json'
+  throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
   return storeMode
 }
 
@@ -217,7 +180,7 @@ async function listSubscriptions() {
     const { data, error } = await supabaseAdmin.from(TABLE).select('*')
     if (error) {
       if (isMissingTableError(error)) {
-        storeMode = 'json'
+        throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
         return (await readStore()).subscriptions
       }
       throw new AppError('Không đọc được subscription: ' + error.message, 502)
@@ -236,7 +199,7 @@ async function removeByEndpoints(endpoints) {
     const { error } = await supabaseAdmin.from(TABLE).delete().in('endpoint', [...gone])
     if (error) {
       if (isMissingTableError(error)) {
-        storeMode = 'json'
+        throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
       } else {
         console.warn('[push] xóa subscription chết thất bại:', error.message)
         return
@@ -275,7 +238,7 @@ export async function saveSubscription(userId, subscription, userAgent = '', ext
       .maybeSingle()
 
     if (readError && isMissingTableError(readError)) {
-      storeMode = 'json'
+      throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
     } else if (readError) {
       throw new AppError('Không đọc được subscription: ' + readError.message, 502)
     }
@@ -295,7 +258,7 @@ export async function saveSubscription(userId, subscription, userAgent = '', ext
       const { error } = await supabaseAdmin.from(TABLE).upsert(row, { onConflict: 'endpoint' })
       if (error) {
         if (isMissingTableError(error)) {
-          storeMode = 'json'
+          throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
         } else {
           throw new AppError('Không lưu được subscription: ' + error.message, 502)
         }
@@ -339,7 +302,7 @@ export async function removeSubscription(userId, endpoint) {
     const { error } = await query
     if (error) {
       if (isMissingTableError(error)) {
-        storeMode = 'json'
+        throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
       } else {
         throw new AppError('Không hủy được subscription: ' + error.message, 502)
       }
@@ -384,7 +347,7 @@ export async function recordReceipt(receiptToken) {
       .eq('receipt_token', token)
     if (error) {
       if (isMissingTableError(error)) {
-        storeMode = 'json'
+        throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
       } else {
         console.warn('[push] ghi receipt thất bại:', error.message)
         return { ok: false }

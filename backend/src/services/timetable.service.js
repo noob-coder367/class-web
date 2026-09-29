@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
-import { readJsonFile } from '../utils/classroomDataStore.js'
+import { readStore as readDbStore, writeStore as writeDbStore } from '../utils/classroomDbStore.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_PATH = join(__dirname, '../data/timetable.default.json')
@@ -201,34 +201,12 @@ export function diffTimetable(prev, next) {
   return lines
 }
 
-async function ensureBucket() {
-  const { data } = await supabaseAdmin.storage.getBucket(BUCKET)
-  if (!data) {
-    const { error } = await supabaseAdmin.storage.createBucket(BUCKET, {
-      public: false,
-      fileSizeLimit: 512 * 1024,
-    })
-    if (error && !/already exists|duplicate|exists/i.test(error.message || '')) {
-      throw new AppError('Không tạo được kho thời khoá biểu: ' + error.message, 502)
-    }
-  }
-}
-
 async function readFromStorage() {
-  await ensureBucket()
-  return readJsonFile({ bucket: BUCKET, path: FILE_PATH, empty: null, label: 'thời khoá biểu' })
+  return readDbStore({ key: 'timetable', legacyPath: FILE_PATH, empty: null, label: 'thời khoá biểu' })
 }
 
 async function writeToStorage(payload) {
-  await ensureBucket()
-  const body = Buffer.from(JSON.stringify(payload, null, 2) + '\n', 'utf8')
-  const { error } = await supabaseAdmin.storage.from(BUCKET).upload(FILE_PATH, body, {
-    contentType: 'application/json',
-    upsert: true,
-  })
-  if (error) {
-    throw new AppError('Không lưu được thời khoá biểu: ' + error.message, 502)
-  }
+  await writeDbStore({ key: 'timetable', value: payload, label: 'thời khoá biểu' })
 }
 
 export async function getTimetable() {

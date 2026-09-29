@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
 import * as announcementsService from './announcements.service.js'
-import { enqueueJsonWrite, readJsonFile } from '../utils/classroomDataStore.js'
+import { readStore as readDbStore, writeStore as writeDbStore } from '../utils/classroomDbStore.js'
 
 const DATA_BUCKET = 'classroom-data'
 const DATA_PATH = 'homework.json'
@@ -13,34 +13,13 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value))
 }
 
-async function ensureDataBucket() {
-  const { data } = await supabaseAdmin.storage.getBucket(DATA_BUCKET)
-  if (!data) {
-    const { error } = await supabaseAdmin.storage.createBucket(DATA_BUCKET, {
-      public: false,
-      fileSizeLimit: 2 * 1024 * 1024,
-    })
-    if (error && !/already exists|duplicate|exists/i.test(error.message || '')) {
-      throw new AppError('Không tạo được kho dữ liệu lớp: ' + error.message, 502)
-    }
-  }
-}
-
 async function readStore() {
-  const parsed = await readJsonFile({ bucket: DATA_BUCKET, path: DATA_PATH, empty: { items: [] }, label: 'báo bài' })
+  const parsed = await readDbStore({ key: 'homework', legacyPath: DATA_PATH, empty: { items: [] }, label: 'báo bài' })
   return { items: Array.isArray(parsed?.items) ? parsed.items : [] }
 }
 
 async function writeStore(store) {
-  await ensureDataBucket()
-  const body = Buffer.from(JSON.stringify(store, null, 2) + '\n', 'utf8')
-  const { error } = await supabaseAdmin.storage.from(DATA_BUCKET).upload(DATA_PATH, body, {
-    contentType: 'application/json',
-    upsert: true,
-  })
-  if (error) {
-    throw new AppError('Không lưu được báo bài: ' + error.message, 502)
-  }
+  await writeDbStore({ key: 'homework', value: store, label: 'báo bài' })
 }
 
 function normalizeItem(raw) {
@@ -67,27 +46,22 @@ function normalizeItem(raw) {
 }
 
 async function loadAll() {
-  await ensureDataBucket()
   const store = await readStore()
   const items = store.items.map(normalizeItem).filter(Boolean)
   return { items }
 }
 
 async function saveAll(items) {
-  await enqueueJsonWrite(`${DATA_BUCKET}/${DATA_PATH}`, async () => {
-    await writeStore({ items })
-    memoryCache = { items }
-  })
+  await writeStore({ items })
+  memoryCache = { items }
 }
 
 async function mutateStore(mutator) {
-  return enqueueJsonWrite(`${DATA_BUCKET}/${DATA_PATH}`, async () => {
-    const data = await loadAll()
-    const result = await mutator(data.items)
-    await writeStore({ items: data.items })
-    memoryCache = { items: data.items }
-    return result
-  })
+  const data = await loadAll()
+  const result = await mutator(data.items)
+  await writeStore({ items: data.items })
+  memoryCache = { items: data.items }
+  return result
 }
 
 function defaultTitleForDate(isoDate) {
