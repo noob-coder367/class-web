@@ -8,7 +8,7 @@ import {
   canPostToSection, postableSections, SECTION_LABELS,
 } from '../lib/roles.js'
 import { announcementDetailPath, classTabPath, parseAnnouncementId } from '../lib/routes.js'
-import { shareHelper } from '../utils/shareHelper.js'
+import { downloadOfficialDocImage, shareOfficialDocImage } from '../utils/exportShareImage.jsx'
 import './AnnouncementsBoard.css'
 
 const NOTIFY_OPTIONS = ['normal', 'hot', 'urgent']
@@ -131,6 +131,7 @@ export default function AnnouncementsBoard({
   const [selectedFiles, setSelectedFiles] = useState([])
   const [previewUrls, setPreviewUrls] = useState([])
   const [notifyType, setNotifyType] = useState('normal')
+  const [documentKind, setDocumentKind] = useState('thong_bao')
   const [showNotifyMenu, setShowNotifyMenu] = useState(false)
   const [expiresAt, setExpiresAt] = useState('')
   const allowedSections = useMemo(() => postableSections(role), [role])
@@ -230,7 +231,7 @@ export default function AnnouncementsBoard({
     if (posting) return
     previewUrls.forEach((url) => URL.revokeObjectURL(url))
     setContent(''); setPostTitle(''); setSelectedFiles([]); setPreviewUrls([])
-    setNotifyType('normal'); setShowNotifyMenu(false); setExpiresAt('')
+    setNotifyType('normal'); setDocumentKind('thong_bao'); setShowNotifyMenu(false); setExpiresAt('')
     setComposerSection(allowedSections[0] || 'main'); setShowComposer(false)
   }
 
@@ -248,6 +249,7 @@ export default function AnnouncementsBoard({
       }
       await classroomService.createAnnouncement({
         title: postTitle.trim(),
+        document_kind: documentKind,
         content: clean, notify_type: notifyType, section: composerSection,
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null, images,
       })
@@ -292,6 +294,13 @@ export default function AnnouncementsBoard({
       if (data?.item) setPosts((prev) => prev.map((p) => (p.id === id ? data.item : p)))
       cancelEditExpiry()
     } catch (err) { alert(err.message || 'Cập nhật thất bại.') }
+  }
+
+  const handleShareImage = async (post) => {
+    try { await shareOfficialDocImage(post) } catch (err) { alert(err.message || 'Không xuất được ảnh thông báo.') }
+  }
+  const handleDownloadImage = async (post) => {
+    try { await downloadOfficialDocImage(post) } catch (err) { alert(err.message || 'Không tải được ảnh thông báo.') }
   }
 
   const loadArchive = useCallback(async () => {
@@ -495,6 +504,13 @@ export default function AnnouncementsBoard({
                       </div>
                     ) : null}
                   </div>
+                  <label className="ann-section-field">
+                    Loại văn bản
+                    <select value={documentKind} onChange={(e) => setDocumentKind(e.target.value)}>
+                      <option value="thong_bao">Thông báo</option>
+                      <option value="bao_cao">Báo cáo</option>
+                    </select>
+                  </label>
                   <label className="ann-expire-field">
                     Tự xóa lúc (tuỳ chọn)
                     <input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
@@ -534,6 +550,7 @@ export default function AnnouncementsBoard({
               {detailPost.content ? <p className="ann-content ann-detail-content">{detailPost.content}</p> : null}
             </div>
             <footer className="ann-detail-footer">
+              <span className="ann-meta-info">{detailPost.document_kind === 'bao_cao' ? 'Báo cáo' : 'Thông báo'} · Số: {detailPost.short_id || '—'}</span>
               <span className="ann-meta-info">{detailPost.created_by_name || 'Admin'} · {new Date(detailPost.created_at).toLocaleString('vi-VN')}</span>
               {detailPost.expires_at ? (
                 <span className="ann-meta-info">Tự xóa: {new Date(detailPost.expires_at).toLocaleString('vi-VN')}</span>
@@ -541,15 +558,12 @@ export default function AnnouncementsBoard({
               <button
                 type="button"
                 className="ann-btn-share"
-                onClick={() => {
-                  shareHelper({
-                    title: detailPost.title || 'Thông báo lớp',
-                    text: detailPost.content || '',
-                    path: `/vo-lop/thong-bao?id=${detailPost.id}`,
-                  })
-                }}
+                onClick={() => handleShareImage(detailPost)}
               >
-                Chia sẻ
+                Chia sẻ ảnh
+              </button>
+              <button type="button" className="ann-btn-share ann-btn-share--light" onClick={() => handleDownloadImage(detailPost)}>
+                Tải JPEG
               </button>
             </footer>
           </div>

@@ -16,7 +16,7 @@ const ALLOWED_MIME = {
 }
 const NOTIFY_TYPES = new Set(['normal', 'hot', 'urgent'])
 const SECTIONS = new Set(['main', 'important', 'discipline'])
-
+const DOCUMENT_KINDS = new Set(['thong_bao', 'bao_cao'])
 let memoryCache = null
 
 function clone(value) {
@@ -62,6 +62,16 @@ function parseSection(raw) {
   const value = String(raw || '').trim().toLowerCase()
   return SECTIONS.has(value) ? value : 'main'
 }
+function parseDocumentKind(raw) {
+  return DOCUMENT_KINDS.has(raw) ? raw : 'thong_bao'
+}
+function nextShortId(items, documentKind) {
+  return items.reduce((max, row) => {
+    if (parseDocumentKind(row?.document_kind) !== documentKind) return max
+    const value = Number(row?.short_id)
+    return Number.isInteger(value) && value > max ? value : max
+  }, 0) + 1
+}
 
 function normalizeItem(raw) {
   if (!raw || typeof raw !== 'object') return null
@@ -75,6 +85,8 @@ function normalizeItem(raw) {
   return {
     id,
     title: String(raw.title || '').trim(),
+    document_kind: parseDocumentKind(raw.document_kind),
+    short_id: Number.isInteger(Number(raw.short_id)) && Number(raw.short_id) > 0 ? Number(raw.short_id) : null,
     content: String(raw.content || '').trim(),
     images,
     notify_type: notify,
@@ -100,6 +112,23 @@ function normalizeItem(raw) {
 async function loadAll() {
   const store = await readStore()
   const items = store.items.map(normalizeItem).filter(Boolean)
+  const counters = new Map()
+  let changed = false
+  for (const item of items) {
+    const kind = parseDocumentKind(item.document_kind)
+    const current = counters.get(kind) || 0
+    if (Number.isInteger(item.short_id) && item.short_id > current) counters.set(kind, item.short_id)
+  }
+  for (const item of items) {
+    if (!item.short_id) {
+      const kind = parseDocumentKind(item.document_kind)
+      const next = (counters.get(kind) || 0) + 1
+      counters.set(kind, next)
+      item.short_id = next
+      changed = true
+    }
+  }
+  if (changed) await writeStore({ items })
   return { items }
 }
 
@@ -240,6 +269,7 @@ function parseExpiresAt(raw, { requiredFuture = true } = {}) {
 export async function createAnnouncement(payload, profile) {
   const content = String(payload?.content || '').trim()
   const title = String(payload?.title || '').trim()
+  const documentKind = parseDocumentKind(payload?.document_kind)
   const files = Array.isArray(payload?.images) ? payload.images : []
   if (!content && files.length === 0) {
     throw new AppError('Vui lòng nhập nội dung hoặc chọn ít nhất 1 ảnh.')
@@ -260,6 +290,8 @@ export async function createAnnouncement(payload, profile) {
   const item = {
     id: randomUUID(),
     title,
+    document_kind: documentKind,
+    short_id: null,
     content,
     images: imageUrls,
     notify_type: notifyType,
@@ -277,6 +309,7 @@ export async function createAnnouncement(payload, profile) {
     hidden_by_name: null,
   }
   await mutateStore((items) => {
+    item.short_id = nextShortId(items, documentKind)
     const next = [item, ...items.filter((row) => !isExpired(row))]
     items.splice(0, items.length, ...next)
   })

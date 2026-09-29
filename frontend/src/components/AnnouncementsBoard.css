@@ -764,6 +764,14 @@
 .ann-btn-share:hover {
   background: #1d4a6b;
 }
+.ann-btn-share--light {
+  margin-left: 0;
+  background: #fff;
+  color: #14324a;
+}
+.ann-btn-share--light:hover {
+  background: #eaf2f7;
+}
 
 @media (min-width: 641px) {
   .ann-composer-body {

@@ -1,0 +1,33 @@
+.official-doc-card {
+  width: 1000px;
+  box-sizing: border-box;
+  padding: 58px 72px 64px;
+  background: #fff;
+  color: #111827;
+  font-family: Arial, "Noto Sans", sans-serif;
+  font-size: 24px;
+  line-height: 1.5;
+}
+.official-doc-header { display: grid; grid-template-columns: 1fr 1.35fr; gap: 40px; text-align: center; font-size: 19px; line-height: 1.45; }
+.official-doc-header span, .official-doc-header strong { display: block; }
+.official-doc-left-head strong { font-size: 22px; }
+.official-doc-left-head span:last-child { font-weight: 700; font-size: 17px; }
+.official-doc-right-head strong { font-size: 21px; }
+.official-doc-right-head span { font-weight: 700; font-size: 20px; }
+.official-doc-rule { width: 170px; margin: 8px auto 0; border-bottom: 2px solid #111827; }
+.official-doc-number { margin-top: 36px; font-size: 21px; font-style: italic; }
+.official-doc-date { margin-top: 18px; text-align: right; font-style: italic; font-size: 20px; }
+.official-doc-card h1 { margin: 34px 0 28px; text-align: center; font-size: 34px; letter-spacing: .04em; }
+.official-doc-content { min-height: 280px; white-space: normal; }
+.official-doc-content h2 { margin: 0 0 22px; font-size: 28px; line-height: 1.35; }
+.official-doc-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
+.official-doc-images { margin-top: 28px; page-break-inside: avoid; }
+.official-doc-images h3 { margin: 0 0 14px; font-size: 22px; }
+.official-doc-image-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.official-doc-images--1 .official-doc-image-grid { grid-template-columns: 1fr; }
+.official-doc-image-grid figure { margin: 0; min-height: 100px; display: flex; align-items: center; justify-content: center; background: #f3f4f6; overflow: hidden; }
+.official-doc-image-grid img { display: block; width: 100%; max-height: 520px; object-fit: contain; }
+.official-doc-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 50px; margin-top: 56px; font-size: 20px; }
+.official-doc-signature { text-align: center; line-height: 1.6; }
+.official-doc-signature b { display: inline-block; margin-top: 54px; }
+@media (max-width: 700px) { .official-doc-card { width: 900px; } }
