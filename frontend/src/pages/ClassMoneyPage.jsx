@@ -14,6 +14,7 @@ import {
   getMoneyOverview,
   getMoneyTransactions,
   updateMoneyCollectionMember,
+  uploadMoneyCollectionMemberPhoto,
 } from '../services/classMoneyService.js'
 import './ClassMoneyPage.css'
 
@@ -36,7 +37,10 @@ function IconPlus() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
 }
 function IconRefresh() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.7-3.8L4 9" /><path d="M4 4v5h5" /><path d="M4 13a8 8 0 0 0 14.7 3.8L20 15" /><path d="M20 20v-5h-5" /></svg>
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.7-3.8L4 9" /><path d="M4 4v5h5" /><path d="M4 13a8 8 0 0 0 14.7 3.8L20 15" /><path d="M20 20v-5h-5" /></svg>
+}
+function IconCamera() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h2l1.3-2h4.4l1.3 2h2A2.5 2.5 0 0 1 20 7.5v10a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5z" /><circle cx="12" cy="12.5" r="3.5" /></svg>
 }
 
 function money(value) {
@@ -49,6 +53,38 @@ function dateVN(value) {
 }
 function errorText(error, fallback = 'Không thể tải dữ liệu tiền lớp.') {
   return error?.message || fallback
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(reader.error || new Error('Không đọc được ảnh.'))
+    reader.readAsDataURL(file)
+  })
+}
+
+async function prepareMoneyPhoto(file) {
+  if (!file?.type?.startsWith('image/')) throw new Error('Vui lòng chọn một tập tin ảnh.')
+  if (file.size > 12 * 1024 * 1024) throw new Error('Ảnh gốc tối đa 12MB.')
+  const source = await readFileAsDataUrl(file)
+  const image = await new Promise((resolve, reject) => {
+    const element = new Image()
+    element.onload = () => resolve(element)
+    element.onerror = () => reject(new Error('Không đọc được ảnh chụp.'))
+    element.src = source
+  })
+  const maxSide = 1600
+  const scale = Math.min(1, maxSide / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale))
+  canvas.height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale))
+  const context = canvas.getContext('2d')
+  if (!context) return { contentBase64: source, mimeType: file.type }
+  context.drawImage(image, 0, 0, canvas.width, canvas.height)
+  const prepared = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82))
+  if (!prepared) return { contentBase64: source, mimeType: file.type }
+  return { contentBase64: await readFileAsDataUrl(prepared), mimeType: 'image/jpeg' }
 }
 
 function StatCard({ label, value, tone = '' }) {
@@ -173,13 +209,21 @@ export default function ClassMoneyPage({ onBack }) {
     } catch (err) { setError(errorText(err, 'Không tạo được đợt thu.')) } finally { setSaving(false) }
   }
 
-  const savePayment = async (row, amountPaid) => {
+  const savePayment = async (row, amountPaid, note = row.note || '') => {
     try {
-      const result = await updateMoneyCollectionMember(row.id, { amountPaid })
+      const result = await updateMoneyCollectionMember(row.id, { amountPaid, note })
       setSelectedCollection((prev) => prev ? { ...prev, members: prev.members.map((item) => item.id === row.id ? result.member : item) } : prev)
       await refreshOverview()
       return result.member
     } catch (err) { setError(errorText(err, 'Không lưu được số tiền.')) }
+  }
+
+  const saveMemberPhoto = async (row, payload) => {
+    try {
+      const result = await uploadMoneyCollectionMemberPhoto(row.id, payload)
+      setSelectedCollection((prev) => prev ? { ...prev, members: prev.members.map((item) => item.id === row.id ? result.member : item) } : prev)
+      return result.member
+    } catch (err) { setError(errorText(err, 'Không lưu được ảnh thu tiền.')) }
   }
 
   const createExpenseNow = async (event) => {
@@ -216,7 +260,7 @@ export default function ClassMoneyPage({ onBack }) {
       {loading ? <div className="money-state">Đang tải dữ liệu tiền lớp...</div> : !book ? <div className="money-empty"><IconWallet /><h2>Chưa có sổ tiền lớp</h2><p>Tạo sổ đầu tiên để bắt đầu quản lý quỹ lớp.</p><button type="button" className="money-primary" onClick={() => setShowBookForm(true)}><IconPlus /> Tạo sổ tiền</button></div> : <>
         <div className="money-book-line"><div><span className="money-eyebrow">Sổ đang mở</span><h2>{book.name}</h2>{book.description ? <p>{book.description}</p> : null}</div><button type="button" className="money-secondary" onClick={() => setShowBookForm(true)}>Sổ mới</button></div>
         {activeTab === 'overview' ? <Overview summary={summary} activeCollection={overview?.activeCollection} onOpenCollections={() => setActiveTab('collections')} /> : null}
-        {activeTab === 'collections' ? <CollectionsTab collections={collections} selected={selectedCollection} onOpen={openCollection} onNew={() => setShowCollectionForm(true)} onSavePayment={savePayment} loading={tabLoading} /> : null}
+        {activeTab === 'collections' ? <CollectionsTab collections={collections} selected={selectedCollection} onOpen={openCollection} onNew={() => setShowCollectionForm(true)} onSavePayment={savePayment} onSavePhoto={saveMemberPhoto} loading={tabLoading} /> : null}
         {activeTab === 'expenses' ? <ExpensesTab expenses={expenses.items || []} onNew={() => setShowExpenseForm(true)} onDelete={removeExpense} loading={tabLoading} /> : null}
         {activeTab === 'budget' ? <BudgetTab summary={summary} /> : null}
         {activeTab === 'members' ? <MembersTab members={filteredMembers} totalCount={members.length} source={rosterSource} search={memberSearch} setSearch={setMemberSearch} /> : null}
@@ -233,19 +277,49 @@ function FormActions({ saving, label = 'Lưu' }) { return <div className="money-
 function Modal({ title, onClose, children }) { return <div className="money-modal-backdrop" role="presentation"><div className="money-modal" role="dialog" aria-modal="true" aria-label={title}><div className="money-modal-head"><h2>{title}</h2><button type="button" onClick={onClose} aria-label="Đóng">×</button></div>{children}</div></div> }
 function Overview({ summary, activeCollection, onOpenCollections }) { return <div className="money-panel"><div className="money-stats"><StatCard label="Số dư hiện tại" value={summary.balance} tone="is-balance" /><StatCard label="Tổng tiền đã thu" value={summary.totalCollected} /><StatCard label="Tổng tiền còn nợ" value={summary.totalOwed} tone="is-warning" /><StatCard label="Tổng tiền cần thối" value={summary.totalChange} tone="is-warning" /><StatCard label="Tổng tiền đã chi" value={summary.totalExpense} /></div><div className="money-section-head"><div><span className="money-eyebrow">Đợt thu đang hoạt động</span><h3>{activeCollection?.name || 'Chưa có đợt thu nào'}</h3></div><button type="button" className="money-secondary" onClick={onOpenCollections}>Quản lý thu tiền</button></div>{activeCollection ? <p className="money-muted">{activeCollection.members?.length || 0} thành viên · Mức thu {money(activeCollection.amount_per_person)}{activeCollection.due_date ? ` · Hạn ${dateVN(activeCollection.due_date)}` : ''}</p> : <p className="money-muted">Tạo đợt thu đầu tiên trong tab Thu tiền.</p>}</div> }
 function BudgetTab({ summary }) { return <div className="money-panel"><div className="money-budget"><div><span>Tổng tiền thu</span><strong>{money(summary.totalCollected)}</strong></div><div className="money-budget-minus">−</div><div><span>Tổng tiền chi</span><strong>{money(summary.totalExpense)}</strong></div><div className="money-budget-line" /><div><span>Số dư</span><strong>{money(summary.balance)}</strong></div></div><p className="money-muted">Số liệu được tính từ dữ liệu backend, không cộng lại ở frontend.</p></div> }
-function CollectionsTab({ collections, selected, onOpen, onNew, onSavePayment, loading }) { return <div className="money-panel"><div className="money-section-head"><div><span className="money-eyebrow">Các đợt thu</span><h3>Quản lý thu tiền</h3></div><button type="button" className="money-primary" onClick={onNew}><IconPlus /> Tạo đợt thu</button></div>{loading ? <div className="money-state">Đang tải...</div> : !collections.length ? <div className="money-empty-inline">Chưa có đợt thu nào.</div> : <div className="money-collection-list">{collections.map((item) => <button type="button" className={`money-collection-card${selected?.collection?.id === item.id ? ' is-active' : ''}`} key={item.id} onClick={() => onOpen(item.id)}><strong>{item.name}</strong><span>{money(item.amount_per_person)} mỗi người · {item.due_date ? `Hạn ${dateVN(item.due_date)}` : 'Không hạn'}</span></button>)}</div>}{selected ? <CollectionDetail data={selected} onSavePayment={onSavePayment} /> : null}</div> }
-function CollectionDetail({ data, onSavePayment }) { return <div className="money-detail"><div className="money-detail-head"><h3>{data.collection.name}</h3><span>{data.members.length} người</span></div><div className="money-table-wrap"><table className="money-table"><thead><tr><th>STT</th><th>Họ và tên</th><th>Trạng thái</th><th>Cần thu</th><th>Đã thu</th><th>Còn nợ</th><th>Cần thối</th><th>Ghi chú</th><th>Ngày thu</th><th>Người thu</th></tr></thead><tbody>{data.members.map((row) => <tr key={row.id}><td>{row.student_number ?? '—'}</td><td className="money-name-cell">{row.display_name_snapshot}</td><td><StatusBadge status={row.status} /></td><td>{money(row.amount_due)}</td><td><PaymentCell row={row} onSave={onSavePayment} /></td><td>{money(row.amount_owed)}</td><td>{money(row.amount_change)}</td><td>{row.note || '—'}</td><td>{dateVN(row.paid_at)}</td><td>{row.paid_by ? 'Admin' : '—'}</td></tr>)}</tbody></table></div></div> }
+function CollectionsTab({ collections, selected, onOpen, onNew, onSavePayment, onSavePhoto, loading }) { return <div className="money-panel"><div className="money-section-head"><div><span className="money-eyebrow">Các đợt thu</span><h3>Quản lý thu tiền</h3></div><button type="button" className="money-primary" onClick={onNew}><IconPlus /> Tạo đợt thu</button></div>{loading ? <div className="money-state">Đang tải...</div> : !collections.length ? <div className="money-empty-inline">Chưa có đợt thu nào.</div> : <div className="money-collection-list">{collections.map((item) => <button type="button" className={`money-collection-card${selected?.collection?.id === item.id ? ' is-active' : ''}`} key={item.id} onClick={() => onOpen(item.id)}><strong>{item.name}</strong><span>{money(item.amount_per_person)} mỗi người · {item.due_date ? `Hạn ${dateVN(item.due_date)}` : 'Không hạn'}</span></button>)}</div>}{selected ? <CollectionDetail data={selected} onSavePayment={onSavePayment} onSavePhoto={onSavePhoto} /> : null}</div> }
+function CollectionDetail({ data, onSavePayment, onSavePhoto }) { return <div className="money-detail"><div className="money-detail-head"><h3>{data.collection.name}</h3><span>{data.members.length} người</span></div><div className="money-table-wrap"><table className="money-table"><thead><tr><th>STT</th><th>Họ và tên</th><th>Trạng thái</th><th>Cần thu</th><th>Đã thu</th><th>Còn nợ</th><th>Cần thối</th><th>Ghi chú</th><th>Ảnh</th><th>Ngày thu</th><th>Người thu</th></tr></thead><tbody>{data.members.map((row) => <tr key={row.id}><td>{row.student_number ?? '—'}</td><td className="money-name-cell">{row.display_name_snapshot}</td><td><StatusBadge status={row.status} /></td><td>{money(row.amount_due)}</td><td><PaymentCell row={row} onSave={onSavePayment} /></td><td>{money(row.amount_owed)}</td><td>{money(row.amount_change)}</td><td><NoteCell row={row} onSave={onSavePayment} /></td><td><PhotoCell row={row} onSave={onSavePhoto} /></td><td>{dateVN(row.paid_at)}</td><td>{row.paid_by ? 'Admin' : '—'}</td></tr>)}</tbody></table></div></div> }
 function PaymentCell({ row, onSave }) {
   const [value, setValue] = useState(row.amount_paid)
+  const [note, setNote] = useState(row.note || '')
   const [state, setState] = useState('')
-  useEffect(() => setValue(row.amount_paid), [row.amount_paid])
+  useEffect(() => { setValue(row.amount_paid); setNote(row.note || '') }, [row.amount_paid, row.note])
   const save = async () => {
-    if (Number(value) === Number(row.amount_paid)) return
+    if (Number(value) === Number(row.amount_paid) && note === (row.note || '')) return
     setState('saving')
-    const result = await onSave(row, value)
+    const result = await onSave(row, value, note)
     setState(result ? 'saved' : 'error')
   }
   return <div className="money-payment-cell"><input className="money-amount-input" type="number" min="0" step="1" inputMode="numeric" value={value} onChange={(e) => { setValue(e.target.value); setState('') }} onBlur={save} />{state === 'saving' ? <small>Đang lưu…</small> : state === 'saved' ? <small className="is-saved">Đã lưu</small> : state === 'error' ? <small className="is-error">Lỗi</small> : null}</div>
+}
+function NoteCell({ row, onSave }) {
+  const [value, setValue] = useState(row.note || '')
+  const [state, setState] = useState('')
+  useEffect(() => setValue(row.note || ''), [row.note])
+  const save = async () => {
+    if (value === (row.note || '')) return
+    setState('saving')
+    const result = await onSave(row, row.amount_paid, value)
+    setState(result ? 'saved' : 'error')
+  }
+  return <div className="money-note-cell"><textarea value={value} maxLength={500} rows={2} placeholder="Nhập ghi chú" onChange={(e) => { setValue(e.target.value); setState('') }} onBlur={save} />{state === 'saving' ? <small>Đang lưu…</small> : state === 'saved' ? <small className="is-saved">Đã lưu</small> : state === 'error' ? <small className="is-error">Lỗi</small> : null}</div>
+}
+function PhotoCell({ row, onSave }) {
+  const [state, setState] = useState('')
+  const selectPhoto = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setState('saving')
+    try {
+      const payload = await prepareMoneyPhoto(file)
+      const result = await onSave(row, payload)
+      setState(result ? 'saved' : 'error')
+    } catch {
+      setState('error')
+    }
+  }
+  return <div className="money-photo-cell">{row.photo_url ? <a href={row.photo_url} target="_blank" rel="noreferrer"><img src={row.photo_url} alt={`Ảnh của ${row.display_name_snapshot}`} /></a> : null}<label className="money-photo-btn"><IconCamera /> {row.photo_url ? 'Đổi ảnh' : 'Chụp ảnh'}<input type="file" accept="image/*" capture="environment" onChange={selectPhoto} /></label>{state === 'saving' ? <small>Đang lưu…</small> : state === 'saved' ? <small className="is-saved">Đã lưu</small> : state === 'error' ? <small className="is-error">Lỗi ảnh</small> : null}</div>
 }
 function ExpensesTab({ expenses, onNew, onDelete, loading }) { return <div className="money-panel"><div className="money-section-head"><div><span className="money-eyebrow">Sổ chi</span><h3>Khoản chi</h3></div><button type="button" className="money-primary" onClick={onNew}><IconPlus /> Thêm khoản chi</button></div>{loading ? <div className="money-state">Đang tải...</div> : !expenses.length ? <div className="money-empty-inline">Chưa có khoản chi nào.</div> : <div className="money-table-wrap"><table className="money-table"><thead><tr><th>Khoản chi</th><th>Số tiền</th><th>Ngày</th><th>Danh mục</th><th>Ghi chú</th><th /></tr></thead><tbody>{expenses.map((item) => <tr key={item.id}><td className="money-name-cell">{item.title}</td><td>{money(item.amount)}</td><td>{dateVN(item.spent_at)}</td><td>{item.category || '—'}</td><td>{item.note || '—'}</td><td><button type="button" className="money-danger-link" onClick={() => onDelete(item.id)}>Xóa</button></td></tr>)}</tbody></table></div>}</div> }
 function MembersTab({ members, totalCount, source, search, setSearch }) { return <div className="money-panel"><div className="money-section-head"><div><span className="money-eyebrow">Danh sách lớp từ Tiện ích</span><h3>Thành viên</h3>{source?.fileName ? <p className="money-muted">{source.fileName} · {totalCount} học sinh</p> : <p className="money-muted">{totalCount} học sinh theo STT danh sách lớp</p>}</div><span className="money-count">{members.length}{search.trim() ? ` / ${totalCount}` : ''} người</span></div><input className="money-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm tên học sinh..." />{!members.length ? <div className="money-empty-inline">Không tìm thấy học sinh.</div> : <div className="money-member-grid">{members.map((item) => <div className="money-member-card" key={item.id}><div className="money-member-card-head"><span className="money-stt">{item.student_number}</span><strong>{item.name}</strong></div><span>{item.has_account ? 'Đã có tài khoản' : 'Chưa có tài khoản'}</span></div>)}</div>}</div> }

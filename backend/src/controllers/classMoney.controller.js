@@ -33,6 +33,9 @@ export async function getCollection(req, res, next) {
 export async function patchCollectionMember(req, res, next) {
   try { noStore(res); res.json({ member: await classMoneyService.updateCollectionMember(req.params.id, req.body, actorId(req)) }) } catch (err) { next(err) }
 }
+export async function uploadCollectionMemberPhoto(req, res, next) {
+  try { noStore(res); res.json({ member: await classMoneyService.uploadCollectionMemberPhoto(req.params.id, req.body, actorId(req)) }) } catch (err) { next(err) }
+}
 export async function expenses(req, res, next) {
   try { noStore(res); res.json(await classMoneyService.listExpenses(req.query?.bookId, req.query)) } catch (err) { next(err) }
 }

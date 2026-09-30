@@ -89,7 +89,7 @@
 .money-detail-head h3 { margin: 0; font-size: 17px; }
 .money-detail-head span { color: #718590; font-size: 12px; }
 .money-table-wrap { width: 100%; overflow-x: auto; border: 1px solid #e0ebef; border-radius: 12px; -webkit-overflow-scrolling: touch; }
-.money-table { width: 100%; min-width: 870px; border-collapse: collapse; font-size: 12px; }
+.money-table { width: 100%; min-width: 1060px; border-collapse: collapse; font-size: 12px; }
 .money-table th, .money-table td { padding: 10px 11px; border-bottom: 1px solid #edf2f4; text-align: left; vertical-align: middle; white-space: nowrap; }
 .money-table th { color: #708590; background: #f7fafb; font-size: 11px; font-weight: 800; text-transform: uppercase; }
 .money-table tr:last-child td { border-bottom: 0; }
@@ -100,6 +100,18 @@
 .money-payment-cell small { color: #8a9ba2; font-size: 9px; font-weight: 700; }
 .money-payment-cell small.is-saved { color: #14804d; }
 .money-payment-cell small.is-error { color: #b43b35; }
+.money-note-cell { display: flex; min-width: 150px; flex-direction: column; gap: 3px; }
+.money-note-cell textarea { width: 150px; min-height: 42px; box-sizing: border-box; padding: 6px 7px; border: 1px solid #cbdde5; border-radius: 7px; color: #14324a; font: inherit; font-size: 11px; line-height: 1.35; resize: vertical; }
+.money-note-cell textarea:focus { border-color: #4d9ab5; outline: 2px solid rgba(77, 154, 181, .16); }
+.money-note-cell small, .money-photo-cell small { color: #8a9ba2; font-size: 9px; font-weight: 700; }
+.money-note-cell small.is-saved, .money-photo-cell small.is-saved { color: #14804d; }
+.money-note-cell small.is-error, .money-photo-cell small.is-error { color: #b43b35; }
+.money-photo-cell { display: flex; min-width: 96px; align-items: center; flex-direction: column; gap: 4px; }
+.money-photo-cell img { display: block; width: 54px; height: 42px; border-radius: 6px; object-fit: cover; border: 1px solid #d6e5eb; }
+.money-photo-btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 27px; padding: 0 7px; border: 1px solid #cbdde5; border-radius: 7px; background: #f7fbfc; color: #1d6b8b; font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
+.money-photo-btn:hover { background: #e5f2f6; }
+.money-photo-btn svg { width: 14px; height: 14px; }
+.money-photo-btn input { display: none; }
 .money-status { display: inline-flex; padding: 4px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 800; }
 .money-status--unpaid { background: #f1f5f7; color: #718590; }
 .money-status--debt { background: #fff1dd; color: #a2630d; }

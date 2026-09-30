@@ -9,7 +9,10 @@ import {
 
 const MAX_MONEY = 9_000_000_000_000
 const PAGE_LIMIT = 50
-const COLLECTION_MEMBER_SELECT = 'id, collection_id, profile_id, student_number, display_name_snapshot, amount_due, amount_paid, amount_owed, amount_change, status, note, paid_at, paid_by, created_at, updated_at'
+const MONEY_PHOTO_BUCKET = 'class-money-photos'
+const MAX_MONEY_PHOTO_BYTES = 8 * 1024 * 1024
+const MONEY_PHOTO_MIME = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
+const COLLECTION_MEMBER_SELECT = 'id, collection_id, profile_id, student_number, display_name_snapshot, amount_due, amount_paid, amount_owed, amount_change, status, note, photo_url, paid_at, paid_by, created_at, updated_at'
 
 function text(value, max = 240) {
   return String(value ?? '').trim().slice(0, max)
@@ -42,6 +45,34 @@ function dbError(error, message) {
     console.error('[class-money]', error.message || error)
     throw new AppError(message, 503)
   }
+}
+
+async function ensureMoneyPhotoBucket() {
+  const { data } = await supabaseAdmin.storage.getBucket(MONEY_PHOTO_BUCKET)
+  if (!data) {
+    const { error } = await supabaseAdmin.storage.createBucket(MONEY_PHOTO_BUCKET, { public: true, fileSizeLimit: MAX_MONEY_PHOTO_BYTES })
+    if (error && !/already exists|duplicate|exists/i.test(error.message || '')) throw new AppError('Không tạo được kho ảnh thu tiền: ' + error.message, 502)
+  } else if (data.public === false) {
+    await supabaseAdmin.storage.updateBucket(MONEY_PHOTO_BUCKET, { public: true })
+  }
+}
+
+function moneyPhotoUrl(path) {
+  const { data } = supabaseAdmin.storage.from(MONEY_PHOTO_BUCKET).getPublicUrl(path)
+  return data?.publicUrl || ''
+}
+
+function moneyPhotoStoragePath(url) {
+  if (!url || typeof url !== 'string') return null
+  const marker = `/${MONEY_PHOTO_BUCKET}/`
+  const index = url.indexOf(marker)
+  return index === -1 ? null : decodeURIComponent(url.slice(index + marker.length).split('?')[0])
+}
+
+function stripDataUrl(contentBase64) {
+  const raw = String(contentBase64 || '').trim()
+  const match = raw.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/)
+  return match ? match[1] : raw.replace(/\s+/g, '')
 }
 
 function rowOr404(row, message = 'Không tìm thấy dữ liệu tiền lớp.') {
@@ -252,6 +283,7 @@ export async function createCollection(payload, actorId) {
     amount_owed: amount,
     amount_change: 0,
     status: 'unpaid',
+    photo_url: '',
   }))
   const { error: memberError } = await supabaseAdmin.from('class_money_collection_members').insert(rows)
   if (memberError) {
@@ -293,6 +325,61 @@ export async function updateCollectionMember(id, payload, actorId) {
   if (delta > 0) await insertTransaction({ bookId: collection.book_id, actorId, type: 'income', amount: delta, profileId: old.profile_id, collectionId: old.collection_id, description: `Thu tiền ${old.display_name_snapshot} · ${collection.name}` })
   if (delta < 0) await insertTransaction({ bookId: collection.book_id, actorId, type: 'refund', amount: Math.abs(delta), profileId: old.profile_id, collectionId: old.collection_id, description: `Điều chỉnh tiền ${old.display_name_snapshot} · ${collection.name}` })
   await audit({ bookId: collection.book_id, actorId, action: 'update', entityType: 'collection_member', entityId: old.id, oldData: old, newData: updated })
+  return updated
+}
+
+export async function uploadCollectionMemberPhoto(id, payload, actorId) {
+  const { data: current, error: currentError } = await supabaseAdmin
+    .from('class_money_collection_members')
+    .select(COLLECTION_MEMBER_SELECT)
+    .eq('id', text(id, 100))
+    .maybeSingle()
+  dbError(currentError, 'Không tải được dòng thu tiền.')
+  const old = rowOr404(current, 'Không tìm thấy dòng thu tiền.')
+  const mime = String(payload?.mimeType || '').toLowerCase()
+  const extension = MONEY_PHOTO_MIME[mime]
+  if (!extension) throw new AppError('Chỉ nhận ảnh JPG, PNG hoặc WEBP.')
+  const pure = stripDataUrl(payload?.contentBase64)
+  if (!pure) throw new AppError('Thiếu dữ liệu ảnh.')
+  let bytes
+  try {
+    // Giải mã base64 thành bytes trước khi lưu vào Storage, không lưu chuỗi ảnh thô vào database.
+    bytes = Buffer.from(pure, 'base64')
+  } catch {
+    throw new AppError('Ảnh không hợp lệ.')
+  }
+  if (!bytes.length) throw new AppError('Ảnh trống.')
+  if (bytes.length > MAX_MONEY_PHOTO_BYTES) throw new AppError('Ảnh tối đa 8MB.')
+
+  const { data: collection, error: collectionError } = await supabaseAdmin
+    .from('class_money_collections')
+    .select('id, book_id')
+    .eq('id', old.collection_id)
+    .maybeSingle()
+  dbError(collectionError, 'Không tải được đợt thu.')
+  rowOr404(collection, 'Không tìm thấy đợt thu.')
+
+  await ensureMoneyPhotoBucket()
+  const path = `collection-members/${old.id}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${extension}`
+  const { error: uploadError } = await supabaseAdmin.storage.from(MONEY_PHOTO_BUCKET).upload(path, bytes, { contentType: mime, upsert: false })
+  if (uploadError) throw new AppError('Không tải được ảnh lên: ' + uploadError.message, 502)
+
+  const photoUrl = moneyPhotoUrl(path)
+  const { data: updated, error } = await supabaseAdmin
+    .from('class_money_collection_members')
+    .update({ photo_url: photoUrl, updated_at: new Date().toISOString() })
+    .eq('id', old.id)
+    .eq('updated_at', old.updated_at)
+    .select(COLLECTION_MEMBER_SELECT)
+    .maybeSingle()
+  dbError(error, 'Không lưu được ảnh thu tiền.')
+  if (!updated) {
+    await supabaseAdmin.storage.from(MONEY_PHOTO_BUCKET).remove([path])
+    throw new AppError('Dữ liệu vừa được người khác cập nhật. Hãy tải lại rồi thử lại.', 409)
+  }
+  const oldPath = moneyPhotoStoragePath(old.photo_url)
+  if (oldPath) await supabaseAdmin.storage.from(MONEY_PHOTO_BUCKET).remove([oldPath])
+  await audit({ bookId: collection.book_id, actorId, action: 'update', entityType: 'collection_member_photo', entityId: old.id, oldData: { photo_url: old.photo_url || '' }, newData: { photo_url: photoUrl } })
   return updated
 }
 

@@ -65,6 +65,11 @@ export async function updateMoneyCollectionMember(id, payload) {
   invalidateMoneyCache()
   return result
 }
+export async function uploadMoneyCollectionMemberPhoto(id, payload) {
+  const result = await apiClient.post(`/classroom/money/collection-members/${encodeURIComponent(id)}/photo`, payload, { auth: true, retry: false })
+  invalidateMoneyCache()
+  return result
+}
 export function getMoneyExpenses(bookId, page = 1) {
   const key = `money:expenses:${bookId || 'default'}:${page}`
   return cachedGet(key, () => apiClient.get(`/classroom/money/expenses${qs({ bookId, page, limit: 50 })}`, { auth: true }))

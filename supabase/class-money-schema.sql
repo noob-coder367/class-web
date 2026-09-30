@@ -48,11 +48,16 @@ CREATE TABLE IF NOT EXISTS public.class_money_collection_members (
   amount_change bigint NOT NULL DEFAULT 0 CHECK (amount_change >= 0),
   status text NOT NULL DEFAULT 'unpaid' CHECK (status IN ('unpaid', 'debt', 'paid', 'change')),
   note text NOT NULL DEFAULT '',
+  photo_url text NOT NULL DEFAULT '',
   paid_at timestamptz,
   paid_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Chạy an toàn khi database đã có bảng từ phiên bản trước.
+ALTER TABLE public.class_money_collection_members
+  ADD COLUMN IF NOT EXISTS photo_url text NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS public.class_money_expenses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
