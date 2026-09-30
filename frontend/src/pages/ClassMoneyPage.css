@@ -103,6 +103,9 @@
 .money-note-cell { display: flex; min-width: 150px; flex-direction: column; gap: 3px; }
 .money-note-cell textarea { width: 150px; min-height: 42px; box-sizing: border-box; padding: 6px 7px; border: 1px solid #cbdde5; border-radius: 7px; color: #14324a; font: inherit; font-size: 11px; line-height: 1.35; resize: vertical; }
 .money-note-cell textarea:focus { border-color: #4d9ab5; outline: 2px solid rgba(77, 154, 181, .16); }
+.money-note-ok { align-self: flex-start; min-width: 42px; min-height: 25px; padding: 0 9px; border: 1px solid #1d6b8b; border-radius: 6px; background: #1d6b8b; color: #fff; font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
+.money-note-ok:hover:not(:disabled) { background: #14324a; border-color: #14324a; }
+.money-note-ok:disabled { opacity: .45; cursor: default; }
 .money-note-cell small, .money-photo-cell small { color: #8a9ba2; font-size: 9px; font-weight: 700; }
 .money-note-cell small.is-saved, .money-photo-cell small.is-saved { color: #14804d; }
 .money-note-cell small.is-error, .money-photo-cell small.is-error { color: #b43b35; }

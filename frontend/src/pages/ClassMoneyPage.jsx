@@ -297,12 +297,12 @@ function NoteCell({ row, onSave }) {
   const [state, setState] = useState('')
   useEffect(() => setValue(row.note || ''), [row.note])
   const save = async () => {
-    if (value === (row.note || '')) return
+    if (value === (row.note || '') || state === 'saving') return
     setState('saving')
     const result = await onSave(row, row.amount_paid, value)
     setState(result ? 'saved' : 'error')
   }
-  return <div className="money-note-cell"><textarea value={value} maxLength={500} rows={2} placeholder="Nhập ghi chú" onChange={(e) => { setValue(e.target.value); setState('') }} onBlur={save} />{state === 'saving' ? <small>Đang lưu…</small> : state === 'saved' ? <small className="is-saved">Đã lưu</small> : state === 'error' ? <small className="is-error">Lỗi</small> : null}</div>
+  return <div className="money-note-cell"><textarea value={value} maxLength={500} rows={2} placeholder="Nhập ghi chú" onChange={(e) => { setValue(e.target.value); setState('') }} /><button type="button" className="money-note-ok" onClick={save} disabled={state === 'saving' || value === (row.note || '')}>OK</button>{state === 'saving' ? <small>Đang lưu…</small> : state === 'saved' ? <small className="is-saved">Đã lưu</small> : state === 'error' ? <small className="is-error">Lỗi</small> : null}</div>
 }
 function PhotoCell({ row, onSave }) {
   const [state, setState] = useState('')
