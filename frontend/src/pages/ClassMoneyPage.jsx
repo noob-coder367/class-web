@@ -306,6 +306,7 @@ function NoteCell({ row, onSave }) {
 }
 function PhotoCell({ row, onSave }) {
   const [state, setState] = useState('')
+  
   const selectPhoto = async (event) => {
     const file = event.target.files?.[0]
     event.target.value = ''
@@ -319,7 +320,43 @@ function PhotoCell({ row, onSave }) {
       setState('error')
     }
   }
-  return <div className="money-photo-cell">{row.photo_url ? <a href={row.photo_url} target="_blank" rel="noreferrer"><img src={row.photo_url} alt={`Ảnh của ${row.display_name_snapshot}`} /></a> : null}<label className="money-photo-btn"><IconCamera /> {row.photo_url ? 'Đổi ảnh' : 'Chụp ảnh'}<input type="file" accept="image/*" capture="environment" onChange={selectPhoto} /></label>{state === 'saving' ? <small>Đang lưu…</small> : state === 'saved' ? <small className="is-saved">Đã lưu</small> : state === 'error' ? <small className="is-error">Lỗi ảnh</small> : null}</div>
+
+  return (
+    <div className="money-photo-cell">
+      {row.photo_url ? (
+        <a href={row.photo_url} target="_blank" rel="noreferrer">
+          <img src={row.photo_url} alt={`Ảnh của ${row.display_name_snapshot}`} />
+        </a>
+      ) : null}
+
+      <div className="money-photo-actions">
+        {/* Nút chụp camera */}
+        <label className="money-photo-btn">
+          <IconCamera /> Chụp
+          <input 
+            type="file" 
+            accept="image/*" 
+            capture="environment" 
+            onChange={selectPhoto} 
+          />
+        </label>
+
+        {/* Nút chọn từ album */}
+        <label className="money-photo-btn money-photo-btn--gallery">
+          📁 Album
+          <input 
+            type="file" 
+            accept="image/*" 
+            onChange={selectPhoto} 
+          />
+        </label>
+      </div>
+
+      {state === 'saving' ? <small>Đang lưu…</small> : 
+       state === 'saved' ? <small className="is-saved">Đã lưu</small> : 
+       state === 'error' ? <small className="is-error">Lỗi ảnh</small> : null}
+    </div>
+  )
 }
 function ExpensesTab({ expenses, onNew, onDelete, loading }) { return <div className="money-panel"><div className="money-section-head"><div><span className="money-eyebrow">Sổ chi</span><h3>Khoản chi</h3></div><button type="button" className="money-primary" onClick={onNew}><IconPlus /> Thêm khoản chi</button></div>{loading ? <div className="money-state">Đang tải...</div> : !expenses.length ? <div className="money-empty-inline">Chưa có khoản chi nào.</div> : <div className="money-table-wrap"><table className="money-table"><thead><tr><th>Khoản chi</th><th>Số tiền</th><th>Ngày</th><th>Danh mục</th><th>Ghi chú</th><th /></tr></thead><tbody>{expenses.map((item) => <tr key={item.id}><td className="money-name-cell">{item.title}</td><td>{money(item.amount)}</td><td>{dateVN(item.spent_at)}</td><td>{item.category || '—'}</td><td>{item.note || '—'}</td><td><button type="button" className="money-danger-link" onClick={() => onDelete(item.id)}>Xóa</button></td></tr>)}</tbody></table></div>}</div> }
 function MembersTab({ members, totalCount, source, search, setSearch }) { return <div className="money-panel"><div className="money-section-head"><div><span className="money-eyebrow">Danh sách lớp từ Tiện ích</span><h3>Thành viên</h3>{source?.fileName ? <p className="money-muted">{source.fileName} · {totalCount} học sinh</p> : <p className="money-muted">{totalCount} học sinh theo STT danh sách lớp</p>}</div><span className="money-count">{members.length}{search.trim() ? ` / ${totalCount}` : ''} người</span></div><input className="money-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm tên học sinh..." />{!members.length ? <div className="money-empty-inline">Không tìm thấy học sinh.</div> : <div className="money-member-grid">{members.map((item) => <div className="money-member-card" key={item.id}><div className="money-member-card-head"><span className="money-stt">{item.student_number}</span><strong>{item.name}</strong></div><span>{item.has_account ? 'Đã có tài khoản' : 'Chưa có tài khoản'}</span></div>)}</div>}</div> }
