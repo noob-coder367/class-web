@@ -10,4 +10,5 @@ export async function get(req, res, next) { try { noStore(res); res.json({ item:
 export async function update(req, res, next) { try { noStore(res); res.json({ item: await resourceService.updateResource(req.params.id, req.body) }) } catch (e) { next(e) } }
 export async function remove(req, res, next) { try { noStore(res); res.json(await resourceService.deleteResource(req.params.id)) } catch (e) { next(e) } }
 export async function files(req, res, next) { try { noStore(res); res.status(201).json({ items: await resourceService.addFiles(req.params.id, req.body?.files, req.profile) }) } catch (e) { next(e) } }
+export async function file(req, res, next) { try { noStore(res); res.status(201).json({ item: await resourceService.addFile(req.params.id, req.file, req.body?.file_type, req.profile) }) } catch (e) { next(e) } }
 export async function deleteFile(req, res, next) { try { noStore(res); res.json(await resourceService.deleteFile(req.params.id)) } catch (e) { next(e) } }

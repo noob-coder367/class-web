@@ -24,6 +24,19 @@ function decode(payload, kind) {
   if (buffer.length > max) throw new AppError(`File "${name}" vượt quá giới hạn ${isImage ? 25 : 50}MB.`, 400)
   return { name, mime, buffer, fileType: isImage ? 'image' : 'file', digest: createHash('sha256').update(buffer).digest('hex'), ext: ext.replace(/[^a-z0-9]/g, '') || 'bin' }
 }
+function decodeMultipart(file, kind) {
+  if (!file?.buffer?.length) throw new AppError('Chưa nhận được file upload.', 400)
+  const name = text(file.originalname, 240) || 'resource-file'
+  const ext = (name.split('.').pop() || '').toLowerCase()
+  const mime = text(file.mimetype).toLowerCase() || extType[ext] || 'application/octet-stream'
+  const isImage = kind === 'image' || IMAGE_TYPES.has(mime) || imageExtension(ext)
+  if (kind === 'image' && !IMAGE_TYPES.has(mime) && !imageExtension(ext)) throw new AppError(`Ảnh "${name}" không có định dạng hợp lệ.`, 400)
+  if (!isImage && !FILE_TYPES.has(mime) && !extType[ext]) throw new AppError(`File "${name}" không được hỗ trợ.`, 400)
+  const max = (isImage ? RESOURCE_LIMITS.maxImageSizeMB : RESOURCE_LIMITS.maxFileSizeMB) * 1024 * 1024
+  if (file.buffer.length > max) throw new AppError(`File "${name}" vượt quá giới hạn ${isImage ? 25 : 50}MB.`, 413)
+  return { name, mime: IMAGE_TYPES.has(mime) ? mime : (extType[ext] || mime), buffer: file.buffer, fileType: isImage ? 'image' : 'file', digest: createHash('sha256').update(file.buffer).digest('hex'), ext: ext.replace(/[^a-z0-9]/g, '') || 'bin' }
+}
+function imageExtension(ext) { return ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].includes(ext) }
 async function signed(row) {
   const { data, error } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(row.file_path, 3600)
   if (error) throw new AppError('Không tạo được liên kết file tài nguyên.', 502)
@@ -60,5 +73,26 @@ export async function addFiles(resourceId, payloads, profile) {
   try { for (const payload of list) { const item = decode(payload, payload?.fileType); const path = `resources/${resourceId}/${item.fileType === 'image' ? 'images' : 'files'}/${item.digest}.${item.ext}`; const result = await supabaseAdmin.storage.from(BUCKET).upload(path, item.buffer, { contentType: item.mime, upsert: false }); if (result.error && !/already exists/i.test(result.error.message)) throw new AppError('Không upload được file: ' + result.error.message, 502); if (!result.error) uploaded.push(path); const row = { resource_id: resourceId, file_name: item.name, file_path: path, mime_type: item.mime, size_bytes: item.buffer.length, file_type: item.fileType, created_by: profile.id }; const inserted = await supabaseAdmin.from('resource_files').insert(row).select('*').single(); if (inserted.error && !/duplicate/i.test(inserted.error.message)) throw errorOf(inserted.error, 'Không lưu được metadata file'); if (inserted.data) rows.push(inserted.data) }
     return Promise.all(rows.map(signed))
   } catch (error) { if (uploaded.length) await supabaseAdmin.storage.from(BUCKET).remove(uploaded); throw error }
+}
+export async function addFile(resourceId, file, fileType, profile) {
+  const { data: resource, error: resourceError } = await supabaseAdmin.from('resources').select('id').eq('id', resourceId).maybeSingle()
+  if (resourceError) throw errorOf(resourceError, 'Không đọc được tài nguyên')
+  if (!resource) throw new AppError('Không tìm thấy tài nguyên.', 404)
+  const existing = await supabaseAdmin.from('resource_files').select('file_type').eq('resource_id', resourceId)
+  if (existing.error) throw errorOf(existing.error, 'Không đọc được danh sách file')
+  const item = decodeMultipart(file, fileType)
+  const count = (existing.data || []).filter((row) => row.file_type === item.fileType).length
+  const limit = item.fileType === 'image' ? RESOURCE_LIMITS.maxImagesPerResource : RESOURCE_LIMITS.maxFilesPerResource
+  if (count >= limit) throw new AppError(`Tài nguyên đã đủ tối đa ${limit} ${item.fileType === 'image' ? 'ảnh' : 'file'}.`, 400)
+  const path = `resources/${resourceId}/${item.fileType === 'image' ? 'images' : 'files'}/${item.digest}.${item.ext}`
+  const uploaded = await supabaseAdmin.storage.from(BUCKET).upload(path, item.buffer, { contentType: item.mime, upsert: false })
+  if (uploaded.error && !/already exists/i.test(uploaded.error.message)) throw new AppError('Không upload được file: ' + uploaded.error.message, 502)
+  const row = { resource_id: resourceId, file_name: item.name, file_path: path, mime_type: item.mime, size_bytes: item.buffer.length, file_type: item.fileType, created_by: profile.id }
+  const inserted = await supabaseAdmin.from('resource_files').insert(row).select('*').single()
+  if (inserted.error && !/duplicate/i.test(inserted.error.message)) {
+    if (!uploaded.error) await supabaseAdmin.storage.from(BUCKET).remove([path])
+    throw errorOf(inserted.error, 'Không lưu được metadata file')
+  }
+  return signed(inserted.data || { ...row, id: path })
 }
 export async function deleteFile(id) { const { data: row, error } = await supabaseAdmin.from('resource_files').select('*').eq('id', id).maybeSingle(); if (error || !row) throw new AppError('Không tìm thấy file.', 404); await supabaseAdmin.storage.from(BUCKET).remove([row.file_path]); const result = await supabaseAdmin.from('resource_files').delete().eq('id', id); if (result.error) throw errorOf(result.error, 'Không xóa được metadata file'); return { id } }
