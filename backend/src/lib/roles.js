@@ -76,6 +76,7 @@ const CAPABILITY_ROLES = Object.freeze({
   announcements_discipline_manage: [ROLES.ADMIN, ROLES.VP_DISCIPLINE],
   events: [ROLES.ADMIN, ROLES.VP_EVENTS],
   cleaningDuty: [ROLES.ADMIN, ROLES.VP_LABOR],
+  resourceManagement: [ROLES.ADMIN, ROLES.VP_ACADEMIC],
 })
 
 export const CAPABILITIES = Object.freeze(Object.keys(CAPABILITY_ROLES))

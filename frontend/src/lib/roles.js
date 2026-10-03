@@ -61,6 +61,7 @@ const CAPABILITY_ROLES = {
   announcements_discipline_manage: [ROLES.ADMIN, ROLES.VP_DISCIPLINE],
   events: [ROLES.ADMIN, ROLES.VP_EVENTS],
   cleaningDuty: [ROLES.ADMIN, ROLES.VP_LABOR],
+  resourceManagement: [ROLES.ADMIN, ROLES.VP_ACADEMIC],
 }
 
 export function isKnownRole(raw) {

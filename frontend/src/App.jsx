@@ -2,6 +2,7 @@ import { useLocation } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { WeatherProvider } from './context/WeatherContext.jsx'
 import HomePage from './pages/HomePage.jsx'
+import ResourcePage from './pages/ResourcePage.jsx'
 import OceanScrollBackground from './components/OceanScrollBackground.jsx'
 import LocationPermissionModal from './components/LocationPermissionModal.jsx'
 import GlobalRefreshButton from './components/GlobalRefreshButton.jsx'
@@ -17,7 +18,7 @@ function AppShell() {
   return (
     <>
       {!hideOcean && <OceanScrollBackground />}
-      <HomePage />
+      {location.pathname === ROUTES.resources ? <ResourcePage /> : <HomePage />}
       <LocationPermissionModal />
       <GlobalRefreshButton />
     </>

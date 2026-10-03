@@ -15,6 +15,7 @@ export const ROUTES = {
   classRoot: '/vo-lop',
   presentationRoot: '/thuyet-trinh',
   presentationCreate: '/tao-bai',
+  resources: '/tai-nguyen',
 }
 
 // Đường dẫn cũ của trang AI (trước đây là /app). Vẫn nhận để link cũ không bị chết,

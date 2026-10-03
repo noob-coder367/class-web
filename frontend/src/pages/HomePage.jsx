@@ -34,6 +34,7 @@ import { countNewer } from '../lib/unreadStore.js'
 import PresentationHome from '../components/presentation/PresentationHome.jsx'
 import AIAssistantPage from './AIAssistantPage.jsx'
 import ClassMoneyPage from './ClassMoneyPage.jsx'
+import { hasCapability } from '../lib/roles.js'
 
 const NAV_LINKS = [
   { href: '#trang-chu', label: 'Trang chủ' },
@@ -598,6 +599,12 @@ export default function HomePage() {
                     {unreadTotal > 99 ? '99+' : unreadTotal}
                   </span>
                 ) : null}
+              </button>
+            )}
+
+            {hasCapability(profile?.role, 'resourceManagement') && (
+              <button type="button" className="btn-class" onClick={() => navigate(ROUTES.resources)}>
+                Quản lý tài nguyên
               </button>
             )}
 

@@ -7,6 +7,7 @@ import pushRoutes from './push.routes.js'
 import eventsRoutes from './events.routes.js'
 import presentationRoutes from './presentation.routes.js'
 import aiRoutes from './ai.routes.js'
+import resourceRoutes from './resource.routes.js'
 
 const router = Router()
 
@@ -19,5 +20,6 @@ router.use('/push', pushRoutes)
 router.use('/events', eventsRoutes)
 router.use('/presentations', presentationRoutes)
 router.use('/ai', aiRoutes)
+router.use('/resources', resourceRoutes)
 
 export default router

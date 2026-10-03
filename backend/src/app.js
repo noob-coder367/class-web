@@ -56,7 +56,7 @@ export function createApp() {
   // Nộp bài tập (/homework-assignments/:id/submit) tối đa 10 file x 20MB.
   // Bỏ qua global parser ở đúng các endpoint này để route tự dùng limit riêng;
   // các route khác vẫn giữ giới hạn 15MB như trước.
-  const BIG_BODY_PATH = /\/api\/classroom\/(cleaning-duty\/photos|homework-assignments\/[^/]+\/submit)$/
+  const BIG_BODY_PATH = /\/api\/(resources(?:\/.*)?|classroom\/(cleaning-duty\/photos|homework-assignments\/[^/]+\/submit))$/
   app.use(express.json({
     limit: '15mb',
     type: (req) => !BIG_BODY_PATH.test(req.originalUrl.split('?')[0]),
