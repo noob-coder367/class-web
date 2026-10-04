@@ -48,6 +48,17 @@ function todayISO() {
   return `${y}-${m}-${day}`
 }
 
+const SCHOOL_WEEK_START = new Date(2026, 8, 1)
+
+export function getStudyWeekNumber(value = new Date()) {
+  const date = value instanceof Date ? new Date(value) : new Date(`${String(value).slice(0, 10)}T00:00:00`)
+  date.setHours(0, 0, 0, 0)
+  const start = new Date(SCHOOL_WEEK_START)
+  start.setHours(0, 0, 0, 0)
+  const elapsedDays = Math.floor((date.getTime() - start.getTime()) / 86400000)
+  return Math.max(1, Math.floor(elapsedDays / 7) + 1)
+}
+
 function formatVNDate(iso) {
   if (!iso) return ''
   const [y, m, d] = String(iso).slice(0, 10).split('-')
@@ -93,6 +104,14 @@ function HomeworkReportBoard({ isAdmin }) {
     experiment: true,
     homework: true,
   })
+  const [currentWeek, setCurrentWeek] = useState(() => getStudyWeekNumber())
+
+  useEffect(() => {
+    const updateWeek = () => setCurrentWeek(getStudyWeekNumber())
+    updateWeek()
+    const timer = setInterval(updateWeek, 60 * 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   const fetchPosts = useCallback(async (opts = {}) => {
     const silent = opts.silent === true
@@ -294,11 +313,21 @@ function HomeworkReportBoard({ isAdmin }) {
       if (!map.has(key)) map.set(key, [])
       map.get(key).push(post)
     }
-    return [...map.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([key, items], index) => ({ key, label: key === 'unknown' ? `Tuần ${index + 1}` : `Tuần ${index + 1}`, date: key, items }))
+    return [...map.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([key, items]) => ({
+      key,
+      label: key === 'unknown' ? 'Tuần chưa xác định' : `Tuần ${getStudyWeekNumber(key)}`,
+      date: key,
+      items,
+    }))
   }, [filtered])
 
   return (
     <div className="hw-board">
+      <div className="hw-current-week" aria-live="polite">
+        <span className="hw-current-week-label">Lịch học kỳ I</span>
+        <strong>Tuần {currentWeek}</strong>
+        <small>Tính từ mốc 01/09/2026 · tuần học bắt đầu từ Thứ Hai</small>
+      </div>
       <div className="hw-filters">
         <div className="hw-filter-dates">
           <label>
@@ -371,7 +400,7 @@ function HomeworkReportBoard({ isAdmin }) {
           <div className="hw-week-grid" aria-label="Các tuần báo bài">
             {weeks.map((week) => (
               <button type="button" key={week.key} className={`hw-week-folder${expandedWeek === week.key ? ' is-active' : ''}`} onClick={() => setExpandedWeek((current) => current === week.key ? null : week.key)}>
-                <span className="hw-folder-tab" /><span className="hw-folder-icon">▰</span><strong>{week.label}</strong><small>{week.items.length} báo bài</small>
+                <span className="hw-week-chevron" aria-hidden="true">{expandedWeek === week.key ? '▼' : '▶'}</span><span className="hw-folder-icon" aria-hidden="true" /><strong>{week.label}</strong><small>{week.items.length} báo bài</small>
               </button>
             ))}
           </div>

@@ -944,3 +944,100 @@
 .ann-section .ann-card {
   width: 100%;
 }
+
+
+/* Independent announcement folder tree */
+.ann-folder-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #ddd6fe;
+  border-radius: 10px;
+  background: #faf5ff;
+  color: #1f2937;
+  text-align: left;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.ann-folder-toggle:hover,
+.ann-section.is-expanded .ann-folder-toggle {
+  border-color: #a78bfa;
+  background: #f3e8ff;
+  box-shadow: 0 5px 14px rgba(124,58,237,.12);
+}
+.ann-folder-chevron {
+  flex: 0 0 14px;
+  color: #6d28d9;
+  font-size: 11px;
+  line-height: 1;
+}
+.ann-folder-label {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.ann-folder-label strong {
+  overflow: hidden;
+  color: #312e81;
+  font-size: 14px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ann-folder-label small {
+  overflow: hidden;
+  color: #6b7280;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ann-folder-toggle .ann-section-count {
+  flex: 0 0 auto;
+  min-width: 24px;
+  padding: 3px 7px;
+  border: 0;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+.ann-folder-toggle + .ann-section-preview,
+.ann-folder-toggle + .ann-section-empty,
+.ann-folder-toggle + .ann-section-archive { margin-top: 10px; }
+.ann-section .ann-section-preview-label {
+  margin: 0 0 7px;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+}
+.ann-section .ann-section-empty { margin: 12px 2px 2px; color: #6b7280; }
+.ann-section .ann-section-archive { margin-top: 10px; }
+/* neutralize earlier colorful card overrides for the folder tree */
+.ann-sections { display: flex !important; flex-direction: column; gap: 12px; width: 100%; }
+.ann-section {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-top: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  color: #1f2937;
+  box-shadow: 0 5px 16px rgba(15,23,42,.06);
+}
+.ann-section.is-expanded { min-height: 0; }
+.ann-section .ann-card { color: #0f172a; }
+.ann-sections.is-focusing .ann-section:not(.is-expanded) { display: block; }
+@media (max-width: 640px) {
+  .ann-folder-toggle { padding: 11px 10px; }
+  .ann-folder-label strong { font-size: 13px; }
+  .ann-folder-label small { font-size: 10px; }
+}

@@ -391,21 +391,19 @@ export default function AnnouncementsBoard({
 
               return (
                 <section key={section.id} className={`ann-section ann-section--${section.id}${isOpen ? ' is-expanded' : ''}`}>
-                  <header className="ann-section-header">
-                    <div className="ann-section-heading">
-                      <h2>{section.title}</h2>
-                      <p>{section.hint}</p>
-                    </div>
-                    {list.length > 0 ? <span className="ann-section-count">{list.length}</span> : null}
-                  </header>
-
                   <button
                     type="button"
-                    className="ann-btn-detail-toggle"
+                    className="ann-folder-toggle"
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSection(section.id) }}
                     aria-expanded={isOpen}
                   >
-                    <span>{isOpen ? 'Thu gọn' : 'Xem tất cả'}</span><span className="ann-detail-arrow">{isOpen ? '←' : '→'}</span>
+                    <span className="ann-folder-chevron" aria-hidden="true">{isOpen ? '▼' : '▶'}</span>
+                    <span className="ann-folder-icon" aria-hidden="true" />
+                    <span className="ann-folder-label">
+                      <strong>{section.title}</strong>
+                      <small>{section.hint}</small>
+                    </span>
+                    <span className="ann-section-count">{list.length}</span>
                   </button>
 
                   {showPreview || showOpened ? (
