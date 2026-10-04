@@ -45,6 +45,21 @@ EXPECTED_UUID_COLUMNS = {
     ("public", "homework_submissions", "id"),
     ("auth", "users", "id"),
 }
+EXPECTED_BIGINT_COLUMNS = {
+    ("public", "timetables", "id"),
+    ("public", "timetable_sessions", "timetable_id"),
+    ("public", "timetable_periods", "timetable_id"),
+    ("public", "timetable_breaks", "timetable_id"),
+    ("public", "timetable_entries", "timetable_id"),
+    ("public", "timetable_change_notices", "timetable_id"),
+}
+EXPECTED_TIMETABLE_BIGINT_FKS = {
+    ("public", "timetable_sessions", "timetable_id", "public", "timetables", "id"),
+    ("public", "timetable_periods", "timetable_id", "public", "timetables", "id"),
+    ("public", "timetable_breaks", "timetable_id", "public", "timetables", "id"),
+    ("public", "timetable_entries", "timetable_id", "public", "timetables", "id"),
+    ("public", "timetable_change_notices", "timetable_id", "public", "timetables", "id"),
+}
 
 CREATE_TABLE_RE = re.compile(
     r"\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?"
@@ -282,10 +297,11 @@ def parse_sql_file(path: Path, columns: Dict[Tuple[str, str, str], str], fk_rows
         elif not prior:
             columns[key] = add_type
 
-    # ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY statements, including
-    # statements inside simple DO blocks. PL/pgSQL dynamic strings are not run.
+    # Concrete ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY statements.
+    # Dynamic EXECUTE templates are verified through explicit domain contracts.
     alter_fk_re = re.compile(
-        r"\balter\s+table\s+(?:(\w+)\s*\.\s*)?(\w+)[\s\S]{0,240}?"
+        r"\balter\s+table\s+(?:(\w+)\s*\.\s*)?(\w+)\s+"
+        r"add\s+constraint\s+\w+\s+"
         r"\bforeign\s+key\s*\(\s*([\w\s,]+?)\s*\)\s*"
         r"references\s+(?:(\w+)\s*\.\s*)?(\w+)\s*\(\s*([\w\s,]+?)\s*\)", re.I,
     )
@@ -357,6 +373,42 @@ def main() -> int:
             print(f"ERROR expected UUID column {'.'.join(key)} is {actual}")
             errors += 1
 
+    for key in sorted(EXPECTED_BIGINT_COLUMNS):
+        actual = columns.get(key)
+        if actual != "bigint":
+            print(f"ERROR expected BIGINT column {'.'.join(key)} is {actual or '<unresolved>'}")
+            errors += 1
+
+    timetable_migration = MIGRATIONS / "202610040005_timetable_relational.sql"
+    timetable_sql = timetable_migration.read_text(encoding="utf-8").lower()
+    if "foreign key (timetable_id) references public.timetables(id)" not in timetable_sql:
+        print("ERROR migration 005 does not declare the expected timetable_id -> public.timetables(id) FK")
+        errors += 1
+    expected_timetable_children = {entry[1] for entry in EXPECTED_TIMETABLE_BIGINT_FKS}
+    foreach_blocks = re.findall(
+        r"foreach\s+child_table\s+in\s+array\s+array\[(.*?)\]\s+loop",
+        timetable_sql,
+        re.S,
+    )
+    if len(foreach_blocks) < 2:
+        print("ERROR migration 005 must independently type-check and install timetable child FKs")
+        errors += 1
+    for block_number, block in enumerate(foreach_blocks, start=1):
+        declared_children = set(re.findall(r"'([a-z_][a-z0-9_]*)'", block))
+        missing_children = expected_timetable_children - declared_children
+        if missing_children:
+            print(f"ERROR migration 005 child loop {block_number} omits: {', '.join(sorted(missing_children))}")
+            errors += 1
+    for child_schema, child_table, child_column, target_schema, target_table, target_column in EXPECTED_TIMETABLE_BIGINT_FKS:
+        child_key = (child_schema, child_table, child_column)
+        target_key = (target_schema, target_table, target_column)
+        if columns.get(child_key) != "bigint" or columns.get(target_key) != "bigint":
+            print(f"ERROR expected BIGINT FK {child_schema}.{child_table}.{child_column} -> {target_schema}.{target_table}.{target_column}")
+            errors += 1
+        if child_table not in timetable_sql:
+            print(f"ERROR migration 005 is missing timetable child table {child_table}")
+            errors += 1
+
     for path, schema, table, source_cols, target_schema, target_table, target_cols in sorted(
         fk_groups, key=lambda row: (str(row[0]), row[1], row[2], row[3], row[4], row[5], row[6])
     ):
@@ -378,7 +430,7 @@ def main() -> int:
             print(f"ERROR required announcement reference {'.'.join(key)} must be {expected}; found {actual or '<unresolved>'}")
             errors += 1
 
-    print(f"Checked {len(migrations)} numbered migrations; {len(fk_rows)} FK column pairs; {len(fk_groups)} FK constraints; {errors} errors; {warnings} unresolved external references.")
+    print(f"Checked {len(migrations)} numbered migrations; {len(fk_rows)} FK column pairs; {len(fk_groups)} FK constraints; 5 timetable BIGINT FK contracts; {errors} errors; {warnings} unresolved external references.")
     if errors:
         return 1
     print("PASS: no statically detectable FK type mismatch. Live database schema was not inspected; compare production catalog before execution.")
