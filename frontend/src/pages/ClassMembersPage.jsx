@@ -114,6 +114,87 @@ function TreeBranch({ list, map }) {
   )
 }
 
+const PAN_MARGIN = 90 // cho kéo lố ra ngoài tối đa ngần này px, không đi quá xa
+const PAN_TOP_SPACE = 76 // chừa chỗ cho nút Thoát
+
+/** Vùng cây kéo/vuốt tự do mọi hướng (chéo cũng được), có giới hạn biên. */
+function PanArea({ children }) {
+  const viewRef = useRef(null)
+  const canvasRef = useRef(null)
+  const pos = useRef({ x: 0, y: 0 })
+  const drag = useRef(null)
+  const [dragging, setDragging] = useState(false)
+
+  const clamp = useCallback((x, y) => {
+    const view = viewRef.current
+    const canvas = canvasRef.current
+    if (!view || !canvas) return { x, y }
+    const vw = view.clientWidth
+    const vh = view.clientHeight
+    const cw = canvas.offsetWidth
+    const ch = canvas.offsetHeight + PAN_TOP_SPACE
+    const range = (v, c) => {
+      if (c <= v) { const mid = (v - c) / 2; return [mid - PAN_MARGIN, mid + PAN_MARGIN] }
+      return [v - c - PAN_MARGIN, PAN_MARGIN]
+    }
+    const [minX, maxX] = range(vw, cw)
+    const [minY, maxY] = range(vh, ch)
+    return { x: Math.min(maxX, Math.max(minX, x)), y: Math.min(maxY, Math.max(minY, y)) }
+  }, [])
+
+  const apply = useCallback((x, y) => {
+    const next = clamp(x, y)
+    pos.current = next
+    if (canvasRef.current) canvasRef.current.style.transform = `translate3d(${next.x}px, ${next.y + PAN_TOP_SPACE}px, 0)`
+  }, [clamp])
+
+  // Căn giữa theo chiều ngang lúc đầu & khi đổi kích thước.
+  useEffect(() => {
+    const center = () => {
+      const view = viewRef.current
+      const canvas = canvasRef.current
+      if (!view || !canvas) return
+      apply((view.clientWidth - canvas.offsetWidth) / 2, 0)
+    }
+    center()
+    const onResize = () => apply(pos.current.x, pos.current.y)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [apply])
+
+  const onPointerDown = (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    drag.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: pos.current.x, oy: pos.current.y }
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    setDragging(true)
+  }
+  const onPointerMove = (e) => {
+    const d = drag.current
+    if (!d || d.id !== e.pointerId) return
+    apply(d.ox + (e.clientX - d.sx), d.oy + (e.clientY - d.sy))
+  }
+  const onPointerEnd = (e) => {
+    if (drag.current?.id !== e.pointerId) return
+    drag.current = null
+    setDragging(false)
+  }
+  const onWheel = (e) => apply(pos.current.x - e.deltaX, pos.current.y - e.deltaY)
+
+  return (
+    <div
+      ref={viewRef}
+      className={`cm-viewport${dragging ? ' is-dragging' : ''}`}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerEnd}
+      onPointerCancel={onPointerEnd}
+      onWheel={onWheel}
+    >
+      <div ref={canvasRef} className="cm-canvas">{children}</div>
+    </div>
+  )
+}
+
 const EMPTY_FORM = { name: '', role: '', photo: '' }
 
 function EditorModal({ initial, onCancel, onSaved }) {
@@ -305,19 +386,22 @@ export default function ClassMembersPage() {
         Thoát
       </button>
 
-      <div className="cm-scroll">
-        {!authReady || loading ? <p className="cm-state">Đang tải...</p>
-          : !session ? <p className="cm-state">Bạn cần đăng nhập để xem thành viên lớp.</p>
-          : error ? <p className="cm-state cm-state--err">{error}</p>
-          : roots.length === 0 ? <p className="cm-state">Chưa có thành viên nào trong cây.{isAdmin ? ' Bấm "Điều chỉnh" để thêm.' : ''}</p>
-          : (
-            <div className="cm-forest">
-              {roots.map((root) => (
-                <div className="cm-tree" key={root.id}><TreeBranch list={[root]} map={map} /></div>
-              ))}
-            </div>
-          )}
-      </div>
+      {!authReady || loading || !session || error || roots.length === 0 ? (
+        <div className="cm-scroll">
+          {!authReady || loading ? <p className="cm-state">Đang tải...</p>
+            : !session ? <p className="cm-state">Bạn cần đăng nhập để xem thành viên lớp.</p>
+            : error ? <p className="cm-state cm-state--err">{error}</p>
+            : <p className="cm-state">Chưa có thành viên nào trong cây.{isAdmin ? ' Bấm "Điều chỉnh" để thêm.' : ''}</p>}
+        </div>
+      ) : (
+        <PanArea>
+          <div className="cm-forest">
+            {roots.map((root) => (
+              <div className="cm-tree" key={root.id}><TreeBranch list={[root]} map={map} /></div>
+            ))}
+          </div>
+        </PanArea>
+      )}
 
       {isAdmin && session && !loading && !error ? (
         <button type="button" className="cm-adjust" onClick={() => setEditing(true)}>Điều chỉnh</button>
