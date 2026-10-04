@@ -1340,3 +1340,27 @@
   .classroom-welcome-icon svg { width: 28px; height: 28px; }
   .classroom-welcome-copy h1 { font-size: 29px; }
 }
+
+/* Final classroom shell fix: keep the violet sidebar below the white topbar. */
+.classroom-view { display: flex; flex-direction: column; height: 100dvh; min-height: 0; overflow: hidden; }
+.classroom-topbar { position: sticky; top: 0; z-index: 60; width: 100%; flex: 0 0 64px; }
+.classroom-sidebar { top: 64px; bottom: 0; height: auto; z-index: 35; overflow-y: auto; padding-top: 16px; }
+.classroom-sidebar-brand { padding-top: 0; }
+.classroom-body { margin-left: 256px; min-height: 0; height: auto; }
+.classroom-body--home { display: flex; align-items: center; justify-content: center; padding: 0; background: #e0f2fe; }
+.classroom-home-hello { color: #0c4a6e; font-size: clamp(42px, 7vw, 76px); font-weight: 800; letter-spacing: -.04em; }
+.classroom-sidebar.is-collapsed { width: 72px; }
+.classroom-sidebar.is-collapsed ~ .classroom-body { margin-left: 72px; }
+.classroom-sidebar.is-collapsed ~ .classroom-joincode-bar { margin-left: 72px; }
+.classroom-sidebar.is-collapsed .classroom-tab.is-active .classroom-tab-icon { color: #ede9fe; background: rgba(196,181,253,.24); box-shadow: 0 0 0 1px rgba(255,255,255,.28), 0 0 16px rgba(221,214,254,.28); border-radius: 10px; }
+.classroom-sidebar.is-collapsed .classroom-tab.is-active { box-shadow: inset 3px 0 #e9d5ff; }
+.classroom-sidebar-backdrop { z-index: 34; }
+
+@media (max-width: 767px) {
+  .classroom-topbar { flex-basis: 60px; height: 60px; }
+  .classroom-sidebar { top: 60px; width: min(82vw, 300px); }
+  .classroom-sidebar.is-collapsed { width: min(82vw, 300px); }
+  .classroom-sidebar.is-collapsed ~ .classroom-body, .classroom-sidebar.is-collapsed ~ .classroom-joincode-bar { margin-left: 0; }
+  .classroom-sidebar-backdrop { top: 60px; }
+  .classroom-body--home { min-height: 0; }
+}

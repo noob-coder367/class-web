@@ -891,17 +891,7 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
       )
     }
 
-    if (activeTab === 'home') return (
-      <section className="classroom-welcome-banner" aria-label="Thông tin lớp học">
-        <div className="classroom-welcome-icon"><IconTrophy /></div>
-        <div className="classroom-welcome-copy">
-          <span className="classroom-welcome-kicker">KHÔNG GIAN HỌC TẬP</span>
-          <h1>Lớp Nền tảng HSG Vật lý 2026-2027</h1>
-          <div className="classroom-welcome-meta"><span>NENTANG2627</span><strong>● Đang học</strong></div>
-        </div>
-        <div className="classroom-welcome-orb" aria-hidden="true" />
-      </section>
-    )
+    if (activeTab === 'home') return <div className="classroom-home-hello">Hello</div>
 
     if (activeTab === 'announcements') {
       return (
@@ -1122,7 +1112,9 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
     )
   }
 
-  const bodyMod = WIDE_TABS.has(activeTab) ? ` classroom-body--${activeTab}` : ''
+  const bodyMod = activeTab === 'home'
+    ? ' classroom-body--home'
+    : WIDE_TABS.has(activeTab) ? ` classroom-body--${activeTab}` : ''
 
   return (
     <div className="classroom-view" role="dialog" aria-modal="true" aria-label="Khu vực lớp 10A4">

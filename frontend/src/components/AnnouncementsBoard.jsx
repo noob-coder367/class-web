@@ -382,7 +382,6 @@ export default function AnnouncementsBoard({
 
           <div className={`ann-sections${focusing ? ' is-focusing' : ''}`}>
             {SECTION_META.map((section) => {
-              if (focusing && expandedSection !== section.id) return null
               const list = bySection[section.id] || []
               const unseen = unseenBySection[section.id] || []
               const latestUnseen = unseen[0] || null
@@ -403,13 +402,10 @@ export default function AnnouncementsBoard({
                   <button
                     type="button"
                     className="ann-btn-detail-toggle"
-                    onClick={() => {
-                      if (!isOpen && latestUnseen) openDetail(latestUnseen)
-                      else toggleSection(section.id)
-                    }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSection(section.id) }}
                     aria-expanded={isOpen}
                   >
-                    <span>{isOpen ? 'Đóng kho chi tiết' : latestUnseen ? 'Xem chi tiết bài mới' : 'Xem chi tiết các sự kiện'}</span><span className="ann-detail-arrow">→</span>
+                    <span>{isOpen ? 'Thu gọn' : 'Xem tất cả'}</span><span className="ann-detail-arrow">{isOpen ? '←' : '→'}</span>
                   </button>
 
                   {showPreview || showOpened ? (

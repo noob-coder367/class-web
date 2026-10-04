@@ -905,3 +905,29 @@
 .ann-sections.is-focusing .ann-btn-detail-toggle { margin-top: 0; }
 
 @media (max-width: 850px) { .ann-sections { grid-template-columns: 1fr; } .ann-section { min-height: 0; } .ann-btn-detail-toggle { margin-top: 20px; } }
+
+/* Announcement sections: horizontal rectangles stacked vertically. */
+.ann-sections { display: flex !important; flex-direction: column; gap: 14px; width: 100%; }
+.ann-sections.is-focusing .ann-section:not(.is-expanded) { display: none; }
+.ann-section { display: flex; flex-direction: column; justify-content: space-between; width: 100%; min-height: 96px; box-sizing: border-box; padding: 18px 20px; border: 0; border-radius: 14px; color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+.ann-section--main { background: linear-gradient(135deg, #7c3aed, #a855f7); }
+.ann-section--important { background: linear-gradient(135deg, #0ea5e9, #2563eb); }
+.ann-section--discipline { background: linear-gradient(135deg, #ef4444, #be123c); }
+.ann-section-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.ann-section-heading { min-width: 0; }
+.ann-section-heading h2 { margin: 0; color: #fff; font-size: 18px; }
+.ann-section-heading p { margin: 5px 0 0; color: rgba(255,255,255,.78); font-size: 12px; }
+.ann-section-count { flex: 0 0 auto; color: #fff; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.24); }
+.ann-btn-detail-toggle { align-self: flex-end; display: inline-flex; align-items: center; justify-content: space-between; gap: 20px; min-width: 132px; margin: 14px 0 0; padding: 8px 12px; border: 1px solid rgba(255,255,255,.48); border-radius: 999px; background: rgba(255,255,255,.12); color: #fff; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; transition: background .2s ease, transform .2s ease; }
+.ann-btn-detail-toggle:hover { background: rgba(255,255,255,.24); transform: translateY(-1px); }
+.ann-detail-arrow { font-size: 18px; line-height: 1; }
+.ann-section-empty, .ann-section-preview-label { color: rgba(255,255,255,.78); }
+.ann-section-archive { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+.ann-section .ann-card { margin-top: 0; box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+.ann-section.is-expanded { min-height: 0; }
+
+@media (max-width: 640px) {
+  .ann-section { min-height: 100px; padding: 16px; }
+  .ann-section-heading h2 { font-size: 16px; }
+  .ann-btn-detail-toggle { min-width: 118px; }
+}
