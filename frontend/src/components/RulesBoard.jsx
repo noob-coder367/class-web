@@ -150,6 +150,10 @@ function buildLocalLeaderboard(members, violations, rules) {
   return { startingPoints: starting, rows }
 }
 
+function IconBookRule() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H20v18H7.5A2.5 2.5 0 0 0 5 22V4.5Z"/><path d="M5 4.5V22M9 7h7M9 11h5"/></svg> }
+function IconWarningRule() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m12 3 9 17H3L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg> }
+function IconRankRule() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/><path d="M3 20h18"/></svg> }
+
 export default function RulesBoard({
   rules,
   violations,
@@ -449,7 +453,7 @@ export default function RulesBoard({
           className={pane === 'rules' ? 'is-active' : ''}
           onClick={() => setPane('rules')}
         >
-          Nội quy
+          <IconBookRule /><span>Nội quy</span>
         </button>
         <button
           type="button"
@@ -458,7 +462,7 @@ export default function RulesBoard({
           className={pane === 'violations' ? 'is-active' : ''}
           onClick={() => setPane('violations')}
         >
-          Danh sách vi phạm
+          <IconWarningRule /><span>Danh sách vi phạm</span>
           {violationsBadge > 0 ? (
             <span className="rules-pane-badge">
               {violationsBadge > 99 ? '99+' : violationsBadge}
@@ -472,7 +476,7 @@ export default function RulesBoard({
           className={pane === 'rank' ? 'is-active' : ''}
           onClick={() => setPane('rank')}
         >
-          Bảng xếp hạng
+          <IconRankRule /><span>Bảng xếp hạng</span>
         </button>
       </div>
 

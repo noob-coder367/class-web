@@ -23,6 +23,7 @@ import {
   classSpaceRoomPath,
   classSpaceEditPath,
   parseCleaningPath,
+  ROUTES,
 } from '../lib/routes.js'
 import './ClassRoomView.css'
 
@@ -249,6 +250,7 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
   const [dismissingNotice, setDismissingNotice] = useState(false)
   const [tabBadges, setTabBadges] = useState({ announcements: 0, homework: 0, rules: 0, rulesViolations: 0 })
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showCreateClass, setShowCreateClass] = useState(false)
   const [editingClass, setEditingClass] = useState(null)
   const [playingClass, setPlayingClass] = useState(null)
@@ -889,7 +891,17 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
       )
     }
 
-    if (activeTab === 'home') return <div className="classroom-home-empty">Không có gì</div>
+    if (activeTab === 'home') return (
+      <section className="classroom-welcome-banner" aria-label="Thông tin lớp học">
+        <div className="classroom-welcome-icon"><IconTrophy /></div>
+        <div className="classroom-welcome-copy">
+          <span className="classroom-welcome-kicker">KHÔNG GIAN HỌC TẬP</span>
+          <h1>Lớp Nền tảng HSG Vật lý 2026-2027</h1>
+          <div className="classroom-welcome-meta"><span>NENTANG2627</span><strong>● Đang học</strong></div>
+        </div>
+        <div className="classroom-welcome-orb" aria-hidden="true" />
+      </section>
+    )
 
     if (activeTab === 'announcements') {
       return (
@@ -1115,14 +1127,14 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
   return (
     <div className="classroom-view" role="dialog" aria-modal="true" aria-label="Khu vực lớp 10A4">
       <header className="classroom-topbar">
-        <button type="button" className="classroom-menu-button" onClick={() => setSidebarOpen(true)} aria-label="Mở menu" title="Mở menu"><IconMenu /></button>
+        <button type="button" className="classroom-menu-button" onClick={() => setSidebarOpen((open) => !open)} aria-label="Mở menu" title="Mở menu"><IconMenu /></button>
         <button type="button" className="classroom-back" onClick={onClose} aria-label="Quay về trang chính" title="Quay về"><IconBack /></button>
         <div className="classroom-topbar-title"><strong>Lớp học</strong><span>Không gian học tập của bạn</span></div>
         <ProfileMenu onLogout={logout} />
       </header>
       {sidebarOpen ? <button type="button" className="classroom-sidebar-backdrop" aria-label="Đóng menu" onClick={() => setSidebarOpen(false)} /> : null}
-      <aside className={`classroom-sidebar${sidebarOpen ? ' is-open' : ''}`} aria-label="Điều hướng lớp học">
-        <div className="classroom-sidebar-brand"><div className="classroom-sidebar-logo"><IconHome /></div><div><strong>Class-Web</strong><span>Lớp học 10A4</span></div><button type="button" className="classroom-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Đóng menu"><IconClose /></button></div>
+      <aside className={`classroom-sidebar${sidebarOpen ? ' is-open' : ''}${sidebarCollapsed ? ' is-collapsed' : ''}`} aria-label="Điều hướng lớp học">
+        <div className="classroom-sidebar-brand"><div className="classroom-sidebar-logo"><IconHome /></div><div><strong>Class-Web</strong><span>Lớp học 10A4</span></div><button type="button" className="classroom-sidebar-collapse" onClick={() => setSidebarCollapsed((collapsed) => !collapsed)} aria-label={sidebarCollapsed ? "Mở rộng menu" : "Thu gọn menu"} title={sidebarCollapsed ? "Mở rộng menu" : "Thu gọn menu"}><IconMenu /></button><button type="button" className="classroom-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Đóng menu"><IconClose /></button></div>
         <p className="classroom-sidebar-heading">Không gian lớp</p>
         <nav className="classroom-sidebar-nav" role="tablist" aria-label="Mục lớp học">
           {TABS.filter((tab) => !tab.adminOnly || isAdminRole(role)).map((tab) => {

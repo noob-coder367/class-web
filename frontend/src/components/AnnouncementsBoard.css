@@ -882,3 +882,26 @@
   .ann-detail-actions { width: 100%; margin-left: 0; }
   .ann-detail-actions .ann-btn-share { flex: 1 1 120px; }
 }
+
+
+/* Three-card announcement overview */
+.ann-sections { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.ann-section { min-height: 190px; padding: 20px; border: 0; border-radius: 22px; color: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .09); transition: transform .2s ease, box-shadow .2s ease; }
+.ann-section:hover { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(15, 23, 42, .14); }
+.ann-section--main { background: linear-gradient(135deg, #6d28d9, #c026d3 55%, #7e22ce); }
+.ann-section--important { background: linear-gradient(135deg, #1d4ed8, #0891b2 58%, #0e7490); }
+.ann-section--discipline { background: linear-gradient(135deg, #be123c, #e11d48 55%, #9f1239); }
+.ann-section-heading h2, .ann-section-heading p { color: #fff; }
+.ann-section-heading p { opacity: .78; }
+.ann-section-count { color: #fff; background: rgba(255,255,255,.18); }
+.ann-btn-detail-toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 42px; margin-bottom: 0; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.12); color: #fff; }
+.ann-btn-detail-toggle:hover { background: rgba(255,255,255,.2); }
+.ann-detail-arrow { font-size: 20px; line-height: 1; }
+.ann-section-empty, .ann-section-preview-label { color: rgba(255,255,255,.72); }
+.ann-section .ann-card { margin-top: 16px; color: #0f172a; }
+.ann-section.is-expanded { grid-column: 1 / -1; }
+.ann-sections.is-focusing { display: block; }
+.ann-sections.is-focusing .ann-section { max-width: 100%; margin-bottom: 16px; }
+.ann-sections.is-focusing .ann-btn-detail-toggle { margin-top: 0; }
+
+@media (max-width: 850px) { .ann-sections { grid-template-columns: 1fr; } .ann-section { min-height: 0; } .ann-btn-detail-toggle { margin-top: 20px; } }

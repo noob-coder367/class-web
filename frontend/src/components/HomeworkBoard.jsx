@@ -59,6 +59,10 @@ function defaultTitle(isoDate) {
   return `Báo bài ngày ${formatVNDate(isoDate) || '…'}`
 }
 
+function IconDocument() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 3.5h8l4 4V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z"/><path d="M14 3.5V8h4M8 12h8M8 16h6"/></svg> }
+function IconChecklist() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 5h10M9 12h10M9 19h10"/><path d="m4 5 1.5 1.5L7.5 4M4 12l1.5 1.5L7.5 11M4 19l1.5 1.5L7.5 18"/></svg> }
+function IconUpload() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 15V3m0 0L8 7m4-4 4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg> }
+
 function HomeworkReportBoard({ isAdmin }) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -83,6 +87,7 @@ function HomeworkReportBoard({ isAdmin }) {
 
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
+  const [expandedWeek, setExpandedWeek] = useState(null)
   const [filterTypes, setFilterTypes] = useState({
     exam: true,
     experiment: true,
@@ -278,6 +283,20 @@ function HomeworkReportBoard({ isAdmin }) {
     })
   }, [posts, filterFrom, filterTo, filterTypes])
 
+  const weeks = useMemo(() => {
+    const map = new Map()
+    for (const post of filtered) {
+      const date = post.report_date || String(post.created_at || '').slice(0, 10) || 'unknown'
+      const d = date === 'unknown' ? null : new Date(`${date}T00:00:00`)
+      const monday = d ? new Date(d) : null
+      if (monday) monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+      const key = monday ? monday.toISOString().slice(0, 10) : 'unknown'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(post)
+    }
+    return [...map.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([key, items], index) => ({ key, label: key === 'unknown' ? `Tuần ${index + 1}` : `Tuần ${index + 1}`, date: key, items }))
+  }, [filtered])
+
   return (
     <div className="hw-board">
       <div className="hw-filters">
@@ -348,8 +367,16 @@ function HomeworkReportBoard({ isAdmin }) {
       ) : filtered.length === 0 ? (
         <p className="hw-empty">Chưa có báo bài nào{posts.length ? ' khớp bộ lọc' : ''}.</p>
       ) : (
-        <div className="hw-list">
-          {filtered.map((post) => (
+        <>
+          <div className="hw-week-grid" aria-label="Các tuần báo bài">
+            {weeks.map((week) => (
+              <button type="button" key={week.key} className={`hw-week-folder${expandedWeek === week.key ? ' is-active' : ''}`} onClick={() => setExpandedWeek((current) => current === week.key ? null : week.key)}>
+                <span className="hw-folder-tab" /><span className="hw-folder-icon">▰</span><strong>{week.label}</strong><small>{week.items.length} báo bài</small>
+              </button>
+            ))}
+          </div>
+          {expandedWeek ? <div className="hw-week-detail"><div className="hw-week-detail-head"><h3>{weeks.find((week) => week.key === expandedWeek)?.label || 'Báo bài'}</h3><button type="button" onClick={() => setExpandedWeek(null)}>Đóng</button></div><div className="hw-list">
+          {(weeks.find((week) => week.key === expandedWeek)?.items || []).map((post) => (
             <article
               key={post.id}
               className="hw-card hw-card--clickable"
@@ -427,7 +454,8 @@ function HomeworkReportBoard({ isAdmin }) {
               </div>
             </article>
           ))}
-        </div>
+          </div></div> : null}
+        </>
       )}
 
       {isAdmin ? (
@@ -662,36 +690,17 @@ function HomeworkReportBoard({ isAdmin }) {
   )
 }
 
-/** Bài tập về nhà: 2 chế độ — Báo bài (mặc định) / Nộp bài. */
+/** Bài tập về nhà: Báo bài / Kiểm tra (placeholder) / Nộp bài. */
 export default function HomeworkBoard({ isAdmin }) {
   const [mode, setMode] = useState('report')
   return (
     <div className="hw-root">
       <div className="hw-mode-tabs" role="tablist" aria-label="Chế độ bài tập về nhà">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === 'report'}
-          className={`hw-mode-tab${mode === 'report' ? ' is-active' : ''}`}
-          onClick={() => setMode('report')}
-        >
-          Báo bài
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === 'submit'}
-          className={`hw-mode-tab${mode === 'submit' ? ' is-active' : ''}`}
-          onClick={() => setMode('submit')}
-        >
-          Nộp bài
-        </button>
+        <button type="button" role="tab" aria-selected={mode === 'report'} className={`hw-mode-tab${mode === 'report' ? ' is-active' : ''}`} onClick={() => setMode('report')}><IconDocument /><span>Báo bài</span></button>
+        <button type="button" role="tab" aria-selected={mode === 'check'} className={`hw-mode-tab${mode === 'check' ? ' is-active' : ''}`} onClick={() => setMode('check')}><IconChecklist /><span>Kiểm tra</span></button>
+        <button type="button" role="tab" aria-selected={mode === 'submit'} className={`hw-mode-tab${mode === 'submit' ? ' is-active' : ''}`} onClick={() => setMode('submit')}><IconUpload /><span>Bài tập</span></button>
       </div>
-      {mode === 'submit' ? (
-        <HomeworkSubmissionPanel canManage={isAdmin === true} />
-      ) : (
-        <HomeworkReportBoard isAdmin={isAdmin} />
-      )}
+      {mode === 'submit' ? <HomeworkSubmissionPanel canManage={isAdmin === true} /> : mode === 'check' ? <div className="hw-placeholder"><IconChecklist /><h3>Kiểm tra</h3><p>Nội dung kiểm tra sẽ được cập nhật tại đây.</p></div> : <HomeworkReportBoard isAdmin={isAdmin} />}
     </div>
   )
 }

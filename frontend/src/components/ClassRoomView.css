@@ -1296,3 +1296,47 @@
   .classroom-joincode-row { justify-content: space-between; }
   .classroom-roomfilter { max-width: calc(100% - 170px); }
 }
+
+
+/* Classroom refresh: violet/fuchsia design system */
+.classroom-menu-button { display: flex; }
+.classroom-sidebar-collapse { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-left: auto; border: 0; border-radius: 9px; color: rgba(255,255,255,.86); background: rgba(255,255,255,.1); cursor: pointer; transition: background .18s ease, transform .18s ease; }
+.classroom-sidebar-collapse svg { width: 17px; height: 17px; }
+.classroom-sidebar-collapse:hover { background: rgba(255,255,255,.2); transform: translateY(-1px); }
+.classroom-sidebar.is-collapsed { width: 82px; padding-left: 10px; padding-right: 10px; }
+.classroom-sidebar.is-collapsed + .classroom-sidebar-backdrop + .classroom-joincode-bar,
+.classroom-sidebar.is-collapsed ~ .classroom-joincode-bar { margin-left: 82px; }
+.classroom-sidebar.is-collapsed ~ .classroom-body { margin-left: 82px; }
+.classroom-sidebar.is-collapsed .classroom-sidebar-brand { justify-content: center; padding-left: 0; padding-right: 0; }
+.classroom-sidebar.is-collapsed .classroom-sidebar-brand > div:nth-child(2),
+.classroom-sidebar.is-collapsed .classroom-sidebar-heading,
+.classroom-sidebar.is-collapsed .classroom-tab-label { display: none; }
+.classroom-sidebar.is-collapsed .classroom-sidebar-collapse { margin-left: 0; }
+.classroom-sidebar.is-collapsed .classroom-tab { justify-content: center; padding: 0; }
+.classroom-sidebar.is-collapsed .classroom-tab-icon { width: 24px; height: 24px; }
+.classroom-sidebar.is-collapsed .classroom-tab-icon svg { width: 21px; height: 21px; }
+.classroom-sidebar.is-collapsed .classroom-tab.is-active { box-shadow: inset 0 0 0 1px rgba(255,255,255,.5), 0 8px 18px rgba(17, 7, 48, .18); background: rgba(255,255,255,.2); }
+.classroom-welcome-banner { position: relative; isolation: isolate; display: flex; align-items: center; gap: 18px; width: min(940px, 100%); min-height: 210px; margin: 0 auto; padding: 38px 44px; box-sizing: border-box; overflow: hidden; border-radius: 30px; color: #fff; background: linear-gradient(118deg, #6d28d9 0%, #a21caf 48%, #db2777 76%, #581c87 100%); box-shadow: 0 18px 42px rgba(109, 40, 217, .22); }
+.classroom-welcome-banner::before { content: ''; position: absolute; inset: 0; z-index: -1; opacity: .5; background: radial-gradient(circle at 85% 12%, rgba(255,255,255,.3), transparent 25%), radial-gradient(circle at 18% 110%, rgba(236,72,153,.45), transparent 35%); }
+.classroom-welcome-copy { min-width: 0; }
+.classroom-welcome-kicker { display: block; margin-bottom: 10px; color: rgba(255,255,255,.72); font-size: 11px; font-weight: 800; letter-spacing: .15em; }
+.classroom-welcome-copy h1 { max-width: 650px; margin: 0; font-size: clamp(25px, 4vw, 42px); line-height: 1.08; letter-spacing: -.035em; text-wrap: balance; }
+.classroom-welcome-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; color: rgba(255,255,255,.86); font-size: 13px; font-weight: 700; }
+.classroom-welcome-meta span, .classroom-welcome-meta strong { padding: 8px 13px; border: 1px solid rgba(255,255,255,.22); border-radius: 999px; background: rgba(255,255,255,.12); }
+.classroom-welcome-meta strong { color: #fef08a; }
+.classroom-welcome-icon { display: grid; flex: 0 0 68px; place-items: center; width: 68px; height: 68px; border-radius: 22px; color: #7e22ce; background: rgba(255,255,255,.94); box-shadow: 0 12px 28px rgba(29, 7, 61, .22); }
+.classroom-welcome-icon svg { width: 34px; height: 34px; }
+.classroom-welcome-orb { position: absolute; right: -80px; bottom: -120px; width: 310px; height: 310px; border: 42px solid rgba(255,255,255,.1); border-radius: 50%; }
+
+@media (max-width: 767px) {
+  .classroom-menu-button { display: flex; }
+  .classroom-sidebar-collapse { display: none; }
+  .classroom-sidebar.is-collapsed { width: min(82vw, 300px); }
+  .classroom-sidebar.is-collapsed .classroom-sidebar-brand > div:nth-child(2), .classroom-sidebar.is-collapsed .classroom-sidebar-heading, .classroom-sidebar.is-collapsed .classroom-tab-label { display: flex; }
+  .classroom-sidebar.is-collapsed .classroom-tab { justify-content: flex-start; padding: 0 12px; }
+  .classroom-sidebar.is-collapsed ~ .classroom-body, .classroom-sidebar.is-collapsed ~ .classroom-joincode-bar { margin-left: 0; }
+  .classroom-welcome-banner { min-height: 250px; align-items: flex-start; flex-direction: column; padding: 28px 24px; border-radius: 24px; }
+  .classroom-welcome-icon { flex-basis: 54px; width: 54px; height: 54px; border-radius: 17px; }
+  .classroom-welcome-icon svg { width: 28px; height: 28px; }
+  .classroom-welcome-copy h1 { font-size: 29px; }
+}

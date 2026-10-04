@@ -409,7 +409,7 @@ export default function AnnouncementsBoard({
                     }}
                     aria-expanded={isOpen}
                   >
-                    {isOpen ? 'Đóng kho chi tiết' : latestUnseen ? 'Xem chi tiết bài mới' : 'Xem chi tiết các sự kiện'}
+                    <span>{isOpen ? 'Đóng kho chi tiết' : latestUnseen ? 'Xem chi tiết bài mới' : 'Xem chi tiết các sự kiện'}</span><span className="ann-detail-arrow">→</span>
                   </button>
 
                   {showPreview || showOpened ? (
