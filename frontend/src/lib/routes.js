@@ -14,6 +14,7 @@ export const ROUTES = {
   profileSetting: '/profile-setting',
   classRoot: '/vo-lop',
   resources: '/tai-nguyen',
+  classMembers: '/thanh-vien-lop',
 }
 
 // Đường dẫn cũ của trang AI (trước đây là /app). Vẫn nhận để link cũ không bị chết,
@@ -36,7 +37,7 @@ export function isLegacyAIPath(pathname) {
 
 // Tab nội bộ (ClassRoomView) <-> tên segment trên URL.
 export const CLASS_TAB_PATH = {
-  home: 'home',
+  home: 'trang-chu',
   announcements: 'thong-bao-chung',
   timetable: 'thoi-khoa-bieu',
   homework: 'bai-tap-ve-nha',
@@ -49,6 +50,8 @@ export const CLASS_TAB_PATH = {
 const PATH_TAB = Object.fromEntries(
   Object.entries(CLASS_TAB_PATH).map(([tab, path]) => [path.toLowerCase(), tab])
 )
+// Link cũ /vo-lop/home vẫn mở Trang chủ.
+PATH_TAB.home = 'home'
 // Alias chia sẻ / xem chi tiết: /vo-lop/thong-bao?id=<id>
 PATH_TAB['thong-bao'] = 'announcements'
 // Alias chia sẻ nội quy: /vo-lop/noi-quy và /vo-lop/noi-quy/vi-pham và /vo-lop/noi-quy/bang-xep-hang
@@ -147,4 +150,9 @@ export function parseCleaningPath(rest) {
   const reverse = { 'thu-hai': 't2', 'thu-ba': 't3', 'thu-tu': 't4', 'thu-nam': 't5', 'thu-sau': 't6', 'thu-bay': 't7' }
   const dayId = reverse[String(rest?.[0] || '').toLowerCase()] || null
   return { dayId, gallery: dayId ? String(rest?.[1] || '').toLowerCase() === 'anh-truc' : false }
+}
+
+/** Trang cây thành viên lớp: /thanh-vien-lop (bỏ qua dấu / cuối, không phân biệt hoa/thường). */
+export function isClassMembersPath(pathname) {
+  return normalizePathname(pathname) === ROUTES.classMembers
 }
