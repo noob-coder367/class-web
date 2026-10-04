@@ -1364,3 +1364,30 @@
   .classroom-sidebar-backdrop { top: 60px; }
   .classroom-body--home { min-height: 0; }
 }
+
+/* Mobile hardening: keep the content column full-width inside the flex shell. */
+.classroom-view,
+.classroom-topbar,
+.classroom-body,
+.classroom-joincode-bar {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.classroom-body {
+  width: auto;
+  overflow-x: hidden;
+}
+@media (max-width: 767px) {
+  .classroom-body {
+    width: 100%;
+    max-width: 100vw;
+    padding-left: 12px;
+    padding-right: 12px;
+    overflow-x: hidden;
+  }
+  .classroom-body > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+}

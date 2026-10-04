@@ -931,3 +931,16 @@
   .ann-section-heading h2 { font-size: 16px; }
   .ann-btn-detail-toggle { min-width: 118px; }
 }
+
+/* Prevent flex/grid shrinkage from turning announcement cards into a narrow strip. */
+.ann-board,
+.ann-sections,
+.ann-section,
+.ann-section .ann-card {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.ann-section .ann-card {
+  width: 100%;
+}
