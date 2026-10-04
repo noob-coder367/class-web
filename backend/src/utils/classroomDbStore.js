@@ -1,6 +1,9 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { readJsonFile, cloneJson } from './classroomDataStore.js'
 
+// LEGACY COMPATIBILITY STORE: keep this adapter for existing modules and lazy
+// migration from classroom-data/*.json. New large relational features must use
+// a repository under ../repositories instead of adding another JSON key here.
 const DEFAULT_BUCKET = 'classroom-data'
 const readLocks = new Map()
 

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
+import * as resourcesRepository from '../repositories/resources.repository.js'
 
 export const RESOURCE_LIMITS = Object.freeze({ maxImagesPerResource: 20, maxImageSizeMB: 25, maxFilesPerResource: 20, maxFileSizeMB: 50 })
 const BUCKET = 'classroom-resources'
@@ -43,56 +44,108 @@ async function signed(row) {
   return { ...row, url: data?.signedUrl || null }
 }
 export async function listCategories() {
-  const { data, error } = await supabaseAdmin.from('resource_categories').select('*').order('name')
-  if (error) throw errorOf(error, 'Không tải được hạng mục')
-  const { data: counts, error: countError } = await supabaseAdmin.from('resources').select('category_id')
-  if (countError) throw errorOf(countError, 'Không tải được số lượng tài nguyên')
-  const by = new Map(); for (const row of counts || []) by.set(row.category_id, (by.get(row.category_id) || 0) + 1)
-  return (data || []).map((row) => ({ ...row, resource_count: by.get(row.id) || 0 }))
+  const rows = await resourcesRepository.listCategories()
+  return rows
 }
-export async function createCategory(payload, profile) { const row = { name: text(payload?.name, 120), description: text(payload?.description, 2000), created_by: profile.id }; if (!row.name) throw new AppError('Tên hạng mục là bắt buộc.', 400); const { data, error } = await supabaseAdmin.from('resource_categories').insert(row).select('*').single(); if (error) throw errorOf(error, 'Không tạo được hạng mục'); return data }
-export async function updateCategory(id, payload) { const { data, error } = await supabaseAdmin.from('resource_categories').update({ name: text(payload?.name, 120), description: text(payload?.description, 2000), updated_at: new Date().toISOString() }).eq('id', id).select('*').single(); if (error) throw errorOf(error, 'Không sửa được hạng mục'); return data }
-export async function deleteCategory(id) { const { error } = await supabaseAdmin.from('resource_categories').delete().eq('id', id); if (error) throw errorOf(error, 'Không xóa được hạng mục'); return { id } }
+export async function createCategory(payload, profile) {
+  const row = { name: text(payload?.name, 120), description: text(payload?.description, 2000), created_by: profile.id }
+  if (!row.name) throw new AppError('Tên hạng mục là bắt buộc.', 400)
+  return resourcesRepository.createCategory(row)
+}
+export async function updateCategory(id, payload) {
+  return resourcesRepository.updateCategory(id, { name: text(payload?.name, 120), description: text(payload?.description, 2000), updated_at: new Date().toISOString() })
+}
+export async function deleteCategory(id) {
+  await resourcesRepository.deleteCategory(id)
+  return { id }
+}
 export async function listResources(query = {}) {
-  let request = supabaseAdmin.from('resources').select('*, resource_categories(id,name), resource_files(*)')
-  if (query.category_id) request = request.eq('category_id', query.category_id)
-  const { data, error } = await request.order('created_at', { ascending: query.sort === 'oldest' })
-  if (error) throw errorOf(error, 'Không tải được tài nguyên')
-  const keyword = text(query.search, 200).toLowerCase(); const fileType = text(query.file_type)
-  return Promise.all((data || []).filter((row) => (!keyword || `${row.title} ${row.description} ${row.note}`.toLowerCase().includes(keyword)) && (!fileType || (row.resource_files || []).some((file) => file.file_type === fileType))).map(async (row) => ({ ...row, resource_files: await Promise.all((row.resource_files || []).map(signed)) })))
+  const page = Math.max(1, Number.parseInt(query.page, 10) || 1)
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(query.pageSize || query.limit, 10) || 50))
+  const result = await resourcesRepository.listResources({ categoryId: query.category_id, page, pageSize, sort: text(query.sort) })
+  const keyword = text(query.search, 200).toLowerCase()
+  const fileType = text(query.file_type)
+  const filtered = result.rows.filter((row) => (!keyword || `${row.title} ${row.description} ${row.note}`.toLowerCase().includes(keyword)) && (!fileType || (row.resource_files || []).some((file) => file.file_type === fileType)))
+  return Promise.all(filtered.map(async (row) => ({ ...row, resource_files: await Promise.all((row.resource_files || []).map(signed)) })))
 }
-export async function getResource(id) { const items = await listResources({}); const item = items.find((row) => row.id === id); if (!item) throw new AppError('Không tìm thấy tài nguyên.', 404); return item }
-export async function createResource(payload, profile) { const row = { title: text(payload?.title, 200), description: text(payload?.description, 10000), category_id: payload?.category_id || null, note: text(payload?.note, 20000), created_by: profile.id }; if (!row.title) throw new AppError('Tên tài nguyên là bắt buộc.', 400); const { data, error } = await supabaseAdmin.from('resources').insert(row).select('*').single(); if (error) throw errorOf(error, 'Không tạo được tài nguyên'); return data }
-export async function updateResource(id, payload) { const { data, error } = await supabaseAdmin.from('resources').update({ title: text(payload?.title, 200), description: text(payload?.description, 10000), category_id: payload?.category_id || null, note: text(payload?.note, 20000), updated_at: new Date().toISOString() }).eq('id', id).select('*').single(); if (error) throw errorOf(error, 'Không sửa được tài nguyên'); return data }
-export async function deleteResource(id) { const { data: files } = await supabaseAdmin.from('resource_files').select('file_path').eq('resource_id', id); if (files?.length) await supabaseAdmin.storage.from(BUCKET).remove(files.map((f) => f.file_path)); const { error } = await supabaseAdmin.from('resources').delete().eq('id', id); if (error) throw errorOf(error, 'Không xóa được tài nguyên'); return { id } }
+export async function getResource(id) {
+  const item = await resourcesRepository.getResource(id)
+  if (!item) throw new AppError('Không tìm thấy tài nguyên.', 404)
+  return { ...item, resource_files: await Promise.all((item.resource_files || []).map(signed)) }
+}
+export async function createResource(payload, profile) {
+  const row = { title: text(payload?.title, 200), description: text(payload?.description, 10000), category_id: payload?.category_id || null, note: text(payload?.note, 20000), created_by: profile.id }
+  if (!row.title) throw new AppError('Tên tài nguyên là bắt buộc.', 400)
+  return resourcesRepository.createResource(row)
+}
+export async function updateResource(id, payload) {
+  return resourcesRepository.updateResource(id, { title: text(payload?.title, 200), description: text(payload?.description, 10000), category_id: payload?.category_id || null, note: text(payload?.note, 20000), updated_at: new Date().toISOString() })
+}
+export async function deleteResource(id) {
+  const files = await resourcesRepository.listResourceFiles(id)
+  if (files.length) {
+    const { error } = await supabaseAdmin.storage.from(BUCKET).remove(files.map((file) => file.file_path))
+    if (error) throw errorOf(error, 'Không xóa được file tài nguyên')
+  }
+  await resourcesRepository.deleteResource(id)
+  return { id }
+}
 export async function addFiles(resourceId, payloads, profile) {
-  const { data: resource } = await supabaseAdmin.from('resources').select('id').eq('id', resourceId).maybeSingle(); if (!resource) throw new AppError('Không tìm thấy tài nguyên.', 404)
-  const existing = await supabaseAdmin.from('resource_files').select('file_type').eq('resource_id', resourceId); const images = (existing.data || []).filter((x) => x.file_type === 'image').length; const files = (existing.data || []).filter((x) => x.file_type === 'file').length
-  const list = Array.isArray(payloads) ? payloads : []; if (images + list.filter((x) => x.fileType === 'image').length > 20 || files + list.filter((x) => x.fileType !== 'image').length > 20) throw new AppError('Đã vượt quá giới hạn file/ảnh của tài nguyên.', 400)
-  const uploaded = []; const rows = []
-  try { for (const payload of list) { const item = decode(payload, payload?.fileType); const path = `resources/${resourceId}/${item.fileType === 'image' ? 'images' : 'files'}/${item.digest}.${item.ext}`; const result = await supabaseAdmin.storage.from(BUCKET).upload(path, item.buffer, { contentType: item.mime, upsert: false }); if (result.error && !/already exists/i.test(result.error.message)) throw new AppError('Không upload được file: ' + result.error.message, 502); if (!result.error) uploaded.push(path); const row = { resource_id: resourceId, file_name: item.name, file_path: path, mime_type: item.mime, size_bytes: item.buffer.length, file_type: item.fileType, created_by: profile.id }; const inserted = await supabaseAdmin.from('resource_files').insert(row).select('*').single(); if (inserted.error && !/duplicate/i.test(inserted.error.message)) throw errorOf(inserted.error, 'Không lưu được metadata file'); if (inserted.data) rows.push(inserted.data) }
-    return Promise.all(rows.map(signed))
-  } catch (error) { if (uploaded.length) await supabaseAdmin.storage.from(BUCKET).remove(uploaded); throw error }
-}
-export async function addFile(resourceId, file, fileType, profile) {
-  const { data: resource, error: resourceError } = await supabaseAdmin.from('resources').select('id').eq('id', resourceId).maybeSingle()
-  if (resourceError) throw errorOf(resourceError, 'Không đọc được tài nguyên')
+  const resource = await resourcesRepository.getResourceId(resourceId)
   if (!resource) throw new AppError('Không tìm thấy tài nguyên.', 404)
-  const existing = await supabaseAdmin.from('resource_files').select('file_type').eq('resource_id', resourceId)
-  if (existing.error) throw errorOf(existing.error, 'Không đọc được danh sách file')
+  const existing = await resourcesRepository.listFileTypes(resourceId)
+  const images = existing.filter((row) => row.file_type === 'image').length
+  const files = existing.filter((row) => row.file_type === 'file').length
+  const list = Array.isArray(payloads) ? payloads : []
+  if (images + list.filter((item) => item.fileType === 'image').length > RESOURCE_LIMITS.maxImagesPerResource || files + list.filter((item) => item.fileType !== 'image').length > RESOURCE_LIMITS.maxFilesPerResource) {
+    throw new AppError('Đã vượt quá giới hạn file/ảnh của tài nguyên.', 400)
+  }
+  const uploaded = []
+  const rows = []
+  try {
+    for (const payload of list) {
+      const item = decode(payload, payload?.fileType)
+      const path = `resources/${resourceId}/${item.fileType === 'image' ? 'images' : 'files'}/${item.digest}.${item.ext}`
+      const result = await supabaseAdmin.storage.from(BUCKET).upload(path, item.buffer, { contentType: item.mime, upsert: false })
+      if (result.error && !/already exists/i.test(result.error.message)) throw new AppError('Không upload được file: ' + result.error.message, 502)
+      if (!result.error) uploaded.push(path)
+      const row = { resource_id: resourceId, file_name: item.name, file_path: path, mime_type: item.mime, size_bytes: item.buffer.length, file_type: item.fileType, created_by: profile.id }
+      const inserted = await resourcesRepository.createFile(row)
+      if (inserted) rows.push(inserted)
+    }
+    return Promise.all(rows.map(signed))
+  } catch (error) {
+    if (uploaded.length) await supabaseAdmin.storage.from(BUCKET).remove(uploaded)
+    throw error
+  }
+}
+
+export async function addFile(resourceId, file, fileType, profile) {
+  const resource = await resourcesRepository.getResourceId(resourceId)
+  if (!resource) throw new AppError('Không tìm thấy tài nguyên.', 404)
+  const existing = await resourcesRepository.listFileTypes(resourceId)
   const item = decodeMultipart(file, fileType)
-  const count = (existing.data || []).filter((row) => row.file_type === item.fileType).length
+  const count = existing.filter((row) => row.file_type === item.fileType).length
   const limit = item.fileType === 'image' ? RESOURCE_LIMITS.maxImagesPerResource : RESOURCE_LIMITS.maxFilesPerResource
   if (count >= limit) throw new AppError(`Tài nguyên đã đủ tối đa ${limit} ${item.fileType === 'image' ? 'ảnh' : 'file'}.`, 400)
   const path = `resources/${resourceId}/${item.fileType === 'image' ? 'images' : 'files'}/${item.digest}.${item.ext}`
   const uploaded = await supabaseAdmin.storage.from(BUCKET).upload(path, item.buffer, { contentType: item.mime, upsert: false })
   if (uploaded.error && !/already exists/i.test(uploaded.error.message)) throw new AppError('Không upload được file: ' + uploaded.error.message, 502)
   const row = { resource_id: resourceId, file_name: item.name, file_path: path, mime_type: item.mime, size_bytes: item.buffer.length, file_type: item.fileType, created_by: profile.id }
-  const inserted = await supabaseAdmin.from('resource_files').insert(row).select('*').single()
-  if (inserted.error && !/duplicate/i.test(inserted.error.message)) {
+  try {
+    const inserted = await resourcesRepository.createFile(row)
+    return signed(inserted || { ...row, id: path })
+  } catch (error) {
     if (!uploaded.error) await supabaseAdmin.storage.from(BUCKET).remove([path])
-    throw errorOf(inserted.error, 'Không lưu được metadata file')
+    throw error
   }
-  return signed(inserted.data || { ...row, id: path })
 }
-export async function deleteFile(id) { const { data: row, error } = await supabaseAdmin.from('resource_files').select('*').eq('id', id).maybeSingle(); if (error || !row) throw new AppError('Không tìm thấy file.', 404); await supabaseAdmin.storage.from(BUCKET).remove([row.file_path]); const result = await supabaseAdmin.from('resource_files').delete().eq('id', id); if (result.error) throw errorOf(result.error, 'Không xóa được metadata file'); return { id } }
+
+export async function deleteFile(id) {
+  const row = await resourcesRepository.getFile(id)
+  if (!row) throw new AppError('Không tìm thấy file.', 404)
+  const { error: storageError } = await supabaseAdmin.storage.from(BUCKET).remove([row.file_path])
+  if (storageError) throw errorOf(storageError, 'Không xóa được file tài nguyên')
+  await resourcesRepository.deleteFile(id)
+  return { id }
+}
