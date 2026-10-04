@@ -245,6 +245,22 @@ export async function saveOrgChart(nodes) {
   return apiClient.put('/classroom/org-chart', { nodes }, { auth: true })
 }
 
+export async function getFeedback() {
+  return apiClient.get('/classroom/feedback', { auth: true })
+}
+
+export async function createFeedback({ content, parentId }) {
+  return apiClient.post('/classroom/feedback', { content, parentId: parentId || null }, { auth: true })
+}
+
+export async function toggleFeedbackLike(id) {
+  return apiClient.post(`/classroom/feedback/${encodeURIComponent(id)}/like`, {}, { auth: true })
+}
+
+export async function deleteFeedback(id) {
+  return apiClient.delete(`/classroom/feedback/${encodeURIComponent(id)}`, { auth: true })
+}
+
 export async function getClassSpace(id, password) {
   const query = password ? `?password=${encodeURIComponent(password)}` : ''
   return apiClient.get(`/classroom/class-space/${encodeURIComponent(id)}${query}`, { auth: true })
