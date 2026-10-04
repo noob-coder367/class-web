@@ -447,9 +447,6 @@ export default function AnnouncementsBoard({
             {SECTION_META.map((section) => {
               const list = bySection[section.id] || []
               const unseen = unseenBySection[section.id] || []
-              const latestUnseen = unseen[0] || null
-              const showPreview = !focusing && latestUnseen && latestUnseen.id !== openedPreviewId
-              const showOpened = !focusing && latestUnseen && latestUnseen.id === openedPreviewId
               const isOpen = expandedSection === section.id
 
               return (
@@ -463,7 +460,12 @@ export default function AnnouncementsBoard({
                     <p className="ann-banner-sub">
                       {unseen.length > 0 ? `Có ${unseen.length} bài chưa xem. Mở ra để cập nhật nhé.` : list.length > 0 ? 'Bạn đã xem hết bài mới.' : 'Chưa có bài nào trong mục này.'}
                     </p>
-                    <span className="ann-banner-pill">{list.length} bài đăng</span>
+                    <div className="ann-banner-pills">
+                      <span className="ann-banner-pill">{list.length} bài đăng</span>
+                      {unseen.length > 0 ? (
+                        <span className="ann-banner-pill">{section.id === 'important' ? 'Có báo bài mới' : 'Có thông báo mới'}</span>
+                      ) : null}
+                    </div>
                   </header>
 
                   <div className="ann-section-body">
@@ -486,16 +488,7 @@ export default function AnnouncementsBoard({
                     <span className="ann-section-count">{list.length}</span>
                   </button>
 
-                  {showPreview || showOpened ? (
-                    <div className="ann-section-preview">
-                      <p className="ann-section-preview-label">Mới nhất chưa xem</p>
-                      <PostCard post={latestUnseen} compact role={role} onOpen={openDetail} />
-                    </div>
-                  ) : !isOpen ? (
-                    <p className="ann-section-empty">
-                      {list.length === 0 ? 'Chưa có bài nào.' : 'Bạn đã xem hết bài mới. Mở chi tiết để xem kho.'}
-                    </p>
-                  ) : null}
+                  {!isOpen && list.length === 0 ? <p className="ann-section-empty">Chưa có bài nào.</p> : null}
 
                   {isOpen ? (
                     <div className="ann-section-archive">
