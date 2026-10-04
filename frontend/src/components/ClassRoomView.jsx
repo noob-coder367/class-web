@@ -299,6 +299,7 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [homeGroupOpen, setHomeGroupOpen] = useState(true)
+  const [advancedGroupOpen, setAdvancedGroupOpen] = useState(true)
   const [showCreateClass, setShowCreateClass] = useState(false)
   const [editingClass, setEditingClass] = useState(null)
   const [playingClass, setPlayingClass] = useState(null)
@@ -1232,7 +1233,26 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
           </div>
 
           <div className="classroom-group-divider" aria-hidden="true" />
-          {renderTabButton(TAB_BY_ID.advanced, '', activeTab === 'advanced' || ADVANCED_CHILDREN.includes(activeTab))}
+          <div className="classroom-group">
+            <div className="classroom-group-head">
+              {renderTabButton(TAB_BY_ID.advanced, ' classroom-tab--group')}
+              <button
+                type="button"
+                className={`classroom-group-toggle${advancedGroupOpen ? ' is-open' : ''}`}
+                onClick={() => setAdvancedGroupOpen((open) => !open)}
+                aria-expanded={advancedGroupOpen}
+                aria-label={advancedGroupOpen ? 'Thu gọn các mục của Nâng cao' : 'Mở các mục của Nâng cao'}
+                title={advancedGroupOpen ? 'Thu gọn' : 'Mở rộng'}
+              >
+                <IconChevrons />
+              </button>
+            </div>
+            <div className={`classroom-group-children${advancedGroupOpen ? ' is-open' : ''}`}>
+              <div className="classroom-group-children-inner">
+                {ADVANCED_CHILDREN.map((id) => TAB_BY_ID[id]).filter((tab) => !tab.adminOnly || isAdminRole(role)).map((tab) => renderTabButton(tab, ' classroom-tab--child'))}
+              </div>
+            </div>
+          </div>
 
           <div className="classroom-group-divider" aria-hidden="true" />
           <button type="button" className="classroom-tab" onClick={() => {}} disabled={access === 'denied'}>
