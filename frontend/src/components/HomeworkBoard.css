@@ -713,3 +713,33 @@
   .hw-tree .hw-week-folder { min-height: 50px; padding: 8px 10px; gap: 9px; }
   .hw-tree-children { margin-left: 14px; padding-left: 10px; }
 }
+
+
+/* ===== File rows (opened week) ===== */
+.hw-tree-children .hw-list { display: flex; flex-direction: column; gap: 8px; }
+.hw-file {
+  min-width: 0; box-sizing: border-box; padding: 10px 12px;
+  border: 1px solid #ece9f6; border-radius: 12px; background: #fff;
+  transition: border-color .16s ease, background .16s ease;
+}
+.hw-file:hover { border-color: #c9bdf5; background: #f8f6ff; }
+.hw-file-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.hw-file-note {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 10px; background: #ede9fe; color: #6d28d9;
+}
+.hw-file-text { display: flex; flex: 1 1 auto; flex-direction: column; gap: 3px; min-width: 0; }
+.hw-file-name { overflow: hidden; color: #1e1b3a; font-size: 14.5px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.hw-file-meta { overflow: hidden; color: #6b7280; font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.hw-file-view {
+  flex: 0 0 auto; padding: 8px 18px; border: 0; border-radius: 10px;
+  background: #6d28d9; color: #fff; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer;
+}
+.hw-file-view:hover { filter: brightness(1.08); }
+.hw-file-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e5e7eb; }
+@media (max-width: 560px) {
+  .hw-file { padding: 9px 10px; }
+  .hw-file-main { gap: 9px; }
+  .hw-file-note { width: 34px; height: 34px; }
+  .hw-file-view { padding: 8px 14px; }
+}
