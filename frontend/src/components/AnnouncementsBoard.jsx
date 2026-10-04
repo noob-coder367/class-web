@@ -370,7 +370,7 @@ export default function AnnouncementsBoard({
     await shareHelper({
       title: post.title || 'Thông báo lớp',
       text: post.content || '',
-      path: `/vo-lop/thong-bao?id=${post.id}`,
+      path: `/vo-lop/trang-chu/thong-bao-chung?id=${post.id}`,
       fullText: true,
     })
   }
