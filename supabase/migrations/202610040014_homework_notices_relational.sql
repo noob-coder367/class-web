@@ -185,7 +185,6 @@ end $$;
 alter table public.homework_notices enable row level security;
 revoke all on public.homework_notices from public, anon, authenticated;
 grant all on public.homework_notices to service_role;
-drop policy if exists homework_notices_no_client_access on public.homework_notices;
 comment on table public.homework_notices is 'Structured homework/exam notices; legacy classroom_store.homework remains an immutable backup.';
 notify pgrst, 'reload schema';
 commit;

@@ -240,12 +240,6 @@ revoke all on table public.rules_settings, public.rule_sections, public.rule_ite
 grant all on table public.rules_settings, public.rule_sections, public.rule_items,
   public.rule_violations, public.rule_violation_photos, public.rule_rankings to service_role;
 
-drop policy if exists rules_settings_no_client_access on public.rules_settings;
-drop policy if exists rule_sections_no_client_access on public.rule_sections;
-drop policy if exists rule_items_no_client_access on public.rule_items;
-drop policy if exists rule_violations_no_client_access on public.rule_violations;
-drop policy if exists rule_violation_photos_no_client_access on public.rule_violation_photos;
-drop policy if exists rule_rankings_no_client_access on public.rule_rankings;
 
 comment on table public.rules_settings is 'Normalized Rules settings; legacy classroom_store.rules is retained as an immutable migration source.';
 comment on table public.rule_sections is 'Relational Rules sections; section position preserves the public DTO order.';
