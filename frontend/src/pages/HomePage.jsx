@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { initialAuthRedirect, clearAuthRedirectFromUrl } from '../lib/supabaseClient.js'
-import { ROUTES, classTabPath, isAIAssistantPath, isLegacyAIPath } from '../lib/routes.js'
+import { ROUTES, classTabPath, isAIAssistantPath, isLegacyAIPath, isClassMoneyPath } from '../lib/routes.js'
 import AuthPage from './AuthPage.jsx'
 import SettingsPanel from '../components/SettingsPanel.jsx'
 import { getStoredAvatar } from '../components/ProfileMenu.jsx'
@@ -77,7 +77,7 @@ export default function HomePage() {
   // Cài đặt. Các route này điều khiển trực tiếp bằng URL thay vì state rời rạc.
   // Route chat AI cũ được giữ để tương thích, nhưng không có entry point điều hướng trong UI.
   const showAIAssistant = isAIAssistantPath(location.pathname)
-  const showClassMoney = location.pathname === ROUTES.classMoney
+  const showClassMoney = isClassMoneyPath(location.pathname)
   const showClassRoom = !showAIAssistant && !showClassMoney
     && (location.pathname === ROUTES.classRoot || location.pathname.startsWith(`${ROUTES.classRoot}/`))
   const showProfileSetting = location.pathname === ROUTES.profileSetting
@@ -504,7 +504,7 @@ export default function HomePage() {
     setShowPushPrompt(false)
   }
 
-  const openClassRoom = (tab = 'home') => {
+  const openClassRoom = (tab = 'announcements') => {
     setClassInitialTab(tab)
     navigate(classTabPath(tab))
   }
@@ -552,7 +552,7 @@ export default function HomePage() {
 
       {showAIAssistant && authReady && session && <AIAssistantPage />}
 
-      {showClassMoney && authReady && session && <ClassMoneyPage onBack={() => navigate(ROUTES.classRoot)} />}
+      {showClassMoney && authReady && session && <ClassMoneyPage onBack={() => navigate(ROUTES.advanced)} />}
 
       {showPushPrompt && !profile?.needs_display_name && (
         <NotificationPermissionModal
@@ -588,7 +588,7 @@ export default function HomePage() {
               <button
                 type="button"
                 className="btn-class btn-class--badge"
-                onClick={() => openClassRoom('home')}
+                onClick={() => openClassRoom('announcements')}
               >
                 Vô Lớp 10A4
                 {unreadTotal > 0 ? (
