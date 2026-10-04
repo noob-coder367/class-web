@@ -237,6 +237,14 @@ export async function saveUtilityRoster(roster) {
   return apiClient.put('/classroom/utility-roster', roster, { auth: true })
 }
 
+export async function getOrgChart() {
+  return apiClient.get('/classroom/org-chart', { auth: true })
+}
+
+export async function saveOrgChart(nodes) {
+  return apiClient.put('/classroom/org-chart', { nodes }, { auth: true })
+}
+
 export async function getClassSpace(id, password) {
   const query = password ? `?password=${encodeURIComponent(password)}` : ''
   return apiClient.get(`/classroom/class-space/${encodeURIComponent(id)}${query}`, { auth: true })
