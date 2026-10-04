@@ -1,4 +1,4 @@
-import express, { Router } from 'express'
+import { Router } from 'express'
 import * as classroomController from '../controllers/classroom.controller.js'
 import * as homeworkSubmissionController from '../controllers/homeworkSubmission.controller.js'
 import classMoneyRoutes from './classMoney.routes.js'
@@ -32,6 +32,7 @@ router.get(
   requireAnnouncementAction('archive'),
   classroomController.listAnnouncementsArchive
 )
+router.post('/announcements/upload-urls', requireAnnouncementAction('create'), classroomController.createAnnouncementImageUploadUrls)
 router.post(
   '/announcements',
   requireAnnouncementAction('create'),
@@ -74,12 +75,10 @@ router.delete(
   requireCapability('homework'),
   homeworkSubmissionController.deleteAssignment
 )
-// Body JSON/base64 lớn: app.js bỏ qua parser 15MB cho đúng đường dẫn này.
-router.post(
-  '/homework-assignments/:id/submit',
-  express.json({ limit: '300mb' }),
-  homeworkSubmissionController.submitAssignment
-)
+// Body chỉ chứa metadata nhỏ; bytes đi trực tiếp lên Supabase Storage qua signed upload URLs.
+router.post('/homework-assignments/:id/submit', homeworkSubmissionController.startSubmissionUpload)
+router.post('/homework-assignments/:id/submit/complete', homeworkSubmissionController.completeSubmissionUpload)
+router.delete('/homework-assignments/:id/submit/intents/:intentId', homeworkSubmissionController.cancelSubmissionUpload)
 router.get('/homework-assignments/:id/status', homeworkSubmissionController.getAssignmentStatus)
 router.get(
   '/homework-assignments/:id/submissions/:userId',
@@ -90,6 +89,7 @@ router.get(
 router.get('/rules', classroomController.getRules)
 router.put('/rules', requireCapability('rules'), classroomController.putRules)
 router.get('/violations', classroomController.getViolations)
+router.post('/violations/photo-upload-urls', requireCapability('rules'), classroomController.createViolationPhotoUploadUrls)
 router.post('/violations', requireCapability('rules'), classroomController.postViolation)
 router.delete('/violations/:id', requireCapability('rules'), classroomController.deleteViolation)
 router.get('/cleaning-duty/schedule', classroomController.getCleaningSchedule)
@@ -106,12 +106,9 @@ router.patch(
   classroomController.patchCleaningStatus
 )
 router.get('/cleaning-duty/photos', classroomController.listCleaningPhotos)
-router.post(
-  '/cleaning-duty/photos',
-  requireCapability('cleaningDuty'),
-  express.json({ limit: '700mb' }),
-  classroomController.uploadCleaningPhotos
-)
+router.post('/cleaning-duty/photos', requireCapability('cleaningDuty'), classroomController.uploadCleaningPhotos)
+router.post('/cleaning-duty/photos/complete', requireCapability('cleaningDuty'), classroomController.completeCleaningPhotoUpload)
+router.delete('/cleaning-duty/photos/intents/:intentId', requireCapability('cleaningDuty'), classroomController.cancelCleaningPhotoUpload)
 router.delete(
   '/cleaning-duty/photos/:id',
   requireCapability('cleaningDuty'),
@@ -145,5 +142,6 @@ router.post('/class-space/:id/start', classroomController.startClassSpaceAttempt
 router.post('/class-space/:id/result', classroomController.submitClassSpaceResult)
 router.get('/class-space/:id/leaderboard', classroomController.getClassSpaceLeaderboard)
 router.post('/class-space/upload-image', classroomController.uploadClassSpaceImage)
+router.post('/class-space/upload-image/complete', classroomController.completeClassSpaceImageUpload)
 
 export default router

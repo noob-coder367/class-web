@@ -1,4 +1,5 @@
 import { repository, RepositoryError } from './base.repository.js'
+import { supabaseAdmin } from '../config/supabaseClient.js'
 
 const categories = repository('resource_categories')
 const resources = repository('resources')
@@ -60,3 +61,9 @@ export async function createFile(row) {
   }
 }
 export async function deleteFile(id) { return files.remove({ filters: [{ type: 'eq', column: 'id', value: id }] }) }
+
+export async function createFiles(rows) {
+  const { data, error } = await supabaseAdmin.from('resource_files').insert(rows).select('*')
+  if (error) throw new RepositoryError('Database operation failed: insert resource_files', { table: 'resource_files', operation: 'insert', cause: error })
+  return data || []
+}

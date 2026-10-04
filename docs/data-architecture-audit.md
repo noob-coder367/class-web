@@ -1,95 +1,63 @@
 # Data architecture audit
 
-## Scope
+## Scope and result
 
-Audit performed before the datastore refactor. No production SQL was executed and no existing `classroom_store` table, data, schema, or legacy migration was removed.
+This is the post-refactor code audit for `noob-coder367/class-web`, based on the repository HEAD present at task start. The refactor keeps `public.classroom_store` and its legacy Storage backup intact, but removes business-service reads/writes through `classroomDbStore`; new relational tables become canonical after the user applies the SQL in [`data-migration-plan.md`](data-migration-plan.md).
 
-## Current architecture
+**No SQL was executed. No production rows or Storage objects were deleted by this task.** Presentation cleanup is a separate opt-in SQL file with destructive statements commented out.
 
-| Feature | Data source hiện tại | File/service xử lý | Có dùng `classroom_store`? | Cần migrate sau này? | Rủi ro hiện tại |
-|---|---|---|---:|---:|---|
-| Announcements | `classroom_store` key `announcements`; announcement images in Supabase Storage | `announcements.service.js` | Có | Có | Read-modify-write toàn JSON; memory cache; concurrent writes cần DB transaction |
-| Timetable | `classroom_store` key `timetable` | `timetable.service.js` | Có | Có | JSON key nhỏ hiện tại, nhưng không query/filter được |
-| Rules / violations | `classroom_store` keys `rules`, `violations`; violation photos in Storage | `rules.service.js` | Có | Có | Violations tăng dần; toàn bộ danh sách được parse khi đọc |
-| Homework notices | `classroom_store` key `homework` | `homework.service.js` | Có | Có | Toàn bộ bài tập được đọc/ghi mỗi mutation |
-| Class Space | `classroom_store` key `class-space`; room cover images in Storage | `classSpace.service.js` | Có | Có | Danh sách phòng và questions nằm trong một JSON lớn |
-| Utility PDF roster | `classroom_store` key `utility-roster` | `classSpace.service.js` | Có | Có | Danh sách tên nằm trong JSON; file PDF không lưu trong DB |
-| Class roster | `classroom_store` key `class-roster`; profile/class-list relational data cũng được đọc trực tiếp | `classRoster.service.js`, `admin.service.js` | Có | Có | Hai nguồn dữ liệu cần thống nhất trước khi migrate |
-| Ghost account / username history | keys `ghost-state`, `username-changes` | `auth.service.js` | Có | Có | Counters/history JSON có race risk khi scale nhiều backend instances |
-| Presentations | key `presentations`; slide data trong JSONB | `presentation.service.js` | Có | Có | Slide payload có thể lớn; toàn bộ presentation list read-modify-write |
-| Push subscriptions | PostgreSQL `push_subscriptions`; fallback hiện báo migration thiếu bảng | `push.service.js` | Không dùng thực tế | Không, sau khi SQL đã chạy | Fallback hiện không phải persistence path thật |
-| AI history/quota | PostgreSQL `ai_conversations`, `ai_messages`, `ai_daily_usage`, RPC quota functions | `ai-history.service.js` | Không | Không | Relational path đã có index; cần giới hạn page size ở các endpoint nếu tăng lớn |
-| Resources | PostgreSQL `resources`, `resource_categories`, `resource_files`; files in private Storage bucket | `repositories/resources.repository.js`, `resource.service.js` | Không | Không | Trước refactor list/count queries có thể load toàn bộ resources/files |
-| Cleaning duty | PostgreSQL schedule/status/reviews/photos metadata; media in Storage | `cleaningDuty.service.js` | Không | Không | Photo listing/signed URL work should remain page-bounded as volume grows |
-| Class Money | PostgreSQL relational tables; receipt photos in Storage | `classMoney.service.js` | Không | Không | Most transaction/audit endpoints already use range pagination |
-| Events | PostgreSQL `events`; images in Storage | `events.service.js` | Không | Không | Verify list endpoint pagination as event history grows |
-| Homework submissions | PostgreSQL assignment/submission metadata; attachments in Storage | `homeworkSubmission.service.js` | Không | Không | Base64 JSON submission path can create RAM spikes for large payloads |
-| GitHub images | GitHub API/repository manifest and image files | `githubImages.service.js` | Không | Không | External API/storage dependency; not a classroom database concern |
+## Persistence inventory
 
-## Exact `classroom_store` compatibility keys
+| Domain | Canonical runtime path after SQL is applied | Legacy source/backfill | Read bounds / concurrency | File storage |
+|---|---|---|---|---|
+| Ghost accounts | `ghost_account_sequence`, `ghost_account_reservations`, `ghost_account_creations`, transactional RPCs | `classroom_store` key `ghost-state` | Atomic reservation/finalize/release/rollback; max two successful creations/day; 30-minute reservation expiry | None |
+| Username history | `username_changes` and `change_display_name` RPC | `classroom_store` key `username-changes` | Weekly limit and profile update in one transaction; history retained | None |
+| Announcements | `announcements` repository + `announcement_images` metadata | `classroom_store` key `announcements` | Filtered/orderable paged queries; page size capped at 100; short-ID allocator RPC | `announcement-images`, signed upload; database stores path/URL/MIME/size |
+| Timetable | `timetables`, sessions, periods, breaks, entries, change notices | `classroom_store` key `timetable` | Structured rows; deterministic ordering; bounded child-table reads | None |
+| Rules | `rules_settings`, `rule_sections`, `rule_items` | `classroom_store` key `rules` | Normalized settings and ordered child rows | None |
+| Violations | `rule_violations`, `rule_violation_photos` | `classroom_store` key `violations` | Filter by date/member, ordered pages (max 100), DB-side member totals | `classroom-data` bucket; evidence uploads use signed URLs and relational metadata |
+| Homework notices | `homework_notices` | `classroom_store` key `homework` | Newest-first page queries, max 100; existing internal consumers keep array DTOs | No notice binary |
+| Class Space | `class_spaces`, questions, editors, results, attempts | `classroom_store` key `class-space` | Room-scoped reads; paged room/leaderboard reads; atomic configuration/result RPCs | Existing `class-space-images` bucket; signed upload |
+| Utility roster | `utility_rosters`, `utility_roster_members` | `classroom_store` key `utility-roster` | Structured member rows and ordered reads | No PDF binary is stored in the relational table; the legacy bucket remains unchanged |
+| Class roster | `class_rosters`, `class_roster_members`; profile matching remains against `profiles` | `classroom_store` key `class-roster` | Normalized roster mapping and placeholder identities | None |
+| Push | `push_subscriptions`, `push_preferences` | `classroom_store` key `push-subscriptions` | Explicit columns and 100-row range pages; no endpoint returns raw subscription credentials | None |
+| AI history/quota | Existing `ai_conversations`, `ai_messages`, `ai_daily_usage` | Already relational | Conversation/message pages capped at 100; atomic daily quota upsert/RPC | None |
+| Cleaning Duty | Existing normalized schedule/status/reviews/photo metadata | Already relational | Bounded schedule/review/photo listing; direct per-image upload intents | Existing `classroom-data` bucket |
+| Class Money | Existing relational books, collections, members, expenses, transactions, audit logs | Already relational | Paged lists; atomic payment update/audit RPC; aggregate totals in SQL | Existing `class-money-photos`; direct signed upload |
+| Events | Existing `events` table | Already relational | Newest-first page (max 100) | Existing public `event-images`; signed uploads |
+| Resources | Existing `resources`, categories, files through repository | Already relational | Repository queries page at max 100; count queries; explicit selected fields | Existing private `classroom-resources`; direct signed upload for large files |
+| Homework submissions | Existing relational assignments/submissions plus upload-intent metadata | Already relational | Assignment summary RPC and paged lists; per-user/time-limited intent; atomic submission commit | Existing `classroom-data`; binary upload direct from client, up to 10 files × 20 MB |
+| GitHub site images | GitHub repository manifest/API | Not a classroom-store domain | Single-image operation has an explicit size limit; backend needs image bytes to call GitHub API | Existing configured GitHub image destination; no new bucket |
 
-- `announcements`
-- `timetable`
-- `homework`
-- `rules`
-- `violations`
-- `class-space`
-- `utility-roster`
-- `class-roster`
-- `presentations`
-- `username-changes`
-- `ghost-state`
+## Legacy-store scan
 
-The compatibility path remains `backend/src/utils/classroomDbStore.js`, which first reads PostgreSQL `classroom_store` and lazily imports the legacy `classroom-data/*.json` object when a key is missing. Legacy Storage files are retained.
+Runtime imports/usages of `classroomDbStore`, `readStore`, `writeStore`, `updateStore`, `loadAll`, and `mutateStore` are now isolated to `backend/src/utils/classroomDbStore.js` itself. It remains the compatibility/backup adapter; the feature services no longer use it as their canonical path.
 
-## Changes in this refactor
+Migration SQL reads the legacy JSON values using the keys documented above and uses insert-only conflict handling. It does not delete or update source rows. The classroom data bucket and Storage objects are retained.
 
-- Added `backend/src/repositories/base.repository.js`.
-  - Centralizes server-side Supabase/PostgreSQL repository operations.
-  - Adds contextual database logging (`table`, `operation`, database code/details/hint).
-  - Supports field selection, filtering, sorting, bounded page size, total count, and `hasMore`.
-  - Converts database failures into a typed 503 repository error instead of silently returning an empty result.
-- Added `backend/src/repositories/resources.repository.js`.
-  - Moves Resources relational metadata queries and mutations out of `resource.service.js`.
-  - Resource listing is bounded by `page`/`pageSize` (`pageSize` capped at 100; default 50).
-  - Category counts use count queries rather than loading all resource rows into Node memory.
-  - Storage upload/delete behavior remains in the service layer.
-- Updated `resource.service.js` to use the repository for resource/category/file metadata while preserving current response shapes and routes.
-- Marked `classroomDbStore.js` explicitly as a legacy compatibility adapter.
+## Upload/RAM scan
 
-## Storage architecture observed
+- Homework submissions: manifest + metadata intent; each file goes directly to the existing `classroom-data` bucket with a signed upload URL. Backend verifies object names/sizes and commits submission metadata using an RPC.
+- Cleaning Duty, Resources, announcements, events, Rules evidence, Class Money receipts, and Class Space images: signed upload URL to each existing bucket, then a small authenticated metadata request.
+- Global `express.json` remains bounded at 15 MB; it was not raised to accommodate binary uploads.
+- Remaining Base64/FileReader usage is limited to browser-local previews/IndexedDB conversion or the GitHub-image integration, whose server must send image bytes to GitHub. PPTX MIME-type mentions are legitimate file-type support, not the removed Presentation feature. HTML `role="presentation"` is an accessibility value, not a feature reference.
 
-- `classroom-data`: legacy JSON backup/compatibility bucket; should remain private.
-- `classroom-resources`: private resource file bucket; DB stores metadata and `file_path`.
-- Cleaning media, class-space covers, announcement/rules images, and class-money photos use domain paths in Storage with metadata or JSON references.
-- The backend uses one server-side `supabaseAdmin` client configured from environment variables. The service-role key is not imported by frontend code.
+## Presentation and AI
 
-## SQL migrations
+- Presentation feature pages, components, services, routes, backend handlers, imports, and navigation code were removed. `supabase/migrations/202610040010_presentation_cleanup.sql` is a separate manual/optional inspection script; its `DROP TABLE` lines are commented and no Storage paths are deleted.
+- AI service, routes, conversation tables, and quota tables are preserved. AI navigation/shortcut entries are hidden/removed; direct AI route/backend capability remains.
+- Resource Management remains at the outer navigation level and still uses the existing route, repository, storage, and `resourceManagement` authorization.
 
-**MIGRATION REQUIRED: No new migration is required for this refactor.** The repository foundation uses existing tables and the already-present `resource-management-schema.sql`.
+## Limitations and deployment risks
 
-Do not run SQL automatically. Existing SQL files remain user-reviewed/manual operations:
+1. Migrations were deliberately not executed, and no live Supabase/Postgres integration test was possible. Apply and validate on a staging database before deployment.
+2. A few relational service writes remain multiple requests rather than one transaction (notably timetable/rules replacement); SQL constraints and conflict checks reduce risk, but a database failure mid-sequence can leave a partial write until retried.
+3. Class-roster migration creates a unique folded-name index. If a manually created `class_roster_members` table already contains duplicate folded names, inspect and reconcile those rows before that migration.
+4. Direct signed-upload objects can become orphaned if a user abandons the form after uploading but before committing metadata. They are not automatically swept by this refactor; do not run broad Storage deletion as cleanup.
+5. The frontend build reports a bundle-size advisory for the existing PDF worker/application bundle; build succeeds.
 
-- `supabase/classroom-store-schema.sql` — compatibility store, if not already installed.
-- `supabase/resource-management-schema.sql` — Resources tables and private bucket, if not already installed.
-- `supabase/cleaning-duty-schema.sql` and `supabase/cleaning-duty-media-schema.sql` — cleaning data/media.
-- `supabase/class-money-schema.sql` and patch files — class money.
-- `supabase/ai-chat-history.sql` — AI history and quota.
-- `supabase/push-subscriptions.sql` — push subscription persistence.
+## Related files
 
-## Recommended migration order
-
-1. Announcements and homework notices: split list metadata/content into relational tables with indexes and cursor pagination.
-2. Rules violations and cleaning schedule/status: relationalize history and add date/status indexes.
-3. Class Space: separate rooms, questions, attempts, and results; keep cover images in Storage.
-4. Presentations: separate presentation/slides/elements only after defining payload size limits and versioning.
-5. Class roster, ghost state, and username history: move counters/history to transactional tables or RPCs.
-6. Timetable: migrate last because its current payload is small and stable.
-
-## Remaining risks / follow-up
-
-- Existing legacy services still intentionally read-modify-write complete JSON values through `classroom_store`; this task does not migrate business data wholesale.
-- `classroomDbStore.updateStore` is not a cross-instance transaction. Future migrations should use SQL transactions/RPCs or optimistic version checks consistently.
-- Cleaning photos and homework submissions still accept base64 JSON paths with large Express limits; a future upload migration should use direct/multipart Storage upload and metadata-first persistence.
-- Resource search filtering currently happens after the bounded repository page is fetched. For large resource catalogs, move search into Postgres (`ilike`/full-text index) before pagination.
-- Existing controllers intentionally keep their current response formats; pagination metadata should be added in a backward-compatible field when each frontend consumer is ready.
+- Ordered/manual SQL instructions and validation: [`docs/data-migration-plan.md`](data-migration-plan.md)
+- SQL migrations: `supabase/migrations/202610040001_*.sql` through `202610040014_*.sql`
+- Presentation cleanup inspection: `supabase/migrations/202610040010_presentation_cleanup.sql`

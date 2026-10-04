@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
 import * as classSpaceService from './classSpace.service.js'
@@ -69,11 +70,7 @@ function moneyPhotoStoragePath(url) {
   return index === -1 ? null : decodeURIComponent(url.slice(index + marker.length).split('?')[0])
 }
 
-function stripDataUrl(contentBase64) {
-  const raw = String(contentBase64 || '').trim()
-  const match = raw.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/)
-  return match ? match[1] : raw.replace(/\s+/g, '')
-}
+
 
 function rowOr404(row, message = 'Không tìm thấy dữ liệu tiền lớp.') {
   if (!row) throw new AppError(message, 404)
@@ -90,9 +87,6 @@ function calculatePayment(amountDue, amountPaid) {
   return { amount_due: due, amount_paid: paid, amount_owed: 0, amount_change: difference, status: 'change' }
 }
 
-function sum(rows, key) {
-  return (rows || []).reduce((total, row) => total + (Number(row?.[key]) || 0), 0)
-}
 
 async function audit({ bookId, actorId, action, entityType, entityId = null, oldData = null, newData = null }) {
   const { error } = await supabaseAdmin.from('class_money_audit_logs').insert({
@@ -147,7 +141,7 @@ export async function listBooks() {
   const { data, error } = await supabaseAdmin
     .from('class_money_books')
     .select('id, name, description, currency, created_by, status, created_at, updated_at')
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: false }).limit(100)
   dbError(error, 'Không tải được sổ tiền lớp.')
   return data || []
 }
@@ -177,6 +171,8 @@ export async function getMembers() {
   const { data: profiles, error } = await supabaseAdmin
     .from('profiles')
     .select('id, username, role, is_member')
+    .in('username', names)
+    .limit(100)
   dbError(error, 'Không đối chiếu được tài khoản với danh sách lớp.')
 
   const members = buildMoneyMembersFromUtilityRoster(names, profiles || [])
@@ -199,7 +195,7 @@ async function listCollectionMembers(collectionId) {
     .from('class_money_collection_members')
     .select(COLLECTION_MEMBER_SELECT)
     .eq('collection_id', collectionId)
-    .order('student_number', { ascending: true, nullsFirst: false })
+    .order('student_number', { ascending: true, nullsFirst: false }).range(0, 99)
   dbError(error, 'Không tải được danh sách thu tiền.')
   return sortByStudentNumber(data || [])
 }
@@ -210,7 +206,7 @@ export async function listCollections(bookId) {
     .from('class_money_collections')
     .select('id, book_id, name, amount_per_person, due_date, note, created_by, status, created_at, updated_at')
     .eq('book_id', book.id)
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: false }).limit(100)
   dbError(error, 'Không tải được các đợt thu.')
   return data || []
 }
@@ -302,76 +298,64 @@ export async function updateCollectionMember(id, payload, actorId) {
     .maybeSingle()
   dbError(currentError, 'Không tải được dòng thu tiền.')
   const old = rowOr404(current, 'Không tìm thấy dòng thu tiền.')
-  const { data: collection, error: collectionError } = await supabaseAdmin
-    .from('class_money_collections')
-    .select('id, book_id, name')
-    .eq('id', old.collection_id)
-    .maybeSingle()
-  dbError(collectionError, 'Không tải được đợt thu.')
-  rowOr404(collection, 'Không tìm thấy đợt thu.')
-  const next = calculatePayment(old.amount_due, payload?.amountPaid ?? old.amount_paid)
+  const nextAmount = positiveInteger(payload?.amountPaid ?? old.amount_paid, 'Số tiền đã thu')
   const note = payload?.note === undefined ? old.note : text(payload.note, 500)
-  const paidAt = next.amount_paid > 0 ? (old.paid_at || new Date().toISOString()) : null
-  const { data: updated, error } = await supabaseAdmin
-    .from('class_money_collection_members')
-    .update({ ...next, note, paid_at: paidAt, paid_by: next.amount_paid > 0 ? actorId : null, updated_at: new Date().toISOString() })
-    .eq('id', old.id)
-    .eq('updated_at', old.updated_at)
-    .select(COLLECTION_MEMBER_SELECT)
-    .maybeSingle()
+  const { data, error } = await supabaseAdmin.rpc('class_money_update_member_payment', {
+    p_member_id: old.id,
+    p_expected_updated_at: old.updated_at,
+    p_amount_paid: nextAmount,
+    p_note: note,
+    p_actor_id: actorId,
+  })
+  if (error?.message?.includes('STALE_CLASS_MONEY_DATA')) {
+    throw new AppError('Dữ liệu vừa được người khác cập nhật. Hãy tải lại rồi thử lại.', 409)
+  }
   dbError(error, 'Không cập nhật được dòng thu tiền.')
-  if (!updated) throw new AppError('Dữ liệu vừa được người khác cập nhật. Hãy tải lại rồi thử lại.', 409)
-  const delta = Number(updated.amount_paid) - Number(old.amount_paid)
-  if (delta > 0) await insertTransaction({ bookId: collection.book_id, actorId, type: 'income', amount: delta, profileId: old.profile_id, collectionId: old.collection_id, description: `Thu tiền ${old.display_name_snapshot} · ${collection.name}` })
-  if (delta < 0) await insertTransaction({ bookId: collection.book_id, actorId, type: 'refund', amount: Math.abs(delta), profileId: old.profile_id, collectionId: old.collection_id, description: `Điều chỉnh tiền ${old.display_name_snapshot} · ${collection.name}` })
-  await audit({ bookId: collection.book_id, actorId, action: 'update', entityType: 'collection_member', entityId: old.id, oldData: old, newData: updated })
-  return updated
+  return data
+}
+
+export async function createMoneyPhotoUploadUrl(id, payload) {
+  const { data: current, error } = await supabaseAdmin.from('class_money_collection_members')
+    .select('id, collection_id').eq('id', text(id, 100)).maybeSingle()
+  dbError(error, 'Không tải được dòng thu tiền.')
+  const old = rowOr404(current, 'Không tìm thấy dòng thu tiền.')
+  const mime = String(payload?.mimeType || '').toLowerCase()
+  const extension = MONEY_PHOTO_MIME[mime]
+  const sizeBytes = Number(payload?.sizeBytes)
+  if (!extension) throw new AppError('Chỉ nhận ảnh JPG, PNG hoặc WEBP.')
+  if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > MAX_MONEY_PHOTO_BYTES) throw new AppError('Ảnh tối đa 8MB.')
+  const path = `collection-members/${old.id}/${randomUUID()}.${extension}`
+  await ensureMoneyPhotoBucket()
+  const result = await supabaseAdmin.storage.from(MONEY_PHOTO_BUCKET).createSignedUploadUrl(path, { upsert: false })
+  if (result.error) throw new AppError('Không tạo được liên kết tải ảnh.', 502)
+  return { bucket: MONEY_PHOTO_BUCKET, path, token: result.data.token, signedUrl: result.data.signedUrl, mimeType: mime, sizeBytes }
 }
 
 export async function uploadCollectionMemberPhoto(id, payload, actorId) {
-  const { data: current, error: currentError } = await supabaseAdmin
-    .from('class_money_collection_members')
-    .select(COLLECTION_MEMBER_SELECT)
-    .eq('id', text(id, 100))
-    .maybeSingle()
+  const { data: current, error: currentError } = await supabaseAdmin.from('class_money_collection_members')
+    .select(COLLECTION_MEMBER_SELECT).eq('id', text(id, 100)).maybeSingle()
   dbError(currentError, 'Không tải được dòng thu tiền.')
   const old = rowOr404(current, 'Không tìm thấy dòng thu tiền.')
   const mime = String(payload?.mimeType || '').toLowerCase()
   const extension = MONEY_PHOTO_MIME[mime]
-  if (!extension) throw new AppError('Chỉ nhận ảnh JPG, PNG hoặc WEBP.')
-  const pure = stripDataUrl(payload?.contentBase64)
-  if (!pure) throw new AppError('Thiếu dữ liệu ảnh.')
-  let bytes
-  try {
-    // Giải mã base64 thành bytes trước khi lưu vào Storage, không lưu chuỗi ảnh thô vào database.
-    bytes = Buffer.from(pure, 'base64')
-  } catch {
-    throw new AppError('Ảnh không hợp lệ.')
-  }
-  if (!bytes.length) throw new AppError('Ảnh trống.')
-  if (bytes.length > MAX_MONEY_PHOTO_BYTES) throw new AppError('Ảnh tối đa 8MB.')
-
-  const { data: collection, error: collectionError } = await supabaseAdmin
-    .from('class_money_collections')
-    .select('id, book_id')
-    .eq('id', old.collection_id)
-    .maybeSingle()
+  const sizeBytes = Number(payload?.sizeBytes)
+  const path = text(payload?.path, 600)
+  if (!extension || !Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > MAX_MONEY_PHOTO_BYTES) throw new AppError('Ảnh tải lên không hợp lệ.')
+  const prefix = `collection-members/${old.id}/`
+  if (!path.startsWith(prefix) || path.includes('..') || path.split('/').length !== 3 || !path.toLowerCase().endsWith(`.${extension}`)) throw new AppError('Đường dẫn ảnh không hợp lệ.', 400)
+  const { data: objects, error: storageError } = await supabaseAdmin.storage.from(MONEY_PHOTO_BUCKET).list(`collection-members/${old.id}`, { limit: 100, search: path.split('/').pop() })
+  if (storageError) throw new AppError('Không thể xác minh ảnh tải lên.', 502)
+  const object = (objects || []).find((row) => row.name === path.split('/').pop())
+  if (!object) throw new AppError('Ảnh chưa được tải lên Storage.', 400)
+  if (Number.isFinite(Number(object.metadata?.size)) && Number(object.metadata.size) !== sizeBytes) throw new AppError('Kích thước ảnh không khớp.', 400)
+  const { data: collection, error: collectionError } = await supabaseAdmin.from('class_money_collections')
+    .select('id, book_id').eq('id', old.collection_id).maybeSingle()
   dbError(collectionError, 'Không tải được đợt thu.')
   rowOr404(collection, 'Không tìm thấy đợt thu.')
-
-  await ensureMoneyPhotoBucket()
-  const path = `collection-members/${old.id}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${extension}`
-  const { error: uploadError } = await supabaseAdmin.storage.from(MONEY_PHOTO_BUCKET).upload(path, bytes, { contentType: mime, upsert: false })
-  if (uploadError) throw new AppError('Không tải được ảnh lên: ' + uploadError.message, 502)
-
   const photoUrl = moneyPhotoUrl(path)
-  const { data: updated, error } = await supabaseAdmin
-    .from('class_money_collection_members')
-    .update({ photo_url: photoUrl, updated_at: new Date().toISOString() })
-    .eq('id', old.id)
-    .eq('updated_at', old.updated_at)
-    .select(COLLECTION_MEMBER_SELECT)
-    .maybeSingle()
+  const { data: updated, error } = await supabaseAdmin.from('class_money_collection_members')
+    .update({ photo_url: photoUrl, updated_at: new Date().toISOString() }).eq('id', old.id).eq('updated_at', old.updated_at)
+    .select(COLLECTION_MEMBER_SELECT).maybeSingle()
   dbError(error, 'Không lưu được ảnh thu tiền.')
   if (!updated) {
     await supabaseAdmin.storage.from(MONEY_PHOTO_BUCKET).remove([path])
@@ -476,21 +460,13 @@ export async function getOverview(bookId) {
   dbError(collectionError, 'Không tải được đợt thu đang hoạt động.')
   dbError(expenseError, 'Không tải được các khoản chi gần đây.')
   dbError(txError, 'Không tải được giao dịch gần đây.')
-  const { data: collections, error: collectionsError } = await supabaseAdmin.from('class_money_collections').select('id').eq('book_id', book.id)
-  dbError(collectionsError, 'Không tải được tổng quan tiền lớp.')
-  const collectionIds = (collections || []).map((row) => row.id)
-  let allMembers = []
-  if (collectionIds.length) {
-    const result = await supabaseAdmin.from('class_money_collection_members').select('amount_paid, amount_owed, amount_change').in('collection_id', collectionIds)
-    dbError(result.error, 'Không tải được tổng thu tiền lớp.')
-    allMembers = result.data || []
-  }
-  const resultExpenses = await supabaseAdmin.from('class_money_expenses').select('amount').eq('book_id', book.id).is('deleted_at', null)
-  dbError(resultExpenses.error, 'Không tải được tổng chi tiền lớp.')
-  const totalCollected = sum(allMembers, 'amount_paid')
-  const totalOwed = sum(allMembers, 'amount_owed')
-  const totalChange = sum(allMembers, 'amount_change')
-  const totalExpense = sum(resultExpenses.data || [], 'amount')
+  const { data: totals, error: totalsError } = await supabaseAdmin.rpc('class_money_overview_totals', { p_book_id: book.id })
+  dbError(totalsError, 'Không tải được tổng quan tiền lớp.')
+  const aggregate = Array.isArray(totals) ? totals[0] : totals
+  const totalCollected = Number(aggregate?.total_collected) || 0
+  const totalOwed = Number(aggregate?.total_owed) || 0
+  const totalChange = Number(aggregate?.total_change) || 0
+  const totalExpense = Number(aggregate?.total_expense) || 0
   return {
     book,
     summary: { totalCollected, totalOwed, totalChange, totalExpense, balance: totalCollected - totalExpense },

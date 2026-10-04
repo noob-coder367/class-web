@@ -12,14 +12,7 @@ const NOTIFY_LABELS = {
   urgent: '🚨 Khẩn cấp',
 }
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = () => reject(new Error('Không đọc được ảnh'))
-    reader.readAsDataURL(file)
-  })
-}
+
 
 export default function EventsSection({ profile }) {
   /* =====================================================
@@ -141,13 +134,14 @@ export default function EventsSection({ profile }) {
 
     if (files.length === 0) return
 
-    setSelectedFiles((prev) => [...prev, ...files])
+    const remaining = Math.max(0, 5 - selectedFiles.length)
+    const accepted = files.slice(0, remaining)
+    if (accepted.length < files.length) alert('Mỗi sự kiện tải tối đa 5 ảnh.')
+    setSelectedFiles((prev) => [...prev, ...accepted])
 
     setPreviewUrls((prev) => [
       ...prev,
-      ...files.map((file) =>
-        URL.createObjectURL(file)
-      ),
+      ...accepted.map((file) => URL.createObjectURL(file)),
     ])
 
     /*
@@ -213,14 +207,7 @@ export default function EventsSection({ profile }) {
     setPosting(true)
 
     try {
-      const images = []
-      for (const file of selectedFiles) {
-        const dataUrl = await fileToBase64(file)
-        images.push({
-          mimeType: file.type || 'image/jpeg',
-          contentBase64: dataUrl,
-        })
-      }
+      const images = selectedFiles.length ? await eventsService.uploadEventImages(selectedFiles) : []
 
       await eventsService.createEvent({
         content: cleanContent,

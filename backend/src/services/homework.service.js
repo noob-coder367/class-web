@@ -2,24 +2,11 @@ import { randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
 import * as announcementsService from './announcements.service.js'
-import { readStore as readDbStore, writeStore as writeDbStore } from '../utils/classroomDbStore.js'
 
-const DATA_BUCKET = 'classroom-data'
-const DATA_PATH = 'homework.json'
-
-let memoryCache = null
-
-function clone(value) {
-  return JSON.parse(JSON.stringify(value))
-}
-
-async function readStore() {
-  const parsed = await readDbStore({ key: 'homework', legacyPath: DATA_PATH, empty: { items: [] }, label: 'báo bài' })
-  return { items: Array.isArray(parsed?.items) ? parsed.items : [] }
-}
-
-async function writeStore(store) {
-  await writeDbStore({ key: 'homework', value: store, label: 'báo bài' })
+const HOMEWORK_TABLE = 'homework_notices'
+const HOMEWORK_SELECT = 'id,title,report_date,has_exam,exam_date,exam_subject,exam_content,experiment_content,homework_content,exam_announcement_id,announcement_short_id,exam_today_notified_at,exam_cleared_at,created_at,created_by,created_by_name'
+function throwDb(error, operation) {
+  if (error) throw new AppError(`${operation}: ${error.message || 'lỗi cơ sở dữ liệu.'}`, 500)
 }
 
 function normalizeItem(raw) {
@@ -46,24 +33,6 @@ function normalizeItem(raw) {
   }
 }
 
-async function loadAll() {
-  const store = await readStore()
-  const items = store.items.map(normalizeItem).filter(Boolean)
-  return { items }
-}
-
-async function saveAll(items) {
-  await writeStore({ items })
-  memoryCache = { items }
-}
-
-async function mutateStore(mutator) {
-  const data = await loadAll()
-  const result = await mutator(data.items)
-  await writeStore({ items: data.items })
-  memoryCache = { items: data.items }
-  return result
-}
 
 function defaultTitleForDate(isoDate) {
   if (!isoDate) return 'Báo bài'
@@ -120,9 +89,32 @@ function buildImportantHomeworkContent({ title, experimentContent, homeworkConte
 }
 
 /** Danh sách báo bài, mới nhất trước. Không tự xóa báo bài. */
-export async function listHomework() {
-  const data = await loadAll()
-  return data.items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+export async function listHomeworkPage(options = {}) {
+  const page = Math.min(10000, Math.max(1, Number.parseInt(options.page, 10) || 1))
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(options.pageSize, 10) || 100))
+  let query = supabaseAdmin.from(HOMEWORK_TABLE).select(HOMEWORK_SELECT, { count: 'exact' }).order('created_at', { ascending: false })
+  if (options.reportDate) query = query.eq('report_date', String(options.reportDate).slice(0, 10))
+  if (options.hasExam === 'true' || options.hasExam === true) query = query.eq('has_exam', true)
+  const from = (page - 1) * pageSize
+  const { data, error, count } = await query.range(from, from + pageSize - 1)
+  throwDb(error, 'Không thể tải danh sách báo bài')
+  const items = (data || []).map(normalizeItem).filter(Boolean)
+  return { items, pagination: { page, pageSize, total: count || 0, hasMore: from + items.length < (count || 0) } }
+}
+
+export async function listHomework(options = {}) {
+  return (await listHomeworkPage(options)).items
+}
+
+function itemToDb(item) {
+  return {
+    id: item.id, title: item.title, report_date: item.report_date, has_exam: item.has_exam,
+    exam_date: item.exam_date, exam_subject: item.exam_subject, exam_content: item.exam_content,
+    experiment_content: item.experiment_content, homework_content: item.homework_content,
+    exam_announcement_id: item.exam_announcement_id, announcement_short_id: item.announcement_short_id,
+    exam_today_notified_at: item.exam_today_notified_at, exam_cleared_at: item.exam_cleared_at,
+    created_at: item.created_at, created_by: item.created_by, created_by_name: item.created_by_name,
+  }
 }
 
 /**
@@ -210,25 +202,25 @@ export async function createHomework(payload, profile) {
     created_by_name: String(profile?.username || 'Admin').trim() || 'Admin',
   }
 
-  await mutateStore((items) => {
-    items.unshift(item)
-    return item
-  })
+  const { error } = await supabaseAdmin.from(HOMEWORK_TABLE).insert(itemToDb(item))
+  if (error) {
+    if (examAnnouncementId) {
+      try { await announcementsService.deleteAnnouncement(examAnnouncementId) } catch {}
+    }
+    throwDb(error, 'Không thể lưu báo bài')
+  }
   return item
 }
 
 export async function deleteHomework(id) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã báo bài.', 400)
-
-  let found = null
-  await mutateStore((items) => {
-    found = items.find((row) => row.id === targetId)
-    if (!found) throw new AppError('Không tìm thấy báo bài.', 404)
-    items.splice(0, items.length, ...items.filter((row) => row.id !== targetId))
-  })
-
-  // Xóa luôn thông báo liên quan trên tab Thông báo chung (ô Báo bài quan trọng).
+  const read = await supabaseAdmin.from(HOMEWORK_TABLE).select(HOMEWORK_SELECT).eq('id', targetId).maybeSingle()
+  throwDb(read.error, 'Không thể đọc báo bài')
+  if (!read.data) throw new AppError('Không tìm thấy báo bài.', 404)
+  const found = normalizeItem(read.data)
+  const removed = await supabaseAdmin.from(HOMEWORK_TABLE).delete().eq('id', targetId)
+  throwDb(removed.error, 'Không thể xoá báo bài')
   if (found.exam_announcement_id) await announcementsService.deleteAnnouncement(found.exam_announcement_id)
   await announcementsService.deleteAnnouncementsByHomeworkId(targetId)
   return { id: targetId }
@@ -244,10 +236,8 @@ export async function patchHomework(id, fields) {
   for (const [key, value] of Object.entries(fields || {})) {
     if (PATCHABLE.has(key)) nextFields[key] = value == null ? null : String(value)
   }
-  return mutateStore((items) => {
-    const idx = items.findIndex((row) => row.id === targetId)
-    if (idx === -1) throw new AppError('Không tìm thấy báo bài.', 404)
-    items[idx] = { ...items[idx], ...nextFields }
-    return items[idx]
-  })
+  const result = await supabaseAdmin.from(HOMEWORK_TABLE).update(nextFields).eq('id', targetId).select(HOMEWORK_SELECT).maybeSingle()
+  throwDb(result.error, 'Không thể cập nhật báo bài')
+  if (!result.data) throw new AppError('Không tìm thấy báo bài.', 404)
+  return normalizeItem(result.data)
 }

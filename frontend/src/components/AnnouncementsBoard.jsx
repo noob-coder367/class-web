@@ -21,14 +21,7 @@ const SECTION_META = [
   { id: 'discipline', title: 'Vi phạm kỷ luật cao', hint: 'Hệ thống tự đăng khi tụt bậc uy tín' },
 ]
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = () => reject(new Error('Không đọc được ảnh'))
-    reader.readAsDataURL(file)
-  })
-}
+
 
 function imageGridStyle(count) {
   if (count <= 1) return { gridTemplateColumns: '1fr' }
@@ -257,11 +250,7 @@ export default function AnnouncementsBoard({
     if (expiresAt && new Date(expiresAt) <= new Date()) return alert('Thời gian tự xóa phải lớn hơn thời gian hiện tại!')
     setPosting(true)
     try {
-      const images = []
-      for (const file of selectedFiles) {
-        const dataUrl = await fileToBase64(file)
-        images.push({ mimeType: file.type || 'image/jpeg', contentBase64: dataUrl })
-      }
+      const images = selectedFiles.length ? await classroomService.uploadAnnouncementImages(selectedFiles) : []
       await classroomService.createAnnouncement({
         title: postTitle.trim(),
         document_kind: documentKind,

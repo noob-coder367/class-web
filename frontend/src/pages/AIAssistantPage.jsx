@@ -172,7 +172,7 @@ export default function AIAssistantPage() {
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submit() }
   }
-  const handleBack = () => navigate(classTabPath('ai'))
+  const handleBack = () => navigate(classTabPath('announcements'))
   const hasConversation = messages.length > 0 || loading
 
   return <main className="ai-page" aria-label="AI Assistant Class-Web">

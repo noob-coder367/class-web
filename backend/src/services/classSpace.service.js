@@ -2,11 +2,7 @@ import { randomUUID, createHash } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
 import { isAdminRole } from '../lib/roles.js'
-import { readStore as readDbStore, writeStore as writeDbStore } from '../utils/classroomDbStore.js'
 
-const DATA_BUCKET = 'classroom-data'
-const DATA_PATH = 'class-space.json'
-const UTILITY_ROSTER_PATH = 'utility-roster.json'
 const IMAGE_BUCKET = 'class-space-images'
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const ALLOWED_MIME = {
@@ -15,12 +11,6 @@ const ALLOWED_MIME = {
   'image/png': 'png',
   'image/webp': 'webp',
   'image/gif': 'gif',
-}
-
-let memoryCache = null
-
-function clone(value) {
-  return JSON.parse(JSON.stringify(value))
 }
 
 function hashPassword(raw) {
@@ -35,20 +25,6 @@ function generateRoomCode() {
   return String(Math.floor(Math.random() * 1000000)).padStart(6, '0')
 }
 
-function generateUniqueRoomCode(existingCodes) {
-  const taken = existingCodes instanceof Set ? existingCodes : new Set(existingCodes || [])
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    const code = generateRoomCode()
-    if (!taken.has(code)) return code
-  }
-  // Cực hiếm khi đụng hết không gian mã sau 200 lần thử — vẫn trả về một mã
-  // hợp lệ thay vì làm hỏng luồng tạo phòng.
-  return generateRoomCode()
-}
-
-async function ensureDataBucket() {
-  return true
-}
 
 async function ensureImageBucket() {
   const { data, error } =
@@ -67,28 +43,112 @@ function publicImageUrl(path) {
   return data?.publicUrl || ''
 }
 
-async function readStore() {
-  const parsed = await readDbStore({ key: 'class-space', legacyPath: DATA_PATH, empty: { items: [] }, label: 'lớp học' })
-  return { items: Array.isArray(parsed?.items) ? parsed.items : [] }
+function throwDatabaseError(error, operation) {
+  if (!error) return
+  console.error(`[class-space] ${operation} failed`, {
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+  })
+  throw new AppError(`Không thể ${operation} dữ liệu lớp học.`, 503)
 }
 
-async function writeStore(store) {
-  await writeDbStore({ key: 'class-space', value: store, label: 'lớp học' })
+async function readRelationalItems({ id, profileId } = {}) {
+  let rootQuery = supabaseAdmin.from('class_spaces').select('*').order('created_at', { ascending: false })
+  if (id) rootQuery = rootQuery.eq('id', id)
+  rootQuery = rootQuery.range(0, id ? 0 : 99)
+  const roots = await rootQuery
+  throwDatabaseError(roots.error, 'đọc')
+  const rows = roots.data || []
+  if (!rows.length) return []
+  const ids = rows.map((row) => row.id)
+  const baseQueries = [
+    supabaseAdmin.from('class_space_questions').select('class_space_id, position, question').in('class_space_id', ids).order('position').range(0, 999),
+    supabaseAdmin.from('class_space_editors').select('class_space_id, user_id, email, username').in('class_space_id', ids).range(0, 1999),
+    supabaseAdmin.from('class_space_results').select('class_space_id, user_id, user_name, correct, total, duration_ms, completed_at').in('class_space_id', ids).order('correct', { ascending: false }).order('duration_ms', { ascending: true, nullsFirst: false }).order('completed_at', { ascending: true }).range(0, 99),
+  ]
+  if (profileId) baseQueries.push(
+    supabaseAdmin.from('class_space_results').select('class_space_id, user_id, user_name, correct, total, duration_ms, completed_at').in('class_space_id', ids).eq('user_id', String(profileId)).range(0, 99),
+    supabaseAdmin.from('class_space_attempts').select('class_space_id, user_id, started_at').in('class_space_id', ids).eq('user_id', String(profileId)).range(0, 99),
+  )
+  const [questions, editors, results, ownResults, ownAttempts] = await Promise.all([
+    ...baseQueries,
+    ...Array.from({ length: Math.max(0, 5 - baseQueries.length) }, () => Promise.resolve({ data: [], error: null })),
+  ])
+  throwDatabaseError(questions.error, 'đọc câu hỏi')
+  throwDatabaseError(editors.error, 'đọc editor')
+  throwDatabaseError(results.error, 'đọc kết quả')
+  throwDatabaseError(ownResults.error, 'đọc kết quả cá nhân')
+  throwDatabaseError(ownAttempts.error, 'đọc lượt làm bài')
+  const byId = (values) => {
+    const map = new Map()
+    for (const value of values || []) {
+      const list = map.get(value.class_space_id) || []
+      list.push(value)
+      map.set(value.class_space_id, list)
+    }
+    return map
+  }
+  const questionMap = byId(questions.data), editorMap = byId(editors.data)
+  const resultMap = byId([...(results.data || []), ...(ownResults.data || [])])
+  const attemptMap = byId(ownAttempts.data)
+  return rows.map((row) => {
+    const rawResults = Object.fromEntries((resultMap.get(row.id) || []).map((result) => [result.user_id, {
+      userId: result.user_id, userName: result.user_name, correct: result.correct, total: result.total,
+      durationMs: result.duration_ms, completedAt: result.completed_at,
+    }]))
+    const rawAttempts = Object.fromEntries((attemptMap.get(row.id) || []).map((attempt) => [attempt.user_id, { startedAt: attempt.started_at }]))
+    return normalizeItem({
+      id: row.id, code: row.code, title: row.title, cover: row.cover,
+      backdropType: row.backdrop_type, backdropTheme: row.backdrop_theme, backdropImage: row.backdrop_image,
+      isPublic: row.is_public, visibleInClass: row.visible_in_class, passwordHash: row.password_hash, password: row.password,
+      shuffle: row.shuffle, allowRetry: row.allow_retry, allowMultiTry: row.allow_multi_try,
+      autoAdvanceMultiTry: row.auto_advance_multi_try, showEssayHints: row.show_essay_hints,
+      enableLeaderboard: row.enable_leaderboard,
+      questions: (questionMap.get(row.id) || []).sort((a, b) => a.position - b.position).map((question) => question.question),
+      questionCount: Number(row.question_count) || 0, results: rawResults, attempts: rawAttempts,
+      editors: (editorMap.get(row.id) || []).map((editor) => ({ userId: editor.user_id, email: editor.email, username: editor.username })),
+      ownerId: row.owner_id, ownerName: row.owner_name, createdAt: row.created_at, updatedAt: row.updated_at,
+    })
+  }).filter(Boolean)
+}
+
+async function loadRoom(id, profileId) {
+  const items = await readRelationalItems({ id, profileId })
+  const item = items[0] || null
+  if (item && !item.code) {
+    item.code = generateRoomCode()
+    await saveItem(item, item.updatedAt)
+  }
+  return item
+}
+
+async function saveItem(item, expectedUpdatedAt = null) {
+  const result = await supabaseAdmin.rpc('replace_class_space', { p_item: item, p_expected_updated_at: expectedUpdatedAt })
+  if (result.error?.message?.includes('CLASS_SPACE_STALE')) throw new AppError('Phòng học đã được người khác cập nhật. Hãy tải lại trước khi lưu.', 409)
+  throwDatabaseError(result.error, 'ghi')
+  if (typeof result.data === 'string' && result.data) item.code = result.data
 }
 
 async function readUtilityRoster() {
-  const parsed = await readDbStore({ key: 'utility-roster', legacyPath: UTILITY_ROSTER_PATH, empty: { names: [], fileName: '', updatedAt: '' }, label: 'danh sách PDF' })
+  const [meta, members] = await Promise.all([
+    supabaseAdmin.from('utility_rosters').select('file_name, updated_at').eq('id', 'default').maybeSingle(),
+    supabaseAdmin.from('utility_roster_members').select('student_number, name, position').eq('roster_id', 'default').order('position').range(0, 99),
+  ])
+  throwDatabaseError(meta.error, 'đọc metadata danh sách PDF')
+  throwDatabaseError(members.error, 'đọc danh sách PDF')
   return {
-    names: Array.isArray(parsed?.names)
-      ? parsed.names.filter((item) => item && typeof item === 'object' && String(item.name || '').trim())
-      : [],
-    fileName: String(parsed?.fileName || ''),
-    updatedAt: String(parsed?.updatedAt || ''),
+    names: (members.data || []).map((row, index) => ({ stt: row.student_number || index + 1, name: row.name })),
+    fileName: String(meta.data?.file_name || ''), updatedAt: String(meta.data?.updated_at || ''),
   }
 }
 
 async function writeUtilityRoster(roster) {
-  await writeDbStore({ key: 'utility-roster', value: roster, label: 'danh sách PDF' })
+  const result = await supabaseAdmin.rpc('replace_utility_roster', {
+    p_file_name: roster.fileName, p_updated_at: roster.updatedAt, p_names: roster.names,
+  })
+  throwDatabaseError(result.error, 'ghi danh sách PDF')
 }
 
 function normalizeBackdrop(raw) {
@@ -289,6 +349,7 @@ function normalizeItem(raw) {
     showEssayHints: raw.showEssayHints !== false,
     enableLeaderboard: raw.enableLeaderboard === true,
     questions: Array.isArray(raw.questions) ? raw.questions : [],
+    questionCount: Number.isFinite(Number(raw.questionCount)) ? Number(raw.questionCount) : (Array.isArray(raw.questions) ? raw.questions.length : 0),
     results: normalizeResults(raw.results),
     attempts: normalizeAttempts(raw.attempts),
     editors: normalizeEditors(raw.editors),
@@ -299,31 +360,6 @@ function normalizeItem(raw) {
   }
 }
 
-async function loadAll() {
-  const store = await readStore()
-  const items = store.items.map(normalizeItem).filter(Boolean)
-
-  // Phòng tạo từ trước khi có mã phòng thì chưa có `code` — cấp mã 6 số không
-  // trùng cho các phòng đó (một lần duy nhất) để hiện được trong màn hình chỉnh
-  // sửa và vào được bằng ô nhập mã.
-  const missingCode = items.filter((row) => !row.code)
-  if (missingCode.length) {
-    const taken = new Set(items.map((row) => row.code).filter(Boolean))
-    for (const row of missingCode) {
-      row.code = generateUniqueRoomCode(taken)
-      taken.add(row.code)
-    }
-    await writeStore({ items })
-    return { items }
-  }
-
-  return { items }
-}
-
-async function saveAll(items) {
-  await writeStore({ items })
-  memoryCache = { items }
-}
 
 function toPublicMeta(item, profile) {
   // Danh sách lưới "Lớp học": KHÔNG gửi passwordHash, results đầy đủ hay toàn bộ câu hỏi ra ngoài.
@@ -340,7 +376,7 @@ function toPublicMeta(item, profile) {
     allowMultiTry: item.allowMultiTry === true,
     showEssayHints: item.showEssayHints !== false,
     enableLeaderboard: item.enableLeaderboard === true,
-    questionCount: item.questions.length,
+    questionCount: item.questionCount ?? item.questions.length,
     ownerId: item.ownerId,
     ownerName: item.ownerName,
     canEdit: canEditClassSpace(item, profile),
@@ -405,86 +441,82 @@ function assertQuestionsHaveCorrectAnswers(questions) {
   })
 }
 
-function stripDataUrl(contentBase64) {
-  const raw = String(contentBase64 || '').trim()
-  const match = raw.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/)
-  return match ? match[1] : raw.replace(/\s+/g, '')
-}
 
-export async function uploadClassSpaceImage(payload) {
+export async function createClassSpaceImageUploadUrl(payload) {
   const mime = String(payload?.mimeType || '').toLowerCase()
   const ext = ALLOWED_MIME[mime]
+  const sizeBytes = Number(payload?.sizeBytes)
   if (!ext) throw new AppError('Chỉ nhận ảnh JPG, PNG, WEBP hoặc GIF.')
-  const pure = stripDataUrl(payload?.contentBase64)
-  if (!pure) throw new AppError('Thiếu dữ liệu ảnh.')
-  let bytes
-  try {
-    bytes = Buffer.from(pure, 'base64')
-  } catch {
-    throw new AppError('Ảnh không hợp lệ.')
-  }
-  if (!bytes.length) throw new AppError('Ảnh trống.')
-  if (bytes.length > MAX_IMAGE_BYTES) throw new AppError('Mỗi ảnh tối đa 10MB.')
+  if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > MAX_IMAGE_BYTES) throw new AppError('Mỗi ảnh tối đa 10MB.')
   await ensureImageBucket()
-  const path = `uploads/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`
-  const { error } = await supabaseAdmin.storage.from(IMAGE_BUCKET).upload(path, bytes, {
-    contentType: mime,
-    upsert: false,
-  })
-  if (error) throw new AppError('Không tải được ảnh lên: ' + error.message, 502)
-  return publicImageUrl(path)
+  const safeName = String(payload?.filename || 'image').replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 100)
+  const path = `uploads/${randomUUID()}-${safeName}.${ext}`
+  const result = await supabaseAdmin.storage.from(IMAGE_BUCKET).createSignedUploadUrl(path, { upsert: false })
+  if (result.error) throw new AppError('Không tạo được liên kết tải ảnh.', 502)
+  return { bucket: IMAGE_BUCKET, path, token: result.data.token, signedUrl: result.data.signedUrl, mimeType: mime, sizeBytes }
 }
 
-export async function listClassSpace(profile) {
-  const data = await loadAll()
-  const isAdmin = isAdminRole(profile?.role)
-  // Phòng đang để "Ẩn trong lớp" không hiện trong danh sách chung — trừ chủ
-  // phòng và admin vẫn thấy để quản lý. Phòng ẩn vẫn vào được bằng mã phòng.
-  const visible = data.items.filter((item) => {
-    if (item.visibleInClass !== false) return true
-    const isOwner = !!profile?.id && profile.id === item.ownerId
-    return isOwner || isAdmin
-  })
-  const items = [...visible].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-  return items.map((item) => toPublicMeta(item, profile))
-}
-
-/** Danh sách tài khoản ĐÃ TỪNG TẠO PHÒNG (ít nhất 1 phòng) — dùng cho dropdown
- * "Được tạo bởi" ở bộ lọc phòng. Chỉ trả về ownerId + ownerName (+ cờ singleRoom
- * để client chọn đúng câu ghi chú), TUYỆT ĐỐI không trả mã phòng, tiêu đề hay
- * bất kỳ thông tin nào của phòng — kể cả phòng đang ẩn — nên không thể dùng để
- * vòng qua cơ chế "Ẩn trong lớp". Danh sách phòng thật sự vẫn lấy từ
- * listClassSpace (đã lọc phòng ẩn theo quyền chủ phòng/admin). */
-export async function listClassSpaceCreators() {
-  const data = await loadAll()
-  const byOwner = new Map()
-  for (const item of data.items) {
-    if (!item.ownerId) continue
-    const at = new Date(item.createdAt).getTime() || 0
-    const current = byOwner.get(item.ownerId)
-    if (!current) {
-      byOwner.set(item.ownerId, {
-        ownerId: item.ownerId,
-        ownerName: item.ownerName,
-        count: 1,
-        latestAt: at,
-      })
-      continue
-    }
-    current.count += 1
-    // Lấy tên ở phòng mới nhất (phòng cũ có thể lưu tên cũ của người tạo).
-    if (at >= current.latestAt) {
-      current.ownerName = item.ownerName
-      current.latestAt = at
-    }
+export async function completeClassSpaceImageUpload(payload) {
+  const path = String(payload?.path || '')
+  const mime = String(payload?.mimeType || '').toLowerCase()
+  const ext = ALLOWED_MIME[mime]
+  const sizeBytes = Number(payload?.sizeBytes)
+  if (!ext || !path.startsWith('uploads/') || path.includes('..') || path.split('/').length !== 2 || !Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > MAX_IMAGE_BYTES) {
+    throw new AppError('Thông tin ảnh tải lên không hợp lệ.', 400)
   }
-  return [...byOwner.values()]
-    .sort((a, b) => a.ownerName.localeCompare(b.ownerName, 'vi', { sensitivity: 'base' }))
-    .map((row) => ({
-      ownerId: row.ownerId,
-      ownerName: row.ownerName,
-      singleRoom: row.count === 1,
-    }))
+  const name = path.split('/').pop()
+  const { data, error } = await supabaseAdmin.storage.from(IMAGE_BUCKET).list('uploads', { limit: 100, search: name })
+  if (error) throw new AppError('Không thể xác minh ảnh trên Storage.', 502)
+  const object = (data || []).find((row) => row.name === name)
+  if (!object) throw new AppError('Ảnh chưa được tải lên Storage.', 400)
+  if (Number.isFinite(Number(object.metadata?.size)) && Number(object.metadata.size) !== sizeBytes) throw new AppError('Kích thước ảnh không khớp.', 400)
+  return { url: publicImageUrl(path) }
+}
+
+export async function listClassSpace(profile, query = {}) {
+  const page = Math.min(10000, Math.max(1, Number.parseInt(query.page, 10) || 1))
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(query.pageSize, 10) || 50))
+  const from = (page - 1) * pageSize
+  let request = supabaseAdmin.from('class_spaces').select('*', { count: 'exact' }).order('created_at', { ascending: false })
+  if (!isAdminRole(profile?.role)) {
+    const owner = String(profile?.id || '').replace(/[(),]/g, '')
+    request = request.or(owner ? `visible_in_class.eq.true,owner_id.eq.${owner}` : 'visible_in_class.eq.true')
+  }
+  const result = await request.range(from, from + pageSize - 1)
+  throwDatabaseError(result.error, 'đọc danh sách lớp học')
+  const rows = result.data || []
+  const ids = rows.map((row) => row.id)
+  let ownResults = []
+  if (ids.length && profile?.id) {
+    const own = await supabaseAdmin.from('class_space_results').select('class_space_id,user_id,user_name,correct,total,duration_ms,completed_at')
+      .in('class_space_id', ids).eq('user_id', String(profile.id)).range(0, 99)
+    throwDatabaseError(own.error, 'đọc kết quả cá nhân')
+    ownResults = own.data || []
+  }
+  const resultByRoom = new Map(ownResults.map((row) => [row.class_space_id, row]))
+  const items = rows.map((row) => {
+    const mine = resultByRoom.get(row.id)
+    const meta = normalizeItem({
+      id: row.id, code: row.code, title: row.title, cover: row.cover, backdropType: row.backdrop_type,
+      backdropTheme: row.backdrop_theme, backdropImage: row.backdrop_image, isPublic: row.is_public,
+      visibleInClass: row.visible_in_class, passwordHash: row.password_hash, password: row.password,
+      shuffle: row.shuffle, allowRetry: row.allow_retry, allowMultiTry: row.allow_multi_try,
+      autoAdvanceMultiTry: row.auto_advance_multi_try, showEssayHints: row.show_essay_hints,
+      enableLeaderboard: row.enable_leaderboard, questionCount: row.question_count, questions: [],
+      results: mine ? { [mine.user_id]: { userId: mine.user_id, userName: mine.user_name, correct: mine.correct, total: mine.total,
+        durationMs: mine.duration_ms, completedAt: mine.completed_at } } : {}, attempts: {}, editors: [],
+      ownerId: row.owner_id, ownerName: row.owner_name, createdAt: row.created_at, updatedAt: row.updated_at,
+    })
+    return toPublicMeta(meta, profile)
+  })
+  Object.defineProperty(items, 'pagination', { enumerable: false, value: { page, pageSize, total: result.count || 0, hasMore: from + items.length < (result.count || 0) } })
+  return items
+}
+
+export async function listClassSpaceCreators() {
+  const result = await supabaseAdmin.rpc('list_class_space_creators')
+  throwDatabaseError(result.error, 'đọc danh sách người tạo lớp')
+  return (result.data || []).map((row) => ({ ownerId: row.owner_id, ownerName: row.owner_name, singleRoom: row.single_room === true }))
 }
 
 /** Tra cứu phòng theo mã 6 số — áp dụng cho mọi phòng (công khai/riêng tư,
@@ -496,8 +528,9 @@ export async function getClassSpaceByCode(code, profile) {
   if (!/^\d{6}$/.test(target)) {
     throw new AppError('Mã phòng không đúng hoặc không tồn tại.', 404)
   }
-  const data = await loadAll()
-  const item = data.items.find((row) => row.code === target)
+  const result = await supabaseAdmin.from('class_spaces').select('id').eq('code', target).maybeSingle()
+  throwDatabaseError(result.error, 'tra cứu mã phòng')
+  const item = result.data ? await loadRoom(result.data.id, profile?.id) : null
   if (!item) throw new AppError('Mã phòng không đúng hoặc không tồn tại.', 404)
   return toPublicMeta(item, profile)
 }
@@ -507,16 +540,13 @@ export async function getClassSpaceByCode(code, profile) {
  * lúc tạo phòng (createClassSpace), tránh trường hợp hiếm hai người tạo
  * phòng cùng lúc bị trùng mã. */
 export async function previewNextClassSpaceCode() {
-  const data = await loadAll()
-  const existingCodes = new Set(data.items.map((row) => row.code).filter(Boolean))
-  return generateUniqueRoomCode(existingCodes)
+  return generateRoomCode()
 }
 
 export async function getClassSpaceById(id, { password, profile } = {}) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã lớp học.', 400)
-  const data = await loadAll()
-  const item = data.items.find((row) => row.id === targetId)
+  const item = await loadRoom(targetId, profile?.id)
   if (!item) throw new AppError('Không tìm thấy lớp học.', 404)
 
   if (item.isPublic || canEditClassSpace(item, profile)) return toFullPayload(item, profile)
@@ -542,13 +572,11 @@ export async function createClassSpace(payload, profile) {
     throw new AppError('Lớp riêng tư cần mật khẩu đủ 6 chữ số.', 400)
   }
   const questions = Array.isArray(payload?.questions) ? payload.questions : []
+  if (questions.length > 1000) throw new AppError('Mỗi phòng tối đa 1.000 câu hỏi.', 400)
   assertQuestionsHaveCorrectAnswers(questions)
   const now = new Date().toISOString()
-  const data = await loadAll()
-  // Mã phòng luôn do SERVER sinh ra tại thời điểm tạo (không nhận mã từ
-  // client) để đảm bảo không trùng với bất kỳ phòng nào khác.
-  const existingCodes = new Set(data.items.map((row) => row.code).filter(Boolean))
-  const code = generateUniqueRoomCode(existingCodes)
+  // The database allocates the final unique six-digit code inside the create transaction.
+  const code = generateRoomCode()
   const item = normalizeItem({
     id: randomUUID(),
     code,
@@ -575,17 +603,15 @@ export async function createClassSpace(payload, profile) {
     createdAt: now,
     updatedAt: now,
   })
-  await saveAll([...data.items, item])
+  await saveItem(item)
   return toFullPayload(item, profile)
 }
 
 export async function updateClassSpace(id, payload, profile) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã lớp học.', 400)
-  const data = await loadAll()
-  const idx = data.items.findIndex((row) => row.id === targetId)
-  if (idx === -1) throw new AppError('Không tìm thấy lớp học.', 404)
-  const current = data.items[idx]
+  const current = await loadRoom(targetId, profile?.id)
+  if (!current) throw new AppError('Không tìm thấy lớp học.', 404)
   if (!canEditClassSpace(current, profile)) {
     throw new AppError('Bạn không có quyền chỉnh sửa lớp học này.', 403)
   }
@@ -623,6 +649,7 @@ export async function updateClassSpace(id, payload, profile) {
       : current.password
 
   const questions = Array.isArray(payload?.questions) ? payload.questions : current.questions
+  if (questions.length > 1000) throw new AppError('Mỗi phòng tối đa 1.000 câu hỏi.', 400)
   assertQuestionsHaveCorrectAnswers(questions)
   if (!isOwner && Object.prototype.hasOwnProperty.call(payload || {}, 'editorEmails')) {
     throw new AppError('Chỉ chủ phòng mới được thay đổi quyền editor.', 403)
@@ -656,8 +683,7 @@ export async function updateClassSpace(id, payload, profile) {
     updatedAt: new Date().toISOString(),
   })
 
-  data.items[idx] = updated
-  await saveAll(data.items)
+  await saveItem(updated, current.updatedAt)
   return toFullPayload(updated, profile)
 }
 
@@ -666,10 +692,8 @@ export async function updateClassSpace(id, payload, profile) {
 export async function updateClassSpacePassword(id, payload, profile) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã lớp học.', 400)
-  const data = await loadAll()
-  const idx = data.items.findIndex((row) => row.id === targetId)
-  if (idx === -1) throw new AppError('Không tìm thấy lớp học.', 404)
-  const current = data.items[idx]
+  const current = await loadRoom(targetId, profile?.id)
+  if (!current) throw new AppError('Không tìm thấy lớp học.', 404)
   if (!profile?.id || profile.id !== current.ownerId) {
     throw new AppError('Bạn không phải chủ lớp học này nên không thể đổi mật khẩu.', 403)
   }
@@ -687,8 +711,7 @@ export async function updateClassSpacePassword(id, payload, profile) {
     password: next,
     updatedAt: new Date().toISOString(),
   })
-  data.items[idx] = updated
-  await saveAll(data.items)
+  await saveItem(updated, current.updatedAt)
   return { password: next }
 }
 
@@ -696,59 +719,22 @@ export async function submitClassSpaceResult(id, payload, profile) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã lớp học.', 400)
   if (!profile?.id) throw new AppError('Cần đăng nhập để lưu kết quả.', 401)
-
-  const data = await loadAll()
-  const idx = data.items.findIndex((row) => row.id === targetId)
-  if (idx === -1) throw new AppError('Không tìm thấy lớp học.', 404)
-  const current = data.items[idx]
-  const existing = current.results?.[profile.id]
-  if (existing && current.allowRetry === false) {
-    throw new AppError('Bạn đã hoàn thành phòng này và không được làm lại.', 403)
-  }
-
-  // Thời gian làm bài do SERVER tự tính từ mốc bắt đầu đã ghi nhận trước đó
-  // (xem startClassSpaceAttempt) — KHÔNG lấy durationMs mà client tự gửi lên,
-  // để tránh gian lận.
-  const startedAtIso = current.attempts?.[profile.id]?.startedAt
-  let durationMs = null
-  if (startedAtIso) {
-    const startedMs = new Date(startedAtIso).getTime()
-    if (Number.isFinite(startedMs)) {
-      durationMs = Math.max(0, Date.now() - startedMs)
-    }
-  }
-
+  const current = await loadRoom(targetId, profile.id)
+  if (!current) throw new AppError('Không tìm thấy lớp học.', 404)
   const total = scoreTotalOf(current.questions)
   const correct = Math.max(0, Math.min(total, Math.floor(Number(payload?.correct) || 0)))
-  const nextResults = { ...(current.results || {}) }
-  nextResults[profile.id] = {
-    userId: String(profile.id),
-    userName: String(profile.username || 'Ẩn danh').trim() || 'Ẩn danh',
-    correct,
-    total,
-    durationMs,
-    completedAt: new Date().toISOString(),
-  }
-
-  // Mốc bắt đầu đã được dùng để tính thời gian, xoá đi để lần làm lại sau
-  // (nếu phòng cho phép) phải gọi startClassSpaceAttempt lại từ đầu.
-  const nextAttempts = { ...(current.attempts || {}) }
-  delete nextAttempts[profile.id]
-
-  const updated = normalizeItem({
-    ...current,
-    results: nextResults,
-    attempts: nextAttempts,
-    updatedAt: current.updatedAt,
+  const result = await supabaseAdmin.rpc('submit_class_space_result', {
+    p_class_space_id: targetId, p_user_id: String(profile.id),
+    p_user_name: String(profile.username || 'Ẩn danh').trim() || 'Ẩn danh',
+    p_correct: correct, p_total: total,
   })
-  data.items[idx] = updated
-  await saveAll(data.items)
-
-  const mine = myResultOf(updated, profile)
-  return {
-    myResult: mine,
-    leaderboard: updated.enableLeaderboard ? buildLeaderboard(updated) : [],
-  }
+  if (result.error?.message?.includes('CLASS_SPACE_RETRY_DISABLED')) throw new AppError('Bạn đã hoàn thành phòng này và không được làm lại.', 403)
+  throwDatabaseError(result.error, 'lưu kết quả lớp học')
+  const value = result.data || {}
+  const mine = { correct: Number(value.correct) || 0, total: Number(value.total) || 0,
+    durationMs: value.duration_ms == null ? null : Number(value.duration_ms), completedAt: value.completed_at }
+  const updated = await loadRoom(targetId, profile.id)
+  return { myResult: mine, leaderboard: updated?.enableLeaderboard ? buildLeaderboard(updated) : [] }
 }
 
 /**
@@ -761,33 +747,39 @@ export async function startClassSpaceAttempt(id, profile) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã lớp học.', 400)
   if (!profile?.id) throw new AppError('Cần đăng nhập để làm bài.', 401)
-
-  const data = await loadAll()
-  const idx = data.items.findIndex((row) => row.id === targetId)
-  if (idx === -1) throw new AppError('Không tìm thấy lớp học.', 404)
-  const current = data.items[idx]
-
-  const nextAttempts = { ...(current.attempts || {}) }
+  const item = await loadRoom(targetId, profile.id)
+  if (!item) throw new AppError('Không tìm thấy lớp học.', 404)
   const startedAt = new Date().toISOString()
-  nextAttempts[profile.id] = { startedAt }
-
-  const updated = normalizeItem({ ...current, attempts: nextAttempts })
-  data.items[idx] = updated
-  await saveAll(data.items)
+  const result = await supabaseAdmin.from('class_space_attempts').upsert({
+    class_space_id: targetId, user_id: String(profile.id), started_at: startedAt,
+  }, { onConflict: 'class_space_id,user_id' })
+  throwDatabaseError(result.error, 'ghi nhận lượt làm bài')
   return { startedAt }
 }
 
-export async function getClassSpaceLeaderboard(id, profile) {
+export async function getClassSpaceLeaderboard(id, profile, query = {}) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã lớp học.', 400)
-  const data = await loadAll()
-  const item = data.items.find((row) => row.id === targetId)
+  const item = await loadRoom(targetId, profile?.id)
   if (!item) throw new AppError('Không tìm thấy lớp học.', 404)
-  if (!item.enableLeaderboard) return { leaderboard: [], myResult: myResultOf(item, profile) }
-  return {
-    leaderboard: buildLeaderboard(item),
-    myResult: myResultOf(item, profile),
-  }
+  const page = Math.max(1, Math.min(10000, Number.parseInt(query.page, 10) || 1))
+  const pageSize = Math.max(1, Math.min(100, Number.parseInt(query.pageSize, 10) || 100))
+  const totalQuery = await supabaseAdmin.from('class_space_results').select('user_id', { count: 'exact', head: true }).eq('class_space_id', targetId)
+  throwDatabaseError(totalQuery.error, 'đếm kết quả lớp học')
+  if (!item.enableLeaderboard) return { leaderboard: [], myResult: myResultOf(item, profile), pagination: { page, pageSize, total: totalQuery.count || 0, hasMore: false } }
+  const [result, own] = await Promise.all([
+    supabaseAdmin.rpc('get_class_space_leaderboard', { p_class_space_id: targetId, p_page: page, p_page_size: pageSize }),
+    profile?.id ? supabaseAdmin.from('class_space_results').select('user_id,user_name,correct,total,duration_ms,completed_at').eq('class_space_id', targetId).eq('user_id', String(profile.id)).maybeSingle() : Promise.resolve({ data: null, error: null }),
+  ])
+  throwDatabaseError(result.error, 'đọc bảng xếp hạng')
+  throwDatabaseError(own.error, 'đọc kết quả cá nhân')
+  const leaderboard = (result.data || []).map((row) => ({
+    rank: Number(row.rank), userId: row.user_id, userName: row.user_name,
+    correct: Number(row.correct), total: Number(row.total), durationMs: row.duration_ms == null ? null : Number(row.duration_ms), completedAt: row.completed_at,
+  }))
+  const my = own.data ? { correct: Number(own.data.correct), total: Number(own.data.total), durationMs: own.data.duration_ms == null ? null : Number(own.data.duration_ms), completedAt: own.data.completed_at } : null
+  const total = totalQuery.count || 0
+  return { leaderboard, myResult: my, pagination: { page, pageSize, total, hasMore: page * pageSize < total } }
 }
 
 export async function getUtilityRoster() {
@@ -807,6 +799,7 @@ export async function updateUtilityRoster(payload, profile) {
         .filter((item) => item.name)
     : []
   if (!names.length) throw new AppError('Danh sách PDF không có tên hợp lệ.', 400)
+  if (names.length > 100) throw new AppError('Danh sách PDF tối đa 100 thành viên.', 400)
   const roster = {
     names,
     fileName: String(payload?.fileName || 'danh-sach.pdf').trim() || 'danh-sach.pdf',
@@ -820,16 +813,14 @@ export async function updateUtilityRoster(payload, profile) {
 export async function deleteClassSpace(id, profile) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã lớp học.', 400)
-  const data = await loadAll()
-  const idx = data.items.findIndex((row) => row.id === targetId)
-  if (idx === -1) throw new AppError('Không tìm thấy lớp học.', 404)
-  const current = data.items[idx]
+  const current = await loadRoom(targetId, profile?.id)
+  if (!current) throw new AppError('Không tìm thấy lớp học.', 404)
   const isOwner = !!profile?.id && profile.id === current.ownerId
   const isAdmin = isAdminRole(profile?.role)
   if (!isOwner && !isAdmin) {
     throw new AppError('Bạn không có quyền xoá phòng này.', 403)
   }
-  data.items.splice(idx, 1)
-  await saveAll(data.items)
+  const result = await supabaseAdmin.from('class_spaces').delete().eq('id', targetId)
+  throwDatabaseError(result.error, 'xoá')
   return { id: targetId }
 }

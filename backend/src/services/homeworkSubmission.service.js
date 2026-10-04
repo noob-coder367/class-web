@@ -62,7 +62,8 @@ function dataError(error, fallback) {
     || /could not find the table ['"]?public\.homework_(assignments|submissions)['"]? in the schema cache/i.test(message)) {
     return new AppError('Tính năng nộp bài chưa được cấu hình. Admin cần chạy homework-submission-schema.sql.', 503)
   }
-  return new AppError(`${fallback}: ${message || 'lỗi không xác định'}`, 500)
+  console.error('[homework-submission] database operation failed', { code: error?.code || 'UNKNOWN' })
+  return new AppError(`${fallback}. Vui lòng thử lại sau.`, 500)
 }
 
 function mapAssignment(row) {
@@ -101,38 +102,31 @@ async function removeStoragePaths(paths) {
   }
 }
 
-export async function listAssignments(profile) {
-  const { data, error } = await supabaseAdmin
+export async function listAssignments(profile, { page = 1, pageSize = 50 } = {}) {
+  const safePage = Math.max(1, Number.parseInt(page, 10) || 1)
+  const safeSize = Math.min(100, Math.max(1, Number.parseInt(pageSize, 10) || 50))
+  const from = (safePage - 1) * safeSize
+  const { data, error, count } = await supabaseAdmin
     .from('homework_assignments')
-    .select('*')
+    .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
+    .range(from, from + safeSize - 1)
   if (error) throw dataError(error, 'Không tải được danh sách bài tập')
   const rows = data || []
-  if (!rows.length) return []
-
-  const { data: subs, error: subError } = await supabaseAdmin
-    .from('homework_submissions')
-    .select('assignment_id, user_id, submitted_at, files')
-    .in('assignment_id', rows.map((r) => r.id))
-  if (subError) throw dataError(subError, 'Không tải được danh sách bài nộp')
-
-  const countBy = {}
-  const mineBy = {}
-  for (const sub of subs || []) {
-    countBy[sub.assignment_id] = (countBy[sub.assignment_id] || 0) + 1
-    if (profile?.id && sub.user_id === profile.id) {
-      mineBy[sub.assignment_id] = {
-        submitted_at: sub.submitted_at,
-        file_count: Array.isArray(sub.files) ? sub.files.length : 0,
-      }
-    }
+  if (!rows.length) return { items: [], pagination: { page: safePage, pageSize: safeSize, total: count || 0, hasMore: false } }
+  const { data: summary, error: summaryError } = await supabaseAdmin.rpc('homework_assignment_summary', {
+    p_assignment_ids: rows.map((row) => row.id), p_user_id: profile?.id || null,
+  })
+  if (summaryError) throw dataError(summaryError, 'Không tải được tình trạng bài nộp')
+  const byId = new Map((summary || []).map((row) => [row.assignment_id, row]))
+  return {
+    items: rows.map((row) => {
+      const stats = byId.get(row.id)
+      return { ...mapAssignment(row), submitted_count: Number(stats?.submitted_count) || 0,
+        my_submission: stats?.my_submitted_at ? { submitted_at: stats.my_submitted_at, file_count: Number(stats.my_file_count) || 0 } : null }
+    }),
+    pagination: { page: safePage, pageSize: safeSize, total: count || 0, hasMore: from + rows.length < (count || 0) },
   }
-
-  return rows.map((row) => ({
-    ...mapAssignment(row),
-    submitted_count: countBy[row.id] || 0,
-    my_submission: mineBy[row.id] || null,
-  }))
 }
 
 export async function createAssignment(payload, profile) {
@@ -163,128 +157,165 @@ export async function createAssignment(payload, profile) {
 
 export async function deleteAssignment(id) {
   const row = await getAssignmentRow(id)
-  const { data: subs } = await supabaseAdmin
-    .from('homework_submissions')
-    .select('files')
-    .eq('assignment_id', row.id)
-  const paths = (subs || []).flatMap((s) => (Array.isArray(s.files) ? s.files.map((f) => f.path) : []))
+  const paths = []
+  let from = 0
+  const batchSize = 100
+  while (true) {
+    const { data: subs, error: readError } = await supabaseAdmin
+      .from('homework_submissions').select('files').eq('assignment_id', row.id)
+      .range(from, from + batchSize - 1)
+    if (readError) throw dataError(readError, 'Không đọc được file bài nộp để dọn dẹp')
+    for (const submission of subs || []) {
+      if (Array.isArray(submission.files)) paths.push(...submission.files.map((file) => file.path).filter(Boolean))
+    }
+    if (!subs || subs.length < batchSize) break
+    from += batchSize
+  }
   const { error } = await supabaseAdmin.from('homework_assignments').delete().eq('id', row.id)
   if (error) throw dataError(error, 'Không xóa được bài tập')
   await removeStoragePaths(paths)
   return { id: row.id }
 }
 
-function stripDataUrl(value) {
-  const raw = String(value || '').trim()
-  const match = raw.match(/^data:[^;,]+;base64,(.+)$/s)
-  return match ? match[1].replace(/\s+/g, '') : raw.replace(/\s+/g, '')
-}
-
-function decodeFile(file) {
-  const originalName = asText(file?.name).slice(0, 180) || 'file'
-  const ext = originalName.includes('.')
-    ? originalName.split('.').pop().replace(/[^a-z0-9]/gi, '').toLowerCase()
-    : ''
-  const mime = MIME_BY_EXT[ext]
-  if (!mime) {
-    throw new AppError(`File "${originalName}" không được hỗ trợ. Chỉ nhận ảnh, PDF, Word, Excel, PowerPoint, TXT.`, 400)
-  }
-  const encoded = stripDataUrl(file?.contentBase64)
-  if (!encoded) throw new AppError(`File "${originalName}" không có dữ liệu.`, 400)
-  const buffer = Buffer.from(encoded, 'base64')
-  if (!buffer.length) throw new AppError(`File "${originalName}" trống.`, 400)
-  if (buffer.length > MAX_FILE_BYTES) {
-    throw new AppError(`File "${originalName}" vượt quá giới hạn 20MB.`, 400)
-  }
-  return { originalName, ext, mime, buffer }
-}
-
-export async function submitAssignment(assignmentId, files, profile) {
-  if (!profile?.id) throw new AppError('Cần đăng nhập để nộp bài.', 401)
-  const assignment = await getAssignmentRow(assignmentId)
-
-  const phase = phaseOf(assignment)
-  if (phase === 'upcoming') throw new AppError('Chưa đến ngày nộp bài.', 400)
-  if (phase === 'closed') throw new AppError('Đã hết hạn nộp bài.', 400)
-
-  const { data: existing, error: existingError } = await supabaseAdmin
-    .from('homework_submissions')
-    .select('id, files')
-    .eq('assignment_id', assignment.id)
-    .eq('user_id', profile.id)
-    .maybeSingle()
-  if (existingError) throw dataError(existingError, 'Không kiểm tra được bài đã nộp')
-  if (existing && assignment.allow_resubmit !== true) {
-    throw new AppError('Bài tập này không cho phép nộp lại.', 409)
-  }
-
+function normalizeManifest(files) {
   const list = Array.isArray(files) ? files : []
   if (!list.length) throw new AppError('Chưa chọn ảnh hoặc file để nộp.')
   if (list.length > MAX_FILES) throw new AppError(`Mỗi lần nộp tối đa ${MAX_FILES} file.`)
-  const decoded = list.map(decodeFile)
+  return list.map((file) => {
+    const name = asText(file?.name).slice(0, 180) || 'file'
+    const ext = name.includes('.') ? name.split('.').pop().replace(/[^a-z0-9]/gi, '').toLowerCase() : ''
+    const mime = MIME_BY_EXT[ext]
+    const size = Number(file?.size)
+    if (!mime) throw new AppError(`File "${name}" không được hỗ trợ. Chỉ nhận ảnh, PDF, Word, Excel, PowerPoint, TXT.`, 400)
+    if (!Number.isSafeInteger(size) || size < 1 || size > MAX_FILE_BYTES) throw new AppError(`File "${name}" vượt quá giới hạn 20MB hoặc rỗng.`, 400)
+    return { name, ext, mime, size }
+  })
+}
 
+async function assertSubmissionOpen(assignmentId, profile) {
+  if (!profile?.id) throw new AppError('Cần đăng nhập để nộp bài.', 401)
+  const assignment = await getAssignmentRow(assignmentId)
+  const phase = phaseOf(assignment)
+  if (phase === 'upcoming') throw new AppError('Chưa đến ngày nộp bài.', 400)
+  if (phase === 'closed') throw new AppError('Đã hết hạn nộp bài.', 400)
+  const { data: existing, error } = await supabaseAdmin.from('homework_submissions')
+    .select('id, files').eq('assignment_id', assignment.id).eq('user_id', profile.id).maybeSingle()
+  if (error) throw dataError(error, 'Không kiểm tra được bài đã nộp')
+  if (existing && assignment.allow_resubmit !== true) throw new AppError('Bài tập này không cho phép nộp lại.', 409)
+  return { assignment, existing }
+}
+
+export async function createSubmissionUploadIntent(assignmentId, files, profile) {
+  const { assignment } = await assertSubmissionOpen(assignmentId, profile)
+  const manifest = normalizeManifest(files)
   const { data: bucket, error: bucketError } = await supabaseAdmin.storage.getBucket(BUCKET)
-  if (bucketError || !bucket) {
-    throw new AppError(`Kho dữ liệu "${BUCKET}" chưa được cấu hình trên Supabase.`, 503)
-  }
+  if (bucketError || !bucket) throw new AppError(`Kho dữ liệu "${BUCKET}" chưa được cấu hình trên Supabase.`, 503)
 
-  const uploaded = []
-  const meta = []
+  const { data: intent, error: intentError } = await supabaseAdmin.from('homework_upload_intents')
+    .insert({ assignment_id: assignment.id, user_id: profile.id }).select('id, expires_at').single()
+  if (intentError) throw dataError(intentError, 'Không tạo được phiên tải file')
+  const fileRows = manifest.map((file) => ({
+    intent_id: intent.id,
+    storage_path: `homework-submissions/${assignment.id}/${profile.id}/${randomUUID()}.${file.ext}`,
+    original_name: file.name, mime_type: file.mime, size_bytes: file.size,
+  }))
+  const { error: rowsError } = await supabaseAdmin.from('homework_upload_intent_files').insert(fileRows)
+  if (rowsError) {
+    await supabaseAdmin.from('homework_upload_intents').delete().eq('id', intent.id)
+    throw dataError(rowsError, 'Không lưu được metadata file')
+  }
+  const signedFiles = []
   try {
-    for (const file of decoded) {
-      const path = `homework-submissions/${assignment.id}/${profile.id}/${randomUUID()}.${file.ext}`
-      const { error: uploadError } = await supabaseAdmin.storage
-        .from(BUCKET)
-        .upload(path, file.buffer, { contentType: file.mime, upsert: false })
-      if (uploadError) {
-        throw new AppError('Không tải được file lên Supabase Storage: ' + uploadError.message, 502)
-      }
-      uploaded.push(path)
-      meta.push({ path, name: file.originalName, mime: file.mime, size: file.buffer.length })
+    for (let i = 0; i < fileRows.length; i += 1) {
+      const file = fileRows[i]
+      const { data, error } = await supabaseAdmin.storage.from(BUCKET).createSignedUploadUrl(file.storage_path, { upsert: false })
+      if (error || !data?.token || !data?.signedUrl) throw new AppError('Không tạo được liên kết tải file an toàn.', 502)
+      signedFiles.push({ path: file.storage_path, token: data.token, signedUrl: data.signedUrl, name: file.original_name, mime: file.mime_type })
     }
-
-    const submittedAt = new Date().toISOString()
-    const { error: saveError } = await supabaseAdmin
-      .from('homework_submissions')
-      .upsert(
-        [{
-          assignment_id: assignment.id,
-          user_id: profile.id,
-          user_name: asText(profile.username) || null,
-          files: meta,
-          submitted_at: submittedAt,
-        }],
-        { onConflict: 'assignment_id,user_id' }
-      )
-    if (saveError) throw dataError(saveError, 'Không lưu được bài nộp')
-
-    // Nộp lại: xóa file của lần nộp trước
-    if (existing && Array.isArray(existing.files)) {
-      await removeStoragePaths(existing.files.map((f) => f.path))
-    }
-    return { assignment_id: assignment.id, submitted_at: submittedAt, file_count: meta.length }
-  } catch (err) {
-    await removeStoragePaths(uploaded)
-    throw err
+  } catch (error) {
+    await supabaseAdmin.from('homework_upload_intents').delete().eq('id', intent.id)
+    throw error
   }
+  return { intent_id: intent.id, expires_at: intent.expires_at, files: signedFiles }
+}
+
+export async function completeSubmissionUpload(assignmentId, intentId, profile) {
+  if (!profile?.id) throw new AppError('Cần đăng nhập để nộp bài.', 401)
+  const { data: intent, error: intentError } = await supabaseAdmin.from('homework_upload_intents')
+    .select('id, assignment_id, user_id, expires_at').eq('id', asText(intentId))
+    .eq('assignment_id', asText(assignmentId)).eq('user_id', profile.id).maybeSingle()
+  if (intentError) throw dataError(intentError, 'Không đọc được phiên tải file')
+  if (!intent || Date.parse(intent.expires_at) <= Date.now()) throw new AppError('Phiên tải file đã hết hạn. Hãy tải lại file.', 410)
+  const { data: intentFiles, error: filesError } = await supabaseAdmin.from('homework_upload_intent_files')
+    .select('storage_path, original_name, mime_type, size_bytes').eq('intent_id', intent.id).order('id')
+  if (filesError) throw dataError(filesError, 'Không đọc được metadata file')
+  if (!intentFiles?.length || intentFiles.length > MAX_FILES) throw new AppError('Danh sách file tải lên không hợp lệ.', 400)
+
+  for (const file of intentFiles) {
+    const slash = file.storage_path.lastIndexOf('/')
+    const folder = file.storage_path.slice(0, slash)
+    const filename = file.storage_path.slice(slash + 1)
+    const { data: objects, error } = await supabaseAdmin.storage.from(BUCKET).list(folder, { search: filename, limit: 20 })
+    if (error || !(objects || []).some((object) => object.name === filename && Number(object.metadata?.size) === Number(file.size_bytes))) {
+      throw new AppError(`Không xác minh được file "${file.original_name}". Hãy thử tải lại.`, 400)
+    }
+  }
+
+  const assignment = await getAssignmentRow(assignmentId)
+  const today = todayISO()
+  const { data: committed, error: commitError } = await supabaseAdmin.rpc('homework_commit_submission', {
+    p_intent_id: intent.id, p_user_id: profile.id,
+    p_user_name: asText(profile.username), p_today: today,
+  })
+  if (commitError) {
+    const message = String(commitError.message || '')
+    if (message.includes('ASSIGNMENT_CLOSED')) throw new AppError('Đã hết hạn nộp bài.', 400)
+    if (message.includes('RESUBMIT_NOT_ALLOWED')) throw new AppError('Bài tập này không cho phép nộp lại.', 409)
+    if (message.includes('UPLOAD_INTENT_EXPIRED')) throw new AppError('Phiên tải file đã hết hạn. Hãy tải lại file.', 410)
+    console.error('[homework-submission] atomic commit failed', { code: commitError.code })
+    await removeStoragePaths(intentFiles.map((file) => file.storage_path))
+    throw new AppError('Không lưu được bài nộp. Vui lòng thử lại sau.', 503)
+  }
+  const oldFiles = Array.isArray(committed?.old_files) ? committed.old_files : []
+  await removeStoragePaths(oldFiles.map((file) => file.path))
+  return { assignment_id: assignment.id, submitted_at: committed.submitted_at, file_count: Number(committed.file_count) || intentFiles.length }
+}
+
+export async function cancelSubmissionUpload(intentId, profile) {
+  if (!profile?.id) throw new AppError('Cần đăng nhập.', 401)
+  const { data: intent, error: intentError } = await supabaseAdmin.from('homework_upload_intents')
+    .select('id').eq('id', asText(intentId)).eq('user_id', profile.id).maybeSingle()
+  if (intentError) throw dataError(intentError, 'Không thể hủy phiên tải file')
+  if (!intent) throw new AppError('Không tìm thấy phiên tải file.', 404)
+  const { data: files, error } = await supabaseAdmin.from('homework_upload_intent_files')
+    .select('storage_path').eq('intent_id', intent.id)
+  if (error) throw dataError(error, 'Không thể hủy phiên tải file')
+  const { error: deleteError } = await supabaseAdmin.from('homework_upload_intents')
+    .delete().eq('id', intent.id).eq('user_id', profile.id)
+  if (deleteError) throw dataError(deleteError, 'Không thể hủy phiên tải file')
+  await removeStoragePaths((files || []).map((file) => file.storage_path))
+  return { id: asText(intentId), cancelled: true }
 }
 
 /** Ai đã nộp — mọi thành viên xem được (không kèm file). */
-export async function getAssignmentStatus(id) {
+export async function getAssignmentStatus(id, { page = 1, pageSize = 50 } = {}) {
   const assignment = await getAssignmentRow(id)
-  const { data, error } = await supabaseAdmin
+  const safePage = Math.max(1, Number.parseInt(page, 10) || 1)
+  const safeSize = Math.min(100, Math.max(1, Number.parseInt(pageSize, 10) || 50))
+  const from = (safePage - 1) * safeSize
+  const { data, error, count } = await supabaseAdmin
     .from('homework_submissions')
-    .select('user_id, user_name, submitted_at, files')
+    .select('user_id, user_name, submitted_at, files', { count: 'exact' })
     .eq('assignment_id', assignment.id)
+    .order('submitted_at', { ascending: false })
+    .range(from, from + safeSize - 1)
   if (error) throw dataError(error, 'Không tải được tình trạng nộp bài')
+  const rows = data || []
   return {
     assignment: mapAssignment(assignment),
-    submissions: (data || []).map((row) => ({
-      user_id: row.user_id,
-      user_name: row.user_name || null,
-      submitted_at: row.submitted_at,
-      file_count: Array.isArray(row.files) ? row.files.length : 0,
-    })),
+    submissions: rows.map((row) => ({ user_id: row.user_id, user_name: row.user_name || null,
+      submitted_at: row.submitted_at, file_count: Array.isArray(row.files) ? row.files.length : 0 })),
+    pagination: { page: safePage, pageSize: safeSize, total: count || 0, hasMore: from + rows.length < (count || 0) },
   }
 }
 

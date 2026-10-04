@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
 
@@ -32,40 +33,37 @@ function publicImageUrl(path) {
   return data?.publicUrl || ''
 }
 
-function stripDataUrl(contentBase64) {
-  const raw = String(contentBase64 || '').trim()
-  const match = raw.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/)
-  return match ? match[1] : raw.replace(/\s+/g, '')
+export async function createEventImageUploadUrls(files) {
+  const list = Array.isArray(files) ? files : []
+  if (!list.length || list.length > 5) throw new AppError('Mỗi sự kiện tải tối đa 5 ảnh.', 400)
+  await ensureImageBucket()
+  const uploads = await Promise.all(list.map(async (file) => {
+    const mimeType = String(file?.mimeType || '').toLowerCase()
+    const ext = ALLOWED_MIME[mimeType]
+    const sizeBytes = Number(file?.sizeBytes ?? file?.size)
+    if (!ext) throw new AppError('Chỉ nhận ảnh JPG, PNG, WEBP hoặc GIF.', 400)
+    if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > MAX_IMAGE_BYTES) throw new AppError('Mỗi ảnh tối đa 8MB.', 400)
+    const path = `posts/${randomUUID()}.${ext}`
+    const result = await supabaseAdmin.storage.from(IMAGE_BUCKET).createSignedUploadUrl(path, { upsert: false })
+    if (result.error) throw new AppError('Không tạo được liên kết tải ảnh sự kiện.', 502)
+    return { path, token: result.data.token, signedUrl: result.data.signedUrl, mimeType, sizeBytes }
+  }))
+  return { bucket: IMAGE_BUCKET, uploads }
 }
 
-async function uploadOneImage(file) {
-  const mime = String(file?.mimeType || '').toLowerCase()
-  const ext = ALLOWED_MIME[mime]
-  if (!ext) throw new AppError('Chỉ nhận ảnh JPG, PNG, WEBP hoặc GIF.')
-
-  const pure = stripDataUrl(file.contentBase64)
-  if (!pure) throw new AppError('Thiếu dữ liệu ảnh.')
-
-  let bytes
-  try {
-    bytes = Buffer.from(pure, 'base64')
-  } catch {
-    throw new AppError('Ảnh không hợp lệ.')
-  }
-  if (!bytes.length) throw new AppError('Ảnh trống.')
-  if (bytes.length > MAX_IMAGE_BYTES) {
-    throw new AppError('Mỗi ảnh tối đa 8MB.')
-  }
-
-  await ensureImageBucket()
-  const path = `posts/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`
-  const { error } = await supabaseAdmin.storage.from(IMAGE_BUCKET).upload(path, bytes, {
-    contentType: mime,
-    upsert: false,
-  })
-  if (error) {
-    throw new AppError('Không tải được ảnh lên: ' + error.message, 502)
-  }
+async function verifyEventImage(file) {
+  const path = String(file?.path || '')
+  const mimeType = String(file?.mimeType || '').toLowerCase()
+  const ext = ALLOWED_MIME[mimeType]
+  const sizeBytes = Number(file?.sizeBytes)
+  if (!path.startsWith('posts/') || path.includes('..') || path.split('/').length !== 2 || !ext) throw new AppError('Ảnh sự kiện không hợp lệ.', 400)
+  if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > MAX_IMAGE_BYTES) throw new AppError('Mỗi ảnh tối đa 8MB.', 400)
+  const name = path.split('/').pop()
+  const { data, error } = await supabaseAdmin.storage.from(IMAGE_BUCKET).list('posts', { limit: 100, search: name })
+  if (error) throw new AppError('Không thể xác minh ảnh sự kiện.', 502)
+  const object = (data || []).find((row) => row.name === name)
+  if (!object) throw new AppError('Ảnh chưa được tải lên Storage.', 400)
+  if (Number.isFinite(Number(object.metadata?.size)) && Number(object.metadata.size) !== sizeBytes) throw new AppError('Kích thước ảnh không khớp.', 400)
   return publicImageUrl(path)
 }
 
@@ -95,20 +93,29 @@ async function cleanupExpired() {
   }
 }
 
-export async function listEvents() {
+export async function listEvents(query = {}) {
   await cleanupExpired()
-  const { data, error } = await supabaseAdmin
+  const page = Math.max(1, Number.parseInt(query.page, 10) || 1)
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(query.pageSize, 10) || 50))
+  const from = (page - 1) * pageSize
+  const { data, error, count } = await supabaseAdmin
     .from('events')
-    .select('*')
+    .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
+    .range(from, from + pageSize - 1)
 
-  if (error) throw new AppError('Không tải được sự kiện: ' + error.message, 500)
-  return data || []
+  if (error) {
+    console.error('[events] list query failed', { code: error.code || 'UNKNOWN' })
+    throw new AppError('Không tải được sự kiện. Vui lòng thử lại sau.', 503)
+  }
+  const rows = data || []
+  return Object.assign(rows, { pagination: { page, pageSize, total: count || 0, hasMore: from + rows.length < (count || 0) } })
 }
 
 export async function createEvent(payload, profile) {
   const content = String(payload?.content || '').trim()
   const files = Array.isArray(payload?.images) ? payload.images : []
+  if (files.length > 5) throw new AppError('Mỗi sự kiện tải tối đa 5 ảnh.', 400)
   if (!content && files.length === 0) {
     throw new AppError('Vui lòng nhập nội dung hoặc chọn ít nhất 1 ảnh.')
   }
@@ -131,7 +138,8 @@ export async function createEvent(payload, profile) {
 
   const imageUrls = []
   for (const file of files) {
-    imageUrls.push(await uploadOneImage(file))
+    if (!file?.path) throw new AppError('Tải ảnh bằng Base64 đã bị tắt; hãy tải trực tiếp lên Storage.', 400)
+    imageUrls.push(await verifyEventImage(file))
   }
 
   const row = {

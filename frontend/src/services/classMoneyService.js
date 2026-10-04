@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient.js'
+import { supabase } from '../lib/supabaseClient.js'
 
 const moneyCache = new Map()
 const CACHE_TTL_MS = 5_000
@@ -66,7 +67,11 @@ export async function updateMoneyCollectionMember(id, payload) {
   return result
 }
 export async function uploadMoneyCollectionMemberPhoto(id, payload) {
-  const result = await apiClient.post(`/classroom/money/collection-members/${encodeURIComponent(id)}/photo`, payload, { auth: true, retry: false })
+  const base = `/classroom/money/collection-members/${encodeURIComponent(id)}/photo`
+  const intent = await apiClient.post(`${base}/upload-url`, { mimeType: payload.mimeType, sizeBytes: payload.blob.size }, { auth: true, retry: false })
+  const { error } = await supabase.storage.from(intent.bucket).uploadToSignedUrl(intent.path, intent.token, payload.blob, { contentType: intent.mimeType, upsert: false })
+  if (error) throw new Error(error.message || 'Không tải được ảnh lên Storage.')
+  const result = await apiClient.post(base, { path: intent.path, mimeType: intent.mimeType, sizeBytes: intent.sizeBytes }, { auth: true, retry: false })
   invalidateMoneyCache()
   return result
 }

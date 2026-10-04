@@ -360,15 +360,9 @@ export default function RulesBoard({
     setSaving(true)
     setError('')
     try {
-      const photoPayloads = []
-      for (const item of photos) {
-        const prepared = await prepareImageForUpload(item.file)
-        photoPayloads.push({
-          filename: prepared.name,
-          mimeType: prepared.type,
-          contentBase64: await readAsDataUrl(prepared),
-        })
-      }
+      const preparedPhotos = []
+      for (const item of photos) preparedPhotos.push(await prepareImageForUpload(item.file))
+      const photoPayloads = preparedPhotos.length ? await classroomService.uploadViolationPhotos(preparedPhotos) : []
       await onAddViolation?.({
         date: form.date || todayISO(),
         period: form.period,
@@ -949,14 +943,7 @@ export default function RulesBoard({
   )
 }
 
-function readAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(new Error('Không đọc được file ảnh.'))
-    reader.readAsDataURL(file)
-  })
-}
+
 
 async function prepareImageForUpload(file) {
   if (file.type === 'image/gif') return file

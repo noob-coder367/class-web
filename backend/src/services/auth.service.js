@@ -1,5 +1,4 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
-import { readStore as readDbStore, updateStore as updateDbStore } from '../utils/classroomDbStore.js'
 import { env } from '../config/env.js'
 import { normalizeRole } from '../lib/roles.js'
 
@@ -12,9 +11,6 @@ export class AppError extends Error {
 
 const PENDING_USERNAME_PREFIX = 'pending:'
 const PROFILE_COLUMNS = 'id, username, email, is_member, role, created_at, updated_at'
-const DATA_BUCKET = 'classroom-data'
-const USERNAME_CHANGES_PATH = 'username-changes.json'
-const GHOST_STATE_PATH = 'ghost-accounts.json'
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 const MAX_CHANGES_PER_WEEK = 2
 const GHOST_EMAIL_PREFIX = 'taikhoanma-'
@@ -109,54 +105,29 @@ async function findProfileById(userId) {
   return data
 }
 
-async function readUsernameChanges() {
-  const parsed = await readDbStore({ key: 'username-changes', legacyPath: USERNAME_CHANGES_PATH, empty: {}, label: 'lịch sử đổi tên' })
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new AppError('Dữ liệu lịch sử đổi tên bị hỏng.', 503)
-  }
-  return parsed
-}
-
 async function ensureDataBucket() {
   return true
 }
 
-async function readGhostState() {
-  const parsed = await readDbStore({ key: 'ghost-state', legacyPath: GHOST_STATE_PATH, empty: { nextIndex: 1, created: [] }, label: 'bộ đếm tài khoản ma' })
-  const nextIndex = Number(parsed?.nextIndex)
-  if (!Number.isSafeInteger(nextIndex) || nextIndex < 1 || !Array.isArray(parsed?.created) || (parsed?.reserved !== undefined && !Array.isArray(parsed.reserved))) {
-    throw new AppError('Dữ liệu bộ đếm tài khoản ma bị hỏng.', 503)
+async function callGhostRpc(name, args = {}) {
+  const { data, error } = await supabaseAdmin.rpc(name, args)
+  if (error) {
+    const message = String(error.message || '')
+    if (message.includes('GHOST_DAILY_LIMIT')) {
+      throw new AppError('Hôm nay đã hết lượt tài khoản ma (tối đa 2 tài khoản/ngày trên toàn hệ thống).')
+    }
+    console.error('[auth] ghost database operation failed', { operation: name, code: error.code })
+    throw new AppError('Không thể xử lý đăng ký tài khoản ma. Vui lòng thử lại sau.', 503)
   }
-  return { nextIndex, created: parsed.created, reserved: Array.isArray(parsed.reserved) ? parsed.reserved : [] }
-}
-
-function remainingGhostToday(created) {
-  const today = vietnamDayKey()
-  const used = (created || []).filter((item) => vietnamDayKey(Number(item?.at) || 0) === today).length
-  return Math.max(0, GHOST_DAILY_LIMIT - used)
-}
-
-function remainingGhostTodayForState(state) {
-  const today = vietnamDayKey()
-  const created = (state.created || []).filter((item) => vietnamDayKey(Number(item?.at) || 0) === today)
-  const reserved = (state.reserved || []).filter((item) => vietnamDayKey(Number(item?.at) || 0) === today)
-  return Math.max(0, GHOST_DAILY_LIMIT - created.length - reserved.length)
-}
-
-let ghostLock = Promise.resolve()
-function withGhostLock(fn) {
-  const run = ghostLock.then(fn, fn)
-  ghostLock = run.then(() => undefined, () => undefined)
-  return run
+  return data
 }
 
 export async function previewGhostAccount() {
-  const state = await readGhostState()
-  const remainingToday = remainingGhostTodayForState(state)
+  const data = await callGhostRpc('ghost_preview_account')
   return {
-    email: remainingToday > 0 ? ghostEmailFor(state.nextIndex) : null,
-    nextIndex: state.nextIndex,
-    remainingToday,
+    email: data?.email || null,
+    nextIndex: Number(data?.nextIndex) || 1,
+    remainingToday: Number(data?.remainingToday) || 0,
     limit: GHOST_DAILY_LIMIT,
   }
 }
@@ -186,15 +157,17 @@ async function sendSignupConfirmationEmail(email) {
 }
 
 export async function getUsernameChangeStatus(userId) {
-  const map = await readUsernameChanges()
-  const list = Array.isArray(map[userId]) ? map[userId] : []
-  const weekAgo = Date.now() - WEEK_MS
-  const recent = list.filter((t) => Number(t) > weekAgo)
-  return {
-    remaining: Math.max(0, MAX_CHANGES_PER_WEEK - recent.length),
-    max: MAX_CHANGES_PER_WEEK,
-    recentCount: recent.length,
+  const { count, error } = await supabaseAdmin
+    .from('username_changes')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('changed_at', new Date(Date.now() - WEEK_MS).toISOString())
+  if (error) {
+    console.error('[auth] username history query failed', { code: error.code })
+    throw new AppError('Không thể tải lịch sử đổi tên.', 503)
   }
+  const recentCount = Number(count) || 0
+  return { remaining: Math.max(0, MAX_CHANGES_PER_WEEK - recentCount), max: MAX_CHANGES_PER_WEEK, recentCount }
 }
 
 async function upsertProfile({ userId, username, email, isMember }) {
@@ -286,99 +259,40 @@ async function registerGhostUser({ password, isMember, secretCode }) {
     throw new AppError('Tài khoản ma chỉ đăng ký được với mã thành viên 10A4!')
   }
 
-  return withGhostLock(async () => {
-    const state = await readGhostState()
-    const remainingToday = remainingGhostTodayForState(state)
-    if (remainingToday <= 0) {
-      throw new AppError('Hôm nay đã hết lượt tài khoản ma (tối đa 2 tài khoản/ngày trên toàn hệ thống).')
-    }
+  const reservation = await callGhostRpc('ghost_reserve_account')
+  const reservationId = reservation?.reservationId
+  const index = Number(reservation?.index)
+  if (!reservationId || !Number.isSafeInteger(index) || index < 1) {
+    throw new AppError('Không thể giữ lượt đăng ký tài khoản ma.', 503)
+  }
 
-    const reservationAt = Date.now()
-    const reservationId = `${reservationAt}-${Math.random().toString(36).slice(2)}`
-    await updateDbStore('ghost-state', (current) => {
-      const normalized = {
-        nextIndex: Number(current?.nextIndex),
-        created: Array.isArray(current?.created) ? current.created : [],
-        reserved: Array.isArray(current?.reserved) ? current.reserved : [],
-      }
-      if (remainingGhostTodayForState(normalized) <= 0) {
-        throw new AppError('Hôm nay đã hết lượt tài khoản ma (tối đa 2 tài khoản/ngày trên toàn hệ thống).')
-      }
-      const index = normalized.nextIndex
-      return {
-        ...normalized,
-        nextIndex: index + 1,
-        reserved: [...normalized.reserved, { id: reservationId, index, at: reservationAt }],
-      }
-    }, { empty: { nextIndex: 1, created: [], reserved: [] }, label: 'bộ đếm tài khoản ma' })
-
-    let user = null
-    let profile = null
-    let index = null
-    let cleanEmail = ''
-    try {
-      const reservedState = await readGhostState()
-      const reservation = reservedState.reserved.find((item) => item.id === reservationId)
-      if (!reservation) throw new AppError('Không thể xác nhận lượt đăng ký tài khoản ma.', 503)
-      index = Number(reservation.index)
-      cleanEmail = ghostEmailFor(index)
-
-      user = await createAuthUser({
-        email: cleanEmail,
-        password,
-        emailConfirm: true,
-        reuseExisting: false,
-      })
-
-      profile = await upsertProfile({
-        userId: user.id,
-        username: pendingUsernameFor(user.id),
-        email: cleanEmail,
-        isMember: true,
-      })
-
-      await updateDbStore('ghost-state', (current) => {
-        const reserved = Array.isArray(current?.reserved) ? current.reserved : []
-        const stillReserved = reserved.some((item) => item?.id === reservationId)
-        if (!stillReserved) throw new AppError('Không tìm thấy lượt đăng ký tài khoản ma đang giữ.', 409)
-        return {
-          nextIndex: Number(current.nextIndex),
-          reserved: reserved.filter((item) => item?.id !== reservationId),
-          created: [...(Array.isArray(current.created) ? current.created : []), { index, at: reservationAt, userId: user.id }],
-        }
-      }, { label: 'bộ đếm tài khoản ma' })
-    } catch (error) {
-      // A ghost account is never reported as successful unless final state
-      // persistence succeeded. Best-effort cleanup prevents orphan accounts.
-      if (user?.id) {
-        await supabaseAdmin.from('profiles').delete().eq('id', user.id)
-        await supabaseAdmin.auth.admin.deleteUser(user.id)
-      }
-      await updateDbStore('ghost-state', (current) => ({
-        nextIndex: Number(current.nextIndex),
-        created: Array.isArray(current.created) ? current.created : [],
-        reserved: (Array.isArray(current.reserved) ? current.reserved : []).filter((item) => item?.id !== reservationId),
-      }), { label: 'bộ đếm tài khoản ma' }).catch((rollbackError) => {
-        console.error('[auth] ghost reservation rollback failed', { key: 'ghost-state', code: rollbackError?.code })
-      })
-      throw error
-    }
-
-    const { data: signed, error: signError } = await supabaseAdmin.auth.signInWithPassword({
+  let user = null
+  let cleanEmail = ghostEmailFor(index)
+  let profile = null
+  try {
+    user = await createAuthUser({ email: cleanEmail, password, emailConfirm: true, reuseExisting: false })
+    profile = await upsertProfile({
+      userId: user.id,
+      username: pendingUsernameFor(user.id),
       email: cleanEmail,
-      password,
+      isMember: true,
     })
-    if (signError || !signed?.session) {
-      throw new AppError('Tạo tài khoản ma thành công nhưng không đăng nhập được. Hãy thử đăng nhập lại.')
+    await callGhostRpc('ghost_finalize_account', { p_reservation_id: reservationId, p_user_id: user.id })
+  } catch (error) {
+    if (user?.id) {
+      await supabaseAdmin.from('profiles').delete().eq('id', user.id)
+      await supabaseAdmin.auth.admin.deleteUser(user.id)
     }
+    await callGhostRpc('ghost_rollback_account', { p_reservation_id: reservationId, p_user_id: user?.id || null })
+      .catch((rollbackError) => console.error('[auth] ghost reservation rollback failed', { code: rollbackError?.statusCode || 'RPC_ERROR' }))
+    throw error
+  }
 
-    return {
-      email: cleanEmail,
-      ghost: true,
-      session: signed.session,
-      profile: toPublicProfile(profile),
-    }
-  })
+  const { data: signed, error: signError } = await supabaseAdmin.auth.signInWithPassword({ email: cleanEmail, password })
+  if (signError || !signed?.session) {
+    throw new AppError('Tạo tài khoản ma thành công nhưng không đăng nhập được. Hãy thử đăng nhập lại.')
+  }
+  return { email: cleanEmail, ghost: true, session: signed.session, profile: toPublicProfile(profile) }
 }
 
 export async function registerUser({
@@ -533,46 +447,28 @@ export async function setDisplayName(userId, rawName, { countAsChange = false, s
     }
   }
 
-  // Reserve the weekly history slot with a versioned mutation before changing
-  // the profile. This prevents two concurrent requests from both passing the
-  // quota check and losing one another's history entry.
-  const changeAt = Date.now()
-  let historyReserved = false
-  if (!skipLimit && !wasPending) {
-    await updateDbStore('username-changes', (map) => {
-      const next = map && typeof map === 'object' && !Array.isArray(map) ? map : null
-      if (!next) throw new AppError('Dữ liệu lịch sử đổi tên bị hỏng.', 503)
-      const weekAgo = Date.now() - WEEK_MS
-      const recent = (Array.isArray(next[userId]) ? next[userId] : []).filter((t) => Number(t) > weekAgo)
-      if (recent.length >= MAX_CHANGES_PER_WEEK) throw new AppError('Bạn chỉ được đổi tên tối đa 2 lần trong 1 tuần.')
-      historyReserved = true
-      return { ...next, [userId]: [...recent, changeAt] }
-    }, { empty: {}, label: 'lịch sử đổi tên' })
-  }
+  const recordChange = !skipLimit && !wasPending
+  const { data, error } = await supabaseAdmin.rpc('change_display_name', {
+    p_user_id: userId,
+    p_username: cleanUsername,
+    p_record_change: recordChange,
+  })
 
-  // Luôn ghi updated_at tường minh — tránh forcePendingIfAutoNamed reset lại
-  // tên sau khi user/admin đã đặt (nếu DB không có trigger updated_at).
-  const { data, error } = await supabaseAdmin
-    .from('profiles')
-    .update({ username: cleanUsername, updated_at: new Date().toISOString() })
-    .eq('id', userId)
-    .select(PROFILE_COLUMNS)
-    .maybeSingle()
-
-  if (error || !data) {
-    if (historyReserved) {
-      await updateDbStore('username-changes', (map) => ({
-        ...map,
-        [userId]: (Array.isArray(map?.[userId]) ? map[userId] : []).filter((t) => Number(t) !== changeAt),
-      }), { label: 'lịch sử đổi tên' }).catch((rollbackError) => {
-        console.error('[auth] username history rollback failed', { key: 'username-changes', code: rollbackError?.code })
-      })
+  if (error) {
+    const message = String(error.message || '')
+    if (message.includes('USERNAME_WEEKLY_LIMIT')) {
+      throw new AppError('Bạn chỉ được đổi tên tối đa 2 lần trong 1 tuần.')
     }
-    if (error) throw new AppError('Không thể lưu tên hiển thị.', 503)
-    throw new AppError('Không tìm thấy hồ sơ.', 404)
+    if (error.code === '23505' || /duplicate key|unique constraint/i.test(message)) {
+      throw new AppError('Tên hiển thị này đã được sử dụng!')
+    }
+    if (error.code === 'P0002') throw new AppError('Không tìm thấy hồ sơ.', 404)
+    console.error('[auth] display name update failed', { code: error.code })
+    throw new AppError('Không thể lưu tên hiển thị.', 503)
   }
-
-  return toPublicProfile(data)
+  const updated = Array.isArray(data) ? data[0] : data
+  if (!updated) throw new AppError('Không tìm thấy hồ sơ.', 404)
+  return toPublicProfile(updated)
 }
 
 async function ensureProfile(user) {

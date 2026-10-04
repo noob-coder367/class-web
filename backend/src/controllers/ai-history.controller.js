@@ -16,7 +16,7 @@ export async function quota(req, res, next) {
 export async function listConversations(req, res, next) {
   try {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
-    res.json({ conversations: await aiHistoryService.listConversations(userId(req)) })
+    res.json(await aiHistoryService.listConversations(userId(req), { page: req.query.page, pageSize: req.query.pageSize }))
   } catch (err) {
     next(err)
   }
@@ -33,7 +33,7 @@ export async function createConversation(req, res, next) {
 export async function getConversation(req, res, next) {
   try {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
-    res.json(await aiHistoryService.getConversation(userId(req), req.params.id))
+    res.json(await aiHistoryService.getConversation(userId(req), req.params.id, { page: req.query.page, pageSize: req.query.pageSize }))
   } catch (err) {
     next(err)
   }

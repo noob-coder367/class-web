@@ -14,10 +14,8 @@ import CreateClassPage from './CreateClassPage.jsx'
 import ClassPlayView from './ClassPlayView.jsx'
 import UtilityToolsPanel, { IconWrench } from './UtilityToolsPanel.jsx'
 import { isRoomCompletedLocked } from '../lib/classPlayScore.js'
-import PresentationHome from './presentation/PresentationHome.jsx'
 import ProfileMenu from './ProfileMenu.jsx'
 import {
-  ROUTES,
   classTabPath,
   parseClassPath,
   classSpaceListPath,
@@ -171,33 +169,6 @@ function IconArrowRight() {
   )
 }
 
-function IconAI() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.85"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 3.5l1.35 4.15L17.5 9l-4.15 1.35L12 14.5l-1.35-4.15L6.5 9l4.15-1.35Z" />
-      <path d="M18.5 14.5l.65 1.85L21 17l-1.85.65L18.5 19.5l-.65-1.85L16 17l1.85-.65Z" />
-      <path d="M5.5 14.5l.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5-1.5-.5 1.5-.5Z" />
-    </svg>
-  )
-}
-
-function IconPresentation() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="13" rx="2" />
-      <path d="M8 21h8M12 17v4M7 9h10M7 12h6" />
-    </svg>
-  )
-}
-
 function IconWallet() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -248,13 +219,11 @@ const TABS = [
   { id: 'rules', label: 'Nội quy lớp', icon: IconShield },
   { id: 'cleaning-duty', label: 'Vệ sinh lớp', icon: IconBroom },
   { id: 'class-space', label: 'Lớp học', icon: IconDoor },
-  { id: 'presentation', label: 'Thuyết trình', icon: IconPresentation },
-  { id: 'ai', label: 'AI', icon: IconAI },
   { id: 'utilities', label: 'Tiện ích phụ', icon: IconWrench },
   { id: 'class-money', label: 'Tiền lớp', icon: IconWallet, adminOnly: true },
 ]
 
-const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty', 'presentation'])
+const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty'])
 const EMPTY_CAPS = capabilitiesFor('user')
 
 export default function ClassRoomView({ onClose, initialTab = 'home' }) {
@@ -284,7 +253,9 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
   const [editingClass, setEditingClass] = useState(null)
   const [playingClass, setPlayingClass] = useState(null)
   const [classSpaceItems, setClassSpaceItems] = useState([])
+  const [classSpacePagination, setClassSpacePagination] = useState(null)
   const [classSpaceLoading, setClassSpaceLoading] = useState(true)
+  const [classSpaceLoadingMore, setClassSpaceLoadingMore] = useState(false)
   const [classSpaceError, setClassSpaceError] = useState('')
   const [passwordPromptClass, setPasswordPromptClass] = useState(null)
   const [passwordInput, setPasswordInput] = useState('')
@@ -467,18 +438,6 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
           setRules(null)
           setViolations([])
           setItems([])
-        } else if (activeTab === 'presentation') {
-          // Presentation có API và persistence riêng, không đi qua
-          // classroomService.getTabContent() (chỉ nhận các tab lớp cũ).
-          setTimetable(null)
-          setRules(null)
-          setViolations([])
-          setItems([])
-        } else if (activeTab === 'ai') {
-          setTimetable(null)
-          setRules(null)
-          setViolations([])
-          setItems([])
         } else if (activeTab === 'utilities') {
           setTimetable(null)
           setRules(null)
@@ -576,8 +535,9 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
     setClassSpaceError('')
     refreshRoomCreators()
     try {
-      const data = await classroomService.listClassSpace()
+      const data = await classroomService.listClassSpace({ page: 1, pageSize: 100 })
       setClassSpaceItems(Array.isArray(data?.items) ? data.items : [])
+      setClassSpacePagination(data?.pagination || null)
     } catch (err) {
       setClassSpaceError(err?.message || 'Không tải được danh sách phòng.')
     } finally {
@@ -585,7 +545,27 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
     }
   }, [refreshRoomCreators])
 
-  // Dropdown "Được tạo bởi": người đã có ít nhất 1 phòng (từ backend) + người
+  const loadMoreClassSpaces = useCallback(async () => {
+    if (!classSpacePagination?.hasMore || classSpaceLoadingMore) return
+    const page = (Number(classSpacePagination.page) || 1) + 1
+    setClassSpaceLoadingMore(true)
+    try {
+      const data = await classroomService.listClassSpace({ page, pageSize: 100 })
+      const incoming = Array.isArray(data?.items) ? data.items : []
+      setClassSpaceItems((previous) => {
+        const byId = new Map(previous.map((item) => [item.id, item]))
+        for (const item of incoming) byId.set(item.id, item)
+        return [...byId.values()]
+      })
+      setClassSpacePagination(data?.pagination || null)
+    } catch (err) {
+      setClassSpaceError(err?.message || 'Không tải thêm được phòng.')
+    } finally {
+      setClassSpaceLoadingMore(false)
+    }
+  }, [classSpacePagination, classSpaceLoadingMore])
+
+  // Dropdown "Được tạo bởi: người đã có ít nhất 1 phòng (từ backend) + người
   // tạo của các phòng đang hiển thị (phòng hờ khi backend chưa trả được danh sách).
   const roomOwnerOptions = useMemo(() => {
     const byId = new Map()
@@ -891,8 +871,6 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
         activeTab !== 'homework' &&
         activeTab !== 'cleaning-duty' &&
         activeTab !== 'class-space' &&
-        activeTab !== 'presentation' &&
-        activeTab !== 'ai' &&
         activeTab !== 'utilities'
     ) {
       return (
@@ -1075,30 +1053,14 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
               })}
             </div>
           )}
-        </>
-      )
-    }
-
-    if (activeTab === 'presentation') {
-      return <PresentationHome mode="list" embedded />
-    }
-
-    if (activeTab === 'ai') {
-      return (
-        <div className="classroom-ai-entry">
-          <div className="classroom-ai-entry-copy">
-            <span className="classroom-ai-entry-icon"><IconAI /></span>
-            <div>
-              <p className="classroom-ai-entry-kicker">AI Assistant</p>
-              <h2>Trợ lý AI dành riêng cho Class-Web</h2>
-              <p>Hỏi nhanh về thời khóa biểu, bài tập, kiểm tra và thông báo của lớp.</p>
+          {classSpacePagination?.hasMore ? (
+            <div className="class-space-load-more-wrap">
+              <button type="button" className="class-space-load-more" onClick={loadMoreClassSpaces} disabled={classSpaceLoadingMore}>
+                {classSpaceLoadingMore ? 'Đang tải…' : 'Tải thêm phòng'}
+              </button>
             </div>
-          </div>
-          <button type="button" className="classroom-ai-entry-button" onClick={() => navigate(ROUTES.ai)}>
-            <span>Trò chuyện với AI</span>
-            <IconArrowRight />
-          </button>
-        </div>
+          ) : null}
+        </>
       )
     }
 

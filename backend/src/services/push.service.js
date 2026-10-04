@@ -4,13 +4,9 @@ import { supabaseAdmin } from '../config/supabaseClient.js'
 import { env } from '../config/env.js'
 import { AppError } from './auth.service.js'
 
-const DATA_BUCKET = 'classroom-data'
-const DATA_PATH = 'push-subscriptions.json'
 const TABLE = 'push_subscriptions'
 
 let vapidReady = false
-/** 'unknown' | 'table' | 'json' */
-let storeMode = 'unknown'
 
 function newReceiptToken() {
   return randomBytes(32).toString('hex')
@@ -26,6 +22,13 @@ function isMissingTableError(error) {
     /relation .* does not exist/i.test(msg) ||
     /schema cache/i.test(msg)
   )
+}
+
+function tableError(error, operation) {
+  if (isMissingTableError(error)) {
+    return new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
+  }
+  return new AppError(`${operation}: ${error?.message || 'lỗi cơ sở dữ liệu.'}`, 502)
 }
 
 function defaultReceiptUrl() {
@@ -71,8 +74,7 @@ function normalizeSub(raw) {
   const p256dh = String(raw.keys?.p256dh || raw.p256dh || '').trim()
   const auth = String(raw.keys?.auth || raw.auth || '').trim()
   if (!endpoint || !p256dh || !auth) return null
-  const last =
-    raw.lastReceivedAt || raw.last_received_at || raw.lastReceived_at || null
+  const last = raw.lastReceivedAt || raw.last_received_at || raw.lastReceived_at || null
   let lastIso = null
   if (last) {
     const t = new Date(last)
@@ -95,120 +97,33 @@ function rowToSub(row) {
   return normalizeSub(row)
 }
 
-async function ensureDataBucket() {
-  throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
-}
-
-async function readStore() {
-  throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
-}
-
-async function writeStore(store) {
-  void store
-  throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
-}
-
-async function mutateJson(mutator) {
-  void mutator
-  throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
-}
-
-async function detectStoreMode() {
-  if (storeMode !== 'unknown') return storeMode
-  const { error } = await supabaseAdmin.from(TABLE).select('id').limit(1)
-  if (!error) {
-    storeMode = 'table'
-    await maybeMigrateJsonToTable()
-    return storeMode
-  }
-  if (isMissingTableError(error)) {
-    throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
-    console.warn(
-      '[push] Bảng push_subscriptions chưa có — dùng JSON storage. Hãy chạy supabase/push-subscriptions.sql trên Supabase.'
-    )
-    return storeMode
-  }
-  console.warn('[push] không kiểm tra được bảng push_subscriptions:', error.message)
-  throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
-  return storeMode
-}
-
-async function maybeMigrateJsonToTable() {
-  if (jsonMigrated) return
-  jsonMigrated = true
-  try {
-    await ensureDataBucket()
-    const store = await readStore()
-    const list = store.subscriptions || []
-    if (!list.length) return
-
-    let moved = 0
-    for (const sub of list) {
-      if (!sub.userId || !sub.endpoint) continue
-      const token = sub.receiptToken || newReceiptToken()
-      const row = {
-        user_id: sub.userId,
-        endpoint: sub.endpoint,
-        p256dh: sub.keys.p256dh,
-        auth: sub.keys.auth,
-        user_agent: sub.userAgent || '',
-        receipt_token: token,
-        receipt_url: sub.receiptUrl || null,
-        last_received_at: sub.lastReceivedAt || null,
-        updated_at: sub.updatedAt || new Date().toISOString(),
-        created_at: sub.createdAt || new Date().toISOString(),
-      }
-      const { error } = await supabaseAdmin.from(TABLE).upsert(row, { onConflict: 'endpoint' })
-      if (error) {
-        console.warn('[push] migrate 1 subscription thất bại:', error.message)
-        continue
-      }
-      moved += 1
+async function listSubscriptions(userIds = null) {
+  const ids = Array.isArray(userIds) ? [...new Set(userIds.map(String).filter(Boolean))] : null
+  const chunks = ids?.length ? Array.from({ length: Math.ceil(ids.length / 100) }, (_, i) => ids.slice(i * 100, (i + 1) * 100)) : [null]
+  const rows = []
+  for (const idChunk of chunks) {
+    for (let from = 0; ; from += 100) {
+      let query = supabaseAdmin.from(TABLE)
+        .select('id,user_id,endpoint,p256dh,auth,user_agent,receipt_token,receipt_url,last_received_at,created_at,updated_at')
+        .order('id', { ascending: true }).range(from, from + 99)
+      if (idChunk) query = query.in('user_id', idChunk)
+      const { data, error } = await query
+      if (error) throw tableError(error, 'Không đọc được subscription')
+      rows.push(...(data || []))
+      if (!data || data.length < 100) break
     }
-    if (moved) {
-      console.log(`[push] đã migrate ${moved}/${list.length} subscription từ JSON sang bảng.`)
-    }
-  } catch (err) {
-    jsonMigrated = false
-    console.warn('[push] migrate JSON → table thất bại:', err?.message || err)
   }
-}
-
-async function listSubscriptions() {
-  const mode = await detectStoreMode()
-  if (mode === 'table') {
-    const { data, error } = await supabaseAdmin.from(TABLE).select('*')
-    if (error) {
-      if (isMissingTableError(error)) {
-        throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
-        return (await readStore()).subscriptions
-      }
-      throw new AppError('Không đọc được subscription: ' + error.message, 502)
-    }
-    return (data || []).map(rowToSub).filter(Boolean)
-  }
-  await ensureDataBucket()
-  return (await readStore()).subscriptions
+  return rows.map(rowToSub).filter(Boolean)
 }
 
 async function removeByEndpoints(endpoints) {
   const gone = new Set((endpoints || []).map(String).filter(Boolean))
   if (!gone.size) return
-  const mode = await detectStoreMode()
-  if (mode === 'table') {
-    const { error } = await supabaseAdmin.from(TABLE).delete().in('endpoint', [...gone])
-    if (error) {
-      if (isMissingTableError(error)) {
-        throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
-      } else {
-        console.warn('[push] xóa subscription chết thất bại:', error.message)
-        return
-      }
-    } else {
-      return
-    }
+  const { error } = await supabaseAdmin.from(TABLE).delete().in('endpoint', [...gone])
+  if (error) {
+    if (isMissingTableError(error)) throw tableError(error)
+    console.warn('[push] xóa subscription chết thất bại:', error.message)
   }
-  await mutateJson((current) => current.filter((s) => !gone.has(s.endpoint)))
 }
 
 export function getPublicVapidKey() {
@@ -228,95 +143,38 @@ export async function saveSubscription(userId, subscription, userAgent = '', ext
   const endpoint = String(subscription.endpoint)
   const now = new Date().toISOString()
   const receiptUrl = String(extras.receiptUrl || defaultReceiptUrl() || '')
+  const { data: existing, error: readError } = await supabaseAdmin
+    .from(TABLE)
+    .select('receipt_token, receipt_url, last_received_at, created_at')
+    .eq('endpoint', endpoint)
+    .maybeSingle()
 
-  const mode = await detectStoreMode()
-  if (mode === 'table') {
-    const { data: existing, error: readError } = await supabaseAdmin
-      .from(TABLE)
-      .select('receipt_token, receipt_url, last_received_at, created_at')
-      .eq('endpoint', endpoint)
-      .maybeSingle()
+  if (readError) throw tableError(readError, 'Không đọc được subscription')
 
-    if (readError && isMissingTableError(readError)) {
-      throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
-    } else if (readError) {
-      throw new AppError('Không đọc được subscription: ' + readError.message, 502)
-    }
-
-    if (storeMode === 'table') {
-      const row = {
-        user_id: String(userId),
-        endpoint,
-        p256dh: String(subscription.keys.p256dh),
-        auth: String(subscription.keys.auth),
-        user_agent: String(userAgent || '').slice(0, 200),
-        receipt_token: existing?.receipt_token || newReceiptToken(),
-        receipt_url: receiptUrl || existing?.receipt_url || null,
-        updated_at: now,
-        created_at: existing?.created_at || now,
-      }
-      const { error } = await supabaseAdmin.from(TABLE).upsert(row, { onConflict: 'endpoint' })
-      if (error) {
-        if (isMissingTableError(error)) {
-          throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
-        } else {
-          throw new AppError('Không lưu được subscription: ' + error.message, 502)
-        }
-      } else {
-        return { ok: true }
-      }
-    }
+  const row = {
+    user_id: String(userId),
+    endpoint,
+    p256dh: String(subscription.keys.p256dh),
+    auth: String(subscription.keys.auth),
+    user_agent: String(userAgent || '').slice(0, 200),
+    receipt_token: existing?.receipt_token || newReceiptToken(),
+    receipt_url: receiptUrl || existing?.receipt_url || null,
+    updated_at: now,
+    created_at: existing?.created_at || now,
   }
-
-  await mutateJson((current) => {
-    const prev = current.find((s) => s.endpoint === endpoint)
-    const next = current.filter((s) => s.endpoint !== endpoint)
-    next.push({
-      userId: String(userId),
-      endpoint,
-      keys: {
-        p256dh: String(subscription.keys.p256dh),
-        auth: String(subscription.keys.auth),
-      },
-      userAgent: String(userAgent || '').slice(0, 200),
-      receiptToken: prev?.receiptToken || newReceiptToken(),
-      receiptUrl: receiptUrl || prev?.receiptUrl || '',
-      lastReceivedAt: prev?.lastReceivedAt || null,
-      createdAt: prev?.createdAt || now,
-      updatedAt: now,
-    })
-    return next
-  })
+  const { error } = await supabaseAdmin.from(TABLE).upsert(row, { onConflict: 'endpoint' })
+  if (error) throw tableError(error, 'Không lưu được subscription')
   return { ok: true }
 }
 
 export async function removeSubscription(userId, endpoint) {
   const ep = String(endpoint || '')
   const uid = String(userId || '')
-  const mode = await detectStoreMode()
-
-  if (mode === 'table') {
-    let query = supabaseAdmin.from(TABLE).delete()
-    if (ep) query = query.eq('endpoint', ep)
-    else query = query.eq('user_id', uid)
-    const { error } = await query
-    if (error) {
-      if (isMissingTableError(error)) {
-        throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
-      } else {
-        throw new AppError('Không hủy được subscription: ' + error.message, 502)
-      }
-    } else {
-      return { ok: true }
-    }
-  }
-
-  await mutateJson((current) =>
-    current.filter((s) => {
-      if (ep) return s.endpoint !== ep
-      return s.userId !== uid
-    })
-  )
+  let query = supabaseAdmin.from(TABLE).delete()
+  if (ep) query = query.eq('endpoint', ep)
+  else query = query.eq('user_id', uid)
+  const { error } = await query
+  if (error) throw tableError(error, 'Không hủy được subscription')
   return { ok: true }
 }
 
@@ -338,34 +196,15 @@ export async function recordReceipt(receiptToken) {
     throw new AppError('Receipt không hợp lệ.', 400)
   }
   const now = new Date().toISOString()
-  const mode = await detectStoreMode()
-
-  if (mode === 'table') {
-    const { error } = await supabaseAdmin
-      .from(TABLE)
-      .update({ last_received_at: now, updated_at: now })
-      .eq('receipt_token', token)
-    if (error) {
-      if (isMissingTableError(error)) {
-        throw new AppError('Thiếu bảng push_subscriptions. Hãy chạy supabase/push-subscriptions.sql.', 503)
-      } else {
-        console.warn('[push] ghi receipt thất bại:', error.message)
-        return { ok: false }
-      }
-    } else {
-      return { ok: true }
-    }
+  const { error } = await supabaseAdmin
+    .from(TABLE)
+    .update({ last_received_at: now, updated_at: now })
+    .eq('receipt_token', token)
+  if (error) {
+    if (isMissingTableError(error)) throw tableError(error)
+    console.warn('[push] ghi receipt thất bại:', error.message)
+    return { ok: false }
   }
-
-  await mutateJson((current) => {
-    let found = false
-    const next = current.map((s) => {
-      if (s.receiptToken !== token) return s
-      found = true
-      return { ...s, lastReceivedAt: now, updatedAt: now }
-    })
-    return found ? next : current
-  })
   return { ok: true }
 }
 
@@ -374,8 +213,8 @@ export async function recordReceipt(receiptToken) {
  * Không trả endpoint / keys / receiptToken.
  */
 export async function getPushStatsByUserId(userIds) {
-  const subs = await listSubscriptions()
   const want = Array.isArray(userIds) && userIds.length ? new Set(userIds.map(String)) : null
+  const subs = await listSubscriptions(want ? [...want] : null)
   const map = new Map()
 
   for (const s of subs) {
@@ -412,22 +251,11 @@ async function ensureSubReceiptFields(sub) {
   const token = sub.receiptToken || newReceiptToken()
   const url = sub.receiptUrl || defaultReceiptUrl()
   const now = new Date().toISOString()
-  const mode = await detectStoreMode()
-  if (mode === 'table') {
-    const patch = { receipt_token: token, updated_at: now }
-    if (url) patch.receipt_url = url
-    const { error } = await supabaseAdmin.from(TABLE).update(patch).eq('endpoint', sub.endpoint)
-    if (error && !isMissingTableError(error)) {
-      console.warn('[push] backfill receipt token thất bại:', error.message)
-    }
-  } else {
-    await mutateJson((current) =>
-      current.map((s) =>
-        s.endpoint === sub.endpoint
-          ? { ...s, receiptToken: token, receiptUrl: url || s.receiptUrl, updatedAt: now }
-          : s
-      )
-    )
+  const patch = { receipt_token: token, updated_at: now }
+  if (url) patch.receipt_url = url
+  const { error } = await supabaseAdmin.from(TABLE).update(patch).eq('endpoint', sub.endpoint)
+  if (error && !isMissingTableError(error)) {
+    console.warn('[push] backfill receipt token thất bại:', error.message)
   }
   return { ...sub, receiptToken: token, receiptUrl: url }
 }
@@ -446,9 +274,7 @@ async function sendOne(sub, payload, urgency = 'normal') {
       console.warn('[push] backfill receipt fields thất bại:', err?.message || err)
     }
 
-    const body = {
-      ...payload,
-    }
+    const body = { ...payload }
     if (ready.receiptToken) {
       body.__pushReceiptToken = ready.receiptToken
       if (ready.receiptUrl) body.__pushReceiptUrl = ready.receiptUrl
@@ -482,7 +308,6 @@ async function sendOne(sub, payload, urgency = 'normal') {
     }
 
     console.warn('[push] gửi thất bại:', err?.message || err)
-
     return false
   }
 }
@@ -512,12 +337,8 @@ export async function sendPushNotification(payload, options = {}) {
     data,
   }
 
-  const all = await listSubscriptions()
-  let targets = all
-  if (Array.isArray(options.userIds) && options.userIds.length) {
-    const set = new Set(options.userIds.map(String))
-    targets = targets.filter((s) => set.has(String(s.userId)))
-  }
+  const targetIds = Array.isArray(options.userIds) && options.userIds.length ? [...new Set(options.userIds.map(String))] : null
+  const targets = await listSubscriptions(targetIds)
 
   console.log('[push] BẮT ĐẦU GỬI:', {
     totalSubscriptions: targets.length,

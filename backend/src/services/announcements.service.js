@@ -1,14 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
+import * as announcementRepository from '../repositories/announcements.repository.js'
 import { AppError } from './auth.service.js'
-import { readStore as readDbStore, writeStore as writeDbStore } from '../utils/classroomDbStore.js'
 
-const DATA_BUCKET = 'classroom-data'
-const DATA_PATH = 'announcements.json'
 const IMAGE_BUCKET = 'announcement-images'
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
-// Toàn hệ thống chỉ giữ 20 file ảnh mới nhất của announcement.
-const MAX_ANNOUNCEMENT_IMAGES_SYSTEM = 20
 const ALLOWED_MIME = {
   'image/jpeg': 'jpg',
   'image/jpg': 'jpg',
@@ -19,19 +15,16 @@ const ALLOWED_MIME = {
 const NOTIFY_TYPES = new Set(['normal', 'hot', 'urgent'])
 const SECTIONS = new Set(['main', 'important', 'discipline'])
 const DOCUMENT_KINDS = new Set(['thong_bao', 'bao_cao'])
-let memoryCache = null
+const ANNOUNCEMENT_SELECT = `id,title,document_kind,short_id,content,notify_type,section,expires_at,created_at,created_by,created_by_name,source_homework_id,is_exam_reminder,is_system,hidden,hidden_at,hidden_by,hidden_by_name,subject_user_id,subject_user_name,from_level,to_level,announcement_images(id,storage_path,public_url,mime_type,size_bytes,position,created_at)`
 
-function clone(value) {
-  return JSON.parse(JSON.stringify(value))
-}
-
-async function readStore() {
-  const parsed = await readDbStore({ key: 'announcements', legacyPath: DATA_PATH, empty: { items: [] }, label: 'thông báo' })
-  return { items: Array.isArray(parsed?.items) ? parsed.items : [] }
-}
-
-async function writeStore(store) {
-  await writeDbStore({ key: 'announcements', value: store, label: 'thông báo' })
+function dbFailure(error, operation) {
+  if (!error) return
+  console.error(`[announcements] ${operation} failed`, {
+    databaseCode: error.code,
+    details: error.details,
+    hint: error.hint,
+  })
+  throw new AppError(`Không thể ${operation} dữ liệu thông báo.`, 503)
 }
 
 async function ensureImageBucket() {
@@ -45,7 +38,8 @@ async function ensureImageBucket() {
       throw new AppError('Không tạo được kho ảnh thông báo: ' + error.message, 502)
     }
   } else if (data.public === false) {
-    await supabaseAdmin.storage.updateBucket(IMAGE_BUCKET, { public: true })
+    const { error } = await supabaseAdmin.storage.updateBucket(IMAGE_BUCKET, { public: true })
+    if (error) throw new AppError('Không cập nhật được kho ảnh thông báo: ' + error.message, 502)
   }
 }
 
@@ -64,16 +58,11 @@ function parseSection(raw) {
   const value = String(raw || '').trim().toLowerCase()
   return SECTIONS.has(value) ? value : 'main'
 }
+
 function parseDocumentKind(raw) {
   return DOCUMENT_KINDS.has(raw) ? raw : 'thong_bao'
 }
-function nextShortId(items, documentKind) {
-  return items.reduce((max, row) => {
-    if (parseDocumentKind(row?.document_kind) !== documentKind) return max
-    const value = Number(row?.short_id)
-    return Number.isInteger(value) && value > max ? value : max
-  }, 0) + 1
-}
+
 
 function normalizeItem(raw) {
   if (!raw || typeof raw !== 'object') return null
@@ -111,70 +100,107 @@ function normalizeItem(raw) {
   }
 }
 
-async function loadAll() {
-  const store = await readStore()
-  const items = store.items.map(normalizeItem).filter(Boolean)
-  const counters = new Map()
-  let changed = false
-  for (const item of items) {
-    const kind = parseDocumentKind(item.document_kind)
-    const current = counters.get(kind) || 0
-    if (Number.isInteger(item.short_id) && item.short_id > current) counters.set(kind, item.short_id)
+function normalizeDbRow(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const imageRows = Array.isArray(raw.announcement_images)
+    ? raw.announcement_images
+        .filter((row) => row && row.public_url)
+        .sort((a, b) => Number(a.position || 0) - Number(b.position || 0) || String(a.id).localeCompare(String(b.id)))
+    : []
+  const item = normalizeItem({ ...raw, images: imageRows.map((row) => row.public_url) })
+  if (item) Object.defineProperty(item, '_imageRows', { value: imageRows, enumerable: false })
+  return item
+}
+
+function toDbRow(item) {
+  return {
+    id: item.id,
+    title: String(item.title || '').trim(),
+    document_kind: parseDocumentKind(item.document_kind),
+    short_id: item.short_id || null,
+    content: String(item.content || '').trim(),
+    notify_type: NOTIFY_TYPES.has(item.notify_type) ? item.notify_type : 'normal',
+    section: parseSection(item.section),
+    expires_at: item.expires_at || null,
+    created_at: item.created_at || new Date().toISOString(),
+    created_by: item.created_by || null,
+    created_by_name: String(item.created_by_name || 'Admin').trim() || 'Admin',
+    source_homework_id: item.source_homework_id || null,
+    is_exam_reminder: item.is_exam_reminder === true,
+    is_system: item.is_system === true,
+    hidden: item.hidden === true,
+    hidden_at: item.hidden_at || null,
+    hidden_by: item.hidden_by || null,
+    hidden_by_name: item.hidden_by_name || null,
+    subject_user_id: item.subject_user_id || null,
+    subject_user_name: item.subject_user_name || null,
+    from_level: item.from_level || null,
+    to_level: item.to_level || null,
   }
-  for (const item of items) {
-    if (!item.short_id) {
-      const kind = parseDocumentKind(item.document_kind)
-      const next = (counters.get(kind) || 0) + 1
-      counters.set(kind, next)
-      item.short_id = next
-      changed = true
+}
+
+
+async function insertItem(item, imageMeta = []) {
+  const inserted = await supabaseAdmin.from('announcements').insert(toDbRow(item)).select(ANNOUNCEMENT_SELECT).maybeSingle()
+  dbFailure(inserted.error, 'lưu')
+  if (!inserted.data) throw new AppError('Không lưu được thông báo.', 503)
+  if (imageMeta.length) {
+    const rows = imageMeta.map((image, position) => ({
+      announcement_id: item.id,
+      storage_path: image.path,
+      public_url: image.url,
+      mime_type: image.mimeType,
+      size_bytes: image.sizeBytes,
+      position,
+    }))
+    const images = await supabaseAdmin.from('announcement_images').insert(rows)
+    if (images.error) {
+      await supabaseAdmin.from('announcements').delete().eq('id', item.id)
+      dbFailure(images.error, 'lưu siêu dữ liệu ảnh')
     }
   }
-  if (changed) await writeStore({ items })
-  return { items }
+  return item
 }
 
-async function saveAll(items) {
-  await writeStore({ items })
-  memoryCache = { items }
+async function deleteRows(items) {
+  const ids = items.map((item) => item?.id).filter(Boolean)
+  if (!ids.length) return
+  const result = await supabaseAdmin.from('announcements').delete().in('id', ids)
+  dbFailure(result.error, 'xóa')
 }
 
-async function mutateStore(mutator) {
-  const data = await loadAll()
-  const result = await mutator(data.items)
-  await writeStore({ items: data.items })
-  memoryCache = { items: data.items }
-  return result
-}
-
-function stripDataUrl(contentBase64) {
-  const raw = String(contentBase64 || '').trim()
-  const match = raw.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/)
-  return match ? match[1] : raw.replace(/\s+/g, '')
-}
-
-async function uploadOneImage(file) {
-  const mime = String(file?.mimeType || '').toLowerCase()
-  const ext = ALLOWED_MIME[mime]
-  if (!ext) throw new AppError('Chỉ nhận ảnh JPG, PNG, WEBP hoặc GIF.')
-  const pure = stripDataUrl(file.contentBase64)
-  if (!pure) throw new AppError('Thiếu dữ liệu ảnh.')
-  let bytes
-  try {
-    bytes = Buffer.from(pure, 'base64')
-  } catch {
-    throw new AppError('Ảnh không hợp lệ.')
-  }
-  if (!bytes.length) throw new AppError('Ảnh trống.')
-  if (bytes.length > MAX_IMAGE_BYTES) throw new AppError('Mỗi ảnh tối đa 8MB.')
+export async function createAnnouncementImageUploadUrls(files) {
+  const list = Array.isArray(files) ? files : []
+  if (!list.length || list.length > 5) throw new AppError('Mỗi thông báo tải tối đa 5 ảnh.', 400)
   await ensureImageBucket()
-  const path = `posts/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`
-  const { error } = await supabaseAdmin.storage.from(IMAGE_BUCKET).upload(path, bytes, {
-    contentType: mime,
-    upsert: false,
-  })
-  if (error) throw new AppError('Không tải được ảnh lên: ' + error.message, 502)
-  return publicImageUrl(path)
+  const uploads = await Promise.all(list.map(async (file) => {
+    const mimeType = String(file?.mimeType || '').toLowerCase()
+    const ext = ALLOWED_MIME[mimeType]
+    const sizeBytes = Number(file?.sizeBytes ?? file?.size)
+    if (!ext) throw new AppError('Chỉ nhận ảnh JPG, PNG, WEBP hoặc GIF.', 400)
+    if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > MAX_IMAGE_BYTES) throw new AppError('Mỗi ảnh tối đa 8MB.', 400)
+    const path = `posts/${randomUUID()}.${ext}`
+    const result = await supabaseAdmin.storage.from(IMAGE_BUCKET).createSignedUploadUrl(path, { upsert: false })
+    if (result.error) throw new AppError('Không tạo được liên kết tải ảnh.', 502)
+    return { path, token: result.data.token, signedUrl: result.data.signedUrl, mimeType, sizeBytes }
+  }))
+  return { bucket: IMAGE_BUCKET, uploads }
+}
+
+async function verifyUploadedImage(file) {
+  const path = String(file?.path || '')
+  const mimeType = String(file?.mimeType || '').toLowerCase()
+  const ext = ALLOWED_MIME[mimeType]
+  const sizeBytes = Number(file?.sizeBytes)
+  if (!path.startsWith('posts/') || path.includes('..') || path.split('/').length !== 2 || !ext) throw new AppError('Ảnh tải lên không hợp lệ.', 400)
+  if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > MAX_IMAGE_BYTES) throw new AppError('Mỗi ảnh tối đa 8MB.', 400)
+  const name = path.split('/').pop()
+  const { data, error } = await supabaseAdmin.storage.from(IMAGE_BUCKET).list('posts', { limit: 100, search: name })
+  if (error) throw new AppError('Không thể xác minh ảnh trên Storage.', 502)
+  const object = (data || []).find((row) => row.name === name)
+  if (!object) throw new AppError('Ảnh chưa được tải lên Storage.', 400)
+  if (Number.isFinite(Number(object.metadata?.size)) && Number(object.metadata.size) !== sizeBytes) throw new AppError('Kích thước ảnh không khớp.', 400)
+  return { path, url: publicImageUrl(path), mimeType, sizeBytes }
 }
 
 function extractStoragePath(url) {
@@ -189,45 +215,13 @@ async function removeImages(urls) {
   const paths = (urls || []).map(extractStoragePath).filter(Boolean)
   if (!paths.length) return
   try {
-    await supabaseAdmin.storage.from(IMAGE_BUCKET).remove(paths)
+    const result = await supabaseAdmin.storage.from(IMAGE_BUCKET).remove(paths)
+    if (result?.error) console.warn('[announcements] xóa ảnh thất bại:', result.error.message)
   } catch (err) {
     console.warn('[announcements] xóa ảnh thất bại:', err.message)
   }
 }
 
-async function enforceAnnouncementImageQuota(max = MAX_ANNOUNCEMENT_IMAGES_SYSTEM) {
-  const { items } = await loadAll()
-  const refs = []
-  const seenPaths = new Set()
-  for (const item of items) {
-    const createdAt = new Date(item.created_at || 0).getTime() || 0
-    for (const [index, url] of (item.images || []).entries()) {
-      const path = extractStoragePath(url)
-      if (!path || !path.startsWith('posts/') || seenPaths.has(path)) continue
-      seenPaths.add(path)
-      refs.push({ item, url, path, createdAt, index })
-    }
-  }
-  if (refs.length <= max) return
-  refs.sort((a, b) => b.createdAt - a.createdAt || b.index - a.index)
-  const removeRefs = refs.slice(max)
-  const paths = removeRefs.map((ref) => ref.path)
-  const { error } = await supabaseAdmin.storage.from(IMAGE_BUCKET).remove(paths)
-  if (error) {
-    console.warn('[announcements] quota ảnh: không xóa được ảnh cũ:', error.message)
-    return
-  }
-  const removed = new Set(paths)
-  let changed = false
-  for (const item of items) {
-    const nextImages = (item.images || []).filter((url) => !removed.has(extractStoragePath(url)))
-    if (nextImages.length !== item.images.length) {
-      item.images = nextImages
-      changed = true
-    }
-  }
-  if (changed) await writeStore({ items })
-}
 
 async function notifyPush(item) {
   try {
@@ -253,47 +247,63 @@ async function notifyPush(item) {
   }
 }
 
-function sortNewest(items) {
-  return items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-}
-
 export async function purgeExpired() {
-  return mutateStore(async (items) => {
-    const now = Date.now()
-    const alive = []
-    const expired = []
-    for (const item of items) {
-      if (isExpired(item, now)) expired.push(item)
-      else alive.push(item)
-    }
-    for (const item of expired) await removeImages(item.images)
-    items.splice(0, items.length, ...alive)
-    return sortNewest(alive)
+  const now = new Date().toISOString()
+  let deletedCount = 0
+  while (true) {
+    const result = await announcementRepository.listExpired(now, 100)
+    dbFailure(result.error, 'đọc thông báo hết hạn')
+    const rows = (result.data || []).map(normalizeDbRow).filter(Boolean)
+    if (!rows.length) break
+    for (const item of rows) await removeImages(item._imageRows?.map((image) => image.storage_path || image.public_url) || item.images)
+    await deleteRows(rows)
+    deletedCount += rows.length
+    if (rows.length < 100) break
+  }
+  return { deleted: deletedCount }
+}
+
+function attachPagination(items, result) {
+  const total = result.count || 0
+  Object.defineProperty(items, 'pagination', { enumerable: false, value: {
+    page: result.page, pageSize: result.pageSize, total,
+    hasMore: result.from + items.length < total,
+  } })
+  return items
+}
+
+export async function listAnnouncements(query = {}) {
+  await purgeExpired()
+  const result = await announcementRepository.list({
+    hidden: false, activeAt: new Date().toISOString(), section: SECTIONS.has(query.section) ? query.section : undefined,
+    documentKind: DOCUMENT_KINDS.has(query.documentKind) ? query.documentKind : undefined,
+    notifyType: NOTIFY_TYPES.has(query.notifyType) ? query.notifyType : undefined,
+    isExamReminder: query.isExamReminder === undefined ? undefined : String(query.isExamReminder) === 'true',
+    sort: query.sort, page: query.page, pageSize: query.pageSize,
   })
+  dbFailure(result.error, 'đọc')
+  return attachPagination((result.data || []).map(normalizeDbRow).filter(Boolean), result)
 }
 
-export async function listAnnouncements() {
+export async function listArchive(section, query = {}) {
   await purgeExpired()
-  await enforceAnnouncementImageQuota()
-  const { items } = await loadAll()
-  return items.filter((item) => !isExpired(item) && item.hidden !== true)
-}
-
-export async function listArchive(section) {
-  await purgeExpired()
-  await enforceAnnouncementImageQuota()
-  const { items } = await loadAll()
-  const hidden = items.filter((item) => !isExpired(item) && item.hidden === true)
-  if (!section) return hidden
-  const key = parseSection(section)
-  return hidden.filter((item) => item.section === key)
+  const result = await announcementRepository.list({
+    hidden: true, activeAt: new Date().toISOString(), section: SECTIONS.has(section) ? section : undefined,
+    documentKind: DOCUMENT_KINDS.has(query.documentKind) ? query.documentKind : undefined,
+    notifyType: NOTIFY_TYPES.has(query.notifyType) ? query.notifyType : undefined,
+    sort: query.sort, page: query.page, pageSize: query.pageSize,
+  })
+  dbFailure(result.error, 'đọc kho lưu trữ')
+  return attachPagination((result.data || []).map(normalizeDbRow).filter(Boolean), result)
 }
 
 export async function getAnnouncementById(id) {
   const targetId = String(id || '').trim()
   if (!targetId) return null
-  const alive = await purgeExpired()
-  return alive.find((row) => row.id === targetId) || null
+  const result = await announcementRepository.findById(targetId)
+  dbFailure(result.error, 'đọc')
+  const item = normalizeDbRow(result.data)
+  return item && !isExpired(item) ? item : null
 }
 
 function parseExpiresAt(raw, { requiredFuture = true } = {}) {
@@ -306,56 +316,57 @@ function parseExpiresAt(raw, { requiredFuture = true } = {}) {
   return t.toISOString()
 }
 
+async function createWithShortId(item, imageMeta = [], { assignShortId = true } = {}) {
+  if (assignShortId) {
+    const allocated = await announcementRepository.allocateShortId(parseDocumentKind(item.document_kind))
+    dbFailure(allocated.error, 'cấp mã thông báo')
+    item.short_id = Number(Array.isArray(allocated.data) ? allocated.data[0] : allocated.data)
+    if (!Number.isInteger(item.short_id) || item.short_id < 1) throw new AppError('Không cấp được mã thông báo.', 503)
+  }
+  try {
+    await insertItem(item, imageMeta)
+  } catch (error) {
+    await removeImages(imageMeta.map((image) => image.url))
+    throw error
+  }
+  return item
+}
+
 export async function createAnnouncement(payload, profile) {
   const content = String(payload?.content || '').trim()
   const title = String(payload?.title || '').trim()
   const documentKind = parseDocumentKind(payload?.document_kind)
   const files = Array.isArray(payload?.images) ? payload.images : []
-  if (!content && files.length === 0) {
-    throw new AppError('Vui lòng nhập nội dung hoặc chọn ít nhất 1 ảnh.')
-  }
+  if (files.length > 5) throw new AppError('Mỗi thông báo tải tối đa 5 ảnh.', 400)
+  if (!content && files.length === 0) throw new AppError('Vui lòng nhập nội dung hoặc chọn ít nhất 1 ảnh.')
   const requested = String(payload?.section || '').trim().toLowerCase()
   if (requested === 'discipline') {
     throw new AppError('Mục vi phạm kỷ luật cao do hệ thống tự đăng, không đăng tay được.', 403)
   }
   const section = requested === 'important' ? 'important' : 'main'
-  const notifyType = NOTIFY_TYPES.has(payload?.notify_type)
-    ? payload.notify_type
-    : section === 'important'
-      ? 'hot'
-      : 'normal'
+  const notifyType = NOTIFY_TYPES.has(payload?.notify_type) ? payload.notify_type : section === 'important' ? 'hot' : 'normal'
   const expiresAt = parseExpiresAt(payload?.expires_at)
-  const imageUrls = []
-  for (const file of files) imageUrls.push(await uploadOneImage(file))
-  const item = {
-    id: randomUUID(),
-    title,
-    document_kind: documentKind,
-    short_id: null,
-    content,
-    images: imageUrls,
-    notify_type: notifyType,
-    section,
-    expires_at: expiresAt,
-    created_at: new Date().toISOString(),
-    created_by: profile?.id || null,
-    created_by_name: String(profile?.username || 'Admin').trim() || 'Admin',
-    source_homework_id: null,
-    is_exam_reminder: false,
-    is_system: false,
-    hidden: false,
-    hidden_at: null,
-    hidden_by: null,
-    hidden_by_name: null,
+  const imageMeta = []
+  try {
+    for (const file of files) {
+      if (file?.path) imageMeta.push(await verifyUploadedImage(file))
+      else if (file?.contentBase64) throw new AppError('Tải ảnh bằng Base64 đã bị tắt; hãy tải trực tiếp lên Storage.', 400)
+      else throw new AppError('Ảnh không hợp lệ.', 400)
+    }
+    const item = {
+      id: randomUUID(), title, document_kind: documentKind, short_id: null, content,
+      images: imageMeta.map((image) => image.url), notify_type: notifyType, section, expires_at: expiresAt,
+      created_at: new Date().toISOString(), created_by: profile?.id || null,
+      created_by_name: String(profile?.username || 'Admin').trim() || 'Admin', source_homework_id: null,
+      is_exam_reminder: false, is_system: false, hidden: false, hidden_at: null, hidden_by: null, hidden_by_name: null,
+    }
+    await createWithShortId(item, imageMeta)
+    void notifyPush(item)
+    return item
+  } catch (error) {
+    await removeImages(imageMeta.map((image) => image.url))
+    throw error
   }
-  await mutateStore((items) => {
-    item.short_id = nextShortId(items, documentKind)
-    const next = [item, ...items.filter((row) => !isExpired(row))]
-    items.splice(0, items.length, ...next)
-  })
-  await enforceAnnouncementImageQuota()
-  void notifyPush(item)
-  return item
 }
 
 export async function createExamReminderAnnouncement(payload, profile) {
@@ -367,31 +378,13 @@ export async function createExamReminderAnnouncement(payload, profile) {
     if (!Number.isNaN(t.getTime()) && t.getTime() > Date.now()) expiresAt = t.toISOString()
   }
   const item = {
-    id: randomUUID(),
-    content,
-    images: [],
-    title: String(payload?.title || '').trim(),
-    document_kind: 'bao_cao',
-    short_id: null,
-    notify_type: 'urgent',
-    section: 'important',
-    expires_at: expiresAt,
-    created_at: new Date().toISOString(),
-    created_by: profile?.id || null,
-    created_by_name: String(profile?.username || 'Admin').trim() || 'Admin',
+    id: randomUUID(), content, images: [], title: String(payload?.title || '').trim(), document_kind: 'bao_cao', short_id: null,
+    notify_type: 'urgent', section: 'important', expires_at: expiresAt, created_at: new Date().toISOString(),
+    created_by: profile?.id || null, created_by_name: String(profile?.username || 'Admin').trim() || 'Admin',
     source_homework_id: payload?.source_homework_id ? String(payload.source_homework_id) : null,
-    is_exam_reminder: true,
-    is_system: false,
-    hidden: false,
-    hidden_at: null,
-    hidden_by: null,
-    hidden_by_name: null,
+    is_exam_reminder: true, is_system: false, hidden: false, hidden_at: null, hidden_by: null, hidden_by_name: null,
   }
-  await mutateStore((items) => {
-    item.short_id = nextShortId(items, item.document_kind)
-    const next = [item, ...items.filter((row) => !isExpired(row))]
-    items.splice(0, items.length, ...next)
-  })
+  await createWithShortId(item)
   void notifyPush(item)
   return item
 }
@@ -405,31 +398,13 @@ export async function createImportantHomeworkAnnouncement(payload, profile) {
     if (!Number.isNaN(t.getTime()) && t.getTime() > Date.now()) expiresAt = t.toISOString()
   }
   const item = {
-    id: randomUUID(),
-    content,
-    images: [],
-    title: String(payload?.title || '').trim(),
-    document_kind: 'bao_cao',
-    short_id: null,
-    notify_type: NOTIFY_TYPES.has(payload?.notify_type) ? payload.notify_type : 'hot',
-    section: 'important',
-    expires_at: expiresAt,
-    created_at: new Date().toISOString(),
-    created_by: profile?.id || null,
-    created_by_name: String(profile?.username || 'Admin').trim() || 'Admin',
-    source_homework_id: payload?.source_homework_id ? String(payload.source_homework_id) : null,
-    is_exam_reminder: false,
-    is_system: false,
-    hidden: false,
-    hidden_at: null,
-    hidden_by: null,
-    hidden_by_name: null,
+    id: randomUUID(), content, images: [], title: String(payload?.title || '').trim(), document_kind: 'bao_cao', short_id: null,
+    notify_type: NOTIFY_TYPES.has(payload?.notify_type) ? payload.notify_type : 'hot', section: 'important', expires_at: expiresAt,
+    created_at: new Date().toISOString(), created_by: profile?.id || null,
+    created_by_name: String(profile?.username || 'Admin').trim() || 'Admin', source_homework_id: payload?.source_homework_id ? String(payload.source_homework_id) : null,
+    is_exam_reminder: false, is_system: false, hidden: false, hidden_at: null, hidden_by: null, hidden_by_name: null,
   }
-  await mutateStore((items) => {
-    item.short_id = nextShortId(items, item.document_kind)
-    const next = [item, ...items.filter((row) => !isExpired(row))]
-    items.splice(0, items.length, ...next)
-  })
+  await createWithShortId(item)
   void notifyPush(item)
   return item
 }
@@ -438,36 +413,14 @@ export async function createSystemDisciplineAnnouncement(payload) {
   const name = String(payload?.name || 'Thành viên').trim() || 'Thành viên'
   const fromLabel = String(payload?.fromLabel || payload?.fromLevel || '').trim()
   const toLabel = String(payload?.toLabel || payload?.toLevel || '').trim()
-  const content =
-    String(payload?.content || '').trim() ||
-    `⚠️ ${name} đã tụt 1 bậc trạng thái uy tín` +
-      (fromLabel && toLabel ? `: ${fromLabel} → ${toLabel}.` : '.')
+  const content = String(payload?.content || '').trim() || `⚠️ ${name} đã tụt 1 bậc trạng thái uy tín` + (fromLabel && toLabel ? `: ${fromLabel} → ${toLabel}.` : '.')
   const item = {
-    id: randomUUID(),
-    content,
-    images: [],
-    notify_type: 'urgent',
-    section: 'discipline',
-    expires_at: null,
-    created_at: new Date().toISOString(),
-    created_by: null,
-    created_by_name: 'Hệ thống',
-    source_homework_id: null,
-    is_exam_reminder: false,
-    is_system: true,
-    hidden: false,
-    hidden_at: null,
-    hidden_by: null,
-    hidden_by_name: null,
-    subject_user_id: payload?.userId ? String(payload.userId) : null,
-    subject_user_name: name,
-    from_level: payload?.fromLevel ? String(payload.fromLevel) : null,
-    to_level: payload?.toLevel ? String(payload.toLevel) : null,
+    id: randomUUID(), content, images: [], notify_type: 'urgent', section: 'discipline', expires_at: null, created_at: new Date().toISOString(),
+    created_by: null, created_by_name: 'Hệ thống', source_homework_id: null, is_exam_reminder: false, is_system: true,
+    hidden: false, hidden_at: null, hidden_by: null, hidden_by_name: null, subject_user_id: payload?.userId ? String(payload.userId) : null,
+    subject_user_name: name, from_level: payload?.fromLevel ? String(payload.fromLevel) : null, to_level: payload?.toLevel ? String(payload.toLevel) : null,
   }
-  await mutateStore((items) => {
-    const next = [item, ...items.filter((row) => !isExpired(row))]
-    items.splice(0, items.length, ...next)
-  })
+  await createWithShortId(item, [], { assignShortId: false })
   void notifyPush(item)
   return item
 }
@@ -475,75 +428,82 @@ export async function createSystemDisciplineAnnouncement(payload) {
 export async function hideAnnouncement(id, profile) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã thông báo.', 400)
-  return mutateStore((items) => {
-    const idx = items.findIndex((row) => row.id === targetId)
-    if (idx === -1) throw new AppError('Không tìm thấy thông báo.', 404)
-    const current = items[idx]
-    if (isExpired(current)) throw new AppError('Thông báo đã hết hạn.', 404)
-    if (current.hidden === true) return current
-    items[idx] = { ...current, hidden: true, hidden_at: new Date().toISOString(), hidden_by: profile?.id || null, hidden_by_name: String(profile?.username || '').trim() || null }
-    return items[idx]
-  })
+  const found = await announcementRepository.findById(targetId)
+  dbFailure(found.error, 'đọc')
+  const current = normalizeDbRow(found.data)
+  if (!current) throw new AppError('Không tìm thấy thông báo.', 404)
+  if (isExpired(current)) throw new AppError('Thông báo đã hết hạn.', 404)
+  if (current.hidden === true) return current
+  const next = { ...current, hidden: true, hidden_at: new Date().toISOString(), hidden_by: profile?.id || null, hidden_by_name: String(profile?.username || '').trim() || null }
+  const result = await supabaseAdmin.from('announcements').update(toDbRow(next)).eq('id', targetId)
+  dbFailure(result.error, 'ẩn')
+  return next
 }
 
 export async function unhideAnnouncement(id) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã thông báo.', 400)
-  return mutateStore((items) => {
-    const idx = items.findIndex((row) => row.id === targetId)
-    if (idx === -1) throw new AppError('Không tìm thấy thông báo.', 404)
-    const current = items[idx]
-    if (isExpired(current)) throw new AppError('Thông báo đã hết hạn.', 404)
-    items[idx] = { ...current, hidden: false, hidden_at: null, hidden_by: null, hidden_by_name: null }
-    return items[idx]
-  })
+  const found = await announcementRepository.findById(targetId)
+  dbFailure(found.error, 'đọc')
+  const current = normalizeDbRow(found.data)
+  if (!current) throw new AppError('Không tìm thấy thông báo.', 404)
+  if (isExpired(current)) throw new AppError('Thông báo đã hết hạn.', 404)
+  const next = { ...current, hidden: false, hidden_at: null, hidden_by: null, hidden_by_name: null }
+  const result = await supabaseAdmin.from('announcements').update(toDbRow(next)).eq('id', targetId)
+  dbFailure(result.error, 'bỏ ẩn')
+  return next
 }
 
 export async function deleteAnnouncement(id) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã thông báo.', 400)
-  return mutateStore(async (items) => {
-    const found = items.find((row) => row.id === targetId)
-    if (!found) throw new AppError('Không tìm thấy thông báo.', 404)
-    await removeImages(found.images)
-    items.splice(0, items.length, ...items.filter((row) => row.id !== targetId))
-    return { id: targetId }
-  })
+  const record = await announcementRepository.findById(targetId)
+  dbFailure(record.error, 'đọc')
+  const found = normalizeDbRow(record.data)
+  if (!found) throw new AppError('Không tìm thấy thông báo.', 404)
+  await removeImages(found.images)
+  await deleteRows([found])
+  return { id: targetId }
+}
+
+async function deleteMatching(homeworkId, onlyExam = false) {
+  let deletedCount = 0
+  while (true) {
+    const result = await announcementRepository.listByHomework(homeworkId, onlyExam)
+    dbFailure(result.error, 'đọc thông báo liên quan')
+    const items = (result.data || []).map(normalizeDbRow).filter(Boolean)
+    if (!items.length) break
+    for (const item of items) await removeImages(item._imageRows?.map((image) => image.storage_path || image.public_url) || item.images)
+    await deleteRows(items)
+    deletedCount += items.length
+    if (items.length < 100) break
+  }
+  return { deleted: deletedCount }
 }
 
 export async function deleteAnnouncementsByHomeworkId(homeworkId) {
   const target = String(homeworkId || '').trim()
   if (!target) return { deleted: 0 }
-  return mutateStore(async (items) => {
-    const toRemove = items.filter((row) => row.source_homework_id === target)
-    if (!toRemove.length) return { deleted: 0 }
-    for (const item of toRemove) await removeImages(item.images)
-    items.splice(0, items.length, ...items.filter((row) => row.source_homework_id !== target))
-    return { deleted: toRemove.length }
-  })
+  return deleteMatching(target, false)
 }
 
 /** Chỉ xóa thông báo kiểm tra (is_exam_reminder) gắn với báo bài — giữ bài báo bài thường. */
 export async function deleteExamRemindersByHomeworkId(homeworkId) {
   const target = String(homeworkId || '').trim()
   if (!target) return { deleted: 0 }
-  return mutateStore(async (items) => {
-    const toRemove = items.filter((row) => row.source_homework_id === target && row.is_exam_reminder === true)
-    if (!toRemove.length) return { deleted: 0 }
-    for (const item of toRemove) await removeImages(item.images)
-    items.splice(0, items.length, ...items.filter((row) => !(row.source_homework_id === target && row.is_exam_reminder === true)))
-    return { deleted: toRemove.length }
-  })
+  return deleteMatching(target, true)
 }
 
 export async function updateAnnouncementExpiry(id, expiresAtRaw) {
   const targetId = String(id || '').trim()
   if (!targetId) throw new AppError('Thiếu mã thông báo.', 400)
   const expiresAt = parseExpiresAt(expiresAtRaw)
-  return mutateStore((items) => {
-    const idx = items.findIndex((row) => row.id === targetId)
-    if (idx === -1) throw new AppError('Không tìm thấy thông báo.', 404)
-    items[idx] = { ...items[idx], expires_at: expiresAt }
-    return items[idx]
-  })
+  const found = await announcementRepository.findById(targetId)
+  dbFailure(found.error, 'đọc')
+  const current = normalizeDbRow(found.data)
+  if (!current) throw new AppError('Không tìm thấy thông báo.', 404)
+  const next = { ...current, expires_at: expiresAt }
+  const result = await supabaseAdmin.from('announcements').update({ expires_at: expiresAt }).eq('id', targetId)
+  dbFailure(result.error, 'cập nhật')
+  return next
 }

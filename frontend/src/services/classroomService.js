@@ -1,3 +1,4 @@
+import { supabase } from '../lib/supabaseClient.js'
 import { apiClient } from './apiClient.js'
 
 const GET_CACHE_TTL_MS = 5_000
@@ -67,6 +68,25 @@ export async function dismissTimetableNotice() {
 
 export async function getAnnouncements() {
   return cachedGet('announcements', () => apiClient.get('/classroom/announcements', { auth: true }))
+}
+
+export async function uploadAnnouncementImages(files) {
+  const list = Array.from(files || [])
+  if (!list.length) return []
+  const intent = await apiClient.post('/classroom/announcements/upload-urls', {
+    files: list.map((file) => ({ mimeType: file.type || 'image/jpeg', sizeBytes: file.size })),
+  }, { auth: true })
+  const uploads = intent.uploads || []
+  if (uploads.length !== list.length) throw new Error('Không tạo đủ liên kết tải ảnh.')
+  const metadata = []
+  for (let index = 0; index < list.length; index += 1) {
+    const upload = uploads[index]
+    const { error } = await supabase.storage.from(intent.bucket || 'announcement-images')
+      .uploadToSignedUrl(upload.path, upload.token, list[index], { contentType: upload.mimeType, upsert: false })
+    if (error) throw new Error(error.message || 'Không tải được ảnh lên Storage.')
+    metadata.push({ path: upload.path, mimeType: upload.mimeType, sizeBytes: upload.sizeBytes })
+  }
+  return metadata
 }
 
 export async function createAnnouncement(payload) {
@@ -150,6 +170,22 @@ export async function getViolations() {
   return cachedGet('violations', () => apiClient.get('/classroom/violations', { auth: true }))
 }
 
+export async function uploadViolationPhotos(files) {
+  const list = Array.from(files || [])
+  if (!list.length) return []
+  const intent = await apiClient.post('/classroom/violations/photo-upload-urls', { files: list.map((file) => ({ mimeType: file.type || 'image/jpeg', sizeBytes: file.size })) }, { auth: true })
+  const uploads = intent.uploads || []
+  if (uploads.length !== list.length) throw new Error('Không tạo đủ liên kết tải ảnh bằng chứng.')
+  const metadata = []
+  for (let index = 0; index < list.length; index += 1) {
+    const upload = uploads[index]
+    const { error } = await supabase.storage.from(intent.bucket).uploadToSignedUrl(upload.path, upload.token, list[index], { contentType: upload.mimeType, upsert: false })
+    if (error) throw new Error(error.message || 'Không tải được ảnh bằng chứng lên Storage.')
+    metadata.push({ path: upload.path, mimeType: upload.mimeType, sizeBytes: upload.sizeBytes, filename: list[index].name })
+  }
+  return metadata
+}
+
 export async function addViolation(violation) {
   const result = await apiClient.post('/classroom/violations', { violation }, { auth: true })
   invalidate('violations')
@@ -182,8 +218,9 @@ export async function getLeaderboard() {
 
 // Mục "Lớp học" (bộ câu hỏi tự tạo) — lưu ở backend nên mọi máy/thành viên
 // đăng nhập vào đều thấy chung một danh sách, không còn phụ thuộc localStorage.
-export async function listClassSpace() {
-  return apiClient.get('/classroom/class-space', { auth: true })
+export async function listClassSpace({ page = 1, pageSize = 100 } = {}) {
+  const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+  return apiClient.get(`/classroom/class-space?${query}`, { auth: true })
 }
 
 // Bộ lọc phòng — danh sách tài khoản đã từng tạo phòng (chỉ ownerId/ownerName,
@@ -252,11 +289,11 @@ export async function getClassSpaceLeaderboard(id) {
 }
 
 export async function uploadClassSpaceImage({ contentBase64, mimeType, filename }) {
-  return apiClient.post(
-    '/classroom/class-space/upload-image',
-    { contentBase64, mimeType, filename },
-    { auth: true }
-  )
+  const blob = await fetch(contentBase64).then((response) => response.blob())
+  const intent = await apiClient.post('/classroom/class-space/upload-image', { mimeType, filename, sizeBytes: blob.size }, { auth: true })
+  const { error } = await supabase.storage.from(intent.bucket).uploadToSignedUrl(intent.path, intent.token, blob, { contentType: intent.mimeType, upsert: false })
+  if (error) throw new Error(error.message || 'Không tải được ảnh lớp học lên Storage.')
+  return apiClient.post('/classroom/class-space/upload-image/complete', { path: intent.path, mimeType: intent.mimeType, sizeBytes: intent.sizeBytes }, { auth: true })
 }
 
 export async function getCleaningSchedule(weekStart) {
@@ -296,30 +333,25 @@ export async function uploadCleaningPhotos({ weekStart, dutyDate, dayId, files }
   if (files.length > 20) throw new Error('Mỗi lượt chỉ được tải tối đa 20 ảnh.')
   const tooLarge = files.find((file) => Number(file.size) > 25 * 1024 * 1024)
   if (tooLarge) throw new Error(`Ảnh "${tooLarge.name || 'không tên'}" vượt quá giới hạn 25MB.`)
-  const mimeByExt = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', heic: 'image/heic', heif: 'image/heif' }
-  const toDataUrl = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(new Error(`Không đọc được ảnh "${file.name || 'không tên'}".`))
-    reader.readAsDataURL(file)
-  })
-  const photos = []
-  for (const file of files) {
-    const ext = String(file.name || '').split('.').pop().toLowerCase()
-    photos.push({
-      name: file.name || `cleaning-photo.${ext || 'jpg'}`,
-      mimeType: String(file.type || '').toLowerCase() || mimeByExt[ext] || '',
-      contentBase64: await toDataUrl(file),
-    })
-  }
+  const manifest = files.map((file) => ({ name: file.name || 'cleaning-photo.jpg', mimeType: file.type || '', size: file.size }))
+  const intent = await apiClient.post('/classroom/cleaning-duty/photos', {
+    week_start: weekStart, duty_date: dutyDate, day_id: dayId, photos: manifest,
+  }, { auth: true, retry: false })
   try {
-    return await apiClient.post('/classroom/cleaning-duty/photos', { week_start: weekStart, duty_date: dutyDate, day_id: dayId, photos }, { auth: true, retry: false, timeoutMs: 300_000 })
+    for (let index = 0; index < intent.files.length; index += 1) {
+      const target = intent.files[index]
+      const original = files[index]
+      const { error } = await supabase.storage.from('classroom-data').uploadToSignedUrl(
+        target.path, target.token, original, { contentType: target.mimeType, upsert: false }
+      )
+      if (error) throw new Error(`Không tải được ảnh "${target.name}" lên Storage.`)
+    }
+    return await apiClient.post('/classroom/cleaning-duty/photos/complete', { intent_id: intent.intent_id }, { auth: true, retry: false })
   } catch (error) {
-    if (error?.status === 408) throw new Error('Upload ảnh quá thời gian chờ. Hãy kiểm tra mạng hoặc thử ít ảnh hơn.')
+    await apiClient.delete(`/classroom/cleaning-duty/photos/intents/${encodeURIComponent(intent.intent_id)}`, { auth: true, retry: false }).catch(() => {})
     throw error
   }
 }
-
 export async function deleteCleaningPhoto(id) {
   return apiClient.delete(`/classroom/cleaning-duty/photos/${encodeURIComponent(id)}`, { auth: true })
 }
@@ -363,24 +395,28 @@ export async function submitHomeworkAssignment(id, fileList) {
   if (files.length > 10) throw new Error('Mỗi lần nộp tối đa 10 file.')
   const tooLarge = files.find((file) => Number(file.size) > 20 * 1024 * 1024)
   if (tooLarge) throw new Error(`File "${tooLarge.name || 'không tên'}" vượt quá giới hạn 20MB.`)
-  const toDataUrl = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(new Error(`Không đọc được file "${file.name || 'không tên'}".`))
-    reader.readAsDataURL(file)
-  })
-  const payload = []
-  for (const file of files) {
-    payload.push({ name: file.name || 'file', contentBase64: await toDataUrl(file) })
-  }
+  const manifest = files.map((file) => ({ name: file.name || 'file', size: file.size, mime: file.type || '' }))
+  const intent = await apiClient.post(
+    `/classroom/homework-assignments/${encodeURIComponent(id)}/submit`,
+    { files: manifest }, { auth: true, retry: false }
+  )
   try {
+    for (let index = 0; index < files.length; index += 1) {
+      const target = intent.files[index]
+      const { error } = await supabase.storage.from('classroom-data').uploadToSignedUrl(
+        target.path, target.token, files[index], { contentType: target.mime, upsert: false }
+      )
+      if (error) throw new Error(`Không tải được file "${files[index].name || 'file'}" lên Storage.`)
+    }
     return await apiClient.post(
-      `/classroom/homework-assignments/${encodeURIComponent(id)}/submit`,
-      { files: payload },
-      { auth: true, retry: false, timeoutMs: 300_000 }
+      `/classroom/homework-assignments/${encodeURIComponent(id)}/submit/complete`,
+      { intent_id: intent.intent_id }, { auth: true, retry: false }
     )
   } catch (error) {
-    if (error?.status === 408) throw new Error('Nộp bài quá thời gian chờ. Hãy kiểm tra mạng hoặc thử ít file hơn.')
+    await apiClient.delete(
+      `/classroom/homework-assignments/${encodeURIComponent(id)}/submit/intents/${encodeURIComponent(intent.intent_id)}`,
+      { auth: true, retry: false }
+    ).catch(() => {})
     throw error
   }
 }

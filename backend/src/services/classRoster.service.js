@@ -4,12 +4,10 @@ import { AppError, isPendingUsername, normalizeDisplayName } from './auth.servic
 import { normalizeRole } from '../lib/roles.js'
 import * as rulesService from './rules.service.js'
 import * as cleaningDutyService from './cleaningDuty.service.js'
-import { readStore as readDbStore, writeStore as writeDbStore } from '../utils/classroomDbStore.js'
 
-const BUCKET = 'classroom-data'
-const ROSTER_FILE = 'class-roster.json'
-
-let rosterCache = null
+const DEFAULT_ROSTER_ID = 'default'
+const ROSTER_TABLE = 'class_roster_members'
+const ROSTER_SELECT = 'id, roster_id, name, created_at, created_by'
 
 function asText(value, fallback = '') {
   return String(value ?? fallback).trim()
@@ -33,71 +31,21 @@ export function placeholderMemberId(rosterId) {
   return `roster:${asText(rosterId)}`
 }
 
-function clone(value) {
-  return JSON.parse(JSON.stringify(value))
-}
+async function listRosterItems() {
+  const { data, error } = await supabaseAdmin
+    .from(ROSTER_TABLE)
+    .select(ROSTER_SELECT)
+    .eq('roster_id', DEFAULT_ROSTER_ID)
+    .order('name', { ascending: true })
+    .range(0, 99)
 
-function normalizePlaceholder(raw) {
-  const src = raw && typeof raw === 'object' ? raw : {}
-  const name = asText(src.name)
-  const id = asText(src.id) || randomUUID()
-  if (!name) return null
-  return {
-    id,
-    name: name.slice(0, 40),
-    createdAt: asText(src.createdAt) || new Date().toISOString(),
-    createdBy: asText(src.createdBy).slice(0, 64) || null,
-  }
-}
-
-function normalizeRoster(raw) {
-  const src = raw && typeof raw === 'object' ? raw : {}
-  const items = (Array.isArray(src.items) ? src.items : [])
-    .map((row) => normalizePlaceholder(row))
-    .filter(Boolean)
-  const seen = new Set()
-  const unique = []
-  for (const row of items) {
-    const key = foldName(row.name)
-    if (!key || seen.has(key)) continue
-    seen.add(key)
-    unique.push(row)
-  }
-  unique.sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-  return {
-    items: unique.slice(0, 200),
-    updatedAt: asText(src.updatedAt) || new Date().toISOString(),
-  }
-}
-
-async function ensureBucket() {
-  return true
-}
-
-async function readJson() {
-  return readDbStore({ key: 'class-roster', legacyPath: ROSTER_FILE, empty: null, label: 'danh sách lớp' })
-}
-
-async function writeRoster(payload) {
-  await writeDbStore({ key: 'class-roster', value: payload, label: 'danh sách lớp' })
-}
-
-async function loadRoster() {
-  const stored = await readJson()
-  if (stored) {
-    rosterCache = normalizeRoster(stored)
-    return clone(rosterCache)
-  }
-  rosterCache = { items: [], updatedAt: new Date().toISOString() }
-  return clone(rosterCache)
-}
-
-async function saveRoster(next) {
-  const payload = normalizeRoster(next)
-  payload.updatedAt = new Date().toISOString()
-  await writeRoster(payload)
-  rosterCache = payload
-  return clone(payload)
+  if (error) throw new AppError('Không thể tải danh sách lớp.', 500)
+  return (data || []).map((row) => ({
+    id: asText(row.id),
+    name: asText(row.name),
+    createdAt: row.created_at || new Date().toISOString(),
+    createdBy: asText(row.created_by) || null,
+  }))
 }
 
 async function listNamedProfiles() {
@@ -105,6 +53,7 @@ async function listNamedProfiles() {
     .from('profiles')
     .select('id, username, role, is_member, created_at')
     .order('username', { ascending: true })
+    .range(0, 99)
 
   if (error) throw new AppError('Không thể tải danh sách tài khoản lớp.', 500)
 
@@ -128,8 +77,8 @@ function findNameMatches(name, profiles) {
 }
 
 export async function listClassRoster() {
-  const [profiles, roster] = await Promise.all([listNamedProfiles(), loadRoster()])
-  const placeholders = roster.items.map((row) => {
+  const [profiles, rosterItems] = await Promise.all([listNamedProfiles(), listRosterItems()])
+  const placeholders = rosterItems.map((row) => {
     const matches = findNameMatches(row.name, profiles)
     return {
       id: placeholderMemberId(row.id),
@@ -154,35 +103,51 @@ export async function listClassRoster() {
 
 export async function addPlaceholder(rawName, profile) {
   const name = normalizeDisplayName(rawName)
-  const [profiles, roster] = await Promise.all([listNamedProfiles(), loadRoster()])
+  const [profiles, rosterItems] = await Promise.all([listNamedProfiles(), listRosterItems()])
 
   if (profiles.some((row) => namesEqual(row.username, name))) {
     throw new AppError(
       'Tên này đã trùng tài khoản đã đăng ký. Hãy bấm Kết nối trên tên chờ, hoặc dùng tên khác.'
     )
   }
-  if (roster.items.some((row) => namesEqual(row.name, name))) {
+  if (rosterItems.some((row) => namesEqual(row.name, name))) {
     throw new AppError('Tên này đã có trong danh sách lớp.')
   }
 
-  roster.items.push({
-    id: randomUUID(),
-    name,
-    createdAt: new Date().toISOString(),
-    createdBy: profile?.id || null,
-  })
-  await saveRoster(roster)
+  const { error } = await supabaseAdmin
+    .from(ROSTER_TABLE)
+    .insert({
+      id: randomUUID(),
+      roster_id: DEFAULT_ROSTER_ID,
+      name: name.slice(0, 40),
+      created_by: asText(profile?.id).slice(0, 64) || null,
+    })
+
+  if (error) {
+    if (error.code === '23505') throw new AppError('Tên này đã có trong danh sách lớp.')
+    throw new AppError('Không thể lưu danh sách lớp.', 500)
+  }
   return listClassRoster()
 }
 
 export async function removePlaceholder(rosterId) {
   const key = asText(rosterId)
   if (!key) throw new AppError('Thiếu mã tên trong danh sách lớp.', 400)
-  const roster = await loadRoster()
-  const target = roster.items.find((row) => row.id === key)
+  const { data: target, error: readError } = await supabaseAdmin
+    .from(ROSTER_TABLE)
+    .select('id')
+    .eq('roster_id', DEFAULT_ROSTER_ID)
+    .eq('id', key)
+    .maybeSingle()
+  if (readError) throw new AppError('Không thể đọc danh sách lớp.', 500)
   if (!target) throw new AppError('Không tìm thấy tên chờ kết nối.', 404)
-  roster.items = roster.items.filter((row) => row.id !== key)
-  await saveRoster(roster)
+
+  const { error } = await supabaseAdmin
+    .from(ROSTER_TABLE)
+    .delete()
+    .eq('roster_id', DEFAULT_ROSTER_ID)
+    .eq('id', key)
+  if (error) throw new AppError('Không thể cập nhật danh sách lớp.', 500)
   return listClassRoster()
 }
 
@@ -192,8 +157,13 @@ export async function connectPlaceholder(rosterId, realUserId) {
   if (!key) throw new AppError('Thiếu mã tên chờ kết nối.', 400)
   if (!userId) throw new AppError('Hãy chọn tài khoản thật để kết nối.', 400)
 
-  const roster = await loadRoster()
-  const fake = roster.items.find((row) => row.id === key)
+  const { data: fake, error: fakeError } = await supabaseAdmin
+    .from(ROSTER_TABLE)
+    .select('id, name')
+    .eq('roster_id', DEFAULT_ROSTER_ID)
+    .eq('id', key)
+    .maybeSingle()
+  if (fakeError) throw new AppError('Không thể đọc danh sách lớp.', 500)
   if (!fake) throw new AppError('Không tìm thấy tên chờ kết nối.', 404)
 
   const { data: real, error } = await supabaseAdmin
@@ -219,8 +189,12 @@ export async function connectPlaceholder(rosterId, realUserId) {
     cleaningDutyService.remapAssigneeName(fake.name, realName),
   ])
 
-  roster.items = roster.items.filter((row) => row.id !== key)
-  await saveRoster(roster)
+  const { error: deleteError } = await supabaseAdmin
+    .from(ROSTER_TABLE)
+    .delete()
+    .eq('roster_id', DEFAULT_ROSTER_ID)
+    .eq('id', key)
+  if (deleteError) throw new AppError('Không thể cập nhật danh sách lớp.', 500)
 
   return {
     connected: {

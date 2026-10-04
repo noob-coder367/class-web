@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { initialAuthRedirect, clearAuthRedirectFromUrl } from '../lib/supabaseClient.js'
-import { ROUTES, classTabPath, parsePresentationPath, isAIAssistantPath, isLegacyAIPath } from '../lib/routes.js'
+import { ROUTES, classTabPath, isAIAssistantPath, isLegacyAIPath } from '../lib/routes.js'
 import AuthPage from './AuthPage.jsx'
 import SettingsPanel from '../components/SettingsPanel.jsx'
 import { getStoredAvatar } from '../components/ProfileMenu.jsx'
@@ -31,7 +31,6 @@ import {
   markPrompted,
 } from '../services/pushService.js'
 import { countNewer } from '../lib/unreadStore.js'
-import PresentationHome from '../components/presentation/PresentationHome.jsx'
 import AIAssistantPage from './AIAssistantPage.jsx'
 import ClassMoneyPage from './ClassMoneyPage.jsx'
 
@@ -75,15 +74,12 @@ export default function HomePage() {
 
   // /vo-lop và mọi sub-route của nó -> mở khu vực lớp. /profile-setting -> mở
   // Cài đặt. Các route này điều khiển trực tiếp bằng URL thay vì state rời rạc.
-  // Trang chat AI (/vo-lop/AI/app) nằm dưới /vo-lop nhưng là màn hình riêng,
-  // nên phải loại khỏi khu vực lớp để 2 màn không hiện chồng lên nhau.
+  // Route chat AI cũ được giữ để tương thích, nhưng không có entry point điều hướng trong UI.
   const showAIAssistant = isAIAssistantPath(location.pathname)
   const showClassMoney = location.pathname === ROUTES.classMoney
   const showClassRoom = !showAIAssistant && !showClassMoney
     && (location.pathname === ROUTES.classRoot || location.pathname.startsWith(`${ROUTES.classRoot}/`))
   const showProfileSetting = location.pathname === ROUTES.profileSetting
-  const presentationPath = parsePresentationPath(location.pathname)
-  const showPresentation = presentationPath.type !== null
 
   const [showAuth, setShowAuth] = useState(false)
   const [showAdminPanel, setShowAdminPanel] = useState(false)
@@ -520,7 +516,7 @@ export default function HomePage() {
   }
 
   return (
-      <div className={`page ${showAuth || showClassRoom || showAIAssistant || showClassMoney || showProfileSetting || showPresentation ? 'no-scroll' : ''}`}>
+      <div className={`page ${showAuth || showClassRoom || showAIAssistant || showClassMoney || showProfileSetting ? 'no-scroll' : ''}`}>
       {showAuth && (
         <AuthPage
           key={authInitialStep}
@@ -548,13 +544,6 @@ export default function HomePage() {
       {showAIAssistant && authReady && session && <AIAssistantPage />}
 
       {showClassMoney && authReady && session && <ClassMoneyPage onBack={() => navigate(ROUTES.classRoot)} />}
-
-      {showPresentation && (
-        <PresentationHome
-          mode={presentationPath.type}
-          presentationId={presentationPath.id}
-        />
-      )}
 
       {showPushPrompt && !profile?.needs_display_name && (
         <NotificationPermissionModal

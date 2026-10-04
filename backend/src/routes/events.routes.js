@@ -8,6 +8,7 @@ const router = Router()
 // Đọc công khai (trang chủ). Ghi bắt buộc: đăng nhập + capability events
 // (admin hoặc lớp phó sự kiện). Role lấy từ token, không tin body client.
 router.get('/', eventsController.listEvents)
+router.post('/image-upload-urls', requireAuth, requireCapability('events'), eventsController.createEventImageUploadUrls)
 router.post('/', requireAuth, requireCapability('events'), eventsController.createEvent)
 router.delete('/:id', requireAuth, requireCapability('events'), eventsController.deleteEvent)
 router.patch(

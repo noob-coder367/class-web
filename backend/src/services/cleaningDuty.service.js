@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 
 /**
  * Dữ liệu "Lịch trực vệ sinh" do LPLĐ (Lớp phó Lao động) + Admin quản lý.
@@ -264,6 +264,7 @@ async function getLatestReviewsByDate(weekStartISO) {
     .select('duty_date, rating, comment, updated_by_name, updated_at')
     .eq('week_start', weekStartISO)
     .order('updated_at', { ascending: false })
+    .limit(100)
   if (error) {
     console.warn('[cleaningDuty] không tải được đánh giá theo tuần:', error.message)
     return {}
@@ -385,87 +386,124 @@ async function ensureMediaBucket() {
 export async function listDutyPhotos(weekStartRaw, dutyDateRaw, dayIdRaw) {
   const target = validateDutyTarget(weekStartRaw, dutyDateRaw, dayIdRaw)
   await ensureMediaBucket()
-  const { data, error } = await supabaseAdmin.from('cleaning_duty_photos').select('id, week_start, duty_date, day_of_week, storage_path, original_name, mime_type, size_bytes, uploaded_by, uploaded_by_name, created_at')
-    .eq('week_start', target.weekStartISO).eq('duty_date', target.dutyDateISO).order('created_at', { ascending: false })
+  const { data, error, count } = await supabaseAdmin.from('cleaning_duty_photos').select('id, week_start, duty_date, day_of_week, storage_path, original_name, mime_type, size_bytes, uploaded_by, uploaded_by_name, created_at', { count: 'exact' })
+    .eq('week_start', target.weekStartISO).eq('duty_date', target.dutyDateISO).order('created_at', { ascending: false }).range(0, 99)
   if (error) throw mediaDataError(error, 'Không tải được ảnh trực nhật')
   const items = await Promise.all((data || []).map(async (row) => {
     const { data: signed, error: signedError } = await supabaseAdmin.storage.from(MEDIA_BUCKET).createSignedUrl(row.storage_path, 3600)
     if (signedError) throw new AppError('Không tạo được liên kết ảnh trực nhật.', 502)
     return { ...row, url: signed?.signedUrl || null }
   }))
-  return { ...target, items }
+  return { ...target, items, pagination: { page: 1, pageSize: 100, total: count || 0, hasMore: (count || 0) > items.length } }
 }
 
-function stripDataUrl(value) {
-  const raw = String(value || '').trim()
-  const match = raw.match(/^data:[^;,]+;base64,(.+)$/s)
-  return match ? match[1].replace(/\s+/g, '') : raw.replace(/\s+/g, '')
-}
-
-function decodePhoto(photo) {
-  const originalName = asText(photo?.name || photo?.original_name).slice(0, 180) || 'cleaning-photo.jpg'
-  const ext = originalName.split('.').pop().replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg'
-  const mimeType = asText(photo?.mimeType || photo?.mime_type).toLowerCase() || MIME_BY_EXT[ext]
-  if (!IMAGE_TYPES.has(mimeType)) throw new AppError('Chỉ nhận file ảnh hợp lệ (JPG, PNG, WEBP, GIF, HEIC).', 400)
-  const encoded = stripDataUrl(photo?.contentBase64 || photo?.dataUrl)
-  if (!encoded) throw new AppError(`Ảnh "${originalName}" không có dữ liệu.`, 400)
-  let buffer
-  try { buffer = Buffer.from(encoded, 'base64') } catch { throw new AppError(`Ảnh "${originalName}" không hợp lệ.`, 400) }
-  if (!buffer.length) throw new AppError(`Ảnh "${originalName}" trống.`, 400)
-  if (buffer.length > MAX_PHOTO_BYTES) throw new AppError(`Ảnh "${originalName}" không được vượt quá 25MB.`, 400)
-  return { originalName, ext, mimeType, buffer }
-}
-
-export async function uploadDutyPhotos({ weekStart, dutyDate, dayId, photos }, profile) {
-  const target = validateDutyTarget(weekStart, dutyDate, dayId)
+function normalizeUploadManifest(photos) {
   const list = Array.isArray(photos) ? photos : []
   if (!list.length) throw new AppError('Chưa chọn ảnh trực nhật.')
   if (list.length > MAX_PHOTOS_PER_UPLOAD) throw new AppError(`Mỗi lượt chỉ được tải tối đa ${MAX_PHOTOS_PER_UPLOAD} ảnh.`)
-  const decoded = list.map(decodePhoto)
-  await ensureMediaBucket()
-  const uploadedPaths = []
-  const insertedIds = []
-  const insertedRows = []
-  try {
-    for (const photo of decoded) {
-      const digest = createHash('sha256').update(photo.buffer).digest('hex')
-      const storagePath = `cleaning-duty/${target.weekStartISO}/${target.dayId}/${digest}.${photo.ext}`
-      const { data: existing, error: existingError } = await supabaseAdmin
-        .from('cleaning_duty_photos')
-        .select('*')
-        .eq('storage_path', storagePath)
-        .maybeSingle()
-      if (existingError) throw mediaDataError(existingError, 'Không kiểm tra được ảnh đã tồn tại')
-      if (existing) { insertedRows.push(existing); continue }
-      let uploadError
-      try {
-        ({ error: uploadError } = await supabaseAdmin.storage.from(MEDIA_BUCKET).upload(storagePath, photo.buffer, { contentType: photo.mimeType, upsert: false }))
-      } catch {
-        throw new AppError('Không kết nối được Supabase Storage khi tải ảnh. Vui lòng thử lại.', 502)
-      }
-      if (uploadError) {
-        if (/already exists|duplicate/i.test(String(uploadError.message || ''))) {
-          const { data: duplicate } = await supabaseAdmin.from('cleaning_duty_photos').select('*').eq('storage_path', storagePath).maybeSingle()
-          if (duplicate) { insertedRows.push(duplicate); continue }
-        }
-        throw new AppError('Không tải được ảnh lên Supabase Storage: ' + uploadError.message, 502)
-      }
-      uploadedPaths.push(storagePath)
-      const row = { storage_path: storagePath, original_name: photo.originalName, mime_type: photo.mimeType, size_bytes: photo.buffer.length, week_start: target.weekStartISO, duty_date: target.dutyDateISO, day_of_week: target.dayId, uploaded_by: profile?.id || null, uploaded_by_name: asText(profile?.username) || null }
-      const { data, error: insertError } = await supabaseAdmin.from('cleaning_duty_photos').insert(row).select('*').single()
-      if (insertError) throw mediaDataError(insertError, 'Ảnh đã tải lên nhưng không lưu được metadata')
-      if (data?.id) insertedIds.push(data.id)
-      insertedRows.push(data)
-    }
-    return { ...target, items: insertedRows }
-  } catch (err) {
-    if (insertedIds.length) {
-      try { await supabaseAdmin.from('cleaning_duty_photos').delete().in('id', insertedIds) } catch { /* best-effort rollback */ }
-    }
-    if (uploadedPaths.length) await supabaseAdmin.storage.from(MEDIA_BUCKET).remove(uploadedPaths).catch(() => {})
-    throw err
-  }
+  return list.map((photo) => {
+    const originalName = asText(photo?.name || photo?.original_name).slice(0, 180) || 'cleaning-photo.jpg'
+    const ext = originalName.split('.').pop().replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg'
+    const mimeType = asText(photo?.mimeType || photo?.mime_type).toLowerCase() || MIME_BY_EXT[ext]
+    const size = Number(photo?.size)
+    if (!IMAGE_TYPES.has(mimeType)) throw new AppError('Chỉ nhận file ảnh hợp lệ (JPG, PNG, WEBP, GIF, HEIC).', 400)
+    if (!Number.isSafeInteger(size) || size < 1 || size > MAX_PHOTO_BYTES) throw new AppError(`Ảnh "${originalName}" không được vượt quá 25MB hoặc đang rỗng.`, 400)
+    return { originalName, ext, mimeType, size }
+  })
 }
+
+export async function createDutyPhotoUploadIntent({ weekStart, dutyDate, dayId, photos }, profile) {
+  const target = validateDutyTarget(weekStart, dutyDate, dayId)
+  const userId = asText(profile?.id)
+  if (!userId) throw new AppError('Cần đăng nhập để tải ảnh.', 401)
+  const manifest = normalizeUploadManifest(photos)
+  await ensureMediaBucket()
+  const intentId = randomUUID()
+  const { data: intent, error: intentError } = await supabaseAdmin.from('cleaning_duty_upload_intents')
+    .insert({ id: intentId, week_start: target.weekStartISO, duty_date: target.dutyDateISO, day_id: target.dayId, uploaded_by: userId, uploaded_by_name: asText(profile?.username) || null })
+    .select('id, expires_at').single()
+  if (intentError) throw mediaDataError(intentError, 'Không tạo được phiên upload')
+  const files = manifest.map((file, index) => ({
+    intent_id: intent.id,
+    storage_path: `cleaning-duty/${target.weekStartISO}/${target.dayId}/${intent.id}-${index + 1}.${file.ext}`,
+    original_name: file.originalName, mime_type: file.mimeType, size_bytes: file.size,
+  }))
+  const { error: rowsError } = await supabaseAdmin.from('cleaning_duty_upload_intent_files').insert(files)
+  if (rowsError) {
+    await supabaseAdmin.from('cleaning_duty_upload_intents').delete().eq('id', intent.id)
+    throw mediaDataError(rowsError, 'Không lưu được metadata upload')
+  }
+  const uploads = []
+  try {
+    for (const file of files) {
+      const { data, error } = await supabaseAdmin.storage.from(MEDIA_BUCKET)
+        .createSignedUploadUrl(file.storage_path, { upsert: false })
+      if (error || !data?.token || !data?.signedUrl) throw new AppError('Không tạo được liên kết tải ảnh an toàn.', 502)
+      uploads.push({ path: file.storage_path, token: data.token, signedUrl: data.signedUrl, name: file.original_name, mimeType: file.mime_type })
+    }
+  } catch (error) {
+    await supabaseAdmin.from('cleaning_duty_upload_intents').delete().eq('id', intent.id)
+    throw error
+  }
+  return { intent_id: intent.id, expires_at: intent.expires_at, ...target, files: uploads }
+}
+
+export async function completeDutyPhotoUpload(intentId, profile) {
+  const userId = asText(profile?.id)
+  if (!userId) throw new AppError('Cần đăng nhập để tải ảnh.', 401)
+  const { data: intent, error } = await supabaseAdmin.from('cleaning_duty_upload_intents')
+    .select('*').eq('id', asText(intentId)).eq('uploaded_by', userId).maybeSingle()
+  if (error) throw mediaDataError(error, 'Không đọc được phiên upload')
+  if (!intent || Date.parse(intent.expires_at) <= Date.now()) throw new AppError('Phiên upload đã hết hạn. Hãy chọn ảnh lại.', 410)
+  const { data: files, error: filesError } = await supabaseAdmin.from('cleaning_duty_upload_intent_files')
+    .select('storage_path, original_name, mime_type, size_bytes').eq('intent_id', intent.id).order('id')
+  if (filesError) throw mediaDataError(filesError, 'Không đọc được danh sách ảnh upload')
+  if (!files?.length || files.length > MAX_PHOTOS_PER_UPLOAD) throw new AppError('Danh sách ảnh upload không hợp lệ.', 400)
+  for (const file of files) {
+    const slash = file.storage_path.lastIndexOf('/')
+    const { data: objects, error: storageError } = await supabaseAdmin.storage.from(MEDIA_BUCKET)
+      .list(file.storage_path.slice(0, slash), { search: file.storage_path.slice(slash + 1), limit: 10 })
+    const objectName = file.storage_path.slice(slash + 1)
+    if (storageError || !(objects || []).some((object) => object.name === objectName && Number(object.metadata?.size) === Number(file.size_bytes))) {
+      throw new AppError(`Không xác minh được ảnh "${file.original_name}". Hãy tải lại.`, 400)
+    }
+  }
+  const rows = files.map((file) => ({
+    week_start: intent.week_start,
+    duty_date: intent.duty_date,
+    day_of_week: intent.day_id,
+    storage_path: file.storage_path,
+    original_name: file.original_name,
+    mime_type: file.mime_type,
+    size_bytes: file.size_bytes,
+    uploaded_by: userId,
+    uploaded_by_name: intent.uploaded_by_name,
+  }))
+  const { data, error: insertError } = await supabaseAdmin.from('cleaning_duty_photos').insert(rows).select('*')
+  if (insertError) {
+    await supabaseAdmin.storage.from(MEDIA_BUCKET).remove(files.map((file) => file.storage_path)).catch(() => {})
+    throw mediaDataError(insertError, 'Không lưu được metadata ảnh')
+  }
+  const { error: deleteError } = await supabaseAdmin.from('cleaning_duty_upload_intents').delete().eq('id', intent.id)
+  if (deleteError) console.warn('[cleaningDuty] upload intent cleanup failed', { code: deleteError.code })
+  return { week_start: intent.week_start, duty_date: intent.duty_date, day_id: intent.day_id, items: data || [] }
+}
+
+export async function cancelDutyPhotoUpload(intentId, profile) {
+  const userId = asText(profile?.id)
+  const { data: intent, error } = await supabaseAdmin.from('cleaning_duty_upload_intents')
+    .select('id').eq('id', asText(intentId)).eq('uploaded_by', userId).maybeSingle()
+  if (error) throw mediaDataError(error, 'Không hủy được phiên upload')
+  if (!intent) return { id: asText(intentId), cancelled: true }
+  const { data: files, error: filesError } = await supabaseAdmin.from('cleaning_duty_upload_intent_files')
+    .select('storage_path').eq('intent_id', intent.id)
+  if (filesError) throw mediaDataError(filesError, 'Không hủy được phiên upload')
+  const { error: deleteError } = await supabaseAdmin.from('cleaning_duty_upload_intents').delete().eq('id', intent.id)
+  if (deleteError) throw mediaDataError(deleteError, 'Không hủy được phiên upload')
+  await supabaseAdmin.storage.from(MEDIA_BUCKET).remove((files || []).map((file) => file.storage_path)).catch(() => {})
+  return { id: intent.id, cancelled: true }
+}
+
 export async function deleteDutyPhoto(id) {
   const { data: row, error: readError } = await supabaseAdmin.from('cleaning_duty_photos').select('id, storage_path').eq('id', String(id || '')).maybeSingle()
   if (readError) throw mediaDataError(readError, 'Không đọc được metadata ảnh')

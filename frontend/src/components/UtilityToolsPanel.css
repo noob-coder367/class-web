@@ -139,9 +139,7 @@
   pointer-events: auto;
 }
 /* Fullscreen chỉ hiện descendants của element đang fullscreen (phòng học / player). */
-.class-play-view > .utility-float-host,
-.presentation-player > .utility-float-host,
-.presentation-editor > .utility-float-host {
+.class-play-view > .utility-float-host {
   position: fixed;
   inset: 0;
   z-index: 30;

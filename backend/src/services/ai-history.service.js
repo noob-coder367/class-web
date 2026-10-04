@@ -4,6 +4,12 @@ import { AppError } from './auth.service.js'
 export const AI_DAILY_LIMIT = 20
 const MAX_TITLE_LENGTH = 80
 const MAX_CONTENT_LENGTH = 4000
+const MAX_PAGE_SIZE = 100
+function paginationArgs(page, pageSize) {
+  const safePage = Math.max(1, Number.parseInt(page, 10) || 1)
+  const safeSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.parseInt(pageSize, 10) || 50))
+  return { page: safePage, pageSize: safeSize, from: (safePage - 1) * safeSize }
+}
 
 function todayInVietnam() {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -84,14 +90,19 @@ function toConversationSummary(row) {
   }
 }
 
-export async function listConversations(userId) {
-  const { data, error } = await supabaseAdmin
+export async function listConversations(userId, options = {}) {
+  const page = paginationArgs(options.page, options.pageSize)
+  const { data, error, count } = await supabaseAdmin
     .from('ai_conversations')
-    .select('id, title, created_at, updated_at')
+    .select('id, title, created_at, updated_at', { count: 'exact' })
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
+    .range(page.from, page.from + page.pageSize - 1)
   throwDatabaseError(error, 'Không tải được lịch sử chat, vui lòng thử lại sau.')
-  return (data || []).map(toConversationSummary)
+  return {
+    conversations: (data || []).map(toConversationSummary),
+    pagination: { page: page.page, pageSize: page.pageSize, total: count || 0, hasMore: page.from + (data || []).length < (count || 0) },
+  }
 }
 
 export async function createConversation(userId, title = 'Cuộc trò chuyện mới') {
@@ -124,16 +135,23 @@ async function getOwnedConversation(userId, conversationId) {
   return normalizeConversation(data, userId)
 }
 
-export async function getConversation(userId, conversationId) {
+export async function getConversation(userId, conversationId, options = {}) {
   const conversation = await getOwnedConversation(userId, conversationId)
-  const { data, error } = await supabaseAdmin
+  const page = paginationArgs(options.page, options.pageSize)
+  // Page 1 is always the newest slice for context and UI; reverse it for chronological display.
+  const { data, error, count } = await supabaseAdmin
     .from('ai_messages')
-    .select('id, role, content, created_at')
+    .select('id, role, content, created_at', { count: 'exact' })
     .eq('conversation_id', conversation.id)
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true })
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(page.from, page.from + page.pageSize - 1)
   throwDatabaseError(error, 'Không tải được tin nhắn, vui lòng thử lại sau.')
-  return { conversation, messages: data || [] }
+  const messages = (data || []).reverse()
+  return { conversation, messages, pagination: {
+    page: page.page, pageSize: page.pageSize, total: count || 0,
+    hasMore: page.from + (data || []).length < (count || 0),
+  } }
 }
 
 export async function deleteConversation(userId, conversationId) {

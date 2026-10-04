@@ -6,15 +6,11 @@ import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
 import { isStatusDrop, statusFor } from '../lib/reputationStatus.js'
 import * as announcementsService from './announcements.service.js'
-import { readStore as readDbStore, writeStore as writeDbStore } from '../utils/classroomDbStore.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_PATH = join(__dirname, '../data/rules.default.json')
 
-const BUCKET = 'classroom-data'
 const PHOTO_BUCKET = 'violation-photos'
-const RULES_FILE = 'rules.json'
-const VIOLATIONS_FILE = 'violations.json'
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024
 const MAX_PHOTOS = 3
@@ -154,21 +150,45 @@ function offensePointsMap(rules) {
   return map
 }
 
-function stripDataUrl(contentBase64) {
-  const raw = String(contentBase64 || '').trim()
-  const match = raw.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/)
-  return match ? match[1] : raw.replace(/\s+/g, '')
+export async function createViolationPhotoUploadUrls(files) {
+  const list = Array.isArray(files) ? files : []
+  if (!list.length || list.length > MAX_PHOTOS) throw new AppError(`Mỗi lượt tải tối đa ${MAX_PHOTOS} ảnh bằng chứng.`, 400)
+  await ensurePhotoBucket()
+  const uploads = await Promise.all(list.map(async (file) => {
+    const mime = String(file?.mimeType || '').toLowerCase()
+    const ext = ALLOWED_MIME[mime]
+    const sizeBytes = Number(file?.sizeBytes ?? file?.size)
+    if (!ext) throw new AppError('Chỉ nhận ảnh JPG, PNG, WEBP hoặc GIF.')
+    if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > MAX_PHOTO_BYTES) throw new AppError('Mỗi ảnh tối đa 10MB.')
+    const path = `violations/pending/${randomUUID()}.${ext}`
+    const result = await supabaseAdmin.storage.from(PHOTO_BUCKET).createSignedUploadUrl(path, { upsert: false })
+    if (result.error) throw new AppError('Không tạo được liên kết tải ảnh bằng chứng.', 502)
+    return { path, token: result.data.token, signedUrl: result.data.signedUrl, mimeType: mime, sizeBytes }
+  }))
+  return { bucket: PHOTO_BUCKET, uploads }
 }
 
-function sanitizeFilename(name, ext) {
-  const base = String(name || 'anh')
-    .toLowerCase()
-    .replace(/\.[a-z0-9]+$/i, '')
-    .replace(/[^a-z0-9-_]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40)
-  const stamp = Date.now().toString(36)
-  return `${base || 'anh'}-${stamp}.${ext}`
+async function uploadViolationPhotos(photos) {
+  const list = Array.isArray(photos) ? photos.slice(0, MAX_PHOTOS) : []
+  if (!list.length) return []
+  await ensurePhotoBucket()
+  const result = []
+  for (const photo of list) {
+    const mime = String(photo?.mimeType || '').toLowerCase()
+    const ext = ALLOWED_MIME[mime]
+    const path = String(photo?.path || '')
+    const sizeBytes = Number(photo?.sizeBytes)
+    if (!ext || !path.startsWith('violations/pending/') || path.includes('..') || path.split('/').length !== 3 || !path.toLowerCase().endsWith(`.${ext}`)) throw new AppError('Ảnh bằng chứng tải lên không hợp lệ.', 400)
+    if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > MAX_PHOTO_BYTES) throw new AppError('Mỗi ảnh tối đa 10MB.')
+    const name = sanitizeFilename(photo?.filename || path.split('/').pop(), ext)
+    const { data, error } = await supabaseAdmin.storage.from(PHOTO_BUCKET).list('violations/pending', { search: path.split('/').pop(), limit: 100 })
+    if (error) throw new AppError('Không thể xác minh ảnh bằng chứng.', 502)
+    const object = (data || []).find((row) => row.name === path.split('/').pop())
+    if (!object) throw new AppError('Ảnh bằng chứng chưa được tải lên Storage.', 400)
+    if (Number.isFinite(Number(object.metadata?.size)) && Number(object.metadata.size) !== sizeBytes) throw new AppError('Kích thước ảnh bằng chứng không khớp.', 400)
+    result.push({ path, name, url: publicPhotoUrl(path), mime, sizeBytes })
+  }
+  return result
 }
 
 function publicPhotoUrl(filePath) {
@@ -266,66 +286,144 @@ async function ensurePhotoBucket() {
   }
 }
 
-async function readJson(path) {
-  const key = path === RULES_FILE ? 'rules' : 'violations'
-  return readDbStore({ key, legacyPath: path, empty: null, label: path })
+function throwQueryError(error, message) {
+  if (error) throw new AppError(`${message}: ${error.message || 'database error'}`, 500)
 }
 
-async function writeJson(path, payload, label) {
-  const key = path === RULES_FILE ? 'rules' : 'violations'
-  await writeDbStore({ key, value: payload, label })
-}
-
-async function decodePhotoPayload(photo) {
-  const src = photo && typeof photo === 'object' ? photo : {}
-  const mime = String(src.mimeType || '').toLowerCase()
-  const ext = ALLOWED_MIME[mime]
-  if (!ext) throw new AppError('Chỉ nhận ảnh JPG, PNG, WEBP hoặc GIF.')
-  const pure = stripDataUrl(src.contentBase64)
-  if (!pure) throw new AppError('Thiếu dữ liệu ảnh bằng chứng.')
-  let bytes
-  try {
-    bytes = Buffer.from(pure, 'base64')
-  } catch {
-    throw new AppError('Ảnh bằng chứng không hợp lệ.')
+function ruleRowsToDto(setting, sectionRows, itemRows) {
+  const itemsBySection = new Map()
+  for (const item of itemRows || []) {
+    const list = itemsBySection.get(item.section_id) || []
+    list.push({ text: item.text, points: item.points })
+    itemsBySection.set(item.section_id, list)
   }
-  if (!bytes.length) throw new AppError('Ảnh bằng chứng trống.')
-  if (bytes.length > MAX_PHOTO_BYTES) throw new AppError('Mỗi ảnh tối đa 10MB.')
   return {
-    bytes,
-    mime,
-    ext,
-    filename: sanitizeFilename(src.filename, ext),
+    title: setting?.title,
+    startingPoints: setting?.starting_points,
+    sections: (sectionRows || []).map((section) => ({
+      id: section.id,
+      title: section.title,
+      items: itemsBySection.get(section.id) || [],
+    })),
+    notice: { title: setting?.notice_title, body: setting?.notice_body },
+    updatedAt: setting?.updated_at,
   }
 }
 
-async function uploadViolationPhotos(violationId, photos) {
-  const list = Array.isArray(photos) ? photos.slice(0, MAX_PHOTOS) : []
-  if (!list.length) return []
-  await ensurePhotoBucket()
-  const uploaded = []
-  try {
-    for (const photo of list) {
-      const decoded = await decodePhotoPayload(photo)
-      const filePath = `violations/${violationId}/${decoded.filename}`
-      const { error } = await supabaseAdmin.storage.from(PHOTO_BUCKET).upload(filePath, decoded.bytes, {
-        contentType: decoded.mime,
-        upsert: false,
-      })
-      if (error) throw new AppError('Không tải được ảnh bằng chứng: ' + error.message, 502)
-      uploaded.push({
-        path: filePath,
-        name: decoded.filename,
-        url: publicPhotoUrl(filePath),
-      })
-    }
-  } catch (err) {
-    if (uploaded.length) {
-      await supabaseAdmin.storage.from(PHOTO_BUCKET).remove(uploaded.map((item) => item.path))
-    }
-    throw err
+function violationRowToDto(row, photos) {
+  return normalizeViolation({
+    id: row.id,
+    date: row.violation_date,
+    period: row.period,
+    name: row.student_name,
+    userId: row.user_id,
+    rosterId: row.roster_id,
+    offense: row.offense,
+    warning: row.warning,
+    points: row.points,
+    createdAt: row.created_at,
+    photos: (photos || []).map((photo) => ({ path: photo.storage_path, name: photo.name })),
+  })
+}
+
+async function readRuleRows() {
+  const [settingResult, sectionsResult, itemsResult] = await Promise.all([
+    supabaseAdmin.from('rules_settings').select('id, title, starting_points, notice_title, notice_body, updated_at, violations_updated_at').eq('id', 'default').maybeSingle(),
+    supabaseAdmin.from('rule_sections').select('id, title, position').eq('settings_id', 'default').order('position', { ascending: true }),
+    supabaseAdmin.from('rule_items').select('section_id, position, text, points').order('position', { ascending: true }),
+  ])
+  throwQueryError(settingResult.error, 'Không thể đọc cấu hình nội quy')
+  throwQueryError(sectionsResult.error, 'Không thể đọc mục nội quy')
+  throwQueryError(itemsResult.error, 'Không thể đọc chi tiết nội quy')
+  return { setting: settingResult.data, sections: sectionsResult.data || [], items: itemsResult.data || [] }
+}
+
+async function writeRules(next) {
+  const settingValues = {
+    title: next.title,
+    starting_points: next.startingPoints,
+    notice_title: next.notice.title,
+    notice_body: next.notice.body,
+    updated_at: next.updatedAt,
   }
-  return uploaded
+  const settingUpdate = await supabaseAdmin.from('rules_settings').update(settingValues).eq('id', 'default').select('id').maybeSingle()
+  throwQueryError(settingUpdate.error, 'Không thể lưu cấu hình nội quy')
+  if (!settingUpdate.data) {
+    const settingInsert = await supabaseAdmin.from('rules_settings').insert({ id: 'default', ...settingValues })
+    throwQueryError(settingInsert.error, 'Không thể lưu cấu hình nội quy')
+  }
+
+  const deleteResult = await supabaseAdmin.from('rule_sections').delete().eq('settings_id', 'default')
+  throwQueryError(deleteResult.error, 'Không thể thay thế các mục nội quy')
+  const sections = next.sections.map((section, position) => ({
+    id: section.id,
+    settings_id: 'default',
+    title: section.title,
+    position,
+  }))
+  if (!sections.length) return
+  const sectionResult = await supabaseAdmin.from('rule_sections').insert(sections)
+  throwQueryError(sectionResult.error, 'Không thể lưu các mục nội quy')
+  const items = next.sections.flatMap((section) => section.items.map((item, position) => ({
+    section_id: section.id,
+    position,
+    text: item.text,
+    points: item.points,
+  })))
+  if (items.length) {
+    const itemResult = await supabaseAdmin.from('rule_items').insert(items)
+    throwQueryError(itemResult.error, 'Không thể lưu chi tiết nội quy')
+  }
+}
+
+async function readViolationRows(options = {}) {
+  const page = Math.min(10000, Math.max(1, Number.parseInt(options.page, 10) || 1))
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(options.pageSize, 10) || 100))
+  const from = (page - 1) * pageSize
+  const parseDate = (value) => {
+    const date = String(value || '').trim()
+    if (!DATE_RE.test(date)) return null
+    const parsed = new Date(`${date}T00:00:00.000Z`)
+    return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date ? null : date
+  }
+  const sort = options.sort === 'oldest' ? 'asc' : 'desc'
+  let listQuery = supabaseAdmin.from('rule_violations')
+    .select('id, violation_date, period, student_name, user_id, roster_id, offense, warning, points, created_at, updated_at', { count: 'exact' })
+    .order('violation_date', { ascending: sort === 'asc' }).order('created_at', { ascending: sort === 'asc' })
+  const fromDate = parseDate(options.dateFrom), toDate = parseDate(options.dateTo)
+  if (fromDate) listQuery = listQuery.gte('violation_date', fromDate)
+  if (toDate) listQuery = listQuery.lte('violation_date', toDate)
+  if (options.userId) listQuery = listQuery.eq('user_id', String(options.userId))
+  if (options.rosterId) listQuery = listQuery.eq('roster_id', String(options.rosterId))
+  if (options.memberName) listQuery = listQuery.ilike('student_name', `%${String(options.memberName).replace(/[\%_]/g, '\\$&').slice(0, 80)}%`)
+  const violationsResult = await listQuery.range(from, from + pageSize - 1)
+  throwQueryError(violationsResult.error, 'Không thể đọc danh sách vi phạm')
+  const ids = (violationsResult.data || []).map((row) => row.id)
+  const photosResult = ids.length
+    ? await supabaseAdmin.from('rule_violation_photos').select('violation_id, storage_path, name, position').in('violation_id', ids).order('position', { ascending: true }).range(0, pageSize * MAX_PHOTOS - 1)
+    : { data: [], error: null }
+  throwQueryError(photosResult.error, 'Không thể đọc ảnh bằng chứng')
+  const photosByViolation = new Map()
+  for (const photo of photosResult.data || []) {
+    const list = photosByViolation.get(photo.violation_id) || []
+    list.push(photo)
+    photosByViolation.set(photo.violation_id, list)
+  }
+  return { rows: violationsResult.data || [], photosByViolation, page, pageSize, from, total: violationsResult.count || 0 }
+}
+
+async function touchViolations(updatedAt) {
+  const result = await supabaseAdmin.from('rules_settings').update({
+    violations_updated_at: updatedAt,
+  }).eq('id', 'default').select('id').maybeSingle()
+  throwQueryError(result.error, 'Không thể cập nhật thời gian danh sách vi phạm')
+  if (!result.data) {
+    const insertResult = await supabaseAdmin.from('rules_settings').insert({
+      id: 'default',
+      violations_updated_at: updatedAt,
+    })
+    throwQueryError(insertResult.error, 'Không thể cập nhật thời gian danh sách vi phạm')
+  }
 }
 
 async function deletePhotoPaths(paths) {
@@ -340,9 +438,9 @@ async function deletePhotoPaths(paths) {
 }
 
 export async function getRules() {
-  const stored = await readJson(RULES_FILE)
-  if (stored) {
-    rulesCache = normalizeRules(stored)
+  const stored = await readRuleRows()
+  if (stored.setting || stored.sections.length) {
+    rulesCache = normalizeRules(ruleRowsToDto(stored.setting, stored.sections, stored.items))
     return clone(rulesCache)
   }
   rulesCache = normalizeRules(loadDefaultRules())
@@ -352,20 +450,19 @@ export async function getRules() {
 export async function saveRules(payload) {
   const next = normalizeRules(payload)
   next.updatedAt = new Date().toISOString()
-  await writeJson(RULES_FILE, next, 'nội quy')
+  await writeRules(next)
   rulesCache = next
   return clone(next)
 }
 
-export async function getViolations() {
-  const rules = await getRules()
-  const stored = await readJson(VIOLATIONS_FILE)
-  if (stored) {
-    violationsCache = normalizeViolations(stored, rules)
-    return clone(violationsCache)
-  }
-  violationsCache = { items: [], updatedAt: new Date().toISOString() }
-  return clone(violationsCache)
+export async function getViolations(options = {}) {
+  const stored = await readViolationRows(options)
+  const items = stored.rows.map((row) => violationRowToDto(row, stored.photosByViolation.get(row.id))).filter(Boolean)
+  const settingResult = await supabaseAdmin.from('rules_settings').select('violations_updated_at').eq('id', 'default').maybeSingle()
+  throwQueryError(settingResult.error, 'Không thể đọc thời gian danh sách vi phạm')
+  const updatedAt = settingResult.data?.violations_updated_at || items[0]?.createdAt || new Date().toISOString()
+  violationsCache = { items, updatedAt }
+  return { ...clone(violationsCache), pagination: { page: stored.page, pageSize: stored.pageSize, total: stored.total, hasMore: stored.from + items.length < stored.total } }
 }
 
 export async function addViolation(payload) {
@@ -373,25 +470,50 @@ export async function addViolation(payload) {
   const rules = await getRules()
   const incoming = payload && typeof payload === 'object' ? payload : {}
   const row = normalizeViolation(incoming, { createId: true, rules })
-  const oldScore = memberScore(row, current.items, rules)
-  const photoPayloads = Array.isArray(incoming.photos)
-    ? incoming.photos.filter((item) => item && item.contentBase64)
-    : []
+  const before = await buildLeaderboardFromDatabase([{ id: row.userId || row.rosterId || `roster:${row.name}`, username: row.name, is_placeholder: !row.userId, roster_id: row.rosterId }], rules)
+  const oldScore = before.rows[0]?.score ?? clampInt(rules?.startingPoints, 1, 200, 100)
+  const photoPayloads = Array.isArray(incoming.photos) ? incoming.photos : []
   if (photoPayloads.length > MAX_PHOTOS) {
     throw new AppError(`Tối đa ${MAX_PHOTOS} ảnh bằng chứng.`)
   }
-  row.photos = await uploadViolationPhotos(row.id, photoPayloads)
-  current.items.unshift(row)
-  current.items = current.items.slice(0, 300)
-  current.updatedAt = new Date().toISOString()
+  row.photos = await uploadViolationPhotos(photoPayloads)
+  const updatedAt = new Date().toISOString()
+  let rowInserted = false
   try {
-    await writeJson(VIOLATIONS_FILE, current, 'danh sách vi phạm')
+    const result = await supabaseAdmin.from('rule_violations').insert({
+      id: row.id,
+      violation_date: row.date,
+      period: row.period,
+      student_name: row.name,
+      user_id: row.userId || null,
+      roster_id: row.rosterId || null,
+      offense: row.offense,
+      warning: row.warning,
+      points: row.points,
+      created_at: row.createdAt,
+      updated_at: updatedAt,
+    })
+    throwQueryError(result.error, 'Không thể lưu vi phạm')
+    rowInserted = true
+    if (row.photos.length) {
+      const photoResult = await supabaseAdmin.from('rule_violation_photos').insert(row.photos.map((photo, position) => ({
+        violation_id: row.id,
+        position,
+        storage_path: photo.path,
+        name: photo.name,
+      })))
+      throwQueryError(photoResult.error, 'Không thể lưu ảnh bằng chứng')
+    }
+    await touchViolations(updatedAt)
   } catch (err) {
+    if (rowInserted) await supabaseAdmin.from('rule_violations').delete().eq('id', row.id)
     await deletePhotoPaths(row.photos.map((item) => item.path))
     throw err
   }
-  violationsCache = current
-  const newScore = memberScore(row, current.items, rules)
+  const nextItems = [row, ...current.items].slice(0, 300)
+  violationsCache = { items: nextItems, updatedAt }
+  const after = await buildLeaderboardFromDatabase([{ id: row.userId || row.rosterId || `roster:${row.name}`, username: row.name, is_placeholder: !row.userId, roster_id: row.rosterId }], rules)
+  const newScore = after.rows[0]?.score ?? oldScore
   void announceIfStatusDropped(row, oldScore, newScore)
   return clone(row)
 }
@@ -399,15 +521,42 @@ export async function addViolation(payload) {
 export async function removeViolation(id) {
   const key = asText(id)
   if (!key) throw new AppError('Thiếu mã vi phạm.', 400)
-  const current = await getViolations()
-  const target = current.items.find((item) => item.id === key)
-  if (!target) throw new AppError('Không tìm thấy vi phạm.', 404)
-  current.items = current.items.filter((item) => item.id !== key)
-  current.updatedAt = new Date().toISOString()
-  await writeJson(VIOLATIONS_FILE, current, 'danh sách vi phạm')
-  violationsCache = current
-  await deletePhotoPaths((target.photos || []).map((item) => item.path))
+  const [found, photoRows] = await Promise.all([
+    supabaseAdmin.from('rule_violations').select('id').eq('id', key).maybeSingle(),
+    supabaseAdmin.from('rule_violation_photos').select('storage_path').eq('violation_id', key).range(0, MAX_PHOTOS - 1),
+  ])
+  throwQueryError(found.error, 'Không thể kiểm tra vi phạm')
+  throwQueryError(photoRows.error, 'Không thể đọc ảnh bằng chứng')
+  if (!found.data) throw new AppError('Không tìm thấy vi phạm.', 404)
+  const result = await supabaseAdmin.from('rule_violations').delete().eq('id', key)
+  throwQueryError(result.error, 'Không thể xoá vi phạm')
+  const updatedAt = new Date().toISOString()
+  await touchViolations(updatedAt)
+  if (violationsCache) violationsCache = { ...violationsCache, items: violationsCache.items.filter((item) => item.id !== key), updatedAt }
+  await deletePhotoPaths((photoRows.data || []).map((item) => item.storage_path))
   return { ok: true, id: key }
+}
+
+export async function buildLeaderboardFromDatabase(members, rules) {
+  const list = Array.isArray(members) ? members : []
+  const normalized = list.map((member) => ({
+    id: String(member?.id || ''), username: String(member?.username || ''),
+    is_placeholder: member?.is_placeholder === true, roster_id: String(member?.roster_id || ''),
+  }))
+  const totals = await supabaseAdmin.rpc('rules_member_violation_totals', { p_members: normalized })
+  throwQueryError(totals.error, 'Không thể tổng hợp vi phạm thành viên')
+  const stats = new Map((totals.data || []).map((row) => [row.member_id, row]))
+  const starting = clampInt(rules?.startingPoints, 1, 200, 100)
+  const rows = list.map((member) => {
+    const total = stats.get(String(member?.id || '')) || { deducted: 0, violation_count: 0 }
+    const deducted = Number(total.deducted) || 0
+    return { id: member.id, username: member.username, role: member.role, is_placeholder: member.is_placeholder === true,
+      score: Math.max(0, starting - deducted), deducted, violations: Number(total.violation_count) || 0 }
+  })
+  rows.sort((a, b) => b.score - a.score || a.violations - b.violations || String(a.username).localeCompare(String(b.username), 'vi'))
+  let lastScore = null, rank = 0
+  for (const row of rows) { if (row.score !== lastScore) { rank += 1; lastScore = row.score } row.rank = rank }
+  return { startingPoints: starting, total: rows.length, rows }
 }
 
 export function buildLeaderboard(members, violations, rules) {
@@ -493,25 +642,19 @@ export async function remapViolationsToUser({ fromName, fromRosterId, toUserId, 
   const targetUserId = asText(toUserId)
   if (!targetName || !targetUserId) return { changed: 0 }
 
-  const current = await getViolations()
-  let changed = 0
-  current.items = current.items.map((row) => {
-    const matchRoster = fromRosterId && row.rosterId === fromRosterId
-    const matchName = namesEqual(row.name, fromName) && !row.userId
-    if (!matchRoster && !matchName) return row
-    changed += 1
-    return {
-      ...row,
-      userId: targetUserId,
-      name: targetName,
-      rosterId: '',
-    }
-  })
-  if (!changed) return { changed: 0 }
-  current.updatedAt = new Date().toISOString()
-  await writeJson(VIOLATIONS_FILE, current, 'danh sách vi phạm')
-  violationsCache = current
-  return { changed }
+  let update = supabaseAdmin.from('rule_violations').update({
+    student_name: targetName, user_id: targetUserId, roster_id: null, updated_at: new Date().toISOString(),
+  }).is('user_id', null).select('id')
+  if (fromRosterId) update = update.eq('roster_id', fromRosterId)
+  else update = update.ilike('student_name', String(fromName || '').replace(/[\%_]/g, '\\$&'))
+  const changed = await update
+  throwQueryError(changed.error, 'Không thể kết nối vi phạm với tài khoản')
+  const changedRows = changed.data || []
+  if (!changedRows.length) return { changed: 0 }
+  const updatedAt = new Date().toISOString()
+  await touchViolations(updatedAt)
+  if (violationsCache) violationsCache.updatedAt = updatedAt
+  return { changed: changedRows.length }
 }
 
 async function announceIfStatusDropped(member, oldScore, newScore) {

@@ -9,7 +9,7 @@ function noStore(res) {
 export async function listAssignments(req, res, next) {
   try {
     noStore(res)
-    res.json({ items: await service.listAssignments(req.profile) })
+    res.json(await service.listAssignments(req.profile, { page: req.query.page, pageSize: req.query.pageSize }))
   } catch (err) { next(err) }
 }
 
@@ -28,18 +28,33 @@ export async function deleteAssignment(req, res, next) {
   } catch (err) { next(err) }
 }
 
-export async function submitAssignment(req, res, next) {
+export async function startSubmissionUpload(req, res, next) {
   try {
     noStore(res)
-    const result = await service.submitAssignment(req.params.id, req.body?.files, req.profile)
+    const result = await service.createSubmissionUploadIntent(req.params.id, req.body?.files, req.profile)
+    res.status(201).json(result)
+  } catch (err) { next(err) }
+}
+
+export async function completeSubmissionUpload(req, res, next) {
+  try {
+    noStore(res)
+    const result = await service.completeSubmissionUpload(req.params.id, req.body?.intent_id, req.profile)
     res.status(201).json({ message: 'Đã nộp bài.', ...result })
+  } catch (err) { next(err) }
+}
+
+export async function cancelSubmissionUpload(req, res, next) {
+  try {
+    noStore(res)
+    res.json(await service.cancelSubmissionUpload(req.params.intentId, req.profile))
   } catch (err) { next(err) }
 }
 
 export async function getAssignmentStatus(req, res, next) {
   try {
     noStore(res)
-    res.json(await service.getAssignmentStatus(req.params.id))
+    res.json(await service.getAssignmentStatus(req.params.id, { page: req.query.page, pageSize: req.query.pageSize }))
   } catch (err) { next(err) }
 }
 

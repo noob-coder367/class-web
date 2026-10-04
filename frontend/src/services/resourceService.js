@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient.js'
+import { supabase } from '../lib/supabaseClient.js'
 import { dbGetAll, dbPut, dbDelete, enqueue, replaceStore } from '../lib/resourceDb.js'
 
 export const RESOURCE_LIMITS = Object.freeze({ maxImagesPerResource: 20, maxImageSizeMB: 25, maxFilesPerResource: 20, maxFileSizeMB: 50 })
@@ -175,11 +176,18 @@ export async function uploadResourceFiles(id, files) {
 }
 
 async function uploadOneFile(resourceId, record) {
-  const form = new FormData()
-  form.set('file_type', record.file_type)
-  form.set('file', record.blob, record.file_name)
-  const result = await apiClient.postForm(`/resources/${resourceId}/files`, form, { auth: true })
-  return result.item || result.items?.[0]
+  const intent = await apiClient.post(`/resources/${resourceId}/files/upload-urls`, {
+    files: [{ name: record.file_name, mimeType: record.mime_type, sizeBytes: record.size_bytes, fileType: record.file_type }],
+  }, { auth: true })
+  const upload = intent.uploads?.[0]
+  if (!upload) throw new Error('Không tạo được liên kết tải file.')
+  const { error } = await supabase.storage.from(intent.bucket || 'classroom-resources')
+    .uploadToSignedUrl(upload.path, upload.token, record.blob, { contentType: upload.mimeType, upsert: false })
+  if (error) throw new Error(error.message || 'Không tải được file lên Storage.')
+  const result = await apiClient.post(`/resources/${resourceId}/files/complete`, {
+    files: [{ path: upload.path, name: upload.fileName, mimeType: upload.mimeType, sizeBytes: upload.sizeBytes, fileType: upload.fileType }],
+  }, { auth: true })
+  return result.items?.[0]
 }
 
 function dataUrlToBlob(value, mimeType = 'application/octet-stream') {

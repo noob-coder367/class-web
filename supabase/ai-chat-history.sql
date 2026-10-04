@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS public.ai_daily_usage (
 CREATE INDEX IF NOT EXISTS ai_conversations_user_updated_idx
   ON public.ai_conversations (user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS ai_messages_conversation_created_idx
-  ON public.ai_messages (conversation_id, created_at ASC);
+  ON public.ai_messages (conversation_id, created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS ai_daily_usage_date_idx
   ON public.ai_daily_usage (usage_date);
 
@@ -46,23 +46,23 @@ AS $$
 DECLARE
   current_count integer;
 BEGIN
-  SELECT used_count INTO current_count
-  FROM public.ai_daily_usage
-  WHERE user_id = p_user_id AND usage_date = p_usage_date
-  FOR UPDATE;
-
-  IF COALESCE(current_count, 0) >= p_limit THEN
-    RETURN QUERY SELECT COALESCE(current_count, 0), p_limit, false;
-    RETURN;
-  END IF;
-
+  -- One atomic conditional upsert handles both existing and first-use rows. A SELECT FOR
+  -- UPDATE alone cannot lock a row that does not exist and allowed concurrent first users
+  -- to exceed the quota.
   INSERT INTO public.ai_daily_usage (user_id, usage_date, used_count, updated_at)
   VALUES (p_user_id, p_usage_date, 1, now())
   ON CONFLICT (user_id, usage_date) DO UPDATE
     SET used_count = public.ai_daily_usage.used_count + 1,
         updated_at = now()
+    WHERE public.ai_daily_usage.used_count < p_limit
   RETURNING ai_daily_usage.used_count INTO current_count;
 
+  IF NOT FOUND THEN
+    SELECT used_count INTO current_count FROM public.ai_daily_usage
+      WHERE user_id = p_user_id AND usage_date = p_usage_date;
+    RETURN QUERY SELECT COALESCE(current_count, 0), p_limit, false;
+    RETURN;
+  END IF;
   RETURN QUERY SELECT current_count, p_limit, true;
 END;
 $$;
@@ -103,6 +103,9 @@ ALTER TABLE public.ai_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_daily_usage ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE public.ai_conversations, public.ai_messages, public.ai_daily_usage FROM anon, authenticated;
+REVOKE ALL ON FUNCTION public.ai_reserve_daily_quota(uuid, date, integer) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.ai_release_daily_quota(uuid, date) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.ai_get_daily_quota(uuid, date, integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.ai_reserve_daily_quota(uuid, date, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.ai_release_daily_quota(uuid, date) TO service_role;
 GRANT EXECUTE ON FUNCTION public.ai_get_daily_quota(uuid, date, integer) TO service_role;

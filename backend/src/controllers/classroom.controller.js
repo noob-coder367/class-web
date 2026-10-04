@@ -81,8 +81,8 @@ export async function dismissTimetableNotice(req, res, next) {
 export async function listAnnouncements(req, res, next) {
   try {
     noStore(res)
-    const items = await announcementsService.listAnnouncements()
-    res.json({ items })
+    const items = await announcementsService.listAnnouncements(req.query)
+    res.json({ items, pagination: items.pagination })
   } catch (err) {
     next(err)
   }
@@ -91,11 +91,18 @@ export async function listAnnouncements(req, res, next) {
 export async function listAnnouncementsArchive(req, res, next) {
   try {
     noStore(res)
-    const items = await announcementsService.listArchive(req.query?.section)
-    res.json({ items })
+    const items = await announcementsService.listArchive(req.query?.section, req.query)
+    res.json({ items, pagination: items.pagination })
   } catch (err) {
     next(err)
   }
+}
+
+export async function createAnnouncementImageUploadUrls(req, res, next) {
+  try {
+    noStore(res)
+    res.json(await announcementsService.createAnnouncementImageUploadUrls(req.body?.files))
+  } catch (err) { next(err) }
 }
 
 export async function createAnnouncement(req, res, next) {
@@ -156,8 +163,8 @@ export async function updateAnnouncementExpiry(req, res, next) {
 export async function listHomework(req, res, next) {
   try {
     noStore(res)
-    const items = await homeworkService.listHomework()
-    res.json({ items })
+    const data = await homeworkService.listHomeworkPage(req.query)
+    res.json({ items: data.items, pagination: data.pagination })
   } catch (err) {
     next(err)
   }
@@ -206,13 +213,16 @@ export async function putRules(req, res, next) {
 export async function getViolations(req, res, next) {
   try {
     noStore(res)
-    const data = await rulesService.getViolations()
-    res.json({ violations: data.items, updatedAt: data.updatedAt })
+    const data = await rulesService.getViolations(req.query)
+    res.json({ violations: data.items, updatedAt: data.updatedAt, pagination: data.pagination })
   } catch (err) {
     next(err)
   }
 }
 
+export async function createViolationPhotoUploadUrls(req, res, next) {
+  try { noStore(res); res.json(await rulesService.createViolationPhotoUploadUrls(req.body?.files)) } catch (err) { next(err) }
+}
 export async function postViolation(req, res, next) {
   try {
     noStore(res)
@@ -327,12 +337,26 @@ export async function listCleaningPhotos(req, res, next) {
 export async function uploadCleaningPhotos(req, res, next) {
   try {
     noStore(res)
-    res.status(201).json(await cleaningDutyService.uploadDutyPhotos({
+    res.status(201).json(await cleaningDutyService.createDutyPhotoUploadIntent({
       weekStart: req.body?.week_start,
       dutyDate: req.body?.duty_date,
       dayId: req.body?.day_id,
       photos: req.body?.photos,
     }, req.profile))
+  } catch (err) { next(err) }
+}
+
+export async function completeCleaningPhotoUpload(req, res, next) {
+  try {
+    noStore(res)
+    res.status(201).json(await cleaningDutyService.completeDutyPhotoUpload(req.body?.intent_id, req.profile))
+  } catch (err) { next(err) }
+}
+
+export async function cancelCleaningPhotoUpload(req, res, next) {
+  try {
+    noStore(res)
+    res.json(await cleaningDutyService.cancelDutyPhotoUpload(req.params.intentId, req.profile))
   } catch (err) { next(err) }
 }
 
@@ -360,12 +384,11 @@ export async function putCleaningReview(req, res, next) {
 export async function getLeaderboard(req, res, next) {
   try {
     noStore(res)
-    const [members, violationData, rules] = await Promise.all([
+    const [members, rules] = await Promise.all([
       classRosterService.listClassRoster(),
-      rulesService.getViolations(),
       rulesService.getRules(),
     ])
-    const leaderboard = rulesService.buildLeaderboard(members, violationData.items, rules)
+    const leaderboard = await rulesService.buildLeaderboardFromDatabase(members, rules)
     res.json({ leaderboard, members })
   } catch (err) {
     next(err)
@@ -375,8 +398,8 @@ export async function getLeaderboard(req, res, next) {
 export async function listClassSpace(req, res, next) {
   try {
     noStore(res)
-    const items = await classSpaceService.listClassSpace(req.profile)
-    res.json({ items })
+    const items = await classSpaceService.listClassSpace(req.profile, req.query)
+    res.json({ items, pagination: items.pagination })
   } catch (err) {
     next(err)
   }
@@ -512,7 +535,7 @@ export async function submitClassSpaceResult(req, res, next) {
 export async function getClassSpaceLeaderboard(req, res, next) {
   try {
     noStore(res)
-    const data = await classSpaceService.getClassSpaceLeaderboard(req.params.id, req.profile)
+    const data = await classSpaceService.getClassSpaceLeaderboard(req.params.id, req.profile, req.query)
     res.json(data)
   } catch (err) {
     next(err)
@@ -522,9 +545,12 @@ export async function getClassSpaceLeaderboard(req, res, next) {
 export async function uploadClassSpaceImage(req, res, next) {
   try {
     noStore(res)
-    const url = await classSpaceService.uploadClassSpaceImage(req.body || {})
-    res.status(201).json({ url })
-  } catch (err) {
-    next(err)
-  }
+    res.json(await classSpaceService.createClassSpaceImageUploadUrl(req.body || {}))
+  } catch (err) { next(err) }
+}
+export async function completeClassSpaceImageUpload(req, res, next) {
+  try {
+    noStore(res)
+    res.json(await classSpaceService.completeClassSpaceImageUpload(req.body || {}))
+  } catch (err) { next(err) }
 }

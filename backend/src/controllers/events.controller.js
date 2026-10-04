@@ -9,13 +9,16 @@ function noStore(res) {
 export async function listEvents(req, res, next) {
   try {
     noStore(res)
-    const items = await eventsService.listEvents()
-    res.json({ items })
+    const items = await eventsService.listEvents(req.query)
+    res.json({ items: [...items], pagination: items.pagination })
   } catch (err) {
     next(err)
   }
 }
 
+export async function createEventImageUploadUrls(req, res, next) {
+  try { noStore(res); res.json(await eventsService.createEventImageUploadUrls(req.body?.files)) } catch (err) { next(err) }
+}
 export async function createEvent(req, res, next) {
   try {
     noStore(res)

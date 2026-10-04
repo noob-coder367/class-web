@@ -80,11 +80,11 @@ async function prepareMoneyPhoto(file) {
   canvas.width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale))
   canvas.height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale))
   const context = canvas.getContext('2d')
-  if (!context) return { contentBase64: source, mimeType: file.type }
+  if (!context) return { blob: file, mimeType: file.type }
   context.drawImage(image, 0, 0, canvas.width, canvas.height)
   const prepared = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82))
-  if (!prepared) return { contentBase64: source, mimeType: file.type }
-  return { contentBase64: await readFileAsDataUrl(prepared), mimeType: 'image/jpeg' }
+  if (!prepared) return { blob: file, mimeType: file.type }
+  return { blob: prepared, mimeType: 'image/jpeg' }
 }
 
 function StatCard({ label, value, tone = '' }) {
