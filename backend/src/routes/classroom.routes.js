@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import * as classroomController from '../controllers/classroom.controller.js'
+import * as orgChartController from '../controllers/orgChart.controller.js'
 import * as homeworkSubmissionController from '../controllers/homeworkSubmission.controller.js'
 import classMoneyRoutes from './classMoney.routes.js'
 import { requireAuth } from '../middlewares/auth.middleware.js'
@@ -131,6 +132,8 @@ router.get('/class-space', classroomController.listClassSpace)
 router.get('/class-space/creators', classroomController.listClassSpaceCreators)
 router.get('/class-space/next-code', classroomController.getNextClassSpaceCode)
 router.get('/utility-roster', classroomController.getUtilityRoster)
+router.get('/org-chart', orgChartController.getOrgChart)
+router.put('/org-chart', requireAdmin, orgChartController.updateOrgChart)
 router.put('/utility-roster', classroomController.updateUtilityRoster)
 router.get('/class-space/by-code/:code', classroomController.getClassSpaceByCode)
 router.get('/class-space/:id', classroomController.getClassSpaceById)
