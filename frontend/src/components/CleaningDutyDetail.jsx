@@ -240,5 +240,5 @@ export default function CleaningDutyDetail({ dayId, gallery = false, canUpload =
 }
 
 function classTabPathFallback() {
-  return '/vo-lop/ve-sinh-chung'
+  return '/vo-lop/trang-chu/ve-sinh-chung'
 }
