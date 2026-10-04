@@ -250,13 +250,14 @@ async function ensureStatusRowsForWeek(weekStart) {
     .upsert(rows, { onConflict: 'duty_date', ignoreDuplicates: true })
 
   if (error) {
-    console.warn('[cleaningDuty] khởi tạo trạng thái ngày thất bại:', error.message)
+    console.error('[cleaningDuty] khởi tạo trạng thái ngày thất bại:', { code: error.code, message: error.message })
+    throw new AppError('Không thể khởi tạo trạng thái vệ sinh cho tuần đã chọn.', 503)
   }
 }
 
 /**
  * Đánh giá mới nhất của từng ngày trong tuần (Admin/LPLĐ nào lưu sau cùng thì hiển thị).
- * Lỗi (vd chưa chạy SQL tạo bảng) chỉ cảnh báo, không làm hỏng trạng thái vệ sinh.
+ * Lỗi database phải được trả về, không được biến thành trạng thái rỗng.
  */
 async function getLatestReviewsByDate(weekStartISO) {
   const { data, error } = await supabaseAdmin
@@ -266,8 +267,8 @@ async function getLatestReviewsByDate(weekStartISO) {
     .order('updated_at', { ascending: false })
     .limit(100)
   if (error) {
-    console.warn('[cleaningDuty] không tải được đánh giá theo tuần:', error.message)
-    return {}
+    console.error('[cleaningDuty] không tải được đánh giá theo tuần:', { code: error.code, message: error.message })
+    throw new AppError('Không tải được đánh giá vệ sinh trong tuần.', 503)
   }
   const byDate = {}
   for (const row of data || []) {
