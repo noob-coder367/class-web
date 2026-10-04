@@ -12,6 +12,8 @@ import { capabilitiesFor, isAdminRole } from '../lib/roles.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import CreateClassPage from './CreateClassPage.jsx'
 import ClassHome from './ClassHome.jsx'
+import FeedbackBoard from './FeedbackBoard.jsx'
+import AdvancedHub from './AdvancedHub.jsx'
 import ClassPlayView from './ClassPlayView.jsx'
 import UtilityToolsPanel, { IconWrench } from './UtilityToolsPanel.jsx'
 import { isRoomCompletedLocked } from '../lib/classPlayScore.js'
@@ -213,6 +215,44 @@ function formatDurationVN(durationMs) {
   return seconds ? `${minutes} phút ${seconds} giây` : `${minutes} phút`
 }
 
+function IconChat() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z" />
+      <path d="M8.5 11h7M8.5 14.5h4" />
+    </svg>
+  )
+}
+
+function IconSparkle() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
+      <path d="M19 16v4M17 18h4" />
+    </svg>
+  )
+}
+
+function IconUserCircle() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M6.5 18.2c1.2-2.3 3.2-3.2 5.5-3.2s4.3.9 5.5 3.2" />
+    </svg>
+  )
+}
+
+/** Mũi tên kép "《": mặc định (mở) xoay xuống, bấm để thu gọn thì xoay về hướng trái. */
+function IconChevrons() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12.5 6.5 7 12l5.5 5.5" />
+      <path d="M18 6.5 12.5 12 18 17.5" />
+    </svg>
+  )
+}
+
 const TABS = [
   { id: 'home', label: 'Trang chủ', icon: IconHome },
   { id: 'announcements', label: 'Thông báo chung', icon: IconBell },
@@ -220,10 +260,16 @@ const TABS = [
   { id: 'homework', label: 'Bài tập về nhà', icon: IconBook },
   { id: 'rules', label: 'Nội quy lớp', icon: IconShield },
   { id: 'cleaning-duty', label: 'Vệ sinh lớp', icon: IconBroom },
+  { id: 'advanced', label: 'Nâng cao', icon: IconSparkle },
   { id: 'class-space', label: 'Lớp học', icon: IconDoor },
   { id: 'utilities', label: 'Tiện ích phụ', icon: IconWrench },
   { id: 'class-money', label: 'Tiền lớp', icon: IconWallet, adminOnly: true },
+  { id: 'feedback', label: 'Phản hồi', icon: IconChat },
 ]
+const TAB_BY_ID = Object.fromEntries(TABS.map((tab) => [tab.id, tab]))
+// Nhóm lớn "Trang chủ" có 5 mục con; nhóm "Nâng cao" mở ra trang riêng chứa các mục con bên dưới.
+const HOME_CHILDREN = ['announcements', 'timetable', 'homework', 'rules', 'cleaning-duty']
+const ADVANCED_CHILDREN = ['class-space', 'utilities', 'class-money', 'feedback']
 
 const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty'])
 const EMPTY_CAPS = capabilitiesFor('user')
@@ -252,6 +298,7 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
   const [tabBadges, setTabBadges] = useState({ announcements: 0, homework: 0, rules: 0, rulesViolations: 0 })
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [homeGroupOpen, setHomeGroupOpen] = useState(true)
   const [showCreateClass, setShowCreateClass] = useState(false)
   const [editingClass, setEditingClass] = useState(null)
   const [playingClass, setPlayingClass] = useState(null)
@@ -391,7 +438,7 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
     setItems([])
     const load = async () => {
       try {
-        if (activeTab === 'home') {
+        if (activeTab === 'home' || activeTab === 'advanced' || activeTab === 'feedback') {
           setTimetable(null)
           setRules(null)
           setViolations([])
@@ -893,6 +940,15 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
     }
 
     if (activeTab === 'home') return <ClassHome />
+    if (activeTab === 'feedback') return <FeedbackBoard />
+    if (activeTab === 'advanced') {
+      return (
+        <AdvancedHub
+          items={ADVANCED_CHILDREN.map((id) => TAB_BY_ID[id]).filter((tab) => !tab.adminOnly || isAdminRole(role))}
+          onOpen={(tab) => (tab.id === 'class-money' ? navigate(ROUTES.classMoney) : handleTabClick(tab.id))}
+        />
+      )
+    }
 
     if (activeTab === 'announcements') {
       return (
@@ -1113,9 +1169,33 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
     )
   }
 
+  const renderTabButton = (tab, extraClass = '', forceSelected = null) => {
+    const Icon = tab.icon
+    const selected = forceSelected === null ? activeTab === tab.id : forceSelected
+    const badge = tab.id === 'timetable' ? 0 : tabBadges[tab.id] || 0
+    return (
+      <button
+        key={tab.id}
+        type="button"
+        role="tab"
+        id={`classroom-tab-${tab.id}`}
+        aria-selected={selected}
+        aria-controls="classroom-panel"
+        className={`classroom-tab${selected ? ' is-active' : ''}${extraClass}`}
+        onClick={() => (tab.id === 'class-money' ? navigate(ROUTES.classMoney) : handleTabClick(tab.id))}
+        disabled={access === 'denied'}
+      >
+        <span className="classroom-tab-icon"><Icon />{badge > 0 ? <span className="classroom-tab-badge">{badge > 99 ? '99+' : badge}</span> : null}</span>
+        <span className="classroom-tab-label">{tab.label}</span>
+      </button>
+    )
+  }
+
   const bodyMod = activeTab === 'home'
     ? ' classroom-body--home'
-    : WIDE_TABS.has(activeTab) ? ` classroom-body--${activeTab}` : ''
+    : activeTab === 'advanced'
+      ? ' classroom-body--advanced'
+      : WIDE_TABS.has(activeTab) ? ` classroom-body--${activeTab}` : ''
 
   return (
     <div className="classroom-view" role="dialog" aria-modal="true" aria-label="Khu vực lớp 10A4">
@@ -1130,12 +1210,35 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
         <div className="classroom-sidebar-brand"><div className="classroom-sidebar-logo"><IconHome /></div><div><strong>Class-Web</strong><span>Lớp học 10A4</span></div><button type="button" className="classroom-sidebar-collapse" onClick={() => setSidebarCollapsed((collapsed) => !collapsed)} aria-label={sidebarCollapsed ? "Mở rộng menu" : "Thu gọn menu"} title={sidebarCollapsed ? "Mở rộng menu" : "Thu gọn menu"}><IconMenu /></button><button type="button" className="classroom-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Đóng menu"><IconClose /></button></div>
         <p className="classroom-sidebar-heading">Không gian lớp</p>
         <nav className="classroom-sidebar-nav" role="tablist" aria-label="Mục lớp học">
-          {TABS.filter((tab) => !tab.adminOnly || isAdminRole(role)).map((tab) => {
-            const Icon = tab.icon
-            const selected = activeTab === tab.id
-            const badge = tab.id === 'timetable' ? 0 : tabBadges[tab.id] || 0
-            return <button key={tab.id} type="button" role="tab" id={`classroom-tab-${tab.id}`} aria-selected={selected} aria-controls="classroom-panel" className={`classroom-tab${selected ? ' is-active' : ''}`} onClick={() => tab.id === 'class-money' ? navigate(ROUTES.classMoney) : handleTabClick(tab.id)} disabled={access === 'denied'}><span className="classroom-tab-icon"><Icon />{badge > 0 ? <span className="classroom-tab-badge">{badge > 99 ? '99+' : badge}</span> : null}</span><span className="classroom-tab-label">{tab.label}</span></button>
-          })}
+          <div className="classroom-group">
+            <div className="classroom-group-head">
+              {renderTabButton(TAB_BY_ID.home, ' classroom-tab--group')}
+              <button
+                type="button"
+                className={`classroom-group-toggle${homeGroupOpen ? ' is-open' : ''}`}
+                onClick={() => setHomeGroupOpen((open) => !open)}
+                aria-expanded={homeGroupOpen}
+                aria-label={homeGroupOpen ? 'Thu gọn các mục của Trang chủ' : 'Mở các mục của Trang chủ'}
+                title={homeGroupOpen ? 'Thu gọn' : 'Mở rộng'}
+              >
+                <IconChevrons />
+              </button>
+            </div>
+            <div className={`classroom-group-children${homeGroupOpen ? ' is-open' : ''}`}>
+              <div className="classroom-group-children-inner">
+                {HOME_CHILDREN.map((id) => renderTabButton(TAB_BY_ID[id], ' classroom-tab--child'))}
+              </div>
+            </div>
+          </div>
+
+          <div className="classroom-group-divider" aria-hidden="true" />
+          {renderTabButton(TAB_BY_ID.advanced, '', activeTab === 'advanced' || ADVANCED_CHILDREN.includes(activeTab))}
+
+          <div className="classroom-group-divider" aria-hidden="true" />
+          <button type="button" className="classroom-tab" onClick={() => {}} disabled={access === 'denied'}>
+            <span className="classroom-tab-icon"><IconUserCircle /></span>
+            <span className="classroom-tab-label">Thông tin tài khoản</span>
+          </button>
         </nav>
       </aside>
       {activeTab === 'class-space' ? (
