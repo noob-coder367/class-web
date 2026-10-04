@@ -327,15 +327,21 @@ function violationRowToDto(row, photos) {
 }
 
 async function readRuleRows() {
-  const [settingResult, sectionsResult, itemsResult] = await Promise.all([
+  const [settingResult, sectionsResult] = await Promise.all([
     supabaseAdmin.from('rules_settings').select('id, title, starting_points, notice_title, notice_body, updated_at, violations_updated_at').eq('id', 'default').maybeSingle(),
-    supabaseAdmin.from('rule_sections').select('id, title, position').eq('settings_id', 'default').order('position', { ascending: true }),
-    supabaseAdmin.from('rule_items').select('section_id, position, text, points').order('position', { ascending: true }),
+    supabaseAdmin.from('rule_sections').select('id, title, position, rule_items(section_id, position, text, points)').eq('settings_id', 'default').order('position', { ascending: true }),
   ])
   throwQueryError(settingResult.error, 'Không thể đọc cấu hình nội quy')
   throwQueryError(sectionsResult.error, 'Không thể đọc mục nội quy')
-  throwQueryError(itemsResult.error, 'Không thể đọc chi tiết nội quy')
-  return { setting: settingResult.data, sections: sectionsResult.data || [], items: itemsResult.data || [] }
+  const sections = (sectionsResult.data || []).map((section) => ({
+    id: section.id,
+    title: section.title,
+    position: section.position,
+  }))
+  const items = (sectionsResult.data || []).flatMap((section) => (
+    Array.isArray(section.rule_items) ? section.rule_items : []
+  )).sort((a, b) => Number(a.position || 0) - Number(b.position || 0))
+  return { setting: settingResult.data, sections, items }
 }
 
 async function writeRules(next) {
