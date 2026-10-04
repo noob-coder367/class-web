@@ -106,3 +106,8 @@
 /* gốc cây: không vẽ nét nối phía trên */
 .cm-tree > ul { padding-top: 0; }
 .cm-tree > ul::before { display: none; }
+
+/* ----- vùng kéo tự do ----- */
+.cm-viewport { position: relative; flex: 1 1 auto; overflow: hidden; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.cm-viewport.is-dragging { cursor: grabbing; }
+.cm-canvas { position: absolute; top: 0; left: 0; width: max-content; padding: 0 24px 24px; box-sizing: content-box; will-change: transform; }
