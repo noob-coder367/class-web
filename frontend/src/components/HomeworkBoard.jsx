@@ -410,82 +410,25 @@ function HomeworkReportBoard({ isAdmin }) {
                 </button>
                 {isOpen ? <div className="hw-tree-children"><div className="hw-list">
           {week.items.map((post) => (
-            <article
-              key={post.id}
-              className="hw-card hw-card--clickable"
-              role="button"
-              tabIndex={0}
-              onClick={() => openDetail(post)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  openDetail(post)
-                }
-              }}
-            >
-              <h3 className="hw-title">{post.title}</h3>
-
-              <div className="hw-body">
-                {post.has_exam && post.exam_content ? (
-                  <div className="hw-block hw-block--exam">
-                    <div className="hw-block-label">Kiểm tra</div>
-                    <div className="hw-exam-meta">
-                      {post.exam_subject ? (
-                        <span className="hw-exam-pill">Môn: {post.exam_subject}</span>
-                      ) : null}
-                      {post.exam_date ? (
-                        <span className="hw-exam-pill">Ngày: {formatVNDate(post.exam_date)}</span>
-                      ) : null}
-                    </div>
-                    <p className="hw-block-text">{post.exam_content}</p>
-                  </div>
-                ) : null}
-
-                {post.experiment_content ? (
-                  <div className="hw-block hw-block--exp">
-                    <div className="hw-block-label">Thí nghiệm, thuyết trình…</div>
-                    <p className="hw-block-text">{post.experiment_content}</p>
-                  </div>
-                ) : null}
-
-                {post.homework_content ? (
-                  <div className="hw-block hw-block--hw">
-                    <div className="hw-block-label">BTVN</div>
-                    <p className="hw-block-text">{post.homework_content}</p>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="hw-meta">
-                <span className="hw-meta-info">
-                  {post.report_date ? `Ngày ${formatVNDate(post.report_date)} · ` : ''}
-                  {post.created_by_name || 'Admin'} ·{' '}
-                  {new Date(post.created_at).toLocaleString('vi-VN')}
+            <div key={post.id} className="hw-file">
+              <div className="hw-file-main">
+                <span className="hw-file-note" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" /></svg>
                 </span>
-                {isAdmin ? (
-                  <button
-                    type="button"
-                    className="hw-btn-delete"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDelete(post.id)
-                    }}
-                  >
-                    Xóa
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="hw-btn-share"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleSharePost(post)
-                  }}
-                >
-                  Chia sẻ
-                </button>
+                <div className="hw-file-text">
+                  <strong className="hw-file-name">{post.title || 'Báo bài'}</strong>
+                  <span className="hw-file-meta">
+                    {post.report_date ? `Ngày ${formatVNDate(post.report_date)} · ` : ''}
+                    {post.created_by_name || 'Admin'} · {new Date(post.created_at).toLocaleString('vi-VN')}
+                  </span>
+                </div>
+                <button type="button" className="hw-file-view" onClick={() => openDetail(post)}>Xem</button>
               </div>
-            </article>
+              <div className="hw-file-actions">
+                <button type="button" className="hw-btn-share" onClick={() => handleSharePost(post)}>Chia sẻ</button>
+                {isAdmin ? <button type="button" className="hw-btn-delete" onClick={() => handleDelete(post.id)}>Xóa</button> : null}
+              </div>
+            </div>
           ))}
                 </div></div> : null}
               </div>
