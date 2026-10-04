@@ -700,7 +700,7 @@ export default function HomeworkBoard({ isAdmin }) {
         <button type="button" role="tab" aria-selected={mode === 'check'} className={`hw-mode-tab${mode === 'check' ? ' is-active' : ''}`} onClick={() => setMode('check')}><IconChecklist /><span>Kiểm tra</span></button>
         <button type="button" role="tab" aria-selected={mode === 'submit'} className={`hw-mode-tab${mode === 'submit' ? ' is-active' : ''}`} onClick={() => setMode('submit')}><IconUpload /><span>Bài tập</span></button>
       </div>
-      {mode === 'submit' ? <HomeworkSubmissionPanel canManage={isAdmin === true} /> : mode === 'check' ? <div className="hw-placeholder"><IconChecklist /><h3>Kiểm tra</h3><p>Nội dung kiểm tra sẽ được cập nhật tại đây.</p></div> : <HomeworkReportBoard isAdmin={isAdmin} />}
+      {mode === 'submit' ? <HomeworkSubmissionPanel canManage={isAdmin === true} /> : mode === 'check' ? <div className="hw-placeholder"><IconChecklist /><h3>Kiểm tra</h3><p>Chưa có nội dung kiểm tra</p></div> : <HomeworkReportBoard isAdmin={isAdmin} />}
     </div>
   )
 }
