@@ -84,7 +84,7 @@ export default function HomePage() {
 
   const [showAuth, setShowAuth] = useState(false)
   const [showAdminPanel, setShowAdminPanel] = useState(false)
-  const [classInitialTab, setClassInitialTab] = useState('announcements')
+  const [classInitialTab, setClassInitialTab] = useState('home')
   const [authLoading, setAuthLoading] = useState(false)
   const [authInitialStep, setAuthInitialStep] = useState('login')
   const [activeSection, setActiveSection] = useState('trang-chu')
@@ -504,7 +504,7 @@ export default function HomePage() {
     setShowPushPrompt(false)
   }
 
-  const openClassRoom = (tab = 'announcements') => {
+  const openClassRoom = (tab = 'home') => {
     setClassInitialTab(tab)
     navigate(classTabPath(tab))
   }
@@ -588,7 +588,7 @@ export default function HomePage() {
               <button
                 type="button"
                 className="btn-class btn-class--badge"
-                onClick={() => openClassRoom('announcements')}
+                onClick={() => openClassRoom('home')}
               >
                 Vô Lớp 10A4
                 {unreadTotal > 0 ? (
