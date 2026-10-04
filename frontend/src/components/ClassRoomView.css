@@ -1388,3 +1388,25 @@
     margin-left: 0 !important;
   }
 }
+/* ===== Sidebar chia nhóm: Trang chủ (cha) > 5 mục con; Nâng cao; Tài khoản ===== */
+.classroom-group-head { position: relative; }
+.classroom-sidebar .classroom-tab--group { padding-right: 46px; }
+.classroom-group-toggle {
+  position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
+  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 8px; background: transparent; color: rgba(255,255,255,.9); cursor: pointer;
+}
+.classroom-group-toggle:hover { background: rgba(255,255,255,.14); }
+.classroom-group-toggle svg { width: 18px; height: 18px; transition: transform .28s ease; transform: rotate(0deg); }
+/* Mở (mặc định): mũi tên hướng xuống. Thu gọn: xoay ngang, đầu nhọn hướng trái. */
+.classroom-group-toggle.is-open svg { transform: rotate(-90deg); }
+
+.classroom-group-children { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .3s ease, opacity .25s ease; }
+.classroom-group-children.is-open { grid-template-rows: 1fr; opacity: 1; }
+.classroom-group-children-inner { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 3px; margin: 3px 0 0 22px; padding-left: 10px; border-left: 2px solid rgba(255,255,255,.18); }
+.classroom-sidebar .classroom-tab--child { min-height: 40px; }
+.classroom-group-divider { height: 1px; margin: 8px 12px; background: rgba(255,255,255,.14); }
+
+.classroom-sidebar.is-collapsed .classroom-group-toggle { display: none; }
+.classroom-sidebar.is-collapsed .classroom-tab--group { padding-right: 0; }
+.classroom-sidebar.is-collapsed .classroom-group-children-inner { margin-left: 0; padding-left: 0; border-left: 0; }
