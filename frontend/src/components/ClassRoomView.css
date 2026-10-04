@@ -1379,15 +1379,12 @@
   overflow-x: hidden;
 }
 @media (max-width: 767px) {
-  .classroom-body {
-    width: 100%;
-    max-width: 100vw;
-    padding-left: 12px;
-    padding-right: 12px;
-    overflow-x: hidden;
+  .classroom-body,
+  .classroom-joincode-bar {
+    margin-left: 0 !important; /* hoặc bỏ !important nếu specificity đủ */
   }
-  .classroom-body > * {
-    min-width: 0;
-    max-width: 100%;
+  .classroom-sidebar.is-collapsed \~ .classroom-body,
+  .classroom-sidebar.is-collapsed \~ .classroom-joincode-bar {
+    margin-left: 0 !important;
   }
 }
