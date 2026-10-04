@@ -649,8 +649,7 @@
 .hw-current-week strong { font-size: 20px; color: #5b21b6; }
 .hw-current-week small { color: #6b7280; font-size: 12px; }
 .hw-week-chevron { color: #4c1d95; font-size: 11px; line-height: 1; }
-.hw-folder-icon,
-.ann-folder-icon {
+.hw-folder-icon {
   position: relative;
   display: inline-block;
   flex: 0 0 auto;
@@ -661,8 +660,7 @@
   background: #7c3aed;
   box-shadow: inset 0 -2px 0 rgba(0,0,0,.08);
 }
-.hw-folder-icon::before,
-.ann-folder-icon::before {
+.hw-folder-icon::before {
   content: '';
   position: absolute;
   left: 2px;
@@ -677,4 +675,41 @@
 @media (max-width: 560px) {
   .hw-current-week { align-items: flex-start; flex-direction: column; gap: 4px; }
   .hw-week-folder { min-height: 108px; padding: 18px 12px 12px; }
+}
+
+
+/* ===== File-tree rows for weeks (drag grip + chevron box + icon + name) ===== */
+.hw-tree { display: flex; flex-direction: column; gap: 8px; margin: 0 0 18px; }
+.hw-tree-item { min-width: 0; }
+.hw-tree .hw-week-folder {
+  display: flex; flex-direction: row; align-items: center; gap: 12px;
+  width: 100%; min-height: 54px; padding: 8px 14px; box-sizing: border-box;
+  border: 1px solid #e9e4fb; border-radius: 12px;
+  background: #f8f6ff; color: #1e1b3a; text-align: left;
+  box-shadow: none; transform: none;
+  transition: background .16s ease, border-color .16s ease;
+}
+.hw-tree .hw-week-folder:hover,
+.hw-tree .hw-week-folder.is-active { background: #f1ecff; border-color: #c9bdf5; box-shadow: none; transform: none; }
+.hw-tree .hw-week-folder strong { flex: 1 1 auto; min-width: 0; font-size: 15px; font-weight: 800; color: #1e1b3a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hw-tree .hw-week-folder small { flex: 0 0 auto; color: #6d28d9; background: #ede9fe; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.hw-tree-grip {
+  flex: 0 0 10px; width: 10px; height: 16px;
+  background: radial-gradient(circle, #a3a0bd 1.5px, transparent 1.8px) 0 0 / 5px 5.4px;
+}
+.hw-tree-chevron {
+  flex: 0 0 28px; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; box-sizing: border-box; border-radius: 8px;
+  border: 2px solid transparent; color: #3b2a7a;
+}
+.hw-week-folder.is-active .hw-tree-chevron { border-color: #8b5cf6; background: #fff; color: #6d28d9; }
+.hw-tree .hw-folder-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; margin: 0; background: none; box-shadow: none; border-radius: 0; color: #6d28d9;
+}
+.hw-tree .hw-folder-icon::before { display: none; }
+.hw-tree-children { margin: 6px 0 8px 26px; padding-left: 14px; border-left: 2px solid #ece7fb; }
+@media (max-width: 560px) {
+  .hw-tree .hw-week-folder { min-height: 50px; padding: 8px 10px; gap: 9px; }
+  .hw-tree-children { margin-left: 14px; padding-left: 10px; }
 }
