@@ -1138,3 +1138,6 @@
   .ann-file-note { width: 34px; height: 34px; }
   .ann-file-view { padding: 8px 14px; }
 }
+
+.ann-banner-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.ann-banner-pills .ann-banner-pill { margin-top: 0; }
