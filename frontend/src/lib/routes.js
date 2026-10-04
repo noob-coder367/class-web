@@ -61,6 +61,7 @@ export function parsePresentationPath(pathname) {
 
 // Tab nội bộ (ClassRoomView) <-> tên segment trên URL.
 export const CLASS_TAB_PATH = {
+  home: 'home',
   announcements: 'thong-bao-chung',
   timetable: 'thoi-khoa-bieu',
   homework: 'bai-tap-ve-nha',

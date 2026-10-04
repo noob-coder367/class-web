@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import * as classroomService from '../services/classroomService.js'
 import TimetableBoard from './TimetableBoard.jsx'
@@ -15,6 +15,7 @@ import ClassPlayView from './ClassPlayView.jsx'
 import UtilityToolsPanel, { IconWrench } from './UtilityToolsPanel.jsx'
 import { isRoomCompletedLocked } from '../lib/classPlayScore.js'
 import PresentationHome from './presentation/PresentationHome.jsx'
+import ProfileMenu from './ProfileMenu.jsx'
 import {
   ROUTES,
   classTabPath,
@@ -32,6 +33,22 @@ function IconBell() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
       <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+    </svg>
+  )
+}
+
+function IconHome() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m3 10 9-7 9 7" /><path d="M5.5 9.5V21h13V9.5M9 21v-6h6v6" />
+    </svg>
+  )
+}
+
+function IconMenu() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <path d="M4 6h16M4 12h16M4 18h16" />
     </svg>
   )
 }
@@ -199,22 +216,6 @@ function IconPlus() {
   )
 }
 
-function IconChevronLeft() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M14.5 5 L8 12 L14.5 19" />
-    </svg>
-  )
-}
-
-function IconChevronRight() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9.5 5 L16 12 L9.5 19" />
-    </svg>
-  )
-}
-
 // Các hàm phụ trợ cho bảng BXH — giữ y hệt bản trong ClassPlayView.jsx để hiển thị giống nhau.
 function medalFor(rank) {
   if (rank === 1) return '🥇'
@@ -240,6 +241,7 @@ function formatDurationVN(durationMs) {
 }
 
 const TABS = [
+  { id: 'home', label: 'Trang chủ', icon: IconHome },
   { id: 'announcements', label: 'Thông báo chung', icon: IconBell },
   { id: 'timetable', label: 'Thời khoá biểu', icon: IconCalendar },
   { id: 'homework', label: 'Bài tập về nhà', icon: IconBook },
@@ -255,12 +257,12 @@ const TABS = [
 const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty', 'presentation'])
 const EMPTY_CAPS = capabilitiesFor('user')
 
-export default function ClassRoomView({ onClose, initialTab = 'announcements' }) {
-  const { profile } = useAuth()
+export default function ClassRoomView({ onClose, initialTab = 'home' }) {
+  const { profile, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const { tab: urlTab, rest: urlRest } = parseClassPath(location.pathname)
-  const [activeTab, setActiveTab] = useState(urlTab || initialTab || 'announcements')
+  const [activeTab, setActiveTab] = useState(urlTab || initialTab || 'home')
   const [refreshTick, setRefreshTick] = useState(0)
   const [access, setAccess] = useState('ok')
   const [accessError, setAccessError] = useState('')
@@ -277,8 +279,7 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   const [tabError, setTabError] = useState('')
   const [dismissingNotice, setDismissingNotice] = useState(false)
   const [tabBadges, setTabBadges] = useState({ announcements: 0, homework: 0, rules: 0, rulesViolations: 0 })
-  const navRef = useRef(null)
-  const [navScroll, setNavScroll] = useState({ atStart: true, atEnd: false })
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showCreateClass, setShowCreateClass] = useState(false)
   const [editingClass, setEditingClass] = useState(null)
   const [playingClass, setPlayingClass] = useState(null)
@@ -309,67 +310,18 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     if (urlTab) {
       setActiveTab((prev) => (prev === urlTab ? prev : urlTab))
     } else {
-      // /vo-lop (không có sub-route) -> mặc định về Thông báo chung.
-      navigate(classTabPath('announcements'), { replace: true })
+      // /vo-lop (không có sub-route) -> mặc định về Home.
+      navigate(classTabPath('home'), { replace: true })
     }
   }, [location.pathname, urlTab, navigate])
 
   const handleTabClick = useCallback(
     (tabId) => {
+      setSidebarOpen(false)
       navigate(classTabPath(tabId))
     },
     [navigate]
   )
-
-  const updateNavScroll = useCallback(() => {
-    const el = navRef.current
-    if (!el) return
-    const max = el.scrollWidth - el.clientWidth
-    setNavScroll({
-      atStart: el.scrollLeft <= 2,
-      atEnd: el.scrollLeft >= max - 2,
-    })
-  }, [])
-
-  useEffect(() => {
-    const el = navRef.current
-    if (!el) return
-    updateNavScroll()
-    const onScroll = () => updateNavScroll()
-    const onResize = () => updateNavScroll()
-    const onWheel = (e) => {
-      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
-      el.scrollLeft += e.deltaY
-      e.preventDefault()
-    }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onResize)
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => {
-      el.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onResize)
-      el.removeEventListener('wheel', onWheel)
-    }
-  }, [updateNavScroll])
-
-  useEffect(() => {
-    const el = navRef.current
-    if (!el) return
-    const btn = el.querySelector(`#classroom-tab-${activeTab}`)
-    if (btn && typeof btn.scrollIntoView === 'function') {
-      btn.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
-    }
-  }, [activeTab])
-
-  const scrollNavToStart = useCallback(() => {
-    navRef.current?.scrollTo({ left: 0, behavior: 'smooth' })
-  }, [])
-
-  const scrollNavForward = useCallback(() => {
-    const el = navRef.current
-    if (!el) return
-    el.scrollBy({ left: el.clientWidth, behavior: 'smooth' })
-  }, [])
 
   useEffect(() => {
     const onKey = (e) => {
@@ -465,7 +417,12 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
     setItems([])
     const load = async () => {
       try {
-        if (activeTab === 'timetable') {
+        if (activeTab === 'home') {
+          setTimetable(null)
+          setRules(null)
+          setViolations([])
+          setItems([])
+        } else if (activeTab === 'timetable') {
           const data = await classroomService.getTimetable()
           if (cancelled) return
           setTimetable(data?.timetable || null)
@@ -954,6 +911,8 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
       )
     }
 
+    if (activeTab === 'home') return <div className="classroom-home-empty">Không có gì</div>
+
     if (activeTab === 'announcements') {
       return (
         <AnnouncementsBoard
@@ -1194,74 +1153,24 @@ export default function ClassRoomView({ onClose, initialTab = 'announcements' })
   return (
     <div className="classroom-view" role="dialog" aria-modal="true" aria-label="Khu vực lớp 10A4">
       <header className="classroom-topbar">
-        <button type="button" className="classroom-back" onClick={onClose} aria-label="Quay về trang chính" title="Quay về">
-          <IconBack />
-        </button>
-
-        <div className="classroom-iso">
-          <span className="classroom-iso-end" aria-hidden="true" />
-
-          <div className="classroom-iso-main">
-            <span className="classroom-iso-lid" aria-hidden="true" />
-
-            <nav className="classroom-iso-front" role="tablist" aria-label="Mục lớp 10A4" ref={navRef}>
-              {TABS.filter((tab) => !tab.adminOnly || isAdminRole(role)).map((tab) => {
-                const Icon = tab.icon
-                const selected = activeTab === tab.id
-                const badge = tab.id === 'timetable' ? 0 : tabBadges[tab.id] || 0
-
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    id={`classroom-tab-${tab.id}`}
-                    aria-selected={selected}
-                    aria-controls="classroom-panel"
-                    tabIndex={selected ? 0 : -1}
-                    className={`classroom-tab${selected ? ' is-active' : ''}`}
-                    onClick={() => tab.id === 'class-money' ? navigate(ROUTES.classMoney) : handleTabClick(tab.id)}
-                    disabled={access === 'denied'}
-                  >
-                    <span className="classroom-tab-inner">
-                      <span className="classroom-tab-icon">
-                        <Icon />
-                        {badge > 0 ? <span className="classroom-tab-badge">{badge > 99 ? '99+' : badge}</span> : null}
-                      </span>
-                      <span className="classroom-tab-label">{tab.label}</span>
-                    </span>
-                  </button>
-                )
-              })}
-            </nav>
-
-            {!navScroll.atStart ? (
-              <button
-                type="button"
-                className="classroom-nav-btn classroom-nav-btn--prev"
-                onClick={scrollNavToStart}
-                aria-label="Về các mục đầu"
-                title="Về các mục đầu"
-              >
-                <IconChevronLeft />
-              </button>
-            ) : null}
-
-            {!navScroll.atEnd ? (
-              <button
-                type="button"
-                className="classroom-nav-btn classroom-nav-btn--next"
-                onClick={scrollNavForward}
-                aria-label="Xem thêm mục"
-                title="Xem thêm mục"
-              >
-                <IconChevronRight />
-              </button>
-            ) : null}
-          </div>
-        </div>
+        <button type="button" className="classroom-menu-button" onClick={() => setSidebarOpen(true)} aria-label="Mở menu" title="Mở menu"><IconMenu /></button>
+        <button type="button" className="classroom-back" onClick={onClose} aria-label="Quay về trang chính" title="Quay về"><IconBack /></button>
+        <div className="classroom-topbar-title"><strong>Lớp học</strong><span>Không gian học tập của bạn</span></div>
+        <ProfileMenu onLogout={logout} />
       </header>
-
+      {sidebarOpen ? <button type="button" className="classroom-sidebar-backdrop" aria-label="Đóng menu" onClick={() => setSidebarOpen(false)} /> : null}
+      <aside className={`classroom-sidebar${sidebarOpen ? ' is-open' : ''}`} aria-label="Điều hướng lớp học">
+        <div className="classroom-sidebar-brand"><div className="classroom-sidebar-logo"><IconHome /></div><div><strong>Class-Web</strong><span>Lớp học 10A4</span></div><button type="button" className="classroom-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Đóng menu"><IconClose /></button></div>
+        <p className="classroom-sidebar-heading">Không gian lớp</p>
+        <nav className="classroom-sidebar-nav" role="tablist" aria-label="Mục lớp học">
+          {TABS.filter((tab) => !tab.adminOnly || isAdminRole(role)).map((tab) => {
+            const Icon = tab.icon
+            const selected = activeTab === tab.id
+            const badge = tab.id === 'timetable' ? 0 : tabBadges[tab.id] || 0
+            return <button key={tab.id} type="button" role="tab" id={`classroom-tab-${tab.id}`} aria-selected={selected} aria-controls="classroom-panel" className={`classroom-tab${selected ? ' is-active' : ''}`} onClick={() => tab.id === 'class-money' ? navigate(ROUTES.classMoney) : handleTabClick(tab.id)} disabled={access === 'denied'}><span className="classroom-tab-icon"><Icon />{badge > 0 ? <span className="classroom-tab-badge">{badge > 99 ? '99+' : badge}</span> : null}</span><span className="classroom-tab-label">{tab.label}</span></button>
+          })}
+        </nav>
+      </aside>
       {activeTab === 'class-space' ? (
         <div className="classroom-joincode-bar">
           <div className="classroom-joincode-row">
