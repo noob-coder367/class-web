@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { initialAuthRedirect, clearAuthRedirectFromUrl } from '../lib/supabaseClient.js'
@@ -71,6 +71,7 @@ export default function HomePage() {
   const { session, profile, authReady, logout, passwordRecovery } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const classRoomEntryRef = useRef(false)
 
   // /vo-lop và mọi sub-route của nó -> mở khu vực lớp. /profile-setting -> mở
   // Cài đặt. Các route này điều khiển trực tiếp bằng URL thay vì state rời rạc.
@@ -370,7 +371,10 @@ export default function HomePage() {
   }, [authReady, profile?.is_member, refreshUnread])
 
   useEffect(() => {
-    if (!authReady || !showClassRoom) return
+    if (!authReady || !showClassRoom) {
+      classRoomEntryRef.current = false
+      return
+    }
     const current = `${location.pathname}${location.search}`
     if (!session) {
       saveClassroomReturn(current)
@@ -380,7 +384,12 @@ export default function HomePage() {
     }
 
     if (profile) {
-      const target = takeClassroomReturn()
+      // Chỉ lấy đường dẫn chờ một lần khi vừa bước vào khu vực lớp.
+      // Không đọc lại ở mỗi lần đổi tab nội bộ, nếu không route cũ
+      // (ví dụ Nội quy) có thể đẩy người dùng quay ngược lại tab đó.
+      const enteringClassRoom = !classRoomEntryRef.current
+      classRoomEntryRef.current = true
+      const target = enteringClassRoom ? takeClassroomReturn() : ''
       setShowAuth(false)
       if (profile.is_member && target && target !== current) navigate(target, { replace: true })
     }
