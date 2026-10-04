@@ -23,6 +23,17 @@ const SECTION_META = [
 
 
 
+function SectionIcon({ id }) {
+  const common = { viewBox: '0 0 24 24', width: 28, height: 28, fill: 'none', stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }
+  if (id === 'important') {
+    return <svg {...common}><rect x="5" y="4" width="14" height="17" rx="2.5" /><path d="M9 4V3h6v1M9 13l2.2 2.2L15.5 11" /></svg>
+  }
+  if (id === 'discipline') {
+    return <svg {...common}><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6l8-3z" /><path d="M12 8.5v4.5M12 16.2v.01" /></svg>
+  }
+  return <svg {...common}><path d="M4 10v4h3l6 4V6L7 10H4z" /><path d="M16.5 9a4 4 0 0 1 0 6" /></svg>
+}
+
 function imageGridStyle(count) {
   if (count <= 1) return { gridTemplateColumns: '1fr' }
   if (count === 2) return { gridTemplateColumns: '1fr 1fr' }
@@ -391,17 +402,34 @@ export default function AnnouncementsBoard({
 
               return (
                 <section key={section.id} className={`ann-section ann-section--${section.id}${isOpen ? ' is-expanded' : ''}`}>
+                  <header className="ann-banner">
+                    <div className="ann-banner-top">
+                      <span className="ann-banner-logo"><SectionIcon id={section.id} /></span>
+                      <span className="ann-banner-brand">{section.hint}</span>
+                    </div>
+                    <h2 className="ann-banner-title">{section.title}</h2>
+                    <p className="ann-banner-sub">
+                      {unseen.length > 0 ? `Có ${unseen.length} bài chưa xem. Mở ra để cập nhật nhé.` : list.length > 0 ? 'Bạn đã xem hết bài mới.' : 'Chưa có bài nào trong mục này.'}
+                    </p>
+                    <span className="ann-banner-pill">{list.length} bài đăng</span>
+                  </header>
+
+                  <div className="ann-section-body">
                   <button
                     type="button"
                     className="ann-folder-toggle"
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSection(section.id) }}
                     aria-expanded={isOpen}
                   >
-                    <span className="ann-folder-chevron" aria-hidden="true">{isOpen ? '▼' : '▶'}</span>
-                    <span className="ann-folder-icon" aria-hidden="true" />
+                    <span className="ann-tree-grip" aria-hidden="true" />
+                    <span className="ann-folder-chevron" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d={isOpen ? 'M6 9l6 6 6-6' : 'M9 6l6 6-6 6'} /></svg>
+                    </span>
+                    <span className="ann-folder-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="5" rx="1.2" /><rect x="14" y="10" width="7" height="5" rx="1.2" /><rect x="14" y="17" width="7" height="4" rx="1.2" /><path d="M6.5 8v10.5a1 1 0 0 0 1 1H14M6.5 12.5H14" /></svg>
+                    </span>
                     <span className="ann-folder-label">
-                      <strong>{section.title}</strong>
-                      <small>{section.hint}</small>
+                      <strong>Tất cả bài đăng</strong>
                     </span>
                     <span className="ann-section-count">{list.length}</span>
                   </button>
@@ -428,6 +456,7 @@ export default function AnnouncementsBoard({
                       )}
                     </div>
                   ) : null}
+                  </div>
                 </section>
               )
             })}
