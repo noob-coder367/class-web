@@ -397,15 +397,19 @@ function HomeworkReportBoard({ isAdmin }) {
         <p className="hw-empty">Chưa có báo bài nào{posts.length ? ' khớp bộ lọc' : ''}.</p>
       ) : (
         <>
-          <div className="hw-week-grid" aria-label="Các tuần báo bài">
-            {weeks.map((week) => (
-              <button type="button" key={week.key} className={`hw-week-folder${expandedWeek === week.key ? ' is-active' : ''}`} onClick={() => setExpandedWeek((current) => current === week.key ? null : week.key)}>
-                <span className="hw-week-chevron" aria-hidden="true">{expandedWeek === week.key ? '▼' : '▶'}</span><span className="hw-folder-icon" aria-hidden="true" /><strong>{week.label}</strong><small>{week.items.length} báo bài</small>
-              </button>
-            ))}
-          </div>
-          {expandedWeek ? <div className="hw-week-detail"><div className="hw-week-detail-head"><h3>{weeks.find((week) => week.key === expandedWeek)?.label || 'Báo bài'}</h3><button type="button" onClick={() => setExpandedWeek(null)}>Đóng</button></div><div className="hw-list">
-          {(weeks.find((week) => week.key === expandedWeek)?.items || []).map((post) => (
+          <div className="hw-tree" aria-label="Các tuần báo bài">
+            {weeks.map((week) => {
+              const isOpen = expandedWeek === week.key
+              return (
+              <div key={week.key} className={`hw-tree-item${isOpen ? ' is-open' : ''}`}>
+                <button type="button" className={`hw-week-folder${isOpen ? ' is-active' : ''}`} aria-expanded={isOpen} onClick={() => setExpandedWeek((current) => current === week.key ? null : week.key)}>
+                  <span className="hw-tree-grip" aria-hidden="true" />
+                  <span className="hw-tree-chevron" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d={isOpen ? 'M6 9l6 6 6-6' : 'M9 6l6 6-6 6'} /></svg></span>
+                  <span className="hw-folder-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="5" rx="1.2" /><rect x="14" y="10" width="7" height="5" rx="1.2" /><rect x="14" y="17" width="7" height="4" rx="1.2" /><path d="M6.5 8v10.5a1 1 0 0 0 1 1H14M6.5 12.5H14" /></svg></span>
+                  <strong>{week.label}</strong><small>{week.items.length} báo bài</small>
+                </button>
+                {isOpen ? <div className="hw-tree-children"><div className="hw-list">
+          {week.items.map((post) => (
             <article
               key={post.id}
               className="hw-card hw-card--clickable"
@@ -483,7 +487,11 @@ function HomeworkReportBoard({ isAdmin }) {
               </div>
             </article>
           ))}
-          </div></div> : null}
+                </div></div> : null}
+              </div>
+              )
+            })}
+          </div>
         </>
       )}
 
