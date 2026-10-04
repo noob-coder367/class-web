@@ -1170,6 +1170,13 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
     )
   }
 
+  // Nút ☰ duy nhất ở topbar: màn rộng (iPad/PC) thu gọn/mở rộng thanh bên, điện thoại mở/đóng ngăn kéo.
+  const handleMenuButton = () => {
+    const wide = typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches
+    if (wide) setSidebarCollapsed((collapsed) => !collapsed)
+    else setSidebarOpen((open) => !open)
+  }
+
   const renderTabButton = (tab, extraClass = '', forceSelected = null) => {
     const Icon = tab.icon
     const selected = forceSelected === null ? activeTab === tab.id : forceSelected
@@ -1201,14 +1208,14 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
   return (
     <div className="classroom-view" role="dialog" aria-modal="true" aria-label="Khu vực lớp 10A4">
       <header className="classroom-topbar">
-        <button type="button" className="classroom-menu-button" onClick={() => setSidebarOpen((open) => !open)} aria-label="Mở menu" title="Mở menu"><IconMenu /></button>
+        <button type="button" className="classroom-menu-button" onClick={handleMenuButton} aria-label="Mở menu" title="Mở menu"><IconMenu /></button>
         <button type="button" className="classroom-back" onClick={onClose} aria-label="Quay về trang chính" title="Quay về"><IconBack /></button>
         <div className="classroom-topbar-title"><strong>Lớp học</strong><span>Không gian học tập của bạn</span></div>
         <ProfileMenu onLogout={logout} />
       </header>
       {sidebarOpen ? <button type="button" className="classroom-sidebar-backdrop" aria-label="Đóng menu" onClick={() => setSidebarOpen(false)} /> : null}
       <aside className={`classroom-sidebar${sidebarOpen ? ' is-open' : ''}${sidebarCollapsed ? ' is-collapsed' : ''}`} aria-label="Điều hướng lớp học">
-        <div className="classroom-sidebar-brand"><div className="classroom-sidebar-logo"><IconHome /></div><div><strong>Class-Web</strong><span>Lớp học 10A4</span></div><button type="button" className="classroom-sidebar-collapse" onClick={() => setSidebarCollapsed((collapsed) => !collapsed)} aria-label={sidebarCollapsed ? "Mở rộng menu" : "Thu gọn menu"} title={sidebarCollapsed ? "Mở rộng menu" : "Thu gọn menu"}><IconMenu /></button><button type="button" className="classroom-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Đóng menu"><IconClose /></button></div>
+        <div className="classroom-sidebar-brand"><div className="classroom-sidebar-logo"><IconHome /></div><div><strong>Class-Web</strong><span>Lớp học 10A4</span></div><button type="button" className="classroom-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Đóng menu"><IconClose /></button></div>
         <p className="classroom-sidebar-heading">Không gian lớp</p>
         <nav className="classroom-sidebar-nav" role="tablist" aria-label="Mục lớp học">
           <div className="classroom-group">
