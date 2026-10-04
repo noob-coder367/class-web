@@ -3,24 +3,26 @@ import { AuthProvider } from './context/AuthContext.jsx'
 import { WeatherProvider } from './context/WeatherContext.jsx'
 import HomePage from './pages/HomePage.jsx'
 import ResourcePage from './pages/ResourcePage.jsx'
+import ClassMembersPage from './pages/ClassMembersPage.jsx'
 import OceanScrollBackground from './components/OceanScrollBackground.jsx'
 import LocationPermissionModal from './components/LocationPermissionModal.jsx'
 import GlobalRefreshButton from './components/GlobalRefreshButton.jsx'
-import { ROUTES } from './lib/routes.js'
+import { ROUTES, isClassMembersPath } from './lib/routes.js'
 import './App.css'
 
 function AppShell() {
   const location = useLocation()
   // Yêu cầu: nền Ocean Scroll KHÔNG được xuất hiện ở /vo-lop và các sub-route
   // của nó (để giảm lag) — mọi route khác (trang chủ, đăng nhập...) giữ nguyên.
-  const hideOcean = location.pathname.startsWith(ROUTES.classRoot)
+  const isMembersPage = isClassMembersPath(location.pathname)
+  const hideOcean = location.pathname.startsWith(ROUTES.classRoot) || isMembersPage
 
   return (
     <>
       {!hideOcean && <OceanScrollBackground />}
-      {location.pathname === ROUTES.resources ? <ResourcePage /> : <HomePage />}
-      <LocationPermissionModal />
-      <GlobalRefreshButton />
+      {isMembersPage ? <ClassMembersPage /> : location.pathname === ROUTES.resources ? <ResourcePage /> : <HomePage />}
+      {!isMembersPage && <LocationPermissionModal />}
+      {!isMembersPage && <GlobalRefreshButton />}
     </>
   )
 }
