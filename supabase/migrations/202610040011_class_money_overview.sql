@@ -20,3 +20,5 @@ as $$
 $$;
 revoke all on function public.class_money_overview_totals(uuid) from public, anon, authenticated;
 grant execute on function public.class_money_overview_totals(uuid) to service_role;
+
+notify pgrst, 'reload schema';

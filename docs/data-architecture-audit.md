@@ -4,7 +4,7 @@
 
 This is the post-refactor code audit for `noob-coder367/class-web`, based on the repository HEAD present at task start. The refactor keeps `public.classroom_store` and its legacy Storage backup intact, but removes business-service reads/writes through `classroomDbStore`; new relational tables become canonical after the user applies the SQL in [`data-migration-plan.md`](data-migration-plan.md).
 
-**No SQL was executed. No production rows or Storage objects were deleted by this task.** Presentation cleanup is a separate opt-in SQL file with destructive statements commented out.
+**No SQL was executed by this task.** The user reports that 001 and 002 succeeded and 003 failed because its `announcement_images.announcement_id` was `text` while the existing `announcements.id` is `uuid`. Migration 003 is corrected to preserve the existing UUID schema; whether the failed attempt left objects behind must be confirmed with the read-only catalog checks in [`data-migration-plan.md`](data-migration-plan.md). No production rows or Storage objects were deleted by this task. Presentation cleanup is separate and optional.
 
 ## Persistence inventory
 
@@ -33,7 +33,7 @@ This is the post-refactor code audit for `noob-coder367/class-web`, based on the
 
 Runtime imports/usages of `classroomDbStore`, `readStore`, `writeStore`, `updateStore`, `loadAll`, and `mutateStore` are now isolated to `backend/src/utils/classroomDbStore.js` itself. It remains the compatibility/backup adapter; the feature services no longer use it as their canonical path.
 
-Migration SQL reads the legacy JSON values using the keys documented above and uses insert-only conflict handling. It does not delete or update source rows. The classroom data bucket and Storage objects are retained.
+Migration SQL reads the legacy JSON values using the keys documented above and uses conflict-safe inserts. It does not delete or update `classroom_store` source rows. Corrected 003 also has explicit handling for a pre-existing `announcement_images` table: valid text UUID references can be copied into a UUID FK column while their original strings are retained in a legacy column; unconvertible relationships raise an error instead of being deleted or guessed. The classroom data bucket and Storage objects are retained.
 
 ## Upload/RAM scan
 
@@ -50,7 +50,7 @@ Migration SQL reads the legacy JSON values using the keys documented above and u
 
 ## Limitations and deployment risks
 
-1. Migrations were deliberately not executed, and no live Supabase/Postgres integration test was possible. Apply and validate on a staging database before deployment.
+1. Migrations were deliberately not executed against Supabase. This sandbox has no local PostgreSQL server binaries, so PostgreSQL integration/rerun tests were unavailable; SQL grammar parsing and the static FK/type checker were run instead. The failed-003 production catalog state and external base-table schemas still require the read-only live checks in the migration plan before execution.
 2. A few relational service writes remain multiple requests rather than one transaction (notably timetable/rules replacement); SQL constraints and conflict checks reduce risk, but a database failure mid-sequence can leave a partial write until retried.
 3. Class-roster migration creates a unique folded-name index. If a manually created `class_roster_members` table already contains duplicate folded names, inspect and reconcile those rows before that migration.
 4. Direct signed-upload objects can become orphaned if a user abandons the form after uploading but before committing metadata. They are not automatically swept by this refactor; do not run broad Storage deletion as cleanup.

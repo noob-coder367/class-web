@@ -3,7 +3,7 @@
 -- reads key class-roster and never updates or deletes that row or its Storage JSON.
 
 create table if not exists public.class_rosters (
-  id text primary key check (id = 'default'),
+  id text primary key,
   updated_at timestamptz not null default now()
 );
 
@@ -15,7 +15,7 @@ alter table public.class_rosters alter column updated_at set not null;
 do $$
 begin
   begin
-    alter table public.class_rosters add constraint class_rosters_default_id_chk check (id = 'default');
+    alter table public.class_rosters add constraint class_rosters_default_id_chk check (id = 'default') not valid;
   exception when duplicate_object then null;
   end;
 end $$;
@@ -25,9 +25,9 @@ values ('default')
 on conflict (id) do nothing;
 
 create table if not exists public.class_roster_members (
-  id text primary key check (char_length(trim(id)) between 1 and 200),
-  roster_id text not null default 'default' references public.class_rosters(id) on delete cascade,
-  name text not null check (char_length(trim(name)) between 1 and 40),
+  id text primary key,
+  roster_id text not null default 'default',
+  name text not null,
   created_at timestamptz not null default now(),
   created_by text
 );

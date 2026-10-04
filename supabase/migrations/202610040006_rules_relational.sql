@@ -118,7 +118,7 @@ begin
     ) values (
       'default',
       coalesce(nullif(btrim(source_value->>'title'), ''), 'NỘI QUY LỚP'),
-      case when source_value->>'startingPoints' ~ '^-?[0-9]+$'
+      case when pg_input_is_valid(source_value->>'startingPoints', 'integer')
         then least(200, greatest(1, (source_value->>'startingPoints')::integer)) else 100 end,
       coalesce(nullif(btrim(source_value->'notice'->>'title'), ''), 'LƯU Ý'),
       coalesce(source_value->'notice'->>'body', ''),
@@ -152,7 +152,7 @@ begin
             coalesce(nullif(btrim(section_item->>'id'), ''), 's' || section_no::text),
             item_no - 1,
             case when jsonb_typeof(item) = 'string' then btrim(item #>> '{}') else btrim(item->>'text') end,
-            case when (item->>'points') ~ '^-?[0-9]+$' then least(100, greatest(0, (item->>'points')::integer)) else 5 end
+            case when pg_input_is_valid(item->>'points', 'integer') then least(100, greatest(0, (item->>'points')::integer)) else 5 end
           ) on conflict (section_id, position) do nothing;
         end if;
       end loop;
@@ -177,7 +177,7 @@ begin
     ) as items(value)
     loop
       if nullif(btrim(item->>'id'), '') is null
-        or not ((item->>'date') ~ '^\d{4}-\d{2}-\d{2}$')
+        or not pg_input_is_valid(item->>'date', 'date')
         or nullif(btrim(item->>'name'), '') is null
         or nullif(btrim(item->>'offense'), '') is null then
         continue;
@@ -203,7 +203,7 @@ begin
         left(raw_roster_id, 64),
         left(btrim(item->>'offense'), 160),
         left(coalesce(item->>'warning', ''), 400),
-        case when (item->>'points') ~ '^-?[0-9]+$' then least(100, greatest(0, (item->>'points')::integer)) else 5 end,
+        case when pg_input_is_valid(item->>'points', 'integer') then least(100, greatest(0, (item->>'points')::integer)) else 5 end,
         case when pg_input_is_valid(raw_created_at, 'timestamptz') then raw_created_at::timestamptz else now() end,
         settings_updated_at
       ) on conflict (id) do nothing;

@@ -61,7 +61,9 @@ begin
   else
     execute 'select value from public.classroom_store where key = $1' into source_value using 'ghost-state';
     if jsonb_typeof(source_value) = 'object' then
-      for item in select value from jsonb_array_elements(coalesce(source_value->'created', '[]'::jsonb)) as x(value)
+      for item in select value from jsonb_array_elements(
+        case when jsonb_typeof(source_value->'created')='array' then source_value->'created' else '[]'::jsonb end
+      ) as x(value)
       loop
         begin
           raw_index := (item->>'index')::bigint;
@@ -79,7 +81,9 @@ begin
         end;
       end loop;
 
-      for item in select value from jsonb_array_elements(coalesce(source_value->'reserved', '[]'::jsonb)) as x(value)
+      for item in select value from jsonb_array_elements(
+        case when jsonb_typeof(source_value->'reserved')='array' then source_value->'reserved' else '[]'::jsonb end
+      ) as x(value)
       loop
         begin
           raw_index := (item->>'index')::bigint;
@@ -107,7 +111,9 @@ begin
       loop
         begin
           raw_user_id := user_key::uuid;
-          for timestamp_value in select value from jsonb_array_elements(source_value->user_key) as x(value)
+          for timestamp_value in select value from jsonb_array_elements(
+            case when jsonb_typeof(source_value->user_key)='array' then source_value->user_key else '[]'::jsonb end
+          ) as x(value)
           loop
             begin
               at_ms := (timestamp_value #>> '{}')::numeric;

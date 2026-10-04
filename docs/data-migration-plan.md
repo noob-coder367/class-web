@@ -1,183 +1,172 @@
 # Supabase data migration and deployment plan
 
-## Important: migrations were not executed
+## Current status — do not continue with migration 004 yet
 
-The code changes are complete, but **no SQL was run**. Review and run SQL yourself in Supabase. Do the sequence on staging first, compare counts, then repeat in production during a maintenance window. Back up the project and preserve the existing `classroom_store` and Storage data.
+The user reports that migrations **001 and 002 succeeded** and migration **003 failed** with `42804`: `announcement_images.announcement_id` was declared `text` while the already-existing `announcements.id` is `uuid`.
 
-The migrations use `IF NOT EXISTS` / `CREATE OR REPLACE` and conflict-safe backfills where applicable. They do not delete/update legacy source rows. No Storage objects are copied or deleted. Presentation cleanup is separate and optional.
+The corrected `003` is now additive and transaction-scoped. **Rerun corrected 003 by itself and wait for success before running 004.** Do not drop, recreate, truncate, or delete the existing `public.announcements`, `public.classroom_store`, homework tables, any other domain tables, or Storage objects.
 
-## 1. Preflight and existing schema prerequisites
+No SQL was executed against Supabase by this task. The current live state after the earlier failed attempt—including whether `announcement_images`, any index, constraint, or function was committed—cannot be determined from this repository checkout. Use the read-only checks below before rerunning. A failed preflight in corrected 003 aborts its transaction with an explanatory error; it does not try to repair incompatible data by deleting it.
 
-Confirm these existing schemas/tables are present. **Do not blindly re-run a legacy schema file** against a project that already has its objects. If a whole prerequisite domain is absent, run the indicated file(s) before the numbered migrations.
+## 1. Existing-schema assumptions and checked-in schema inventory
 
-| Prerequisite | Run only if missing | Needed before |
-|---|---|---|
-| Compatibility store | `supabase/classroom-store-schema.sql` | `001`, `003`–`008`, `014` backfills |
-| AI history/quota tables and RPCs | `supabase/ai-chat-history.sql` | AI history/quota runtime |
-| Resources/categories/files and private bucket | `supabase/resource-management-schema.sql` | Resources runtime (no numbered migration) |
-| Cleaning schedule/status/reviews and media schema | `supabase/cleaning-duty-schema.sql`, then `supabase/cleaning-duty-media-schema.sql` | `009` |
-| Class Money core and roster | `supabase/class-money-schema.sql`, then `supabase/class-money-roster-patch.sql` | `011`, `013` |
-| Homework assignments/submissions | `supabase/supabase/homework-submission-schema.sql` | `002` |
-| Push subscriptions (only if the table is absent) | `supabase/push-subscriptions.sql` | `008` |
+The production `public.announcements` schema supplied for this repair is:
 
-The base app must already have `public.profiles` and Supabase `auth.users`. If `classroom_store` does not exist, install its schema before backfills. If a source store/key is absent, the SQL emits a notice or skips that source; install/restore the store and rerun the relevant migration before deploying the new code.
+| Column | Type |
+|---|---|
+| `id` | `uuid` |
+| `title`, `content`, `notify_type`, `section`, `created_by_name`, `hidden_by_name`, `subject_user_name`, `from_level`, `to_level` | `text` |
+| `images` | `jsonb` |
+| `expires_at`, `created_at`, `hidden_at`, `updated_at` | `timestamptz` |
+| `created_by`, `source_homework_id`, `hidden_by`, `subject_user_id` | `uuid` |
+| `is_exam_reminder`, `is_system`, `hidden` | `boolean` |
 
-Keep `classroom-data` and all existing buckets. No feature-specific bucket is added by these migrations.
+The corrected 003 preserves these types, including all UUID references. It adds absent fields such as `document_kind` and `short_id` using `ADD COLUMN IF NOT EXISTS`, verifies the existing column types, does not `ALTER TYPE`, and does not rewrite existing announcement rows. Defaults affect new rows only; checks on legacy values are added `NOT VALID` so existing values are not silently changed.
 
-## 2. Numbered migration files — exact order
+The checked-in repository contains SQL for `classroom_store`, AI history, Class Money, Cleaning Duty, Resources, and Push. The homework submission service references `homework_assignments` and `homework_submissions`, and migration 002 was reported successful, but the referenced file `supabase/supabase/homework-submission-schema.sql` is **not present in this checkout**. Thus the actual production homework base-table DDL cannot be independently compared from repository files; verify the live column types with the read-only preflight query below. Runtime homework notice IDs are generated with `randomUUID()` and stored as text; the UUID string is also written to `announcements.source_homework_id`.
 
-Run each file as a whole script in Supabase SQL Editor. Wait for success before continuing. The deployment sequence is `001`–`009`, then `011`–`014`; `010` is intentionally excluded (see Presentation cleanup below).
+## 2. Read-only inspection after the failed 003 attempt
 
-1. [`202610040001_relational_auth_state.sql`](../supabase/migrations/202610040001_relational_auth_state.sql) — creates ghost sequence/reservation/creation tables and username history; backfills `ghost-state` and `username-changes`; adds atomic quota/profile-update RPCs, RLS and service-role grants.
-2. [`202610040002_homework_direct_upload.sql`](../supabase/migrations/202610040002_homework_direct_upload.sql) — creates direct-upload intent metadata, bounded assignment-summary RPC, and atomic submission-commit RPC. Requires existing homework assignment/submission tables.
-3. [`202610040003_announcements_relational.sql`](../supabase/migrations/202610040003_announcements_relational.sql) — creates relational announcements/image metadata with constraints/indexes/RLS and backfills `classroom_store` key `announcements` without changing the source.
-4. [`202610040004_class_space_relational.sql`](../supabase/migrations/202610040004_class_space_relational.sql) — creates class-space/question/editor/result/attempt and utility-roster/member tables; backfills `class-space` and `utility-roster`; installs room/roster/result RPCs.
-5. [`202610040005_timetable_relational.sql`](../supabase/migrations/202610040005_timetable_relational.sql) — creates structured timetable/session/period/break/entry/change-notice tables and backfills `timetable`.
-6. [`202610040006_rules_relational.sql`](../supabase/migrations/202610040006_rules_relational.sql) — creates Rules settings/sections/items, violations, photo metadata and ranking tables; backfills `rules` and `violations`; adds DB-side member totals.
-7. [`202610040007_roster_relational.sql`](../supabase/migrations/202610040007_roster_relational.sql) — creates canonical `class_rosters`/`class_roster_members` mappings and backfills `class-roster`; account identity remains in `profiles`.
-8. [`202610040008_push_relational.sql`](../supabase/migrations/202610040008_push_relational.sql) — creates/ensures relational push subscriptions/preferences and backfills `push-subscriptions`.
-9. [`202610040009_cleaning_direct_upload.sql`](../supabase/migrations/202610040009_cleaning_direct_upload.sql) — creates short-lived metadata-only Cleaning Duty upload intents; binary files remain in the existing bucket.
-10. [`202610040011_class_money_overview.sql`](../supabase/migrations/202610040011_class_money_overview.sql) — installs server-side Class Money overview aggregation RPC.
-11. [`202610040012_announcement_short_id_counter.sql`](../supabase/migrations/202610040012_announcement_short_id_counter.sql) — installs atomic announcement short-ID counters/RPC; requires `003`.
-12. [`202610040013_class_money_atomic_payment.sql`](../supabase/migrations/202610040013_class_money_atomic_payment.sql) — installs the transactional payment/ledger/audit RPC; requires existing Class Money tables and `011`.
-13. [`202610040014_homework_notices_relational.sql`](../supabase/migrations/202610040014_homework_notices_relational.sql) — creates `homework_notices` and backfills `classroom_store` key `homework`; requires `003` for announcement-ID validation.
+Run these queries in Supabase SQL Editor before rerunning 003. They only inspect catalog metadata and do not modify data.
 
-The updated [`supabase/ai-chat-history.sql`](../supabase/ai-chat-history.sql) has idempotent table/index/RLS declarations and `CREATE OR REPLACE` quota RPCs. If AI history is already installed, review and apply it to install the atomic first-use quota fix. It preserves all AI tables/data; do not drop or recreate them.
-
-### Presentation cleanup (not part of the deploy sequence)
-
-[`202610040010_presentation_cleanup.sql`](../supabase/migrations/202610040010_presentation_cleanup.sql) is a **separate, optional manual review script**. Its initial `to_regclass` query only checks whether exact legacy tables exist. `DROP TABLE` lines are commented and must remain disabled unless data has been backed up and removal has been explicitly approved. It never touches Storage. Review any known legacy Presentation-specific bucket/path manually; do not perform broad or guessed object deletion.
-
-## 3. Backfill map
-
-| Legacy source | Destination | Migration |
-|---|---|---|
-| `classroom_store` key `ghost-state` | `ghost_account_creations`, `ghost_account_reservations`, `ghost_account_sequence` | `001` |
-| `classroom_store` key `username-changes` | `username_changes` | `001` |
-| `classroom_store` key `announcements` | `announcements`, `announcement_images` | `003` |
-| `classroom_store` keys `class-space`, `utility-roster` | `class_spaces`, questions/editors/results/attempts, `utility_rosters`, `utility_roster_members` | `004` |
-| `classroom_store` key `timetable` | timetable root/child/notice tables | `005` |
-| `classroom_store` keys `rules`, `violations` | Rules relational tables and `rule_violations`/photo metadata | `006` |
-| `classroom_store` key `class-roster` | `class_rosters`, `class_roster_members` | `007` |
-| `classroom_store` key `push-subscriptions` | `push_subscriptions`, `push_preferences` | `008` |
-| `classroom_store` key `homework` | `homework_notices` | `014` |
-
-Backfills retain source keys and do not move/delete Storage objects. Existing URLs/paths are retained or mapped as relational metadata.
-
-## 4. Post-migration validation (read-only)
-
-Run after the migration sequence. Compare destination counts with each populated legacy value using the source JSON paths used by its migration. Check migration `NOTICE` messages for malformed/skipped records before deployment.
-
-### Required objects and RLS
+### Tables and column types
 
 ```sql
-select to_regclass('public.classroom_store') as legacy_store,
-       to_regclass('public.announcements') as announcements,
-       to_regclass('public.announcement_images') as announcement_images,
-       to_regclass('public.timetables') as timetables,
-       to_regclass('public.rule_violations') as violations,
-       to_regclass('public.homework_notices') as homework_notices,
-       to_regclass('public.class_spaces') as class_spaces,
-       to_regclass('public.class_rosters') as class_rosters,
-       to_regclass('public.ghost_account_creations') as ghost_creations,
-       to_regclass('public.username_changes') as username_changes,
-       to_regclass('public.push_subscriptions') as push_subscriptions;
-
-select schemaname, tablename, rowsecurity
-from pg_tables
-where schemaname = 'public'
-  and tablename in ('announcements','announcement_images','homework_notices',
-    'class_spaces','class_space_questions','rule_violations','rule_violation_photos',
-    'class_rosters','class_roster_members','ghost_account_creations','username_changes',
-    'homework_upload_intents','cleaning_duty_upload_intents')
-order by tablename;
+select table_name, column_name, data_type, udt_name, is_nullable
+from information_schema.columns
+where table_schema = 'public'
+  and table_name in (
+    'announcements', 'announcement_images', 'homework_notices',
+    'profiles', 'homework_assignments', 'homework_submissions',
+    'events', 'class_money_books', 'cleaning_duty_schedule',
+    'resources', 'resource_files'
+  )
+order by table_name, ordinal_position;
 ```
 
-### Destination row counts and quota invariants
+Confirm at least `announcements.id`, `created_by`, `source_homework_id`, `hidden_by`, and `subject_user_id` are `uuid`; if `announcement_images` exists, inspect its current `announcement_id` and `id` types. Also confirm `profiles.id` and `homework_assignments.id` are `uuid`, and `homework_submissions.assignment_id`/`user_id` are compatible with the referenced assignment/profile IDs.
+
+### Existing constraints and validation status
 
 ```sql
-select 'announcements' as table_name, count(*) from public.announcements
-union all select 'announcement_images', count(*) from public.announcement_images
-union all select 'homework_notices', count(*) from public.homework_notices
-union all select 'class_spaces', count(*) from public.class_spaces
-union all select 'class_space_questions', count(*) from public.class_space_questions
-union all select 'rule_violations', count(*) from public.rule_violations
-union all select 'class_rosters', count(*) from public.class_rosters
-union all select 'class_roster_members', count(*) from public.class_roster_members
-union all select 'ghost_account_creations', count(*) from public.ghost_account_creations
-union all select 'ghost_account_reservations', count(*) from public.ghost_account_reservations
-union all select 'username_changes', count(*) from public.username_changes
-union all select 'push_subscriptions', count(*) from public.push_subscriptions;
-
--- No day should have more than two successful ghost creations.
-select created_day, count(*) as successful_creations
-from public.ghost_account_creations where status = 'created'
-group by created_day having count(*) > 2;
-
--- These duplicate checks should return no rows.
-select user_id, changed_at, count(*) from public.username_changes
- group by user_id, changed_at having count(*) > 1;
-select roster_id, lower(regexp_replace(trim(display_name), '\s+', ' ', 'g')) as folded_name, count(*)
-from public.class_roster_members group by roster_id, folded_name having count(*) > 1;
-```
-
-### Inspect source key counts and compare
-
-```sql
-select key, jsonb_typeof(value) as value_type,
-       case when jsonb_typeof(value->'items') = 'array'
-            then jsonb_array_length(value->'items') end as items_count,
-       case when jsonb_typeof(value) = 'array'
-            then jsonb_array_length(value) end as root_array_count
-from public.classroom_store
-where key in ('ghost-state','username-changes','announcements','class-space',
-  'utility-roster','timetable','rules','violations','class-roster',
-  'push-subscriptions','homework')
-order by key;
-```
-
-The legacy values have different object/array shapes, so compare each count to the explicit extraction/backfill in the corresponding migration rather than assuming every key is an `items` array. Destination counts are in the preceding query. Both source and destination rows remain available for reconciliation.
-
-### Constraints, duplicate protection and RPC presence
-
-```sql
-select conrelid::regclass as table_name, conname, pg_get_constraintdef(oid) as definition
+select conrelid::regclass as table_name, conname, contype, convalidated,
+       pg_get_constraintdef(oid) as definition
 from pg_constraint
-where contype = 'f' and connamespace = 'public'::regnamespace
-  and conrelid::regclass::text in ('announcement_images','class_space_questions',
-    'class_space_results','class_space_attempts','utility_roster_members',
-    'rule_violation_photos','class_roster_members','homework_upload_intent_files')
-order by 1,2;
-
-select endpoint, count(*) from public.push_subscriptions group by endpoint having count(*) > 1;
-select document_kind, short_id, count(*) from public.announcements
- where short_id is not null group by document_kind, short_id having count(*) > 1;
-
-select to_regprocedure('public.ghost_reserve_account()'),
-       to_regprocedure('public.change_display_name(uuid,text,boolean)'),
-       to_regprocedure('public.allocate_announcement_short_id(text)'),
-       to_regprocedure('public.class_money_update_member_payment(uuid,timestamp with time zone,bigint,text,uuid)'),
-       to_regprocedure('public.homework_commit_submission(uuid,uuid,text,date)');
+where conrelid in (
+  to_regclass('public.announcements'),
+  to_regclass('public.announcement_images'),
+  to_regclass('public.homework_notices')
+)
+order by table_name, conname;
 ```
 
-For API smoke tests, request `page=1&pageSize=100` and `page=2&pageSize=100`; verify max 100, stable ordering, and `pagination.hasMore`. Do not compare data by issuing an unbounded list request.
+### Existing indexes
 
-## 5. Deployment order
+```sql
+select schemaname, tablename, indexname, indexdef
+from pg_indexes
+where schemaname = 'public'
+  and tablename in ('announcements', 'announcement_images', 'homework_notices')
+order by tablename, indexname;
+```
 
-1. Back up Supabase and record legacy row counts plus bucket visibility/settings.
-2. Check prerequisites; run only genuinely missing baseline schemas.
-3. Run numbered migrations in order, skipping optional `010`.
-4. Run the read-only checks; resolve `NOTICE` messages, missing RPCs, duplicate/index blockers, or count discrepancies.
-5. Review/apply `supabase/ai-chat-history.sql` if needed, then deploy/restart backend and frontend together.
-6. Smoke-test registration/ghost quota, username-change quota, announcements/images, timetable, Rules/evidence, homework notices/submissions, Class Space/cover, roster, Resources/large files, Events/images, Cleaning Duty/photos, Class Money receipts/payments, AI history/quota, and push.
-7. Preserve `classroom_store` and legacy Storage through an observation period. Do not drop the adapter, source table, bucket, or source JSON as part of this task.
+### Announcement-related routines/functions
 
-Binary request payloads were replaced for announcements, Events, Rules evidence, Class Space images, Class Money photos, and Resources; the frontend and backend were changed together. Clients now request signed URLs, upload Blobs directly to existing Storage buckets, then submit small metadata. Homework submissions and Cleaning Duty use expiring database upload intents. Existing public DTO/list array fields are retained; paged endpoints include pagination metadata.
+003 itself does not create an RPC, but check for manually created or earlier-version routines before assuming a clean state:
 
-## 6. Rollback
+```sql
+select routine_schema, routine_name, routine_type, data_type
+from information_schema.routines
+where routine_schema = 'public'
+  and routine_name ilike '%announcement%'
+order by routine_name;
+```
 
-- **Before deployment:** if a migration fails, stop and retain the error/notice. Repair a documented constraint/data conflict and rerun; do not drop partially created tables without reviewing their rows.
-- **Code rollback:** deploy the previous version only if it is compatible with the active schema. Old code reads `classroom_store`, but writes after cutover live in relational tables; pause writes and export/reconcile post-cutover changes before rollback to avoid invisibility/data loss.
-- **Database rollback:** no automatic `DROP` rollback is supplied. Do not truncate/drop relational data. Use the project's reviewed backup-restore process only if a full restore is required.
-- **Storage rollback:** do not remove Storage files automatically. Abandoned signed uploads can leave orphaned objects; identify exact paths and review metadata before manual cleanup.
-- **Presentation:** no Presentation data cleanup is part of deployment/rollback. `202610040010_presentation_cleanup.sql` is optional, inspection-first, and destructive statements remain commented.
+If `announcement_images` exists and `announcement_id` is still `text`, inspect its raw values **only after confirming that column's type is text**:
+
+```sql
+select id, announcement_id
+from public.announcement_images
+where announcement_id is null
+   or btrim(announcement_id) !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+```
+
+Do not delete or manually cast those rows to make the migration pass. Corrected 003 preserves an old text FK column as `announcement_id_legacy_text`, maps only UUID-formatted values to a new UUID column, and aborts if it finds values it cannot safely map or null relationships it cannot preserve. Because the migration is wrapped in a transaction, that error rolls back the attempted repair; review the exact rows and decide a data-preserving mapping before retrying.
+
+## 3. Exact recovery procedure for the previous 003 failure
+
+1. **Stop here. Do not run 004 or any later deployment migration yet.** Do not drop any object. Do not assume the previous 003 attempt left the database clean or fully applied.
+2. Run the read-only table/column, constraint, and index queries above. Save the output, especially the current `announcement_images` schema and any existing FK/index definitions. The deployment agent cannot see the live catalog and must not infer partial state from the error alone.
+3. Review the raw text IDs if `announcement_images.announcement_id` is `text`. If there are malformed/non-UUID values, stop and preserve them for explicit reconciliation; corrected 003 intentionally raises rather than discarding or guessing their relationships.
+4. After preflight, run the complete corrected [`202610040003_announcements_relational.sql`](../supabase/migrations/202610040003_announcements_relational.sql) **as one script**. It begins and commits a transaction. It validates the existing announcements field types, preserves UUIDs, creates/adds missing columns, indexes and safe constraints, converts only valid pre-existing image references while retaining the raw legacy text column, and backfills valid legacy IDs/images. Invalid legacy `classroom_store.announcements` IDs are reported with `NOTICE` and skipped; the original JSON remains in `classroom_store`.
+5. If 003 errors, do not continue. Read the raised message, perform read-only inspection, retain the old source values, and resolve only the named incompatibility. The corrected migration does not issue `DROP TABLE`, `DROP COLUMN`, `TRUNCATE`, or `DELETE FROM`.
+6. After 003 succeeds, rerun the column and constraint queries. Confirm `announcements.id` and `announcement_images.announcement_id` are `uuid`, `announcement_id` is `NOT NULL`, and a FK references `public.announcements(id)`. On an existing table the FK may be `NOT VALID` so historical orphan UUIDs remain untouched while new writes are checked. Inspect orphans before optionally validating it:
+
+```sql
+select ai.id, ai.announcement_id
+from public.announcement_images ai
+left join public.announcements a on a.id = ai.announcement_id
+where a.id is null;
+```
+
+7. Only after corrected 003 completes and checks pass, continue sequentially with 004–009, then 011–014. Run one file at a time and verify success before proceeding.
+
+## 4. Migration order
+
+The sequence remains exactly:
+
+1. `202610040001_relational_auth_state.sql` — ghost reservations/creation quota, username history, transactional RPCs.
+2. `202610040002_homework_direct_upload.sql` — upload-intent metadata and homework submission RPCs; requires the existing homework assignment/submission tables.
+3. `202610040003_announcements_relational.sql` — corrected UUID-compatible announcements and image metadata migration. **This is the next migration to rerun.**
+4. `202610040004_class_space_relational.sql` — room/question/editor/result/attempt and utility-roster tables and RPCs. Existing RPC overloads are retained.
+5. `202610040005_timetable_relational.sql` — structured timetable/session/period/break/entry/change-notice tables.
+6. `202610040006_rules_relational.sql` — Rules/violation/photo tables and database-side member totals.
+7. `202610040007_roster_relational.sql` — roster/member tables and safe named constraints.
+8. `202610040008_push_relational.sql` — push subscriptions/preferences.
+9. `202610040009_cleaning_direct_upload.sql` — metadata-only Cleaning Duty upload intents.
+10. `202610040011_class_money_overview.sql` — Class Money aggregate RPC.
+11. `202610040012_announcement_short_id_counter.sql` — atomic announcement short-ID allocator; requires corrected 003.
+12. `202610040013_class_money_atomic_payment.sql` — Class Money payment/audit RPC; requires the existing Class Money base schema and 011.
+13. `202610040014_homework_notices_relational.sql` — homework notices and UUID-compatible announcement link; requires corrected 003.
+
+`202610040010_presentation_cleanup.sql` remains **separate and optional**. It is not part of the normal sequence, and its destructive Presentation table cleanup remains commented out. Do not delete unrelated Storage objects.
+
+## 5. Static type audit for migrations 001–014
+
+Run the local, read-only developer check before deployment:
+
+```bash
+python3 scripts/check-migration-types.py
+```
+
+The checker examines the 14 numbered SQL files and checked-in schema SQL for FK source/target type equality, declared PK/unique targets, conflicting `ADD COLUMN` types, and common UUID contracts (`profiles.id`, homework IDs, announcements, and related references). A passing result is a static repository check, **not** proof of current live catalog state. The actual homework base-schema file is absent here, so its UUID contract must also be confirmed by the live read-only query.
+
+The audit found and corrected these type/data-safety issues:
+
+| Migration | ID/FK contract reviewed | Finding and action |
+|---|---|---|
+| 001 | `ghost_account_creations.user_id` and `username_changes.user_id` are `uuid → profiles.id uuid` | No FK type mismatch found. Malformed non-array legacy JSON collections now skip safely rather than aborting the backfill. |
+| 002 | `homework_upload_intents.assignment_id uuid → homework_assignments.id`; `user_id uuid → profiles.id`; file `intent_id uuid → upload intent id uuid` | Declarations are UUID-compatible by migration contract and user reports 002 succeeded. Homework base DDL is not checked into this repository, so verify actual assignment/submission key types before any re-run. |
+| 003 | `announcements.id uuid`; account/source references `uuid`; `announcement_images.announcement_id uuid → announcements.id uuid` | **Root cause fixed.** Previous text/UUID mismatch is removed; existing schema is type-checked, no UUID-to-text conversion occurs, and partial image metadata is preserved or rejected explicitly. |
+| 004 | Class Space/child IDs are `text → text`; user/member IDs are text values with no incompatible UUID FK | No text/UUID FK mismatch found. Existing RPC overloads are retained rather than dropped. |
+| 005 | Timetable and child `timetable_id` values are `uuid → uuid` | No FK type mismatch found. Date backfill casts now use PostgreSQL input validation, including impossible calendar dates. |
+| 006 | Rules section/settings and violation/photo keys are `text → text`; user/roster identifiers are non-FK text values | No FK type mismatch found. Integer/date backfill casts now reject overflow/impossible dates safely. |
+| 007 | Roster/member identifiers and `roster_id` are `text → text`; profile identity remains in `profiles` | No FK type mismatch found. Removed duplicate inline/named FK/check declarations; named checks remain `NOT VALID` for existing rows. |
+| 008 | Push user IDs are `uuid → profiles.id uuid`; subscription IDs are UUID | No static mismatch found; verify `profiles.id` live. |
+| 009 | Cleaning upload-intent/file IDs are UUID; uploader is `uuid → profiles.id uuid` | No static mismatch found; verify profile key live. Duty IDs are metadata values, not a cross-table FK in this migration. |
+| 010 | Optional cleanup only | No normal deployment DDL; remains separate and destructive lines are commented. |
+| 011 | Class Money overview RPC receives `book_id uuid` and joins existing Class Money UUID keys | No FK mismatch; schema columns are checked in the repository's Class Money SQL. Added PostgREST schema reload notification. |
+| 012 | Short-ID counter key/document-kind are text and short-ID counter values integer | No UUID FK mismatch; depends on fields/indexes from corrected 003. |
+| 013 | Class Money IDs/references are UUID; monetary values use integer/bigint/numeric as declared in base schema | No static FK type mismatch found against checked-in Class Money schema. |
+| 014 | `homework_notices.exam_announcement_id uuid → announcements.id uuid` | **Fixed:** previous declaration used text against the UUID announcement key. Existing text reference columns are retained under a legacy name and only safe UUID mappings are copied; new links are set only if the referenced announcement exists. |
+
+The static checker verifies 57 declared FK column pairs in 14 numbered migrations against checked-in declarations/contracts. It does not connect to the database, validate data, execute migrations, or replace the production preflight.
+
+## 6. Existing schema prerequisites and safety notes
+
+- `public.profiles` and Supabase `auth.users` must exist with UUID IDs as expected by the application.
+- `homework_assignments.id` and `homework_submissions.assignment_id`/`user_id` must match the UUID contract in migration 002. The checked-in DDL file referenced by older docs is absent from this repository; do not rerun a base schema blindly.
+- Preserve `public.classroom_store`, existing relational tables, all buckets, and Storage objects. Legacy values remain available as source/backup after backfill.
+- For existing image IDs that cannot be mapped to UUIDs, do not invent random announcement IDs. Corrected 003 skips malformed legacy announcement records with a notice; the legacy JSON stays intact.
+- Index creation can fail on pre-existing duplicate values. Such failures should be inspected and reconciled explicitly; do not resolve them by deleting production rows.
+- Staging-first execution and a current backup remain recommended. No live Supabase SQL was run by this task.

@@ -256,9 +256,9 @@ begin
 
     insert into public.class_space_results (class_space_id, user_id, user_name, correct, total, duration_ms, completed_at)
     select cs.id, nullif(btrim(result.key), ''), coalesce(result.value->>'userName', 'Ẩn danh'),
-      greatest(0, case when result.value->>'correct' ~ '^-?[0-9]+$' then (result.value->>'correct')::integer else 0 end),
-      greatest(0, case when result.value->>'total' ~ '^-?[0-9]+$' then (result.value->>'total')::integer else 0 end),
-      case when result.value->>'durationMs' ~ '^[0-9]+$' then (result.value->>'durationMs')::bigint else null end,
+      greatest(0, case when pg_input_is_valid(result.value->>'correct', 'integer') then (result.value->>'correct')::integer else 0 end),
+      greatest(0, case when pg_input_is_valid(result.value->>'total', 'integer') then (result.value->>'total')::integer else 0 end),
+      case when pg_input_is_valid(result.value->>'durationMs', 'bigint') and result.value->>'durationMs' ~ '^[0-9]+$' then (result.value->>'durationMs')::bigint else null end,
       case when pg_input_is_valid(result.value->>'completedAt', 'timestamptz') then (result.value->>'completedAt')::timestamptz else now() end
     from public.classroom_store store
     cross join lateral jsonb_array_elements(
@@ -295,7 +295,7 @@ begin
 
     insert into public.utility_roster_members(roster_id, position, student_number, name)
     select 'default', n.ordinality - 1,
-      case when (n.value->>'stt') ~ '^[1-9][0-9]*$' then (n.value->>'stt')::integer else n.ordinality::integer end,
+      case when pg_input_is_valid(n.value->>'stt', 'integer') and (n.value->>'stt') ~ '^[1-9][0-9]*$' then (n.value->>'stt')::integer else n.ordinality::integer end,
       nullif(btrim(n.value->>'name'), '')
     from public.classroom_store store
     cross join lateral jsonb_array_elements(
@@ -334,9 +334,7 @@ create unique index if not exists class_spaces_code_uidx on public.class_spaces 
 
 -- Atomic replacement of room metadata/questions/editors. Results and attempts are
 -- updated only with their user-scoped RPC/upsert, never overwritten as a snapshot.
-drop function if exists public.replace_class_space(jsonb);
-drop function if exists public.replace_class_space(jsonb,timestamptz);
-create function public.replace_class_space(p_item jsonb, p_expected_updated_at timestamptz default null)
+create or replace function public.replace_class_space(p_item jsonb, p_expected_updated_at timestamptz default null)
 returns text
 language plpgsql
 security definer

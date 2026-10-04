@@ -169,7 +169,7 @@ begin
       insert into public.timetables (class_name, effective_from, subjects, days, updated_at)
       values (
         class_name_value,
-        case when source_value->>'effectiveFrom' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        case when pg_input_is_valid(source_value->>'effectiveFrom', 'date')
           then (source_value->>'effectiveFrom')::date else null end,
         case when jsonb_typeof(source_value->'subjects') = 'array' then source_value->'subjects' else '[]'::jsonb end,
         case when jsonb_typeof(source_value->'days') = 'array' then source_value->'days' else '[]'::jsonb end,
@@ -246,9 +246,9 @@ begin
         timetable_id,
         source_notice->>'active' = 'true',
         source_notice->>'hasChanges' = 'true',
-        case when coalesce(source_notice->>'from', source_notice->>'dateFrom') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        case when pg_input_is_valid(coalesce(source_notice->>'from', source_notice->>'dateFrom'), 'date')
           then coalesce(source_notice->>'from', source_notice->>'dateFrom')::date else null end,
-        case when coalesce(source_notice->>'to', source_notice->>'dateTo') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        case when pg_input_is_valid(coalesce(source_notice->>'to', source_notice->>'dateTo'), 'date')
           then coalesce(source_notice->>'to', source_notice->>'dateTo')::date else null end,
         coalesce(nullif(source_notice->>'summary', ''), 'Chưa có sự thay đổi'),
         case when jsonb_typeof(source_notice->'lines') = 'array' then source_notice->'lines' else '[]'::jsonb end,
