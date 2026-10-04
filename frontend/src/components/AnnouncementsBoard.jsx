@@ -119,6 +119,58 @@ function PostCard({
   )
 }
 
+function NoteIcon({ size = 22 }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z" />
+      <path d="M14 3v5h5" />
+      <path d="M9 13h6M9 17h4" />
+    </svg>
+  )
+}
+
+function FileRow({
+  post, role, onOpen, onHide, onDelete,
+  onStartEditExpiry, editingExpiryId, editExpiresAt, setEditExpiresAt,
+  onSaveExpiry, onCancelExpiry,
+}) {
+  const canHideThis = canHide(role, post.section)
+  const canDeleteThis = canHardDelete(role, post.section)
+  const canEditThis = canEdit(role, post.section)
+  const name = post.title || excerpt(post.content, 70) || 'Thông báo không tiêu đề'
+  const editing = canEditThis && editingExpiryId === post.id
+  return (
+    <div className={`ann-file ann-file--${post.notify_type || 'normal'}`}>
+      <div className="ann-file-main">
+        <span className="ann-file-note"><NoteIcon /></span>
+        <div className="ann-file-text">
+          <strong className="ann-file-name">{name}</strong>
+          <span className="ann-file-meta">
+            {post.notify_type && post.notify_type !== 'normal' ? <span className={`ann-badge ann-badge--${post.notify_type}`}>{NOTIFY_LABELS[post.notify_type]}</span> : null}
+            {post.created_by_name || 'Admin'} · {new Date(post.created_at).toLocaleString('vi-VN')}
+          </span>
+        </div>
+        <button type="button" className="ann-file-view" onClick={() => onOpen(post)}>Xem</button>
+      </div>
+      {editing || canEditThis || canHideThis || canDeleteThis ? (
+        <div className="ann-file-actions">
+          {editing ? (
+            <span className="ann-expire-edit">
+              <input type="datetime-local" value={editExpiresAt} onChange={(e) => setEditExpiresAt(e.target.value)} />
+              <button type="button" className="ann-btn-save-expiry" onClick={() => onSaveExpiry(post.id)}>Lưu</button>
+              <button type="button" className="ann-btn-cancel-expiry" onClick={onCancelExpiry}>Hủy</button>
+            </span>
+          ) : canEditThis ? (
+            <button type="button" className="ann-btn-expiry" onClick={() => onStartEditExpiry(post)}>Đổi giờ tự xóa</button>
+          ) : null}
+          {canHideThis ? <button type="button" className="ann-btn-hide" onClick={() => onHide(post)}>Ẩn</button> : null}
+          {canDeleteThis ? <button type="button" className="ann-btn-delete" onClick={() => onDelete(post)}>Xóa vĩnh viễn</button> : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export default function AnnouncementsBoard({
   role: roleProp, caps, canDismissTkb, tkbNotice, onDismissTkbNotice, dismissingTkb, onOpenTimetable,
 }) {
@@ -448,10 +500,10 @@ export default function AnnouncementsBoard({
                   {isOpen ? (
                     <div className="ann-section-archive">
                       {list.length === 0 ? (
-                        <p className="ann-section-empty">Chưa có sự kiện nào được lưu.</p>
+                        <p className="ann-section-empty">Chưa có bài nào được lưu.</p>
                       ) : (
                         list.map((post) => (
-                          <PostCard key={post.id} post={post} {...cardProps} onOpen={openDetail} />
+                          <FileRow key={post.id} post={post} {...cardProps} onOpen={openDetail} />
                         ))
                       )}
                     </div>
