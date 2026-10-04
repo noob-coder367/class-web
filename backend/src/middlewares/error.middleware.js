@@ -8,6 +8,20 @@ export function errorHandler(err, req, res, _next) {
     })
   }
 
+  if (err?.code === 'VERSION_CONFLICT' || err?.status === 409) {
+    return res.status(409).json({ message: 'Dữ liệu vừa thay đổi. Vui lòng tải lại rồi thử lại.' })
+  }
+  if (err?.status === 503 || err?.code === 'PERMISSION_DENIED' || err?.code === 'MISSING_TABLE' || String(err?.code || '').endsWith('_ERROR')) {
+    console.error('[Persistence Error]', {
+      status: err.status,
+      code: err.code,
+      key: err.key,
+      operation: err.operation,
+      table: err.table,
+    })
+    return res.status(503).json({ message: 'Dịch vụ dữ liệu hiện không khả dụng. Vui lòng thử lại sau.' })
+  }
+
   if (err?.code === 'LIMIT_FILE_SIZE' || err?.type === 'entity.too.large') {
     const isCleaningUpload = req.originalUrl.split('?')[0].endsWith('/api/classroom/cleaning-duty/photos')
     const isResourceUpload = req.originalUrl.includes('/api/resources/') && req.originalUrl.endsWith('/files')

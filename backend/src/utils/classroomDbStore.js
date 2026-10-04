@@ -5,76 +5,161 @@ import { readJsonFile, cloneJson } from './classroomDataStore.js'
 // migration from classroom-data/*.json. New large relational features must use
 // a repository under ../repositories instead of adding another JSON key here.
 const DEFAULT_BUCKET = 'classroom-data'
-const readLocks = new Map()
+const DEFAULT_MUTATION_RETRIES = 3
 
-function dbError(error, message) {
+export class ClassroomStoreError extends Error {
+  constructor(message, { status = 503, code = 'STORE_ERROR', key, cause } = {}) {
+    super(message, { cause })
+    this.name = 'ClassroomStoreError'
+    this.status = status
+    this.code = code
+    this.key = key
+  }
+}
+
+function classifyDatabaseError(error) {
+  const code = String(error?.code || '')
+  const message = String(error?.message || '').toLowerCase()
+  if (code === '42501' || /permission denied|row-level security|rls/.test(message)) return 'PERMISSION_DENIED'
+  if (code === '42P01' || /relation .* does not exist|table .* does not exist/.test(message)) return 'MISSING_TABLE'
+  if (/timeout|connection|network|fetch failed|socket/.test(message)) return 'CONNECTION_ERROR'
+  return 'DATABASE_ERROR'
+}
+
+function throwDatabaseError(error, { key, operation }) {
   if (!error) return
-  console.error(`[classroom-db] ${message}:`, error.message || error)
-  const err = new Error(message)
-  err.status = 503
-  throw err
+  const code = classifyDatabaseError(error)
+  console.error(`[classroom-db] ${operation} failed`, {
+    key,
+    code,
+    databaseCode: error.code,
+    details: error.details,
+    hint: error.hint,
+  })
+  throw new ClassroomStoreError(`Không thể ${operation} dữ liệu lớp học.`, { code, key, cause: error })
+}
+
+function conflict(key, label) {
+  return new ClassroomStoreError(`Dữ liệu ${label || key} vừa được cập nhật ở nơi khác. Hãy tải lại rồi thử lại.`, {
+    status: 409,
+    code: 'VERSION_CONFLICT',
+    key,
+  })
 }
 
 function emptyValue(empty) {
   return typeof empty === 'function' ? empty() : cloneJson(empty)
 }
 
-async function readLegacy({ bucket = DEFAULT_BUCKET, path, empty, label }) {
+function isFileNotFound(error) {
+  return !error || error.statusCode === 404 || error.statusCode === '404' || /not found|does not exist|no such file|404/i.test(error.message || '')
+}
+
+async function readLegacy({ readJson, bucket = DEFAULT_BUCKET, path, empty, label }) {
   if (!path) return emptyValue(empty)
   try {
-    return await readJsonFile({ bucket, path, empty, label })
+    return await readJson({ bucket, path, empty, label })
   } catch (error) {
-    // A missing legacy bucket/file is equivalent to an empty store. Other
-    // errors are surfaced so a real Storage outage is not silently swallowed.
-    if (error?.status === 502 && /not found|không đọc được/i.test(error.message || '')) return emptyValue(empty)
+    // Missing legacy data is an expected first-run case. A real Storage/JSON
+    // failure is not converted to an empty object.
+    if (error?.statusCode === 404 || (error?.status === 502 && isFileNotFound(error))) return emptyValue(empty)
     throw error
   }
 }
 
-export async function readStore({ key, legacyPath = `${key}.json`, bucket = DEFAULT_BUCKET, empty = {}, label = key }) {
-  const existing = await supabaseAdmin.from('classroom_store').select('value, version, updated_at').eq('key', key).maybeSingle()
-  dbError(existing.error, `Không đọc được store ${key}.`)
-  if (existing.data) return cloneJson(existing.data.value)
+export function createClassroomDbStore({ client = supabaseAdmin, readJson = readJsonFile } = {}) {
+  const migrationLocks = new Map()
 
-  const previous = readLocks.get(key) || Promise.resolve()
-  const operation = previous.then(async () => {
-    const recheck = await supabaseAdmin.from('classroom_store').select('value').eq('key', key).maybeSingle()
-    dbError(recheck.error, `Không đọc được store ${key}.`)
-    if (recheck.data) return cloneJson(recheck.data.value)
-    const legacy = await readLegacy({ bucket, path: legacyPath, empty, label })
-    const inserted = await supabaseAdmin.from('classroom_store').insert({ key, value: legacy, version: 1 }).select('value').maybeSingle()
-    if (inserted.error && inserted.error.code !== '23505') dbError(inserted.error, `Không migrate được ${key} sang PostgreSQL.`)
-    if (inserted.data) console.info(`[migrate] key=${key} from storage -> db`)
-    if (inserted.data) return cloneJson(inserted.data.value)
-    const winner = await supabaseAdmin.from('classroom_store').select('value').eq('key', key).maybeSingle()
-    dbError(winner.error, `Không đọc được store ${key} sau migrate.`)
-    return cloneJson(winner.data?.value ?? legacy)
-  })
-  readLocks.set(key, operation.catch(() => {}))
-  try { return await operation } finally { if (readLocks.get(key) === operation) readLocks.delete(key) }
-}
-
-export async function writeStore({ key, value, label = key, expectedVersion = null }) {
-  const payload = { value: cloneJson(value), updated_at: new Date().toISOString() }
-  let query = supabaseAdmin.from('classroom_store').update(payload).eq('key', key)
-  if (expectedVersion !== null) query = query.eq('version', expectedVersion)
-  const updated = await query.select('version, updated_at').maybeSingle()
-  if (updated.error) dbError(updated.error, `Không lưu được ${label}.`)
-  if (updated.data) return updated.data
-  if (expectedVersion !== null) {
-    const conflict = new Error(`Dữ liệu ${label} vừa được cập nhật ở nơi khác. Hãy tải lại rồi thử lại.`)
-    conflict.status = 409
-    throw conflict
+  async function selectRecord(key, operation = 'đọc') {
+    const result = await client.from('classroom_store').select('value, version, updated_at').eq('key', key).maybeSingle()
+    throwDatabaseError(result.error, { key, operation })
+    return result.data || null
   }
-  const inserted = await supabaseAdmin.from('classroom_store').insert({ key, ...payload, version: 1 }).select('version, updated_at').maybeSingle()
-  if (inserted.error && inserted.error.code === '23505') return writeStore({ key, value, label })
-  dbError(inserted.error, `Không tạo được ${label}.`)
-  return inserted.data
+
+  async function readRecord({ key, legacyPath = `${key}.json`, bucket = DEFAULT_BUCKET, empty = {}, label = key }) {
+    const existing = await selectRecord(key)
+    if (existing) return { ...existing, value: cloneJson(existing.value) }
+
+    const previous = migrationLocks.get(key) || Promise.resolve()
+    const operation = previous.then(async () => {
+      const recheck = await selectRecord(key)
+      if (recheck) return { ...recheck, value: cloneJson(recheck.value) }
+      const legacy = await readLegacy({ readJson, bucket, path: legacyPath, empty, label })
+      const inserted = await client
+        .from('classroom_store')
+        .insert({ key, value: cloneJson(legacy), version: 1 })
+        .select('value, version, updated_at')
+        .maybeSingle()
+      if (inserted.error && inserted.error.code !== '23505') throwDatabaseError(inserted.error, { key, operation: 'khởi tạo' })
+      if (inserted.data) {
+        console.info(`[classroom-db] lazy migration completed key=${key}`)
+        return { ...inserted.data, value: cloneJson(inserted.data.value) }
+      }
+      const winner = await selectRecord(key, 'đọc sau khởi tạo')
+      if (!winner) throw new ClassroomStoreError('Không đọc được dữ liệu lớp học sau khi khởi tạo.', { key })
+      return { ...winner, value: cloneJson(winner.value) }
+    })
+    migrationLocks.set(key, operation.catch(() => {}))
+    try {
+      return await operation
+    } finally {
+      if (migrationLocks.get(key) === operation) migrationLocks.delete(key)
+    }
+  }
+
+  async function readStore(options) {
+    const record = await readRecord(options)
+    return cloneJson(record.value)
+  }
+
+  async function readStoreMeta(options) {
+    const record = await readRecord(options)
+    return { value: cloneJson(record.value), version: Number(record.version) || 1, updatedAt: record.updated_at || null }
+  }
+
+  async function writeVersioned({ key, value, expectedVersion, label = key }) {
+    const nextVersion = Number(expectedVersion) + 1
+    const result = await client
+      .from('classroom_store')
+      .update({ value: cloneJson(value), version: nextVersion, updated_at: new Date().toISOString() })
+      .eq('key', key)
+      .eq('version', expectedVersion)
+      .select('version, updated_at')
+      .maybeSingle()
+    throwDatabaseError(result.error, { key, operation: `ghi ${label}` })
+    if (!result.data) throw conflict(key, label)
+    return result.data
+  }
+
+  async function writeStore({ key, value, label = key, expectedVersion = null }) {
+    if (expectedVersion !== null) return writeVersioned({ key, value, expectedVersion, label })
+
+    const current = await readRecord({ key, empty: {} })
+    return writeVersioned({ key, value, expectedVersion: Number(current.version) || 1, label })
+  }
+
+  async function updateStore(key, mutator, options = {}) {
+    const maxRetries = Math.min(8, Math.max(0, Number.parseInt(options.maxRetries, 10) || DEFAULT_MUTATION_RETRIES))
+    let lastConflict = null
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      const current = await readStoreMeta({ key, ...options })
+      const next = await mutator(cloneJson(current.value), { version: current.version, attempt })
+      try {
+        await writeVersioned({ key, value: next, expectedVersion: current.version, label: options.label || key })
+        return cloneJson(next)
+      } catch (error) {
+        if (error?.code !== 'VERSION_CONFLICT') throw error
+        lastConflict = error
+      }
+    }
+    throw lastConflict || conflict(key, options.label || key)
+  }
+
+  return { readStore, readStoreMeta, writeStore, updateStore }
 }
 
-export async function updateStore(key, mutator, options = {}) {
-  const current = await readStore({ key, ...options })
-  const next = await mutator(cloneJson(current))
-  await writeStore({ key, value: next, label: options.label || key })
-  return next
-}
+const defaultStore = createClassroomDbStore()
+export const readStore = (options) => defaultStore.readStore(options)
+export const readStoreMeta = (options) => defaultStore.readStoreMeta(options)
+export const writeStore = (options) => defaultStore.writeStore(options)
+export const updateStore = (key, mutator, options) => defaultStore.updateStore(key, mutator, options)

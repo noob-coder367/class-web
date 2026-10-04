@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
-import { readStore as readDbStore, writeStore as writeDbStore } from '../utils/classroomDbStore.js'
+import { readStore as readDbStore, updateStore as updateDbStore } from '../utils/classroomDbStore.js'
 import { env } from '../config/env.js'
 import { normalizeRole } from '../lib/roles.js'
 
@@ -111,11 +111,10 @@ async function findProfileById(userId) {
 
 async function readUsernameChanges() {
   const parsed = await readDbStore({ key: 'username-changes', legacyPath: USERNAME_CHANGES_PATH, empty: {}, label: 'lịch sử đổi tên' })
-  return parsed && typeof parsed === 'object' ? parsed : {}
-}
-
-async function writeUsernameChanges(map) {
-  await writeDbStore({ key: 'username-changes', value: map, label: 'lịch sử đổi tên' })
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new AppError('Dữ liệu lịch sử đổi tên bị hỏng.', 503)
+  }
+  return parsed
 }
 
 async function ensureDataBucket() {
@@ -124,19 +123,24 @@ async function ensureDataBucket() {
 
 async function readGhostState() {
   const parsed = await readDbStore({ key: 'ghost-state', legacyPath: GHOST_STATE_PATH, empty: { nextIndex: 1, created: [] }, label: 'bộ đếm tài khoản ma' })
-  const nextIndex = Math.max(1, Number(parsed?.nextIndex) || 1)
-  const created = Array.isArray(parsed?.created) ? parsed.created : []
-  return { nextIndex, created }
-}
-
-async function writeGhostState(state) {
-  await writeDbStore({ key: 'ghost-state', value: state, label: 'bộ đếm tài khoản ma' })
+  const nextIndex = Number(parsed?.nextIndex)
+  if (!Number.isSafeInteger(nextIndex) || nextIndex < 1 || !Array.isArray(parsed?.created) || (parsed?.reserved !== undefined && !Array.isArray(parsed.reserved))) {
+    throw new AppError('Dữ liệu bộ đếm tài khoản ma bị hỏng.', 503)
+  }
+  return { nextIndex, created: parsed.created, reserved: Array.isArray(parsed.reserved) ? parsed.reserved : [] }
 }
 
 function remainingGhostToday(created) {
   const today = vietnamDayKey()
   const used = (created || []).filter((item) => vietnamDayKey(Number(item?.at) || 0) === today).length
   return Math.max(0, GHOST_DAILY_LIMIT - used)
+}
+
+function remainingGhostTodayForState(state) {
+  const today = vietnamDayKey()
+  const created = (state.created || []).filter((item) => vietnamDayKey(Number(item?.at) || 0) === today)
+  const reserved = (state.reserved || []).filter((item) => vietnamDayKey(Number(item?.at) || 0) === today)
+  return Math.max(0, GHOST_DAILY_LIMIT - created.length - reserved.length)
 }
 
 let ghostLock = Promise.resolve()
@@ -148,7 +152,7 @@ function withGhostLock(fn) {
 
 export async function previewGhostAccount() {
   const state = await readGhostState()
-  const remainingToday = remainingGhostToday(state.created)
+  const remainingToday = remainingGhostTodayForState(state)
   return {
     email: remainingToday > 0 ? ghostEmailFor(state.nextIndex) : null,
     nextIndex: state.nextIndex,
@@ -234,7 +238,7 @@ async function upsertProfile({ userId, username, email, isMember }) {
     if (!still) {
       await supabaseAdmin.auth.admin.deleteUser(userId)
     }
-    throw new AppError('Tạo hồ sơ thất bại: ' + profileError.message, 500)
+    throw new AppError('Tạo hồ sơ thất bại. Vui lòng thử lại sau.', 503)
   }
 
   return findProfileById(userId)
@@ -284,40 +288,81 @@ async function registerGhostUser({ password, isMember, secretCode }) {
 
   return withGhostLock(async () => {
     const state = await readGhostState()
-    const remainingToday = remainingGhostToday(state.created)
+    const remainingToday = remainingGhostTodayForState(state)
     if (remainingToday <= 0) {
       throw new AppError('Hôm nay đã hết lượt tài khoản ma (tối đa 2 tài khoản/ngày trên toàn hệ thống).')
     }
 
-    const index = state.nextIndex
-    const cleanEmail = ghostEmailFor(index)
+    const reservationAt = Date.now()
+    const reservationId = `${reservationAt}-${Math.random().toString(36).slice(2)}`
+    await updateDbStore('ghost-state', (current) => {
+      const normalized = {
+        nextIndex: Number(current?.nextIndex),
+        created: Array.isArray(current?.created) ? current.created : [],
+        reserved: Array.isArray(current?.reserved) ? current.reserved : [],
+      }
+      if (remainingGhostTodayForState(normalized) <= 0) {
+        throw new AppError('Hôm nay đã hết lượt tài khoản ma (tối đa 2 tài khoản/ngày trên toàn hệ thống).')
+      }
+      const index = normalized.nextIndex
+      return {
+        ...normalized,
+        nextIndex: index + 1,
+        reserved: [...normalized.reserved, { id: reservationId, index, at: reservationAt }],
+      }
+    }, { empty: { nextIndex: 1, created: [], reserved: [] }, label: 'bộ đếm tài khoản ma' })
 
-    // Seed tăng ngay, kể cả khi tạo user thất bại / xóa / đăng xuất sau này.
-    const nextState = {
-      nextIndex: index + 1,
-      created: state.created,
+    let user = null
+    let profile = null
+    let index = null
+    let cleanEmail = ''
+    try {
+      const reservedState = await readGhostState()
+      const reservation = reservedState.reserved.find((item) => item.id === reservationId)
+      if (!reservation) throw new AppError('Không thể xác nhận lượt đăng ký tài khoản ma.', 503)
+      index = Number(reservation.index)
+      cleanEmail = ghostEmailFor(index)
+
+      user = await createAuthUser({
+        email: cleanEmail,
+        password,
+        emailConfirm: true,
+        reuseExisting: false,
+      })
+
+      profile = await upsertProfile({
+        userId: user.id,
+        username: pendingUsernameFor(user.id),
+        email: cleanEmail,
+        isMember: true,
+      })
+
+      await updateDbStore('ghost-state', (current) => {
+        const reserved = Array.isArray(current?.reserved) ? current.reserved : []
+        const stillReserved = reserved.some((item) => item?.id === reservationId)
+        if (!stillReserved) throw new AppError('Không tìm thấy lượt đăng ký tài khoản ma đang giữ.', 409)
+        return {
+          nextIndex: Number(current.nextIndex),
+          reserved: reserved.filter((item) => item?.id !== reservationId),
+          created: [...(Array.isArray(current.created) ? current.created : []), { index, at: reservationAt, userId: user.id }],
+        }
+      }, { label: 'bộ đếm tài khoản ma' })
+    } catch (error) {
+      // A ghost account is never reported as successful unless final state
+      // persistence succeeded. Best-effort cleanup prevents orphan accounts.
+      if (user?.id) {
+        await supabaseAdmin.from('profiles').delete().eq('id', user.id)
+        await supabaseAdmin.auth.admin.deleteUser(user.id)
+      }
+      await updateDbStore('ghost-state', (current) => ({
+        nextIndex: Number(current.nextIndex),
+        created: Array.isArray(current.created) ? current.created : [],
+        reserved: (Array.isArray(current.reserved) ? current.reserved : []).filter((item) => item?.id !== reservationId),
+      }), { label: 'bộ đếm tài khoản ma' }).catch((rollbackError) => {
+        console.error('[auth] ghost reservation rollback failed', { key: 'ghost-state', code: rollbackError?.code })
+      })
+      throw error
     }
-    await writeGhostState(nextState)
-
-    const user = await createAuthUser({
-      email: cleanEmail,
-      password,
-      emailConfirm: true,
-      reuseExisting: false,
-    })
-
-    const profile = await upsertProfile({
-      userId: user.id,
-      username: pendingUsernameFor(user.id),
-      email: cleanEmail,
-      isMember: true,
-    })
-
-    nextState.created = [
-      ...state.created,
-      { index, at: Date.now(), userId: user.id },
-    ]
-    await writeGhostState(nextState)
 
     const { data: signed, error: signError } = await supabaseAdmin.auth.signInWithPassword({
       email: cleanEmail,
@@ -488,30 +533,43 @@ export async function setDisplayName(userId, rawName, { countAsChange = false, s
     }
   }
 
-  // Luôn ghi updated_at tường minh — tránh forcePendingIfAutoNamed
-  // reset lại tên sau khi user/admin đã đặt (nếu DB không có trigger updated_at).
+  // Reserve the weekly history slot with a versioned mutation before changing
+  // the profile. This prevents two concurrent requests from both passing the
+  // quota check and losing one another's history entry.
+  const changeAt = Date.now()
+  let historyReserved = false
+  if (!skipLimit && !wasPending) {
+    await updateDbStore('username-changes', (map) => {
+      const next = map && typeof map === 'object' && !Array.isArray(map) ? map : null
+      if (!next) throw new AppError('Dữ liệu lịch sử đổi tên bị hỏng.', 503)
+      const weekAgo = Date.now() - WEEK_MS
+      const recent = (Array.isArray(next[userId]) ? next[userId] : []).filter((t) => Number(t) > weekAgo)
+      if (recent.length >= MAX_CHANGES_PER_WEEK) throw new AppError('Bạn chỉ được đổi tên tối đa 2 lần trong 1 tuần.')
+      historyReserved = true
+      return { ...next, [userId]: [...recent, changeAt] }
+    }, { empty: {}, label: 'lịch sử đổi tên' })
+  }
+
+  // Luôn ghi updated_at tường minh — tránh forcePendingIfAutoNamed reset lại
+  // tên sau khi user/admin đã đặt (nếu DB không có trigger updated_at).
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .update({
-      username: cleanUsername,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ username: cleanUsername, updated_at: new Date().toISOString() })
     .eq('id', userId)
     .select(PROFILE_COLUMNS)
     .maybeSingle()
 
-  if (error) {
-    throw new AppError('Không thể lưu tên hiển thị: ' + error.message, 500)
-  }
-  if (!data) throw new AppError('Không tìm thấy hồ sơ.', 404)
-
-  // Chỉ ghi lịch sử đổi tên khi user tự đổi (không phải admin) và không phải lần đặt tên đầu
-  if (!skipLimit && !wasPending) {
-    const map = await readUsernameChanges()
-    const weekAgo = Date.now() - WEEK_MS
-    const recent = (Array.isArray(map[userId]) ? map[userId] : []).filter((t) => Number(t) > weekAgo)
-    map[userId] = [...recent, Date.now()]
-    await writeUsernameChanges(map)
+  if (error || !data) {
+    if (historyReserved) {
+      await updateDbStore('username-changes', (map) => ({
+        ...map,
+        [userId]: (Array.isArray(map?.[userId]) ? map[userId] : []).filter((t) => Number(t) !== changeAt),
+      }), { label: 'lịch sử đổi tên' }).catch((rollbackError) => {
+        console.error('[auth] username history rollback failed', { key: 'username-changes', code: rollbackError?.code })
+      })
+    }
+    if (error) throw new AppError('Không thể lưu tên hiển thị.', 503)
+    throw new AppError('Không tìm thấy hồ sơ.', 404)
   }
 
   return toPublicProfile(data)
