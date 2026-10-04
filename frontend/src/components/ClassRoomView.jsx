@@ -11,6 +11,7 @@ import { markSeen, countNewer, countUnseenPosts } from '../lib/unreadStore.js'
 import { capabilitiesFor, isAdminRole } from '../lib/roles.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import CreateClassPage from './CreateClassPage.jsx'
+import ClassHome from './ClassHome.jsx'
 import ClassPlayView from './ClassPlayView.jsx'
 import UtilityToolsPanel, { IconWrench } from './UtilityToolsPanel.jsx'
 import { isRoomCompletedLocked } from '../lib/classPlayScore.js'
@@ -891,7 +892,7 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
       )
     }
 
-    if (activeTab === 'home') return <div className="classroom-home-hello">Hello</div>
+    if (activeTab === 'home') return <ClassHome />
 
     if (activeTab === 'announcements') {
       return (
