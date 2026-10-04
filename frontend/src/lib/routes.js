@@ -10,12 +10,16 @@ export const ROUTES = {
   login: '/dang-nhap',
   register: '/dang-ky',
   ai: '/vo-lop/AI/app',
-  classMoney: '/tien-lop',
+  classMoney: '/vo-lop/nang-cao/tien-lop',
   profileSetting: '/profile-setting',
   classRoot: '/vo-lop',
   resources: '/tai-nguyen',
   classMembers: '/thanh-vien-lop',
+  advanced: '/vo-lop/nang-cao',
 }
+
+// Link cũ của trang Tiền lớp (trước khi chia nhóm route).
+export const LEGACY_CLASS_MONEY_PATH = '/tien-lop'
 
 // Đường dẫn cũ của trang AI (trước đây là /app). Vẫn nhận để link cũ không bị chết,
 // HomePage sẽ tự chuyển sang ROUTES.ai.
@@ -35,7 +39,13 @@ export function isLegacyAIPath(pathname) {
   return normalizePathname(pathname) === LEGACY_AI_PATH
 }
 
-// Tab nội bộ (ClassRoomView) <-> tên segment trên URL.
+// Nhóm route: /vo-lop/<nhóm>/<mục>. "Trang chủ" và "Nâng cao" là 2 nhóm lớn.
+export const CLASS_GROUP_PATH = {
+  home: 'trang-chu',
+  advanced: 'nang-cao',
+}
+
+// Tab nội bộ (ClassRoomView) <-> tên segment trên URL (phần sau segment nhóm).
 export const CLASS_TAB_PATH = {
   home: 'trang-chu',
   announcements: 'thong-bao-chung',
@@ -43,9 +53,25 @@ export const CLASS_TAB_PATH = {
   homework: 'bai-tap-ve-nha',
   rules: 'noi-quy-lop',
   'cleaning-duty': 've-sinh-chung',
+  advanced: 'nang-cao',
   'class-space': 'lop-hoc',
   utilities: 'tien-ich-phu',
+  feedback: 'phan-hoi',
 }
+
+// Mỗi tab thuộc nhóm nào (tab không có nhóm = trang gốc của nhóm hoặc đứng riêng).
+export const CLASS_TAB_GROUP = {
+  announcements: 'trang-chu',
+  timetable: 'trang-chu',
+  homework: 'trang-chu',
+  rules: 'trang-chu',
+  'cleaning-duty': 'trang-chu',
+  'class-space': 'nang-cao',
+  utilities: 'nang-cao',
+  feedback: 'nang-cao',
+}
+
+const GROUP_SEGMENTS = new Set(Object.values(CLASS_TAB_GROUP))
 
 const PATH_TAB = Object.fromEntries(
   Object.entries(CLASS_TAB_PATH).map(([tab, path]) => [path.toLowerCase(), tab])
@@ -54,24 +80,37 @@ const PATH_TAB = Object.fromEntries(
 PATH_TAB.home = 'home'
 // Alias chia sẻ / xem chi tiết: /vo-lop/thong-bao?id=<id>
 PATH_TAB['thong-bao'] = 'announcements'
-// Alias chia sẻ nội quy: /vo-lop/noi-quy và /vo-lop/noi-quy/vi-pham và /vo-lop/noi-quy/bang-xep-hang
+// Alias chia sẻ nội quy: /vo-lop/trang-chu/noi-quy (+ /vi-pham, /bang-xep-hang)
 PATH_TAB['noi-quy'] = 'rules'
-// Alias chia sẻ vệ sinh lớp: /vo-lop/ve-sinh
+// Alias chia sẻ vệ sinh lớp: /vo-lop/trang-chu/ve-sinh
 PATH_TAB['ve-sinh'] = 'cleaning-duty'
 
 /** Tạo URL đầy đủ cho 1 tab trong /vo-lop, kèm các đoạn phụ phía sau (nếu có). */
 export function classTabPath(tab, ...rest) {
-  const seg = CLASS_TAB_PATH[tab] || CLASS_TAB_PATH.announcements
+  const key = CLASS_TAB_PATH[tab] ? tab : 'announcements'
+  const seg = CLASS_TAB_PATH[key]
+  const group = CLASS_TAB_GROUP[key]
   const tail = rest.filter((p) => p !== undefined && p !== null && p !== '').join('/')
-  return `${ROUTES.classRoot}/${seg}${tail ? `/${tail}` : ''}`
+  const head = group ? `${ROUTES.classRoot}/${group}/${seg}` : `${ROUTES.classRoot}/${seg}`
+  return `${head}${tail ? `/${tail}` : ''}`
 }
 
-/** Từ pathname hiện tại -> { tab, rest[] }. tab=null nếu không thuộc /vo-lop. */
+/**
+ * Từ pathname hiện tại -> { tab, rest[] }. tab=null nếu không thuộc /vo-lop.
+ * Nhận cả route mới (/vo-lop/<nhóm>/<mục>/...) lẫn route cũ (/vo-lop/<mục>/...).
+ */
 export function parseClassPath(pathname) {
   const clean = String(pathname || '').replace(/^\/+|\/+$/g, '')
-  const parts = clean.split('/').filter(Boolean) // vd: ['vo-lop', 'thong-bao-chung', '1']
+  const parts = clean.split('/').filter(Boolean)
   if (parts[0] !== 'vo-lop') return { tab: null, rest: [] }
   const seg = (parts[1] || '').toLowerCase()
+  if (GROUP_SEGMENTS.has(seg) || seg === 'trang-chu' || seg === 'nang-cao') {
+    const child = (parts[2] || '').toLowerCase()
+    // /vo-lop/trang-chu hoặc /vo-lop/nang-cao: trang gốc của nhóm.
+    if (!child) return { tab: seg === 'nang-cao' ? 'advanced' : 'home', rest: [] }
+    const tab = PATH_TAB[child] || null
+    return { tab, rest: parts.slice(3) }
+  }
   const tab = PATH_TAB[seg] || null
   return { tab, rest: parts.slice(2) }
 }
@@ -79,7 +118,7 @@ export function parseClassPath(pathname) {
 // ---- Thông báo chung: /vo-lop/thong-bao?id=<id> (giữ /vo-lop/thong-bao-chung/:id) ----
 export function announcementDetailPath(id) {
   const encoded = encodeURIComponent(String(id || '').trim())
-  return `${ROUTES.classRoot}/thong-bao?id=${encoded}`
+  return `${classTabPath('announcements')}?id=${encoded}`
 }
 
 /** Đọc id bài thông báo từ ?id= hoặc đoạn path cũ /thong-bao-chung/:id */
@@ -112,9 +151,9 @@ const PATH_RULES_PANE = Object.fromEntries(
 // Alias chia sẻ danh sách vi phạm: /vo-lop/noi-quy/vi-pham
 PATH_RULES_PANE['vi-pham'] = 'violations'
 
-export const RULES_SHARE_PATH = `${ROUTES.classRoot}/noi-quy`
-export const RULES_VIOLATIONS_SHARE_PATH = `${ROUTES.classRoot}/noi-quy/vi-pham`
-export const RULES_RANK_SHARE_PATH = `${ROUTES.classRoot}/noi-quy/bang-xep-hang`
+export const RULES_SHARE_PATH = `${ROUTES.classRoot}/trang-chu/noi-quy`
+export const RULES_VIOLATIONS_SHARE_PATH = `${ROUTES.classRoot}/trang-chu/noi-quy/vi-pham`
+export const RULES_RANK_SHARE_PATH = `${ROUTES.classRoot}/trang-chu/noi-quy/bang-xep-hang`
 
 export function rulesPanePath(pane) {
   return classTabPath('rules', RULES_PANE_PATH[pane] || RULES_PANE_PATH.rules)
@@ -123,7 +162,7 @@ export function parseRulesPane(rest) {
   return PATH_RULES_PANE[(rest?.[0] || '').toLowerCase()] || null
 }
 
-// ---- Lớp học (phòng quiz): /vo-lop/lop-hoc/... ----
+// ---- Lớp học (phòng quiz): /vo-lop/nang-cao/lop-hoc/... ----
 export function classSpaceListPath() {
   return classTabPath('class-space')
 }
@@ -137,8 +176,8 @@ export function classSpaceEditPath(code) {
   return classTabPath('class-space', code, 'chinh-sua-phong')
 }
 
-// ---- Vệ sinh lớp: /vo-lop/ve-sinh-chung (alias chia sẻ: /vo-lop/ve-sinh) ----
-export const CLEANING_SHARE_PATH = `${ROUTES.classRoot}/ve-sinh`
+// ---- Vệ sinh lớp: /vo-lop/trang-chu/ve-sinh-chung (alias chia sẻ: /vo-lop/trang-chu/ve-sinh) ----
+export const CLEANING_SHARE_PATH = `${ROUTES.classRoot}/trang-chu/ve-sinh`
 
 export function cleaningDayPath(dayId, gallery = false) {
   const labels = { t2: 'thu-hai', t3: 'thu-ba', t4: 'thu-tu', t5: 'thu-nam', t6: 'thu-sau', t7: 'thu-bay' }
@@ -155,4 +194,10 @@ export function parseCleaningPath(rest) {
 /** Trang cây thành viên lớp: /thanh-vien-lop (bỏ qua dấu / cuối, không phân biệt hoa/thường). */
 export function isClassMembersPath(pathname) {
   return normalizePathname(pathname) === ROUTES.classMembers
+}
+
+/** Trang Tiền lớp: route mới hoặc link cũ /tien-lop. */
+export function isClassMoneyPath(pathname) {
+  const p = normalizePathname(pathname)
+  return p === ROUTES.classMoney || p === LEGACY_CLASS_MONEY_PATH
 }
