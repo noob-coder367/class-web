@@ -141,11 +141,12 @@ export async function getExam(id, profile, { isManager = false } = {}) {
     })))
   }
   const { data: sub, error } = await supabaseAdmin.from('class_exam_submissions')
-    .select('submitted_at, files').eq('exam_id', row.id).eq('user_id', profile.id).maybeSingle()
+    .select('id, submitted_at, files').eq('exam_id', row.id).eq('user_id', profile.id).maybeSingle()
   if (error) throw dataError(error, 'Không đọc được bài đã nộp')
   return {
     exam, attempt, server_now: new Date().toISOString(),
     my_submission: sub ? {
+      id: sub.id,
       submitted_at: sub.submitted_at,
       files: (Array.isArray(sub.files) ? sub.files : []).map((f) => ({ name: f.name, size: f.size })),
     } : null,
@@ -305,13 +306,13 @@ export async function cancelSubmissionUpload(intentId, profile) {
 export async function getExamStatus(id) {
   const exam = await getExamRow(id)
   const { data, error } = await supabaseAdmin.from('class_exam_submissions')
-    .select('user_id, user_name, submitted_at, files').eq('exam_id', exam.id)
+    .select('id, user_id, user_name, submitted_at, files').eq('exam_id', exam.id)
     .order('submitted_at', { ascending: false }).limit(500)
   if (error) throw dataError(error, 'Không tải được thống kê')
   return {
     exam: mapExam(exam),
     submissions: (data || []).map((r) => ({
-      user_id: r.user_id, user_name: r.user_name || null, submitted_at: r.submitted_at,
+      id: r.id, user_id: r.user_id, user_name: r.user_name || null, submitted_at: r.submitted_at,
       file_count: Array.isArray(r.files) ? r.files.length : 0,
     })),
   }
@@ -330,7 +331,7 @@ export async function getSubmissionDetail(examId, userId) {
   })))
   return {
     exam: mapExam(exam),
-    submission: { user_id: data.user_id, user_name: data.user_name || null, submitted_at: data.submitted_at, files },
+    submission: { id: data.id, user_id: data.user_id, user_name: data.user_name || null, submitted_at: data.submitted_at, files },
   }
 }
 

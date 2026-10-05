@@ -120,11 +120,23 @@ export async function listAssignments(profile, { page = 1, pageSize = 50 } = {})
   })
   if (summaryError) throw dataError(summaryError, 'Không tải được tình trạng bài nộp')
   const byId = new Map((summary || []).map((row) => [row.assignment_id, row]))
+  let ownSubmissions = []
+  if (profile?.id) {
+    const { data: own, error: ownError } = await supabaseAdmin.from('homework_submissions')
+      .select('id, assignment_id, submitted_at, files').in('assignment_id', rows.map((row) => row.id)).eq('user_id', profile.id).limit(200)
+    if (ownError) throw dataError(ownError, 'Không tải được bài đã nộp')
+    ownSubmissions = own || []
+  }
+  const ownByAssignment = new Map(ownSubmissions.map((row) => [row.assignment_id, row]))
   return {
     items: rows.map((row) => {
       const stats = byId.get(row.id)
       return { ...mapAssignment(row), submitted_count: Number(stats?.submitted_count) || 0,
-        my_submission: stats?.my_submitted_at ? { submitted_at: stats.my_submitted_at, file_count: Number(stats.my_file_count) || 0 } : null }
+        my_submission: ownByAssignment.has(row.id) ? {
+          id: ownByAssignment.get(row.id).id,
+          submitted_at: ownByAssignment.get(row.id).submitted_at,
+          file_count: Array.isArray(ownByAssignment.get(row.id).files) ? ownByAssignment.get(row.id).files.length : 0,
+        } : stats?.my_submitted_at ? { submitted_at: stats.my_submitted_at, file_count: Number(stats.my_file_count) || 0 } : null }
     }),
     pagination: { page: safePage, pageSize: safeSize, total: count || 0, hasMore: from + rows.length < (count || 0) },
   }
@@ -323,7 +335,7 @@ export async function getAssignmentStatus(id, { page = 1, pageSize = 50 } = {}) 
   const rows = data || []
   return {
     assignment: mapAssignment(assignment),
-    submissions: rows.map((row) => ({ user_id: row.user_id, user_name: row.user_name || null,
+    submissions: rows.map((row) => ({ id: row.id, user_id: row.user_id, user_name: row.user_name || null,
       submitted_at: row.submitted_at, file_count: Array.isArray(row.files) ? row.files.length : 0 })),
     pagination: { page: safePage, pageSize: safeSize, total: count || 0, hasMore: from + rows.length < (count || 0) },
   }
@@ -358,6 +370,7 @@ export async function getSubmissionDetail(assignmentId, userId) {
   return {
     assignment: mapAssignment(assignment),
     submission: {
+      id: data.id,
       user_id: data.user_id,
       user_name: data.user_name || null,
       submitted_at: data.submitted_at,

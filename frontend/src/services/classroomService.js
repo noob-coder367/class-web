@@ -421,6 +421,13 @@ export async function getHomeworkSubmissionDetail(id, userId) {
   )
 }
 
+export async function getHomeworkGradingResult(submissionId) {
+  return apiClient.get(
+    `/classroom/homework-assignments/submissions/${encodeURIComponent(submissionId)}/grading`,
+    { auth: true, retry: false }
+  )
+}
+
 export async function submitHomeworkAssignment(id, fileList) {
   const files = Array.from(fileList || [])
   if (!files.length) throw new Error('Chưa chọn ảnh hoặc file để nộp.')
@@ -482,6 +489,13 @@ export async function getExamStatus(id) {
 
 export async function getExamSubmissionDetail(id, userId) {
   return apiClient.get(examUrl(id, `/submissions/${encodeURIComponent(userId)}`), { auth: true })
+}
+
+export async function getExamGradingResult(submissionId) {
+  return apiClient.get(
+    `/classroom/exams/submissions/${encodeURIComponent(submissionId)}/grading`,
+    { auth: true, retry: false }
+  )
 }
 
 export async function createExam(payload, imageFiles = []) {

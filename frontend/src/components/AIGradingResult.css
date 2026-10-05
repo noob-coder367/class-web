@@ -1,0 +1,123 @@
+.air-card {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid #dbe5e3;
+  border-radius: 14px;
+  background: #fbfefd;
+  color: #163431;
+  overflow: hidden;
+}
+
+.air-card--needs_review {
+  border-color: #f2c978;
+  background: #fffaf0;
+}
+
+.air-card--failed {
+  border-color: #f3b7b7;
+  background: #fff8f8;
+}
+
+.air-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.air-eyebrow {
+  margin: 0 0 3px;
+  color: #0f766e;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.air-title {
+  margin: 0;
+  color: #134e4a;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.air-status {
+  flex: none;
+  max-width: 52%;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.air-status--graded { background: #d1fae5; color: #047857; }
+.air-status--processing { background: #dbeafe; color: #1d4ed8; }
+.air-status--needs_review { background: #fef3c7; color: #92400e; }
+.air-status--failed { background: #fee2e2; color: #b91c1c; }
+.air-status--not_queued { background: #e2e8f0; color: #475569; }
+
+.air-total {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 16px 0 12px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: #ecfdf5;
+}
+
+.air-total span { color: #475569; font-size: 13px; font-weight: 700; }
+.air-total strong { color: #0f766e; font-size: 24px; line-height: 1; }
+.air-total strong small { font-size: 14px; font-weight: 700; }
+.air-total em { color: #92400e; font-size: 11px; font-style: normal; font-weight: 700; }
+
+.air-review-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 14px 0;
+  padding: 11px 12px;
+  border-left: 4px solid #d97706;
+  border-radius: 8px;
+  background: #fef3c7;
+  color: #78350f;
+  font-size: 13px;
+}
+
+.air-questions { display: flex; flex-direction: column; gap: 10px; }
+.air-question {
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+  background: #fff;
+}
+.air-question.is-review { border-color: #f2c978; background: #fffdf5; }
+.air-question-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.air-question-head h4 { margin: 0; color: #134e4a; font-size: 14px; }
+.air-question-head strong { color: #0f766e; font-size: 15px; white-space: nowrap; }
+.air-question-head strong span { color: #64748b; font-size: 12px; }
+.air-question-status { margin: 6px 0 0; color: #92400e; font-size: 12px; font-weight: 800; }
+.air-comment { margin: 8px 0 0; color: #334155; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.air-label { margin: 11px 0 5px; color: #64748b; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.air-rubric-list { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.air-rubric-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; padding: 7px 8px; border-radius: 7px; background: #f8fafc; font-size: 12px; }
+.air-rubric-name { min-width: 0; overflow-wrap: anywhere; }
+.air-rubric-item strong { color: #334155; white-space: nowrap; }
+.air-rubric-comment { grid-column: 1 / -1; color: #64748b; overflow-wrap: anywhere; }
+.air-confidence { margin: 9px 0 0; color: #64748b; font-size: 11px; }
+.air-muted { margin: 12px 0 0; color: #64748b; font-size: 13px; line-height: 1.45; }
+.air-error { margin: 12px 0 0; color: #b91c1c; font-size: 13px; line-height: 1.45; }
+.air-error p { margin: 0 0 8px; }
+.air-retry { padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.air-retry:hover { background: #f1f5f9; }
+
+@media (max-width: 560px) {
+  .air-card { padding: 13px; }
+  .air-head { display: block; }
+  .air-status { display: inline-block; max-width: 100%; margin-top: 9px; }
+  .air-total strong { font-size: 21px; }
+  .air-rubric-item { grid-template-columns: minmax(0, 1fr); }
+  .air-rubric-item strong { justify-self: start; }
+}

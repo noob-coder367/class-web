@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
 import { useServerClock } from '../lib/useServerClock.js'
 import ExamStatusTable from './ExamStatusTable.jsx'
+import AIGradingResult from './AIGradingResult.jsx'
 import {
   EXAM_FILE_ACCEPT, EXAM_MAX_FILES, EXAM_MAX_TOTAL, EXAM_PREVIEW_EXT,
   PHASE_LABEL, extOf, formatCountdown, formatFull, formatShort, formatSize, phaseOf, validateSubmitFile,
@@ -91,6 +92,7 @@ function SubmitPanel({ examId, submission, expired, onSubmitted }) {
         <p className="ex-locked-title">Đã hết thời gian làm bài.</p>
         <p className="ex-locked-sub">{submission ? 'Bài của bạn đã được ghi nhận.' : 'Bạn chưa nộp bài.'}</p>
         {submission ? <p className="ex-muted">Nộp lúc {formatFull(submission.submitted_at)} · {submission.files.length} file</p> : null}
+        {submission?.id ? <AIGradingResult type="exam" submissionId={submission.id} /> : null}
       </section>
     )
   }
@@ -140,6 +142,7 @@ function SubmitPanel({ examId, submission, expired, onSubmitted }) {
       {error ? <p className="ex-error">{error}</p> : null}
       {okMsg ? <p className="ex-success">{okMsg}</p> : null}
       {progress ? <p className="ex-muted">{progress}</p> : null}
+      {submission?.id ? <AIGradingResult type="exam" submissionId={submission.id} /> : null}
 
       <button type="button" className="ex-btn-primary ex-btn-block" onClick={submit} disabled={busy || !entries.length}>
         {busy ? 'Đang nộp...' : submission ? 'Nộp lại' : 'Nộp bài'}

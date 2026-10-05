@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
+import AIGradingResult from './AIGradingResult.jsx'
 import './HomeworkSubmissionPanel.css'
 
 const MAX_FILES = 10
@@ -323,6 +324,7 @@ function SubmissionDetailModal({ assignmentId, target, onClose }) {
                   ))}
                 </ul>
               ) : null}
+              <AIGradingResult type="homework" submissionId={data.submission.id} />
             </>
           ) : null}
         </div>
@@ -570,6 +572,9 @@ export default function HomeworkSubmissionPanel({ canManage }) {
                   </button>
                 ) : null}
               </div>
+              {item.my_submission?.id ? (
+                <AIGradingResult type="homework" submissionId={item.my_submission.id} />
+              ) : null}
             </article>
           ))}
         </div>
