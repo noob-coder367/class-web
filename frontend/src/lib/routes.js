@@ -57,6 +57,7 @@ export const CLASS_TAB_PATH = {
   'class-space': 'lop-hoc',
   utilities: 'tien-ich-phu',
   feedback: 'phan-hoi',
+  account: 'thong-tin-ca-nhan',
 }
 
 // Mỗi tab thuộc nhóm nào (tab không có nhóm = trang gốc của nhóm hoặc đứng riêng).
@@ -200,4 +201,9 @@ export function isClassMembersPath(pathname) {
 export function isClassMoneyPath(pathname) {
   const p = normalizePathname(pathname)
   return p === ROUTES.classMoney || p === LEGACY_CLASS_MONEY_PATH
+}
+
+/** Trang chỉnh sửa thông tin cá nhân: /vo-lop/thong-tin-ca-nhan/chinh-sua */
+export function accountEditPath() {
+  return `${classTabPath('account')}/chinh-sua`
 }
