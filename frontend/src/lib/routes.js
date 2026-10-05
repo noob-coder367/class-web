@@ -58,6 +58,8 @@ export const CLASS_TAB_PATH = {
   utilities: 'tien-ich-phu',
   feedback: 'phan-hoi',
   account: 'thong-tin-ca-nhan',
+  admin: 'quan-li-lop',
+  resources: 'quan-li-tai-nguyen',
 }
 
 // Mỗi tab thuộc nhóm nào (tab không có nhóm = trang gốc của nhóm hoặc đứng riêng).
@@ -70,6 +72,7 @@ export const CLASS_TAB_GROUP = {
   'class-space': 'nang-cao',
   utilities: 'nang-cao',
   feedback: 'nang-cao',
+  resources: 'nang-cao',
 }
 
 const GROUP_SEGMENTS = new Set(Object.values(CLASS_TAB_GROUP))
