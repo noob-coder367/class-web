@@ -106,6 +106,7 @@ export default function AdminPanel({ onClose, fullscreen = false }) {
   const [deletingId, setDeletingId] = useState(null)
   const [roleBusyId, setRoleBusyId] = useState(null)
   const [nowMs, setNowMs] = useState(() => Date.now())
+  const [taskbarOpen, setTaskbarOpen] = useState(false)
 
   useEffect(() => {
     fetchUsers()
@@ -256,17 +257,32 @@ export default function AdminPanel({ onClose, fullscreen = false }) {
         aria-modal="true"
       >
         <div className="admin-header">
+          <button
+            type="button"
+            className="admin-menu-toggle"
+            aria-label={taskbarOpen ? 'Đóng thanh quản lý' : 'Mở thanh quản lý'}
+            aria-expanded={taskbarOpen}
+            onClick={() => setTaskbarOpen((open) => !open)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
           <h2>Quản lý lớp 10A4</h2>
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
 
-        <div className="admin-tabs" role="tablist">
+        <div
+          className={`admin-tabs${taskbarOpen ? ' is-open' : ''}`}
+          role="tablist"
+          aria-label="Thanh quản lý lớp"
+        >
           <button
             type="button"
             role="tab"
             aria-selected={tab === 'users'}
             className={tab === 'users' ? 'active' : ''}
-            onClick={() => setTab('users')}
+            onClick={() => { setTab('users'); setTaskbarOpen(false) }}
           >
             Tài khoản
           </button>
@@ -275,7 +291,7 @@ export default function AdminPanel({ onClose, fullscreen = false }) {
             role="tab"
             aria-selected={tab === 'classlist'}
             className={tab === 'classlist' ? 'active' : ''}
-            onClick={() => setTab('classlist')}
+            onClick={() => { setTab('classlist'); setTaskbarOpen(false) }}
           >
             Danh sách lớp
           </button>
@@ -284,7 +300,7 @@ export default function AdminPanel({ onClose, fullscreen = false }) {
             role="tab"
             aria-selected={tab === 'images'}
             className={tab === 'images' ? 'active' : ''}
-            onClick={() => setTab('images')}
+            onClick={() => { setTab('images'); setTaskbarOpen(false) }}
           >
             Ảnh website
           </button>
@@ -293,7 +309,7 @@ export default function AdminPanel({ onClose, fullscreen = false }) {
             role="tab"
             aria-selected={tab === 'exams'}
             className={tab === 'exams' ? 'active' : ''}
-            onClick={() => setTab('exams')}
+            onClick={() => { setTab('exams'); setTaskbarOpen(false) }}
           >
             Kiểm tra
           </button>
