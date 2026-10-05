@@ -245,6 +245,14 @@ export async function saveOrgChart(nodes) {
   return apiClient.put('/classroom/org-chart', { nodes }, { auth: true })
 }
 
+export async function getMemberProfile() {
+  return apiClient.get('/classroom/member-profile', { auth: true })
+}
+
+export async function saveMemberProfile(payload) {
+  return apiClient.put('/classroom/member-profile', payload, { auth: true })
+}
+
 export async function getFeedback() {
   return apiClient.get('/classroom/feedback', { auth: true })
 }
