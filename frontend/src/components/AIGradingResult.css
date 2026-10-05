@@ -72,6 +72,7 @@
 .air-total strong { color: #0f766e; font-size: 24px; line-height: 1; }
 .air-total strong small { font-size: 14px; font-weight: 700; }
 .air-total em { color: #92400e; font-size: 11px; font-style: normal; font-weight: 700; }
+.air-total--final { background: #e0e7ff; }.air-total--final strong { color: #3730a3; }
 
 .air-review-banner {
   display: flex;
@@ -99,6 +100,7 @@
 .air-question-head strong { color: #0f766e; font-size: 15px; white-space: nowrap; }
 .air-question-head strong span { color: #64748b; font-size: 12px; }
 .air-question-status { margin: 6px 0 0; color: #92400e; font-size: 12px; font-weight: 800; }
+.air-final-question { margin: 5px 0 0; color: #3730a3; font-size: 11px; font-weight: 700; }
 .air-comment { margin: 8px 0 0; color: #334155; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 .air-label { margin: 11px 0 5px; color: #64748b; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
 .air-rubric-list { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0; list-style: none; }

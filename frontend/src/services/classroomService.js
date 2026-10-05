@@ -428,6 +428,21 @@ export async function getHomeworkGradingResult(submissionId) {
   )
 }
 
+export async function getHomeworkGradingReview(submissionId) {
+  return apiClient.get(
+    `/classroom/homework-assignments/submissions/${encodeURIComponent(submissionId)}/grading/review`,
+    { auth: true, retry: false }
+  )
+}
+
+export async function saveHomeworkGradingReview(submissionId, payload) {
+  return apiClient.put(
+    `/classroom/homework-assignments/submissions/${encodeURIComponent(submissionId)}/grading/review`,
+    payload,
+    { auth: true, retry: false }
+  )
+}
+
 export async function submitHomeworkAssignment(id, fileList) {
   const files = Array.from(fileList || [])
   if (!files.length) throw new Error('Chưa chọn ảnh hoặc file để nộp.')
@@ -494,6 +509,21 @@ export async function getExamSubmissionDetail(id, userId) {
 export async function getExamGradingResult(submissionId) {
   return apiClient.get(
     `/classroom/exams/submissions/${encodeURIComponent(submissionId)}/grading`,
+    { auth: true, retry: false }
+  )
+}
+
+export async function getExamGradingReview(submissionId) {
+  return apiClient.get(
+    `/classroom/exams/submissions/${encodeURIComponent(submissionId)}/grading/review`,
+    { auth: true, retry: false }
+  )
+}
+
+export async function saveExamGradingReview(submissionId, payload) {
+  return apiClient.put(
+    `/classroom/exams/submissions/${encodeURIComponent(submissionId)}/grading/review`,
+    payload,
     { auth: true, retry: false }
   )
 }

@@ -118,21 +118,29 @@ export default function AIGradingResult({ type, submissionId, title = 'Kết qu�
         <>
           {result.total_score !== null && result.total_max_score !== null ? (
             <div className="air-total">
-              <span>Tổng điểm</span>
+              <span>Điểm AI</span>
               <strong>{formatScore(result.total_score)} <small>/ {formatScore(result.total_max_score)}</small></strong>
               {result.total_score_complete === false ? <em>Chưa hoàn tất</em> : null}
+            </div>
+          ) : null}
+          {result.final_score_complete && result.final_score !== null && result.final_max_score !== null ? (
+            <div className="air-total air-total--final">
+              <span>Điểm cuối cùng</span>
+              <strong>{formatScore(result.final_score)} <small>/ {formatScore(result.final_max_score)}</small></strong>
             </div>
           ) : null}
           {Array.isArray(result.questions) && result.questions.length ? (
             <div className="air-questions">
               {result.questions.map((question, index) => {
                 const questionNeedsReview = question.status === 'needs_review'
+                const hasFinalScore = question.final_score !== null && question.final_score !== undefined
                 return (
                   <article key={`${question.question_id || question.question_number || 'question'}-${index}`} className={`air-question${questionNeedsReview ? ' is-review' : ''}`}>
                     <div className="air-question-head">
                       <h4>Câu {question.question_number || index + 1}</h4>
-                      <strong>{formatScore(question.score)} <span>/ {formatScore(question.max_score)}</span></strong>
+                      <strong>{formatScore(hasFinalScore ? question.final_score : question.score)} <span>/ {formatScore(question.max_score)}</span></strong>
                     </div>
+                    {hasFinalScore ? <p className="air-final-question">Điểm cuối · AI ban đầu: {formatScore(question.score)} / {formatScore(question.max_score)}</p> : null}
                     {questionNeedsReview ? <p className="air-question-status">Cần giáo viên xem lại</p> : null}
                     {question.comment ? <p className="air-comment">{question.comment}</p> : null}
                     <RubricItems items={question.rubric_items} />

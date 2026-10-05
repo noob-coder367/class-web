@@ -171,6 +171,12 @@ export async function getGradingResult(submissionType, submissionId, profile, { 
   if (jobError) throw jobError
   const result = job?.result && typeof job.result === 'object' ? job.result : null
   const numericOrNull = (value) => value === null || value === undefined ? null : Number.isFinite(Number(value)) ? Number(value) : null
+  let reviewByQuestion = new Map()
+  if (job?.id) {
+    const { data: reviews, error: reviewError } = await supabaseAdmin.from('ai_grading_reviews').select('question_id, teacher_score, teacher_comment').eq('grading_job_id', job.id)
+    if (reviewError && reviewError.code !== '42P01') throw reviewError
+    reviewByQuestion = new Map((reviews || []).map((review) => [String(review.question_id), review]))
+  }
   return {
     submission_id: submission.id,
     submission_type: type,
@@ -179,10 +185,13 @@ export async function getGradingResult(submissionType, submissionId, profile, { 
     job_id: job?.id || null,
     status: job?.status || 'not_queued',
     grading_status: result?.grading_status || (job?.status === 'completed' ? 'graded' : job?.status === 'needs_review' ? 'needs_review' : job?.status || 'not_queued'),
-    questions: Array.isArray(result?.questions) ? result.questions : [],
+    questions: Array.isArray(result?.questions) ? result.questions.map((question) => ({ ...question, final_score: numericOrNull(reviewByQuestion.get(String(question.question_id))?.teacher_score), final_comment: reviewByQuestion.get(String(question.question_id))?.teacher_comment || null })) : [],
     total_score: numericOrNull(result?.total_score),
     total_max_score: numericOrNull(result?.total_max_score),
     total_score_complete: result?.total_score_complete === true,
+    final_score: numericOrNull(result?.final_score),
+    final_max_score: numericOrNull(result?.final_max_score),
+    final_score_complete: result?.final_score_complete === true,
     error_message: job?.error_message || null,
     created_at: job?.created_at || null,
     updated_at: job?.updated_at || null,

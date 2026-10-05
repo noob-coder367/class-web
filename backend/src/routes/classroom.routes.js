@@ -6,6 +6,7 @@ import * as memberProfileController from '../controllers/memberProfile.controlle
 import * as homeworkSubmissionController from '../controllers/homeworkSubmission.controller.js'
 import * as examController from '../controllers/exam.controller.js'
 import * as aiGradingController from '../controllers/aiGrading.controller.js'
+import * as aiGradingReviewController from '../controllers/aiGradingReview.controller.js'
 import classMoneyRoutes from './classMoney.routes.js'
 import { requireAuth } from '../middlewares/auth.middleware.js'
 import { requireMember } from '../middlewares/member.middleware.js'
@@ -91,6 +92,8 @@ router.get(
   homeworkSubmissionController.getSubmissionDetail
 )
 router.get('/homework-assignments/submissions/:submissionId/grading', aiGradingController.getHomeworkResult)
+router.get('/homework-assignments/submissions/:submissionId/grading/review', requireCapability('homework'), aiGradingReviewController.getHomeworkReview)
+router.put('/homework-assignments/submissions/:submissionId/grading/review', requireCapability('homework'), aiGradingReviewController.saveHomeworkReview)
 
 // Kiểm tra online: Admin / LPHT tạo đề; mọi thành viên làm bài + xem thống kê.
 router.get('/exams', examController.listExams)
@@ -105,6 +108,8 @@ router.delete('/exams/:id/submit/intents/:intentId', examController.cancelSubmis
 router.get('/exams/:id/status', examController.getExamStatus)
 router.get('/exams/:id/submissions/:userId', requireCapability('homework'), examController.getSubmissionDetail)
 router.get('/exams/submissions/:submissionId/grading', aiGradingController.getExamResult)
+router.get('/exams/submissions/:submissionId/grading/review', requireCapability('homework'), aiGradingReviewController.getExamReview)
+router.put('/exams/submissions/:submissionId/grading/review', requireCapability('homework'), aiGradingReviewController.saveExamReview)
 
 router.get('/rules', classroomController.getRules)
 router.put('/rules', requireCapability('rules'), classroomController.putRules)

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
 import { compareByGivenName, formatFull, formatSize } from '../lib/examUtils.js'
 import AIGradingResult from './AIGradingResult.jsx'
+import AITeacherReview from './AITeacherReview.jsx'
 import './ExamBoard.css'
 
 /** Chi tiết bài nộp 1 học sinh (chỉ người quản lý). */
@@ -42,6 +43,7 @@ export function ExamSubmissionDetailModal({ examId, target, onClose }) {
             ))}
           </div>
           {data?.submission?.id ? <AIGradingResult type="exam" submissionId={data.submission.id} /> : null}
+          {data?.submission?.id ? <AITeacherReview type="exam" submissionId={data.submission.id} /> : null}
         </div>
       </div>
       {zoom ? (
