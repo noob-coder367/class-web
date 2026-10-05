@@ -116,3 +116,12 @@ export async function usernameChangeStatus(req, res, next) {
     next(err)
   }
 }
+
+export async function changePassword(req, res, next) {
+  try {
+    await authService.changePassword(req.profile, req.body || {})
+    res.json({ message: 'Đã đổi mật khẩu.' })
+  } catch (err) {
+    next(err)
+  }
+}
