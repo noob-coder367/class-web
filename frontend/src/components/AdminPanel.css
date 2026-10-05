@@ -570,3 +570,11 @@
   gap: 8px;
   padding: 0 16px 16px;
 }
+
+/* Toàn màn hình (mở từ trong lớp: /vo-lop/quan-li-lop) */
+.admin-overlay--full { padding: 0; cursor: default; backdrop-filter: none; background: #1a2b3c; }
+.admin-modal--full {
+  width: 100%; max-width: none; height: 100%; max-height: none;
+  border-radius: 0; box-shadow: none;
+}
+.admin-modal--full .admin-body { flex: 1 1 auto; min-height: 0; padding: 18px clamp(14px, 3vw, 40px) 32px; }
