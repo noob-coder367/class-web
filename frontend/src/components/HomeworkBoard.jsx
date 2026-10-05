@@ -5,6 +5,7 @@ import { parseClassPath, homeworkDetailPath, parseHomeworkSegment, classTabPath 
 import HomeworkSubmissionPanel from './HomeworkSubmissionPanel.jsx'
 import { shareOfficialDocImage } from '../utils/exportShareImage.jsx'
 import './HomeworkBoard.css'
+import { getStudyWeekNumber, buildWeekFolders } from '../lib/studyWeek.js'
 
 const SUBJECT_OPTIONS = [
   'Ngữ văn',
@@ -48,16 +49,7 @@ function todayISO() {
   return `${y}-${m}-${day}`
 }
 
-const SCHOOL_WEEK_START = new Date(2026, 8, 1)
-
-export function getStudyWeekNumber(value = new Date()) {
-  const date = value instanceof Date ? new Date(value) : new Date(`${String(value).slice(0, 10)}T00:00:00`)
-  date.setHours(0, 0, 0, 0)
-  const start = new Date(SCHOOL_WEEK_START)
-  start.setHours(0, 0, 0, 0)
-  const elapsedDays = Math.floor((date.getTime() - start.getTime()) / 86400000)
-  return Math.max(1, Math.floor(elapsedDays / 7) + 1)
-}
+export { getStudyWeekNumber }
 
 function formatVNDate(iso) {
   if (!iso) return ''
@@ -302,24 +294,10 @@ function HomeworkReportBoard({ isAdmin }) {
     })
   }, [posts, filterFrom, filterTo, filterTypes])
 
-  const weeks = useMemo(() => {
-    const map = new Map()
-    for (const post of filtered) {
-      const date = post.report_date || String(post.created_at || '').slice(0, 10) || 'unknown'
-      const d = date === 'unknown' ? null : new Date(`${date}T00:00:00`)
-      const monday = d ? new Date(d) : null
-      if (monday) monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
-      const key = monday ? monday.toISOString().slice(0, 10) : 'unknown'
-      if (!map.has(key)) map.set(key, [])
-      map.get(key).push(post)
-    }
-    return [...map.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([key, items]) => ({
-      key,
-      label: key === 'unknown' ? 'Tuần chưa xác định' : `Tuần ${getStudyWeekNumber(key)}`,
-      date: key,
-      items,
-    }))
-  }, [filtered])
+  const weeks = useMemo(
+    () => buildWeekFolders(filtered, (post) => post.report_date || String(post.created_at || '').slice(0, 10), currentWeek),
+    [filtered, currentWeek]
+  )
 
   return (
     <div className="hw-board">
@@ -393,8 +371,6 @@ function HomeworkReportBoard({ isAdmin }) {
         <div className="hw-state hw-state--error">
           <p>{error}</p>
         </div>
-      ) : filtered.length === 0 ? (
-        <p className="hw-empty">Chưa có báo bài nào{posts.length ? ' khớp bộ lọc' : ''}.</p>
       ) : (
         <>
           <div className="hw-tree" aria-label="Các tuần báo bài">
@@ -408,7 +384,8 @@ function HomeworkReportBoard({ isAdmin }) {
                   <span className="hw-folder-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="5" rx="1.2" /><rect x="14" y="10" width="7" height="5" rx="1.2" /><rect x="14" y="17" width="7" height="4" rx="1.2" /><path d="M6.5 8v10.5a1 1 0 0 0 1 1H14M6.5 12.5H14" /></svg></span>
                   <strong>{week.label}</strong><small>{week.items.length} báo bài</small>
                 </button>
-                {isOpen ? <div className="hw-tree-children"><div className="hw-list">
+                {isOpen && week.items.length === 0 ? <div className="hw-tree-children"><p className="hw-week-empty">Không có gì.</p></div> : null}
+                {isOpen && week.items.length > 0 ? <div className="hw-tree-children"><div className="hw-list">
           {week.items.map((post) => (
             <div key={post.id} className="hw-file">
               <div className="hw-file-main">
