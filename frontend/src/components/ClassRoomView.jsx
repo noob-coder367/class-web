@@ -14,6 +14,7 @@ import CreateClassPage from './CreateClassPage.jsx'
 import ClassHome from './ClassHome.jsx'
 import FeedbackBoard from './FeedbackBoard.jsx'
 import AdvancedHub from './AdvancedHub.jsx'
+import AccountPage from './AccountPage.jsx'
 import ClassPlayView from './ClassPlayView.jsx'
 import UtilityToolsPanel, { IconWrench } from './UtilityToolsPanel.jsx'
 import { isRoomCompletedLocked } from '../lib/classPlayScore.js'
@@ -265,6 +266,7 @@ const TABS = [
   { id: 'utilities', label: 'Tiện ích phụ', icon: IconWrench },
   { id: 'class-money', label: 'Tiền lớp', icon: IconWallet, adminOnly: true },
   { id: 'feedback', label: 'Phản hồi', icon: IconChat },
+  { id: 'account', label: 'Thông tin tài khoản', icon: IconUserCircle },
 ]
 const TAB_BY_ID = Object.fromEntries(TABS.map((tab) => [tab.id, tab]))
 // Nhóm lớn "Trang chủ" có 5 mục con; nhóm "Nâng cao" mở ra trang riêng chứa các mục con bên dưới.
@@ -439,7 +441,7 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
     setItems([])
     const load = async () => {
       try {
-        if (activeTab === 'home' || activeTab === 'advanced' || activeTab === 'feedback') {
+        if (activeTab === 'home' || activeTab === 'advanced' || activeTab === 'feedback' || activeTab === 'account') {
           setTimetable(null)
           setRules(null)
           setViolations([])
@@ -942,6 +944,7 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
 
     if (activeTab === 'home') return <ClassHome />
     if (activeTab === 'feedback') return <FeedbackBoard />
+    if (activeTab === 'account') return <AccountPage editing={urlRest[0] === 'chinh-sua'} />
     if (activeTab === 'advanced') {
       return (
         <AdvancedHub
@@ -1203,6 +1206,8 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
     ? ' classroom-body--home'
     : activeTab === 'advanced'
       ? ' classroom-body--advanced'
+      : activeTab === 'account'
+      ? ' classroom-body--account'
       : WIDE_TABS.has(activeTab) ? ` classroom-body--${activeTab}` : ''
 
   return (
@@ -1262,10 +1267,7 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
           </div>
 
           <div className="classroom-group-divider" aria-hidden="true" />
-          <button type="button" className="classroom-tab" onClick={() => {}} disabled={access === 'denied'}>
-            <span className="classroom-tab-icon"><IconUserCircle /></span>
-            <span className="classroom-tab-label">Thông tin tài khoản</span>
-          </button>
+          {renderTabButton(TAB_BY_ID.account)}
         </nav>
       </aside>
       {activeTab === 'class-space' ? (
