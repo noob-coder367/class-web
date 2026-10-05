@@ -50,6 +50,10 @@ export async function updatePassword({ newPassword }) {
   if (error) throw error
 }
 
+export async function changePassword({ currentPassword, newPassword }) {
+  return apiClient.post('/auth/change-password', { currentPassword, newPassword }, { auth: true })
+}
+
 export async function fetchMe() {
   return apiClient.get('/auth/me', { auth: true })
 }
