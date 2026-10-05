@@ -2,6 +2,7 @@ import { Router } from 'express'
 import * as classroomController from '../controllers/classroom.controller.js'
 import * as orgChartController from '../controllers/orgChart.controller.js'
 import * as feedbackController from '../controllers/feedback.controller.js'
+import * as memberProfileController from '../controllers/memberProfile.controller.js'
 import * as homeworkSubmissionController from '../controllers/homeworkSubmission.controller.js'
 import classMoneyRoutes from './classMoney.routes.js'
 import { requireAuth } from '../middlewares/auth.middleware.js'
@@ -135,6 +136,8 @@ router.get('/class-space/next-code', classroomController.getNextClassSpaceCode)
 router.get('/utility-roster', classroomController.getUtilityRoster)
 router.get('/org-chart', orgChartController.getOrgChart)
 router.put('/org-chart', requireAdmin, orgChartController.updateOrgChart)
+router.get('/member-profile', memberProfileController.getMemberProfile)
+router.put('/member-profile', memberProfileController.saveMemberProfile)
 router.get('/feedback', feedbackController.listFeedback)
 router.post('/feedback', feedbackController.createFeedback)
 router.post('/feedback/:id/like', feedbackController.toggleFeedbackLike)
