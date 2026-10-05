@@ -11,6 +11,7 @@ import { announcementDetailPath, classTabPath, parseAnnouncementId } from '../li
 import { shareHelper } from '../utils/shareHelper.js'
 import { downloadOfficialDocImage, shareOfficialDocImage } from '../utils/exportShareImage.jsx'
 import './AnnouncementsBoard.css'
+import { buildWeekFolders, getStudyWeekNumber } from '../lib/studyWeek.js'
 
 const NOTIFY_OPTIONS = ['normal', 'hot', 'urgent']
 const NOTIFY_LABELS = { normal: 'Thông thường', hot: '🔥 Hot', urgent: '🚨 Khẩn cấp' }
@@ -187,6 +188,7 @@ export default function AnnouncementsBoard({
   const [openedPreviewId, setOpenedPreviewId] = useState(null)
   const [detailPost, setDetailPost] = useState(null)
   const [expandedSection, setExpandedSection] = useState(null)
+  const [expandedWeek, setExpandedWeek] = useState(null)
   const [showArchive, setShowArchive] = useState(false)
   const [archiveItems, setArchiveItems] = useState([])
   const [archiveLoading, setArchiveLoading] = useState(false)
@@ -492,13 +494,41 @@ export default function AnnouncementsBoard({
 
                   {isOpen ? (
                     <div className="ann-section-archive">
-                      {list.length === 0 ? (
-                        <p className="ann-section-empty">Chưa có bài nào được lưu.</p>
-                      ) : (
-                        list.map((post) => (
-                          <FileRow key={post.id} post={post} {...cardProps} onOpen={openDetail} />
-                        ))
-                      )}
+                      {buildWeekFolders(list, (post) => post.created_at, getStudyWeekNumber()).map((week) => {
+                        const weekId = `${section.id}:${week.key}`
+                        const weekOpen = expandedWeek === weekId
+                        return (
+                          <div key={weekId} className="ann-week">
+                            <button
+                              type="button"
+                              className={`ann-week-folder${weekOpen ? ' is-active' : ''}`}
+                              aria-expanded={weekOpen}
+                              onClick={() => setExpandedWeek((c) => (c === weekId ? null : weekId))}
+                            >
+                              <span className="ann-tree-grip" aria-hidden="true" />
+                              <span className="ann-week-chevron" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d={weekOpen ? 'M6 9l6 6 6-6' : 'M9 6l6 6-6 6'} /></svg>
+                              </span>
+                              <span className="ann-week-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="5" rx="1.2" /><rect x="14" y="10" width="7" height="5" rx="1.2" /><rect x="14" y="17" width="7" height="4" rx="1.2" /><path d="M6.5 8v10.5a1 1 0 0 0 1 1H14M6.5 12.5H14" /></svg>
+                              </span>
+                              <strong>{week.label}</strong>
+                              <small>{week.items.length} bài</small>
+                            </button>
+                            {weekOpen ? (
+                              <div className="ann-week-children">
+                                {week.items.length === 0 ? (
+                                  <p className="ann-section-empty">Không có gì.</p>
+                                ) : (
+                                  week.items.map((post) => (
+                                    <FileRow key={post.id} post={post} {...cardProps} onOpen={openDetail} />
+                                  ))
+                                )}
+                              </div>
+                            ) : null}
+                          </div>
+                        )
+                      })}
                     </div>
                   ) : null}
                   </div>
