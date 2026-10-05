@@ -743,3 +743,5 @@
   .hw-file-note { width: 34px; height: 34px; }
   .hw-file-view { padding: 8px 14px; }
 }
+
+.hw-week-empty { margin: 4px 0; color: #6b7280; font-size: 13.5px; }
