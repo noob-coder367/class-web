@@ -47,6 +47,13 @@ router.post(
   authController.changeUsername
 )
 
+router.post(
+  '/change-password',
+  requireAuth,
+  validateBody({ currentPassword: 'string', newPassword: 'string' }),
+  authController.changePassword
+)
+
 router.get('/username-change-status', requireAuth, authController.usernameChangeStatus)
 
 export default router
