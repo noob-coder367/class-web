@@ -95,7 +95,7 @@ function GoogleMark() {
   )
 }
 
-export default function AdminPanel({ onClose }) {
+export default function AdminPanel({ onClose, fullscreen = false }) {
   const { profile } = useAuth()
   const currentUserId = profile?.id
 
@@ -244,12 +244,12 @@ export default function AdminPanel({ onClose }) {
 
   return (
     <div
-      className="admin-overlay fade-in"
+      className={`admin-overlay fade-in${fullscreen ? ' admin-overlay--full' : ''}`}
       onClick={handleOverlayClick}
       role="presentation"
     >
       <div
-        className="admin-modal slide-up"
+        className={`admin-modal slide-up${fullscreen ? ' admin-modal--full' : ''}`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
