@@ -1410,3 +1410,17 @@
 .classroom-sidebar.is-collapsed .classroom-group-toggle { display: none; }
 .classroom-sidebar.is-collapsed .classroom-tab--group { padding-right: 0; }
 .classroom-sidebar.is-collapsed .classroom-group-children-inner { margin-left: 0; padding-left: 0; border-left: 0; }
+
+/* ===== Thanh bên cuộn được khi nhiều mục (2 nhóm đều đang mở) ===== */
+.classroom-sidebar { display: flex; flex-direction: column; overflow: hidden; }
+.classroom-sidebar-brand, .classroom-sidebar-heading { flex: 0 0 auto; }
+.classroom-sidebar-nav {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  /* chừa chỗ cho nút "Tải lại" nổi ở góc dưới, để mục cuối không bị che */
+  padding-bottom: 96px;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.35) transparent;
+}
+.classroom-sidebar-nav::-webkit-scrollbar { width: 6px; }
+.classroom-sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.3); border-radius: 6px; }
+.classroom-sidebar-nav > * { flex: 0 0 auto; }
