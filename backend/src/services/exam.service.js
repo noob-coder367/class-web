@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
-import { enqueueGradingJob } from './ai-grading/index.js'
+import { enqueueGradingJob, validateAnswerKey } from './ai-grading/index.js'
 
 /**
  * "Bài tập về nhà → Kiểm tra" và "Quản lý lớp → Kiểm tra".
@@ -381,6 +381,11 @@ export async function createExam(payload, profile) {
   })
   await verifyObjects(images.map((i) => ({ storage_path: i.path, original_name: i.name, size_bytes: i.size })))
 
+  const rawQuestions = Array.isArray(payload?.questions) ? payload.questions : []
+  const questions = rawQuestions.length
+    ? validateAnswerKey(rawQuestions.map((question) => ({ ...question, question_id: question.question_id || randomUUID() })))
+    : []
+
   const { data, error } = await supabaseAdmin.from('class_exams').insert({
     title, content, images, duration_minutes: duration,
     open_at: new Date(openMs).toISOString(), close_at: new Date(closeMs).toISOString(),
@@ -389,6 +394,21 @@ export async function createExam(payload, profile) {
   if (error) {
     await removeStoragePaths(images.map((i) => i.path))
     throw dataError(error, 'Không tạo được bài kiểm tra')
+  }
+  if (questions.length) {
+    const { error: questionError } = await supabaseAdmin.from('class_exam_questions').insert(questions.map((question) => ({
+      exam_id: data.id,
+      question_number: question.question_number,
+      question_text: question.question_text,
+      max_score: question.max_score,
+      expected_answer: question.expected_answer,
+      rubric: question.rubric,
+    })))
+    if (questionError) {
+      await supabaseAdmin.from('class_exams').delete().eq('id', data.id)
+      await removeStoragePaths(images.map((i) => i.path))
+      throw dataError(questionError, 'Không lưu được answer key và rubric')
+    }
   }
   return { ...mapExam(data), submitted_count: 0, my_attempt: null, my_submission: null }
 }
