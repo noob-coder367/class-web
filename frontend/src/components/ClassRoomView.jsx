@@ -15,6 +15,8 @@ import ClassHome from './ClassHome.jsx'
 import FeedbackBoard from './FeedbackBoard.jsx'
 import AdvancedHub from './AdvancedHub.jsx'
 import AccountPage from './AccountPage.jsx'
+import AdminPanel from './AdminPanel.jsx'
+import ResourcePage from '../pages/ResourcePage.jsx'
 import ClassPlayView from './ClassPlayView.jsx'
 import UtilityToolsPanel, { IconWrench } from './UtilityToolsPanel.jsx'
 import { isRoomCompletedLocked } from '../lib/classPlayScore.js'
@@ -254,6 +256,25 @@ function IconChevrons() {
   )
 }
 
+function IconAdminShield() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <circle cx="12" cy="10" r="2.6" />
+      <path d="M7.6 17c.9-2 2.6-3 4.4-3s3.5 1 4.4 3" />
+    </svg>
+  )
+}
+
+function IconResourceBox() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z" />
+      <path d="M3 7.5 12 12l9-4.5M12 12v9" />
+    </svg>
+  )
+}
+
 const TABS = [
   { id: 'home', label: 'Trang chủ', icon: IconHome },
   { id: 'announcements', label: 'Thông báo chung', icon: IconBell },
@@ -267,11 +288,13 @@ const TABS = [
   { id: 'class-money', label: 'Tiền lớp', icon: IconWallet, adminOnly: true },
   { id: 'feedback', label: 'Phản hồi', icon: IconChat },
   { id: 'account', label: 'Thông tin tài khoản', icon: IconUserCircle },
+  { id: 'admin', label: 'Quản lí admin', icon: IconAdminShield, adminOnly: true },
+  { id: 'resources', label: 'Quản lý tài nguyên', icon: IconResourceBox, adminOnly: true },
 ]
 const TAB_BY_ID = Object.fromEntries(TABS.map((tab) => [tab.id, tab]))
 // Nhóm lớn "Trang chủ" có 5 mục con; nhóm "Nâng cao" mở ra trang riêng chứa các mục con bên dưới.
 const HOME_CHILDREN = ['announcements', 'timetable', 'homework', 'rules', 'cleaning-duty']
-const ADVANCED_CHILDREN = ['class-space', 'utilities', 'class-money', 'feedback']
+const ADVANCED_CHILDREN = ['class-space', 'utilities', 'class-money', 'resources', 'feedback']
 
 const WIDE_TABS = new Set(['timetable', 'rules', 'announcements', 'homework', 'cleaning-duty'])
 const EMPTY_CAPS = capabilitiesFor('user')
@@ -350,7 +373,7 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return
-      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox, .ann-composer-overlay, .hw-composer-overlay, .create-class-page, .class-play-view, .class-password-overlay, .play-rank-overlay')) return
+      if (document.querySelector('.tkb-settings-overlay, .rules-settings-overlay, .rules-lightbox, .ann-composer-overlay, .hw-composer-overlay, .create-class-page, .class-play-view, .class-password-overlay, .play-rank-overlay, .admin-overlay')) return
       onClose?.()
     }
     window.addEventListener('keydown', onKey)
@@ -441,7 +464,7 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
     setItems([])
     const load = async () => {
       try {
-        if (activeTab === 'home' || activeTab === 'advanced' || activeTab === 'feedback' || activeTab === 'account') {
+        if (activeTab === 'home' || activeTab === 'advanced' || activeTab === 'feedback' || activeTab === 'account' || activeTab === 'admin' || activeTab === 'resources') {
           setTimetable(null)
           setRules(null)
           setViolations([])
@@ -945,6 +968,15 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
     if (activeTab === 'home') return <ClassHome />
     if (activeTab === 'feedback') return <FeedbackBoard />
     if (activeTab === 'account') return <AccountPage editing={urlRest[0] === 'chinh-sua'} />
+    if ((activeTab === 'admin' || activeTab === 'resources') && !isAdminRole(role)) {
+      return (
+        <div className="classroom-state classroom-state--denied">
+          <p>Bạn không có quyền truy cập mục này.</p>
+        </div>
+      )
+    }
+    if (activeTab === 'admin') return null
+    if (activeTab === 'resources') return <ResourcePage embedded />
     if (activeTab === 'advanced') {
       return (
         <AdvancedHub
@@ -1223,6 +1255,12 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
         <div className="classroom-sidebar-brand"><div className="classroom-sidebar-logo"><IconHome /></div><div><strong>Class-Web</strong><span>Lớp học 10A4</span></div><button type="button" className="classroom-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Đóng menu"><IconClose /></button></div>
         <p className="classroom-sidebar-heading">Không gian lớp</p>
         <nav className="classroom-sidebar-nav" role="tablist" aria-label="Mục lớp học">
+          {isAdminRole(role) ? (
+            <>
+              {renderTabButton(TAB_BY_ID.admin)}
+              <div className="classroom-group-divider" aria-hidden="true" />
+            </>
+          ) : null}
           <div className="classroom-group">
             <div className="classroom-group-head">
               {renderTabButton(TAB_BY_ID.home, ' classroom-tab--group')}
@@ -1346,6 +1384,10 @@ export default function ClassRoomView({ onClose, initialTab = 'home' }) {
       </div>
 
       <UtilityToolsPanel isAdmin={isAdminRole(role)} isPage={activeTab === 'utilities'} />
+
+      {access === 'ok' && activeTab === 'admin' && isAdminRole(role) ? (
+        <AdminPanel fullscreen onClose={() => navigate(classTabPath('home'))} />
+      ) : null}
 
       {access === 'ok' && activeTab === 'class-space' && !showCreateClass && !editingClass ? (
         <button
