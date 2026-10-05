@@ -636,3 +636,26 @@ export async function getUserFromAccessToken(accessToken) {
   const profile = await getProfileForUser(user)
   return { user, profile }
 }
+
+
+const PASSWORD_RULE_RE = /^(?=.*[A-Z])(?=.*\d).{8,}$/
+
+/** Đổi mật khẩu khi đã đăng nhập: kiểm tra mật khẩu hiện tại rồi mới đặt mật khẩu mới. */
+export async function changePassword(profile, { currentPassword, newPassword }) {
+  if (!currentPassword) throw new AppError('Vui lòng nhập mật khẩu hiện tại.')
+  if (!PASSWORD_RULE_RE.test(String(newPassword || ''))) {
+    throw new AppError('Mật khẩu mới cần có ít nhất 1 chữ hoa, 1 số, độ dài tối thiểu 8 ký tự.')
+  }
+  if (newPassword === currentPassword) throw new AppError('Mật khẩu mới phải khác mật khẩu hiện tại.')
+  if (!profile?.email) throw new AppError('Tài khoản không có email để xác thực.', 400)
+
+  const { data, error } = await supabaseAdmin.auth.signInWithPassword({ email: profile.email, password: currentPassword })
+  if (error || !data?.user || data.user.id !== profile.id) {
+    throw new AppError('Mật khẩu hiện tại không đúng.', 400)
+  }
+  const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(profile.id, { password: newPassword })
+  if (updateError) {
+    console.error('[auth] change password failed', updateError.message)
+    throw new AppError('Không thể đổi mật khẩu. Thử lại sau.', 503)
+  }
+}
