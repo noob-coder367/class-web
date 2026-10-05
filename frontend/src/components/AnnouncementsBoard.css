@@ -1141,3 +1141,21 @@
 
 .ann-banner-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .ann-banner-pills .ann-banner-pill { margin-top: 0; }
+
+/* ===== Thư mục tuần bên trong mỗi mục ===== */
+.ann-section .ann-section-archive { display: flex; flex-direction: column; gap: 8px; }
+.ann-week { min-width: 0; }
+.ann-week-folder {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 8px 14px; box-sizing: border-box;
+  border: 1px solid var(--acc-soft); border-radius: 12px; background: var(--acc-bg); color: #1e1b3a; text-align: left; font: inherit; cursor: pointer;
+  transition: background .16s ease, border-color .16s ease;
+}
+.ann-week-folder:hover, .ann-week-folder.is-active { background: var(--acc-soft); border-color: var(--acc-line); }
+.ann-week-folder strong { flex: 1 1 auto; min-width: 0; font-size: 14.5px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ann-week-folder small { flex: 0 0 auto; padding: 3px 9px; border-radius: 999px; background: #fff; color: var(--acc); font-size: 11px; font-weight: 800; }
+.ann-week-chevron { flex: 0 0 28px; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; box-sizing: border-box; border-radius: 8px; border: 2px solid transparent; color: #3b2a7a; }
+.ann-week-folder.is-active .ann-week-chevron { border-color: var(--acc); background: #fff; color: var(--acc); }
+.ann-week-icon { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: var(--acc); }
+.ann-week-children { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 8px 26px; padding-left: 14px; border-left: 2px solid var(--acc-soft); }
+.ann-week-children .ann-section-empty { margin: 4px 0; color: #6b7280; font-size: 13.5px; }
+@media (max-width: 640px) { .ann-week-folder { padding: 8px 10px; gap: 9px; } .ann-week-children { margin-left: 14px; padding-left: 10px; } }
