@@ -116,82 +116,164 @@ function TreeBranch({ list, map }) {
 
 const PAN_MARGIN = 90 // cho kéo lố ra ngoài tối đa ngần này px, không đi quá xa
 const PAN_TOP_SPACE = 76 // chừa chỗ cho nút Thoát
+const MIN_ZOOM = 0.6 // không nhỏ quá
+const MAX_ZOOM = 1.8 // không to quá
+const ZOOM_STEP = 1.2
 
-/** Vùng cây kéo/vuốt tự do mọi hướng (chéo cũng được), có giới hạn biên. */
+const clampZoom = (z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z))
+
+/** Vùng cây: kéo/vuốt tự do mọi hướng, zoom (2 ngón, Ctrl+lăn chuột, nút +/−), có giới hạn biên & mức zoom. */
 function PanArea({ children }) {
   const viewRef = useRef(null)
   const canvasRef = useRef(null)
   const pos = useRef({ x: 0, y: 0 })
-  const drag = useRef(null)
+  const scaleRef = useRef(1)
+  const pointers = useRef(new Map())
+  const gesture = useRef(null)
   const [dragging, setDragging] = useState(false)
+  const [zoomPct, setZoomPct] = useState(100)
 
-  const clamp = useCallback((x, y) => {
+  const apply = useCallback((x, y, scale = scaleRef.current) => {
     const view = viewRef.current
     const canvas = canvasRef.current
-    if (!view || !canvas) return { x, y }
+    if (!view || !canvas) return
     const vw = view.clientWidth
     const vh = view.clientHeight
-    const cw = canvas.offsetWidth
-    const ch = canvas.offsetHeight + PAN_TOP_SPACE
+    const cw = canvas.offsetWidth * scale
+    const ch = canvas.offsetHeight * scale + PAN_TOP_SPACE
     const range = (v, c) => {
       if (c <= v) { const mid = (v - c) / 2; return [mid - PAN_MARGIN, mid + PAN_MARGIN] }
       return [v - c - PAN_MARGIN, PAN_MARGIN]
     }
     const [minX, maxX] = range(vw, cw)
     const [minY, maxY] = range(vh, ch)
-    return { x: Math.min(maxX, Math.max(minX, x)), y: Math.min(maxY, Math.max(minY, y)) }
+    const nx = Math.min(maxX, Math.max(minX, x))
+    const ny = Math.min(maxY, Math.max(minY, y))
+    pos.current = { x: nx, y: ny }
+    scaleRef.current = scale
+    canvas.style.transform = `translate3d(${nx}px, ${ny + PAN_TOP_SPACE}px, 0) scale(${scale})`
+    setZoomPct(Math.round(scale * 100))
   }, [])
 
-  const apply = useCallback((x, y) => {
-    const next = clamp(x, y)
-    pos.current = next
-    if (canvasRef.current) canvasRef.current.style.transform = `translate3d(${next.x}px, ${next.y + PAN_TOP_SPACE}px, 0)`
-  }, [clamp])
+  // Zoom quanh 1 điểm (toạ độ trong viewport) sao cho điểm đó đứng yên.
+  const zoomAt = useCallback((nextScale, fx, fy) => {
+    const s0 = scaleRef.current
+    const s1 = clampZoom(nextScale)
+    const { x, y } = pos.current
+    const k = s1 / s0
+    apply(fx - (fx - x) * k, fy - (fy - (y + PAN_TOP_SPACE)) * k - PAN_TOP_SPACE, s1)
+  }, [apply])
 
-  // Căn giữa theo chiều ngang lúc đầu & khi đổi kích thước.
+  const zoomBy = (factor) => {
+    const view = viewRef.current
+    if (!view) return
+    zoomAt(scaleRef.current * factor, view.clientWidth / 2, view.clientHeight / 2)
+  }
+
+  // Căn giữa theo chiều ngang lúc đầu & giữ trong biên khi đổi kích thước.
   useEffect(() => {
-    const center = () => {
-      const view = viewRef.current
-      const canvas = canvasRef.current
-      if (!view || !canvas) return
-      apply((view.clientWidth - canvas.offsetWidth) / 2, 0)
-    }
-    center()
+    const view = viewRef.current
+    const canvas = canvasRef.current
+    if (view && canvas) apply((view.clientWidth - canvas.offsetWidth) / 2, 0, 1)
     const onResize = () => apply(pos.current.x, pos.current.y)
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [apply])
 
+  // Ctrl/⌘ + lăn chuột (hoặc pinch trên touchpad) = zoom; lăn thường = kéo cây. Cần listener không-passive.
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return undefined
+    const onWheel = (e) => {
+      e.preventDefault()
+      if (e.ctrlKey || e.metaKey) {
+        const rect = view.getBoundingClientRect()
+        zoomAt(scaleRef.current * Math.exp(-e.deltaY * 0.01), e.clientX - rect.left, e.clientY - rect.top)
+      } else {
+        apply(pos.current.x - e.deltaX, pos.current.y - e.deltaY)
+      }
+    }
+    view.addEventListener('wheel', onWheel, { passive: false })
+    return () => view.removeEventListener('wheel', onWheel)
+  }, [apply, zoomAt])
+
+  const localPoint = (e) => {
+    const rect = viewRef.current.getBoundingClientRect()
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }
+
+  const startGesture = () => {
+    const pts = [...pointers.current.values()]
+    if (pts.length >= 2) {
+      const [p1, p2] = pts
+      gesture.current = {
+        type: 'pinch',
+        dist: Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1,
+        cx: (p1.x + p2.x) / 2,
+        cy: (p1.y + p2.y) / 2,
+        scale: scaleRef.current,
+        ox: pos.current.x,
+        oy: pos.current.y,
+      }
+    } else if (pts.length === 1) {
+      gesture.current = { type: 'pan', sx: pts[0].x, sy: pts[0].y, ox: pos.current.x, oy: pos.current.y }
+    } else {
+      gesture.current = null
+    }
+  }
+
   const onPointerDown = (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return
-    drag.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: pos.current.x, oy: pos.current.y }
+    pointers.current.set(e.pointerId, localPoint(e))
     e.currentTarget.setPointerCapture?.(e.pointerId)
+    startGesture()
     setDragging(true)
   }
   const onPointerMove = (e) => {
-    const d = drag.current
-    if (!d || d.id !== e.pointerId) return
-    apply(d.ox + (e.clientX - d.sx), d.oy + (e.clientY - d.sy))
+    if (!pointers.current.has(e.pointerId)) return
+    pointers.current.set(e.pointerId, localPoint(e))
+    const g = gesture.current
+    if (!g) return
+    const pts = [...pointers.current.values()]
+    if (g.type === 'pinch' && pts.length >= 2) {
+      const [p1, p2] = pts
+      const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1
+      const ns = clampZoom(g.scale * (dist / g.dist))
+      const cx = (p1.x + p2.x) / 2
+      const cy = (p1.y + p2.y) / 2
+      // Điểm của cây đang nằm dưới tâm 2 ngón lúc bắt đầu phải bám theo tâm hiện tại.
+      const px = (g.cx - g.ox) / g.scale
+      const py = (g.cy - (g.oy + PAN_TOP_SPACE)) / g.scale
+      apply(cx - px * ns, cy - py * ns - PAN_TOP_SPACE, ns)
+    } else if (g.type === 'pan' && pts.length === 1) {
+      apply(g.ox + (pts[0].x - g.sx), g.oy + (pts[0].y - g.sy))
+    }
   }
   const onPointerEnd = (e) => {
-    if (drag.current?.id !== e.pointerId) return
-    drag.current = null
-    setDragging(false)
+    if (!pointers.current.has(e.pointerId)) return
+    pointers.current.delete(e.pointerId)
+    startGesture() // còn 1 ngón thì chuyển sang kéo tiếp, không bị nhảy
+    if (pointers.current.size === 0) setDragging(false)
   }
-  const onWheel = (e) => apply(pos.current.x - e.deltaX, pos.current.y - e.deltaY)
 
   return (
-    <div
-      ref={viewRef}
-      className={`cm-viewport${dragging ? ' is-dragging' : ''}`}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerEnd}
-      onPointerCancel={onPointerEnd}
-      onWheel={onWheel}
-    >
-      <div ref={canvasRef} className="cm-canvas">{children}</div>
-    </div>
+    <>
+      <div
+        ref={viewRef}
+        className={`cm-viewport${dragging ? ' is-dragging' : ''}`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
+      >
+        <div ref={canvasRef} className="cm-canvas">{children}</div>
+      </div>
+      <div className="cm-zoom" role="group" aria-label="Phóng to thu nhỏ">
+        <button type="button" onClick={() => zoomBy(1 / ZOOM_STEP)} disabled={zoomPct <= Math.round(MIN_ZOOM * 100)} aria-label="Thu nhỏ">−</button>
+        <span>{zoomPct}%</span>
+        <button type="button" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoomPct >= Math.round(MAX_ZOOM * 100)} aria-label="Phóng to">+</button>
+      </div>
+    </>
   )
 }
 
