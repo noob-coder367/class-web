@@ -452,3 +452,83 @@ export async function submitHomeworkAssignment(id, fileList) {
     throw error
   }
 }
+
+
+// ---- Bài tập về nhà → Kiểm tra / Quản lý lớp → Kiểm tra ----------------------
+const EXAM_MAX_IMAGE = 10 * 1024 * 1024
+const EXAM_MAX_PDF = 30 * 1024 * 1024
+const EXAM_MAX_TOTAL = 50 * 1024 * 1024
+const examUrl = (id, tail = '') => `/classroom/exams/${encodeURIComponent(id)}${tail}`
+
+export async function getExams() {
+  return apiClient.get('/classroom/exams', { auth: true })
+}
+
+export async function getExam(id) {
+  return apiClient.get(examUrl(id), { auth: true })
+}
+
+export async function startExam(id) {
+  return apiClient.post(examUrl(id, '/start'), {}, { auth: true, retry: false })
+}
+
+export async function deleteExam(id) {
+  return apiClient.delete(examUrl(id), { auth: true })
+}
+
+export async function getExamStatus(id) {
+  return apiClient.get(examUrl(id, '/status'), { auth: true })
+}
+
+export async function getExamSubmissionDetail(id, userId) {
+  return apiClient.get(examUrl(id, `/submissions/${encodeURIComponent(userId)}`), { auth: true })
+}
+
+export async function createExam(payload, imageFiles = []) {
+  const files = Array.from(imageFiles || [])
+  let images = []
+  if (files.length) {
+    const intent = await apiClient.post('/classroom/exams/image-upload-urls', {
+      files: files.map((f) => ({ name: f.name, size: f.size })),
+    }, { auth: true, retry: false })
+    const uploads = intent.uploads || []
+    if (uploads.length !== files.length) throw new Error('Không tạo đủ liên kết tải ảnh đề.')
+    for (let i = 0; i < files.length; i += 1) {
+      const up = uploads[i]
+      const { error } = await supabase.storage.from(intent.bucket).uploadToSignedUrl(
+        up.path, up.token, files[i], { contentType: up.mime, upsert: false })
+      if (error) throw new Error(`Không tải được ảnh "${files[i].name}" lên Storage.`)
+      images.push({ path: up.path, name: up.name, size: up.size })
+    }
+  }
+  return apiClient.post('/classroom/exams', { ...payload, images }, { auth: true, retry: false })
+}
+
+export async function submitExam(id, fileList, onProgress) {
+  const files = Array.from(fileList || [])
+  if (!files.length) throw new Error('Chưa chọn ảnh hoặc file để nộp.')
+  let total = 0
+  for (const file of files) {
+    const isPdf = /\.pdf$/i.test(file.name || '')
+    if (file.size > (isPdf ? EXAM_MAX_PDF : EXAM_MAX_IMAGE)) {
+      throw new Error(`File "${file.name || 'không tên'}" vượt quá ${isPdf ? '30MB (PDF)' : '10MB (ảnh)'}.`)
+    }
+    total += file.size
+  }
+  if (total > EXAM_MAX_TOTAL) throw new Error('Tổng dung lượng bài nộp vượt quá 50MB.')
+  const intent = await apiClient.post(examUrl(id, '/submit'),
+    { files: files.map((f) => ({ name: f.name || 'file', size: f.size })) }, { auth: true, retry: false })
+  try {
+    for (let i = 0; i < files.length; i += 1) {
+      const target = intent.files[i]
+      const { error } = await supabase.storage.from('classroom-data').uploadToSignedUrl(
+        target.path, target.token, files[i], { contentType: target.mime, upsert: false })
+      if (error) throw new Error(`Không tải được file "${files[i].name || 'file'}" lên Storage.`)
+      onProgress?.(i + 1, files.length)
+    }
+    return await apiClient.post(examUrl(id, '/submit/complete'), { intent_id: intent.intent_id }, { auth: true, retry: false })
+  } catch (error) {
+    await apiClient.delete(examUrl(id, `/submit/intents/${encodeURIComponent(intent.intent_id)}`), { auth: true, retry: false }).catch(() => {})
+    throw error
+  }
+}

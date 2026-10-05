@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import * as classroomService from '../services/classroomService.js'
 import { parseClassPath, homeworkDetailPath, parseHomeworkSegment, classTabPath } from '../lib/routes.js'
 import HomeworkSubmissionPanel from './HomeworkSubmissionPanel.jsx'
+import ExamBoard from './ExamBoard.jsx'
 import { shareOfficialDocImage } from '../utils/exportShareImage.jsx'
 import './HomeworkBoard.css'
 import { getStudyWeekNumber, buildWeekFolders } from '../lib/studyWeek.js'
@@ -647,7 +648,7 @@ function HomeworkReportBoard({ isAdmin }) {
   )
 }
 
-/** Bài tập về nhà: Báo bài / Kiểm tra (placeholder) / Nộp bài. */
+/** Bài tập về nhà: Báo bài / Kiểm tra / Nộp bài. */
 export default function HomeworkBoard({ isAdmin }) {
   const [mode, setMode] = useState('report')
   return (
@@ -657,7 +658,7 @@ export default function HomeworkBoard({ isAdmin }) {
         <button type="button" role="tab" aria-selected={mode === 'check'} className={`hw-mode-tab${mode === 'check' ? ' is-active' : ''}`} onClick={() => setMode('check')}><IconChecklist /><span>Kiểm tra</span></button>
         <button type="button" role="tab" aria-selected={mode === 'submit'} className={`hw-mode-tab${mode === 'submit' ? ' is-active' : ''}`} onClick={() => setMode('submit')}><IconUpload /><span>Bài tập</span></button>
       </div>
-      {mode === 'submit' ? <HomeworkSubmissionPanel canManage={isAdmin === true} /> : mode === 'check' ? <div className="hw-placeholder"><IconChecklist /><h3>Kiểm tra</h3><p>Chưa có nội dung kiểm tra</p></div> : <HomeworkReportBoard isAdmin={isAdmin} />}
+      {mode === 'submit' ? <HomeworkSubmissionPanel canManage={isAdmin === true} /> : mode === 'check' ? <ExamBoard canManage={isAdmin === true} /> : <HomeworkReportBoard isAdmin={isAdmin} />}
     </div>
   )
 }

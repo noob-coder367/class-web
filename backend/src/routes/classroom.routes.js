@@ -4,6 +4,7 @@ import * as orgChartController from '../controllers/orgChart.controller.js'
 import * as feedbackController from '../controllers/feedback.controller.js'
 import * as memberProfileController from '../controllers/memberProfile.controller.js'
 import * as homeworkSubmissionController from '../controllers/homeworkSubmission.controller.js'
+import * as examController from '../controllers/exam.controller.js'
 import classMoneyRoutes from './classMoney.routes.js'
 import { requireAuth } from '../middlewares/auth.middleware.js'
 import { requireMember } from '../middlewares/member.middleware.js'
@@ -88,6 +89,19 @@ router.get(
   requireCapability('homework'),
   homeworkSubmissionController.getSubmissionDetail
 )
+
+// Kiểm tra online: Admin / LPHT tạo đề; mọi thành viên làm bài + xem thống kê.
+router.get('/exams', examController.listExams)
+router.post('/exams/image-upload-urls', requireCapability('homework'), examController.createImageUploadUrls)
+router.post('/exams', requireCapability('homework'), examController.createExam)
+router.get('/exams/:id', examController.getExam)
+router.delete('/exams/:id', requireCapability('homework'), examController.deleteExam)
+router.post('/exams/:id/start', examController.startExam)
+router.post('/exams/:id/submit', examController.startSubmissionUpload)
+router.post('/exams/:id/submit/complete', examController.completeSubmissionUpload)
+router.delete('/exams/:id/submit/intents/:intentId', examController.cancelSubmissionUpload)
+router.get('/exams/:id/status', examController.getExamStatus)
+router.get('/exams/:id/submissions/:userId', requireCapability('homework'), examController.getSubmissionDetail)
 
 router.get('/rules', classroomController.getRules)
 router.put('/rules', requireCapability('rules'), classroomController.putRules)

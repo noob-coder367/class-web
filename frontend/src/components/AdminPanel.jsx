@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import * as adminService from '../services/adminService.js'
 import SiteImagesPanel from './SiteImagesPanel.jsx'
 import ClassListPanel from './ClassListPanel.jsx'
+import ExamAdminPanel from './ExamAdminPanel.jsx'
 import {
   ASSIGNABLE_ROLES,
   ROLE_LABELS,
@@ -287,10 +288,21 @@ export default function AdminPanel({ onClose, fullscreen = false }) {
           >
             Ảnh website
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'exams'}
+            className={tab === 'exams' ? 'active' : ''}
+            onClick={() => setTab('exams')}
+          >
+            Kiểm tra
+          </button>
         </div>
 
         <div className="admin-body">
-          {tab === 'images' ? (
+          {tab === 'exams' ? (
+            <ExamAdminPanel />
+          ) : tab === 'images' ? (
             <SiteImagesPanel />
           ) : tab === 'classlist' ? (
             <ClassListPanel users={users} />
