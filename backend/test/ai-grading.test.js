@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildNeedsReviewResult, validateAnswerKey, validateGradeResult } from '../src/services/ai-grading/index.js'
+import { buildNeedsReviewResult, calculateGradeTotals, validateAnswerKey, validateGradeResult } from '../src/services/ai-grading/index.js'
 
 const answerKey = [
   {
@@ -37,6 +37,20 @@ test('valid structured output is returned per question without totals', () => {
   assert.equal('total_score' in result, false)
 })
 
+test('server calculates totals from answer key and ignores AI total_score', () => {
+  const output = validOutput()
+  output.total_score = 999
+  output.total_max_score = 999
+  const grade = validateGradeResult(output, answerKey)
+  const totals = calculateGradeTotals(grade, answerKey)
+  assert.deepEqual(totals, { total_score: 4.5, total_max_score: 5, grading_status: 'graded', total_score_complete: true })
+})
+
+test('server calculates a one-question total', () => {
+  const oneQuestion = validateGradeResult({ questions: [validOutput().questions[0]] }, [answerKey[0]])
+  assert.deepEqual(calculateGradeTotals(oneQuestion, [answerKey[0]]), { total_score: 1.5, total_max_score: 2, grading_status: 'graded', total_score_complete: true })
+})
+
 test('missing answer key or rubric is rejected and never invented', () => {
   assert.throws(() => validateAnswerKey([{ ...answerKey[0], expected_answer: '' }]))
   assert.throws(() => validateAnswerKey([{ ...answerKey[0], rubric: [] }]))
@@ -47,6 +61,10 @@ test('score and rubric score cannot exceed their max', () => {
   assert.throws(() => validateGradeResult(output, answerKey))
   const rubricOutput = validOutput(); rubricOutput.questions[0].rubric_items[0].score = 1.1
   assert.throws(() => validateGradeResult(rubricOutput, answerKey))
+  const rubricTotalOutput = validOutput()
+  rubricTotalOutput.questions[0].rubric_items[1].score = 1
+  rubricTotalOutput.questions[0].score = 2
+  assert.throws(() => validateGradeResult(rubricTotalOutput, [{ ...answerKey[0], max_score: 1 }, answerKey[1]]))
 })
 
 test('negative scores are rejected', () => {
@@ -57,7 +75,7 @@ test('negative scores are rejected', () => {
 test('duplicate and unknown questions are rejected', () => {
   const duplicate = validOutput(); duplicate.questions[1] = { ...duplicate.questions[0] }
   assert.throws(() => validateGradeResult(duplicate, answerKey))
-  const unknown = validOutput(); unknown.questions[0].question_id = 'q-unknown'; unknown.questions[0].question_number = 99
+  const unknown = validOutput(); unknown.questions[0].question_id = 'q-unknown'; unknown.questions[0].question_number = 1
   assert.throws(() => validateGradeResult(unknown, answerKey))
 })
 
@@ -83,4 +101,6 @@ test('needs_review output may keep scores null but remains structurally bounded'
   }
   const result = validateGradeResult(output, answerKey)
   assert.equal(result.questions.every((q) => q.status === 'needs_review' && q.score === null), true)
+  const totals = calculateGradeTotals(result, answerKey)
+  assert.deepEqual(totals, { total_score: null, total_max_score: 5, grading_status: 'needs_review', total_score_complete: false })
 })

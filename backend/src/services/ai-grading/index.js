@@ -1,5 +1,6 @@
 import { env } from '../../config/env.js'
 import { supabaseAdmin } from '../../config/supabaseClient.js'
+import { AppError } from '../auth.service.js'
 
 const BUCKET = 'classroom-data'
 const VALID_STATUSES = new Set(['pending', 'processing', 'completed', 'failed', 'rate_limited', 'needs_review'])
@@ -77,17 +78,19 @@ export function validateGradeResult(value, answerKey) {
   const key = validateAnswerKey(answerKey)
   const result = parseJson(value)
   if (!result || typeof result !== 'object' || Array.isArray(result) || !Array.isArray(result.questions)) throw invalid('Invalid grading JSON questions')
-  if ('total_score' in result || 'score' in result || 'max_score' in result || 'overall_comment' in result) throw invalid('Per-question output must not contain total score')
-  if (result.questions.length !== key.length) throw invalid('Question count does not match answer key')
+  const { total_score: _ignoredTotalScore, total_max_score: _ignoredTotalMaxScore, overall_comment: _ignoredOverallComment, ...perQuestionResult } = result
+  if ('score' in perQuestionResult || 'max_score' in perQuestionResult) throw invalid('Top-level score fields are not allowed')
+  if (perQuestionResult.questions.length !== key.length) throw invalid('Question count does not match answer key')
 
   const byId = new Map(key.map((question) => [question.question_id, question]))
   const byNumber = new Map(key.map((question) => [question.question_number, question]))
   const seen = new Set()
-  const questions = result.questions.map((raw) => {
+  const questions = perQuestionResult.questions.map((raw) => {
     const questionId = text(raw?.question_id, 100)
     const questionNumber = Number(raw?.question_number)
-    const question = (questionId && byId.get(questionId)) || byNumber.get(questionNumber)
+    const question = questionId ? byId.get(questionId) : byNumber.get(questionNumber)
     if (!question) throw invalid('Question is not present in answer key')
+    if (questionId && Number.isFinite(questionNumber) && questionNumber !== question.question_number) throw invalid('Question id and number do not match answer key')
     if (seen.has(question.question_id)) throw invalid('Duplicate question in grading output')
     seen.add(question.question_id)
     const status = text(raw?.status, 40)
@@ -112,10 +115,27 @@ export function validateGradeResult(value, answerKey) {
       return { criterion, score: itemScore, max_score: expected.max_score, comment: text(item?.comment, 2000) }
     })
     if (rubricSeen.size !== question.rubric.length) throw invalid(`Missing rubric criterion for question ${question.question_number}`)
+    const rubricScore = rubricItems.reduce((sum, item) => sum + (item.score === null ? 0 : item.score), 0)
+    if (rubricScore > question.max_score + 1e-9) throw invalid(`Rubric total exceeds max_score for question ${question.question_number}`)
     return { question_id: question.question_id, question_number: question.question_number, question_text: question.question_text, score, max_score: question.max_score, confidence, status, comment: text(raw?.comment, 2000), rubric_items: rubricItems }
   })
   if (seen.size !== key.length) throw invalid('Missing question in grading output')
   return { questions: questions.sort((a, b) => a.question_number - b.question_number) }
+}
+
+export function calculateGradeTotals(grade, answerKey) {
+  const key = validateAnswerKey(answerKey)
+  const questions = validateGradeResult(grade, key).questions
+  const totalMaxScore = key.reduce((sum, question) => sum + question.max_score, 0)
+  const scoredQuestions = questions.filter((question) => question.score !== null)
+  const totalScore = scoredQuestions.length ? scoredQuestions.reduce((sum, question) => sum + question.score, 0) : null
+  const complete = questions.length === key.length && questions.every((question) => question.status === 'graded' && question.score !== null)
+  return {
+    total_score: totalScore,
+    total_max_score: totalMaxScore,
+    grading_status: complete ? 'graded' : 'needs_review',
+    total_score_complete: complete,
+  }
 }
 
 export async function enqueueGradingJob({ submissionType, submissionId, userId, assignmentId = null, examId = null, files = [] }) {
@@ -127,6 +147,47 @@ export async function enqueueGradingJob({ submissionType, submissionId, userId, 
   if (error && error.code === '23505') return (await supabaseAdmin.from('ai_grading_jobs').select('id,status').eq('submission_type', submissionType).eq('submission_id', submissionId).single()).data
   if (error) throw error
   return data
+}
+
+export async function getGradingResult(submissionType, submissionId, profile, { isManager = false } = {}) {
+  const type = text(submissionType, 20)
+  const id = text(submissionId, 100)
+  if (!['homework', 'exam'].includes(type) || !id) throw new AppError('Submission grading không hợp lệ.', 400)
+  const table = type === 'exam' ? 'class_exam_submissions' : 'homework_submissions'
+  const parentTable = type === 'exam' ? 'class_exams' : 'homework_assignments'
+  const parentColumn = type === 'exam' ? 'exam_id' : 'assignment_id'
+  const { data: submission, error: submissionError } = await supabaseAdmin.from(table)
+    .select(`id, ${parentColumn}, user_id, submitted_at`).eq('id', id).maybeSingle()
+  if (submissionError) throw submissionError
+  if (!submission) throw new AppError('Không tìm thấy bài nộp.', 404)
+  if (!isManager && submission.user_id !== profile?.id) throw new AppError('Bạn không có quyền xem kết quả này.', 403)
+  const { data: parent, error: parentError } = await supabaseAdmin.from(parentTable)
+    .select('id').eq('id', submission[parentColumn]).maybeSingle()
+  if (parentError) throw parentError
+  if (!parent) throw new AppError('Không tìm thấy bài kiểm tra/bài tập.', 404)
+  const { data: job, error: jobError } = await supabaseAdmin.from('ai_grading_jobs')
+    .select('id, submission_type, submission_id, assignment_id, exam_id, status, result, error_message, created_at, updated_at, completed_at')
+    .eq('submission_type', type).eq('submission_id', id).maybeSingle()
+  if (jobError) throw jobError
+  const result = job?.result && typeof job.result === 'object' ? job.result : null
+  const numericOrNull = (value) => value === null || value === undefined ? null : Number.isFinite(Number(value)) ? Number(value) : null
+  return {
+    submission_id: submission.id,
+    submission_type: type,
+    [parentColumn]: submission[parentColumn],
+    submitted_at: submission.submitted_at,
+    job_id: job?.id || null,
+    status: job?.status || 'not_queued',
+    grading_status: result?.grading_status || (job?.status === 'completed' ? 'graded' : job?.status === 'needs_review' ? 'needs_review' : job?.status || 'not_queued'),
+    questions: Array.isArray(result?.questions) ? result.questions : [],
+    total_score: numericOrNull(result?.total_score),
+    total_max_score: numericOrNull(result?.total_max_score),
+    total_score_complete: result?.total_score_complete === true,
+    error_message: job?.error_message || null,
+    created_at: job?.created_at || null,
+    updated_at: job?.updated_at || null,
+    completed_at: job?.completed_at || null,
+  }
 }
 
 async function callGemini(model, files) {
@@ -188,9 +249,15 @@ async function processJob(job) {
   let ocr = null; const confidence = Number(vision?.confidence)
   if (!Number.isFinite(confidence) || confidence < env.AI_GRADING_OCR_CONFIDENCE_THRESHOLD) { try { ocr = await callOcr((job.files || [])[0]) } catch (error) { console.warn('[ai-grading] OCR fallback failed', { message: safeError(error) }) } }
   const readableEvidence = !vision?.missing_or_unreadable && (text(vision?.normalized_text) || text(ocr))
-  if (!readableEvidence) return { status: 'needs_review', model: job.model_used, result: buildNeedsReviewResult(answerKey, 'Không đọc rõ bài làm; cần giáo viên kiểm tra.') }
-  const grade = await callGrader({ vision, ocr, job, answerKey }); const finalConfidence = Math.min(Number(vision?.confidence) || 0, ...grade.questions.map((question) => Number(question.confidence) || 0))
-  return { status: finalConfidence < env.AI_GRADING_REVIEW_CONFIDENCE_THRESHOLD || vision?.missing_or_unreadable ? 'needs_review' : 'completed', model: job.model_used, result: { ...grade, vision, ocr_used: Boolean(ocr), evidence_confidence: finalConfidence } }
+  if (!readableEvidence) {
+    const grade = buildNeedsReviewResult(answerKey, 'Không đọc rõ bài làm; cần giáo viên kiểm tra.')
+    return { status: 'needs_review', model: job.model_used, result: { ...grade, ...calculateGradeTotals(grade, answerKey), grading_status: 'needs_review' } }
+  }
+  const grade = await callGrader({ vision, ocr, job, answerKey })
+  const totals = calculateGradeTotals(grade, answerKey)
+  const finalConfidence = Math.min(Number(vision?.confidence) || 0, ...grade.questions.map((question) => Number(question.confidence) || 0))
+  const status = finalConfidence < env.AI_GRADING_REVIEW_CONFIDENCE_THRESHOLD || vision?.missing_or_unreadable || totals.grading_status === 'needs_review' ? 'needs_review' : 'completed'
+  return { status, model: job.model_used, result: { ...grade, ...totals, grading_status: status === 'completed' ? 'graded' : 'needs_review', vision, ocr_used: Boolean(ocr), evidence_confidence: finalConfidence } }
 }
 
 export async function runOneGradingJob() {
