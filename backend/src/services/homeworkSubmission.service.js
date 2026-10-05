@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
+import { enqueueGradingJob } from './ai-grading/index.js'
 
 /**
  * "Bài tập về nhà → Nộp bài".
@@ -278,6 +279,15 @@ export async function completeSubmissionUpload(assignmentId, intentId, profile) 
   }
   const oldFiles = Array.isArray(committed?.old_files) ? committed.old_files : []
   await removeStoragePaths(oldFiles.map((file) => file.path))
+  // AI grading is strictly best-effort and starts only after the DB commit.
+  try {
+    const { data: submission, error } = await supabaseAdmin.from('homework_submissions')
+      .select('id, files').eq('assignment_id', assignment.id).eq('user_id', profile.id).single()
+    if (error) throw error
+    await enqueueGradingJob({ submissionType: 'homework', submissionId: submission.id, userId: profile.id, assignmentId: assignment.id, files: submission.files || [] })
+  } catch (error) {
+    console.error('[homework-submission] AI grading enqueue failed', { message: String(error?.message || 'unknown').slice(0, 300) })
+  }
   return { assignment_id: assignment.id, submitted_at: committed.submitted_at, file_count: Number(committed.file_count) || intentFiles.length }
 }
 

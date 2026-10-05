@@ -40,4 +40,17 @@ export const env = {
   // Groq chỉ được gọi từ backend; tuyệt đối không đưa khóa này sang frontend.
   GROQ_API_KEY: process.env.GROQ_API_KEY || '',
   GROQ_MODEL: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
+
+  // AI grading is deliberately independent from the classroom chatbot.
+  AI_GRADING_ENABLED: process.env.AI_GRADING_ENABLED === 'true',
+  AI_GRADING_CONCURRENCY: Math.max(1, Number.parseInt(process.env.AI_GRADING_CONCURRENCY || '2', 10) || 2),
+  AI_GRADING_POLL_MS: Math.max(1000, Number.parseInt(process.env.AI_GRADING_POLL_MS || '5000', 10) || 5000),
+  AI_GRADING_MAX_ATTEMPTS: Math.max(1, Number.parseInt(process.env.AI_GRADING_MAX_ATTEMPTS || '3', 10) || 3),
+  AI_GRADING_OCR_CONFIDENCE_THRESHOLD: Number(process.env.AI_GRADING_OCR_CONFIDENCE_THRESHOLD || '0.72'),
+  AI_GRADING_REVIEW_CONFIDENCE_THRESHOLD: Number(process.env.AI_GRADING_REVIEW_CONFIDENCE_THRESHOLD || '0.65'),
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+  GEMINI_PRIMARY_MODEL: process.env.GEMINI_PRIMARY_MODEL || 'gemini-3.8-flash',
+  GEMINI_SECONDARY_MODEL: process.env.GEMINI_SECONDARY_MODEL || 'gemini-3.6-flash',
+  OCR_SPACE_API_KEY: process.env.OCR_SPACE_API_KEY || '',
+  OCR_SPACE_ENDPOINT: process.env.OCR_SPACE_ENDPOINT || 'https://api.ocr.space/parse/image',
 }

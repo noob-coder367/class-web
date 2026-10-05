@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
+import { enqueueGradingJob } from './ai-grading/index.js'
 
 /**
  * "Bài tập về nhà → Kiểm tra" và "Quản lý lớp → Kiểm tra".
@@ -274,6 +275,15 @@ export async function completeSubmissionUpload(examId, intentId, profile) {
   }
   const oldFiles = Array.isArray(committed?.old_files) ? committed.old_files : []
   await removeStoragePaths(oldFiles.map((f) => f.path)) // nộp lại → xoá file cũ
+  // Never make the successful submission response depend on AI queue availability.
+  try {
+    const { data: submission, error } = await supabaseAdmin.from('class_exam_submissions')
+      .select('id, files').eq('exam_id', examId).eq('user_id', profile.id).single()
+    if (error) throw error
+    await enqueueGradingJob({ submissionType: 'exam', submissionId: submission.id, userId: profile.id, examId, files: submission.files || [] })
+  } catch (error) {
+    console.error('[exam] AI grading enqueue failed', { message: String(error?.message || 'unknown').slice(0, 300) })
+  }
   return { exam_id: examId, submitted_at: committed.submitted_at, file_count: Number(committed.file_count) || intentFiles.length }
 }
 
