@@ -7,7 +7,6 @@ import AuthPage from './AuthPage.jsx'
 import SettingsPanel from '../components/SettingsPanel.jsx'
 import { getStoredAvatar } from '../components/ProfileMenu.jsx'
 import EventsSection from '../components/EventsSection.jsx'
-import AdminPanel from '../components/AdminPanel.jsx'
 import ClassRoomView from '../components/ClassRoomView.jsx'
 import ProfileMenu from '../components/ProfileMenu.jsx'
 import NotificationPermissionModal from '../components/NotificationPermissionModal.jsx'
@@ -83,7 +82,6 @@ export default function HomePage() {
   const showProfileSetting = location.pathname === ROUTES.profileSetting
 
   const [showAuth, setShowAuth] = useState(false)
-  const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [classInitialTab, setClassInitialTab] = useState('home')
   const [authLoading, setAuthLoading] = useState(false)
   const [authInitialStep, setAuthInitialStep] = useState('login')
@@ -599,22 +597,6 @@ export default function HomePage() {
               </button>
             )}
 
-            {profile?.role === 'admin' && (
-              <button type="button" className="btn-class" onClick={() => navigate(ROUTES.resources)}>
-                Quản lý tài nguyên
-              </button>
-            )}
-
-            {profile?.role === 'admin' && (
-              <button
-                className="btn-class"
-                style={{ background: '#e0a640' }}
-                onClick={() => setShowAdminPanel(true)}
-              >
-                Quản lý Admin
-              </button>
-            )}
-
             {!authReady ? (
               <button className="btn-verify" disabled>
                 Đang kiểm tra...
@@ -872,9 +854,6 @@ export default function HomePage() {
         </div>
       </footer>
 
-      {showAdminPanel && (
-        <AdminPanel onClose={() => setShowAdminPanel(false)} />
-      )}
     </div>
   )
 }
