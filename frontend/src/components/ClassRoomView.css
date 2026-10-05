@@ -1424,3 +1424,12 @@
 .classroom-sidebar-nav::-webkit-scrollbar { width: 6px; }
 .classroom-sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.3); border-radius: 6px; }
 .classroom-sidebar-nav > * { flex: 0 0 auto; }
+
+/* Gốc lỗi: .classroom-tab (thanh tab cũ) có flex-basis 33% + height 100%, khi vùng nút có chiều cao cố định
+   thì các nút bị phình to và bị cắt mất (Vệ sinh lớp, Phản hồi...). Trong thanh bên, nút luôn cao theo nội dung. */
+.classroom-sidebar .classroom-tab {
+  flex: 0 0 auto; height: auto; min-height: 43px; border-right: 0; scroll-snap-align: none;
+}
+.classroom-sidebar .classroom-tab--child { min-height: 40px; }
+.classroom-sidebar .classroom-group-head .classroom-tab { width: 100%; }
+.classroom-group-children-inner { flex: 0 0 auto; }
