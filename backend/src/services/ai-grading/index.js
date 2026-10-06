@@ -1,6 +1,8 @@
 import { env } from '../../config/env.js'
 import { supabaseAdmin } from '../../config/supabaseClient.js'
 import { AppError } from '../auth.service.js'
+import sharp from 'sharp'
+import { PDFDocument } from 'pdf-lib'
 
 const BUCKET = 'classroom-data'
 const VALID_STATUSES = new Set(['pending', 'processing', 'completed', 'failed', 'rate_limited', 'needs_review'])
@@ -10,8 +12,52 @@ function safeError(error) {
   return String(error?.message || error || 'unknown error').replace(/(?:Bearer\s+|api[_-]?key[=:]\s*)[^\s,;]+/gi, '[redacted]').slice(0, 500)
 }
 function isRateLimited(error) { return error?.status === 429 || /\b429\b|rate.?limit|quota/i.test(String(error?.message || error)) }
+function isRetryable(error) { return isRateLimited(error) || error?.code === 'AI_TIMEOUT' || error?.code === 'AI_NETWORK' || error?.status >= 500 }
+function retryAfterMs(error) { return Math.min(env.AI_GRADING_RETRY_MAX_MS, Math.max(env.AI_GRADING_RETRY_BASE_MS, Number(error?.retryAfterMs) || 0)) }
+function withTimeout(task, timeoutMs, label) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  return Promise.resolve().then(() => task(controller.signal)).catch((error) => {
+    if (error?.name === 'AbortError') { const timeout = new Error(`${label} timeout`); timeout.code = 'AI_TIMEOUT'; throw timeout }
+    throw error
+  }).finally(() => clearTimeout(timer))
+}
+async function fetchProvider(url, options, timeoutMs, label) {
+  return withTimeout(async (signal) => {
+    let response
+    try { response = await fetch(url, { ...options, signal }) } catch (error) { if (error?.name === 'AbortError') throw error; error.code = 'AI_NETWORK'; throw error }
+    if (!response.ok) {
+      const error = new Error(`${label} request failed (${response.status})`)
+      error.status = response.status
+      error.code = response.status === 429 ? 'AI_RATE_LIMITED' : response.status >= 500 ? 'AI_PROVIDER_5XX' : 'AI_PROVIDER_ERROR'
+      const retryAfter = Number(response.headers.get('retry-after'))
+      if (Number.isFinite(retryAfter)) error.retryAfterMs = retryAfter * 1000
+      throw error
+    }
+    return response
+  }, timeoutMs, label)
+}
 function cleanJson(value) { return String(value || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim() }
 function text(value, max = 4000) { return String(value ?? '').trim().slice(0, max) }
+
+function validateJobFiles(files) {
+  const list = Array.isArray(files) ? files : []
+  const images = list.filter((file) => String(file?.mime || '').startsWith('image/'))
+  const total = list.reduce((sum, file) => sum + (Number(file?.size) || 0), 0)
+  if (!list.length || images.length > env.AI_GRADING_MAX_IMAGES || total > env.AI_GRADING_MAX_TOTAL_BYTES) {
+    const error = new Error('Submission vượt giới hạn file AI.')
+    error.code = 'INVALID_FILE_LIMIT'
+    throw error
+  }
+  for (const file of list) {
+    const mime = String(file?.mime || '')
+    if (!(mime.startsWith('image/') || mime === 'application/pdf')) { const error = new Error('Loại file không được AI hỗ trợ.'); error.code = 'INVALID_FILE_TYPE'; throw error }
+    if (mime.startsWith('image/') && Number(file.size) > env.AI_GRADING_MAX_IMAGE_BYTES) { const error = new Error('Ảnh vượt giới hạn AI.'); error.code = 'INVALID_FILE_LIMIT'; throw error }
+    if (mime === 'application/pdf' && Number(file.pages) > env.AI_GRADING_MAX_PDF_PAGES) { const error = new Error('PDF vượt số trang cho phép.'); error.code = 'INVALID_FILE_PAGES'; throw error }
+  }
+}
+
+export { validateJobFiles, isRetryable, retryAfterMs }
 
 function invalid(message) {
   const error = new Error(message)
@@ -202,25 +248,40 @@ export async function getGradingResult(submissionType, submissionId, profile, { 
 async function callGemini(model, files) {
   if (!env.GEMINI_API_KEY) throw new Error('Gemini is not configured')
   const parts = [{ text: 'Read this student submission. Return JSON only: {"normalized_text":"...","confidence":0..1,"missing_or_unreadable":false,"observations":["..."]}. Do not invent unreadable text.' }]
-  for (const file of files.slice(0, 10)) {
+  validateJobFiles(files)
+  for (const file of files.slice(0, env.AI_GRADING_MAX_IMAGES)) {
     if (!String(file.mime || '').match(/^(image\/|application\/pdf$)/)) continue
-    const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(file.path)
-    if (error) throw error
-    const bytes = Buffer.from(await data.arrayBuffer())
-    parts.push({ inline_data: { mime_type: file.mime, data: bytes.toString('base64') } })
+    const bytes = await withTimeout(async () => {
+      const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(file.path)
+      if (error) throw error
+      let buffer = Buffer.from(await data.arrayBuffer())
+      if (file.mime === 'application/pdf') {
+        try {
+          const pdf = await PDFDocument.load(buffer, { ignoreEncryption: true })
+          if (pdf.getPageCount() > env.AI_GRADING_MAX_PDF_PAGES) { const error = new Error('PDF vượt số trang cho phép.'); error.code = 'INVALID_FILE_PAGES'; throw error }
+        } catch (error) {
+          if (error?.code === 'INVALID_FILE_PAGES') throw error
+          const unreadable = new Error('PDF không đọc được.')
+          unreadable.code = 'UNREADABLE_FILE'
+          throw unreadable
+        }
+      }
+      if (String(file.mime).startsWith('image/') && file.mime !== 'image/heic' && file.mime !== 'image/heif') {
+        buffer = await sharp(buffer).resize({ width: 2000, height: 2000, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer()
+      }
+      return buffer
+    }, env.AI_GRADING_STORAGE_TIMEOUT_MS, 'Storage download')
+    parts.push({ inline_data: { mime_type: String(file.mime).startsWith('image/') ? 'image/jpeg' : file.mime, data: bytes.toString('base64') } })
   }
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0 } }) })
-  if (!response.ok) { const error = new Error(`Gemini request failed (${response.status})`); error.status = response.status; throw error }
+  const response = await fetchProvider(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0 } }) }, env.AI_GRADING_GEMINI_TIMEOUT_MS, 'Gemini')
   const payload = await response.json(); return parseJson(payload?.candidates?.[0]?.content?.parts?.[0]?.text)
 }
 
 async function callOcr(file) {
   if (!env.OCR_SPACE_API_KEY || !file || Number(file.size) > 1024 * 1024 || !String(file.mime || '').startsWith('image/')) return null
-  const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(file.path); if (error) throw error
-  const bytes = Buffer.from(await data.arrayBuffer())
+  const bytes = await withTimeout(async () => { const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(file.path); if (error) throw error; return Buffer.from(await data.arrayBuffer()) }, env.AI_GRADING_STORAGE_TIMEOUT_MS, 'Storage download')
   const body = new URLSearchParams({ apikey: env.OCR_SPACE_API_KEY, base64Image: `data:${file.mime};base64,${bytes.toString('base64')}`, language: 'eng', isOverlayRequired: 'false' })
-  const response = await fetch(env.OCR_SPACE_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body })
-  if (!response.ok) throw new Error(`OCR.space request failed (${response.status})`)
+  const response = await fetchProvider(env.OCR_SPACE_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body }, env.AI_GRADING_OCR_TIMEOUT_MS, 'OCR.space')
   const payload = await response.json(); return (payload?.ParsedResults || []).map((x) => x.ParsedText || '').join('\n').trim() || null
 }
 
@@ -243,18 +304,18 @@ async function callGrader({ vision, ocr, job, answerKey }) {
     submission_evidence: { vision, ocr_fallback: ocr },
     instruction: 'Grade each supplied question independently using only its expected_answer, rubric, and submission evidence. Never create, omit, duplicate, or rename a question. If evidence is insufficient, use status needs_review and score null; do not guess. Return JSON only in the exact shape {"questions":[{"question_id":"...","question_number":1,"question_text":"...","score":1.5,"max_score":2,"confidence":0.94,"status":"graded","comment":"...","rubric_items":[{"criterion":"...","score":0.5,"max_score":0.5,"comment":"..."}]}]}. Do not return total_score, score totals, or overall_comment.',
   }
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${env.GROQ_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: env.GROQ_MODEL, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: JSON.stringify(prompt) }] }) })
-  if (!response.ok) { const error = new Error(`Groq grading request failed (${response.status})`); error.status = response.status; throw error }
+  const response = await fetchProvider('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${env.GROQ_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: env.GROQ_MODEL, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: JSON.stringify(prompt) }] }) }, env.AI_GRADING_GROQ_TIMEOUT_MS, 'Groq')
   const payload = await response.json(); return validateGradeResult(payload?.choices?.[0]?.message?.content, answerKey)
 }
 
 async function processJob(job) {
+  validateJobFiles(job.files || [])
   const answerKey = await loadAnswerKey(job)
   if (!answerKey) return { status: 'needs_review', result: { questions: [], reason: 'missing_answer_key_or_rubric' } }
   if (answerKey.invalid) return { status: 'needs_review', result: { questions: [], reason: 'invalid_answer_key_or_rubric', detail: text(answerKey.reason, 500) } }
   let vision
   try { vision = await callGemini(env.GEMINI_PRIMARY_MODEL, job.files || []); job.model_used = env.GEMINI_PRIMARY_MODEL }
-  catch (error) { if (!isRateLimited(error)) throw error; try { vision = await callGemini(env.GEMINI_SECONDARY_MODEL, job.files || []); job.model_used = env.GEMINI_SECONDARY_MODEL } catch (secondary) { if (isRateLimited(secondary)) return { status: 'rate_limited', error: 'Gemini providers are rate limited' }; throw secondary } }
+  catch (error) { if (error?.code === 'UNREADABLE_FILE') { const grade = buildNeedsReviewResult(answerKey, 'Không đọc được file bài làm; cần giáo viên kiểm tra.'); return { status: 'needs_review', model: job.model_used, result: { ...grade, ...calculateGradeTotals(grade, answerKey), grading_status: 'needs_review' } } } if (!isRateLimited(error)) throw error; try { vision = await callGemini(env.GEMINI_SECONDARY_MODEL, job.files || []); job.model_used = env.GEMINI_SECONDARY_MODEL } catch (secondary) { if (secondary?.code === 'UNREADABLE_FILE') { const grade = buildNeedsReviewResult(answerKey, 'Không đọc được file bài làm; cần giáo viên kiểm tra.'); return { status: 'needs_review', model: job.model_used, result: { ...grade, ...calculateGradeTotals(grade, answerKey), grading_status: 'needs_review' } } } if (isRateLimited(secondary)) return { status: 'rate_limited', error: 'Gemini providers are rate limited', retryAfterMs: secondary.retryAfterMs }; throw secondary } }
   let ocr = null; const confidence = Number(vision?.confidence)
   if (!Number.isFinite(confidence) || confidence < env.AI_GRADING_OCR_CONFIDENCE_THRESHOLD) { try { ocr = await callOcr((job.files || [])[0]) } catch (error) { console.warn('[ai-grading] OCR fallback failed', { message: safeError(error) }) } }
   const readableEvidence = !vision?.missing_or_unreadable && (text(vision?.normalized_text) || text(ocr))
@@ -269,13 +330,27 @@ async function processJob(job) {
   return { status, model: job.model_used, result: { ...grade, ...totals, grading_status: status === 'completed' ? 'graded' : 'needs_review', vision, ocr_used: Boolean(ocr), evidence_confidence: finalConfidence } }
 }
 
-export async function runOneGradingJob() {
+export async function runOneGradingJob(workerId = 'ai-worker') {
   const { data, error } = await supabaseAdmin.rpc('claim_ai_grading_job', { p_max_attempts: env.AI_GRADING_MAX_ATTEMPTS })
   if (error) throw error
   const job = Array.isArray(data) ? data[0] : data; if (!job) return false
-  try { const outcome = await processJob(job); const { error: saveError } = await supabaseAdmin.from('ai_grading_jobs').update({ status: outcome.status, model_used: outcome.model || null, result: outcome.result || null, error_message: outcome.error || null, completed_at: ['completed', 'needs_review'].includes(outcome.status) ? new Date().toISOString() : null, locked_at: null, locked_by: null, next_attempt_at: outcome.status === 'rate_limited' ? new Date(Date.now() + 15 * 60_000).toISOString() : null }).eq('id', job.id); if (saveError) throw saveError } catch (error) { const attempts = Number(job.attempt_count || 1); const status = isRateLimited(error) ? 'rate_limited' : attempts >= env.AI_GRADING_MAX_ATTEMPTS ? 'failed' : 'pending'; await supabaseAdmin.from('ai_grading_jobs').update({ status, error_message: safeError(error), locked_at: null, locked_by: null, next_attempt_at: status === 'pending' ? new Date(Date.now() + attempts * 60_000).toISOString() : null }).eq('id', job.id) }
+  const startedAt = Date.now()
+  await supabaseAdmin.from('ai_grading_jobs').update({ locked_by: workerId, started_at: new Date(startedAt).toISOString() }).eq('id', job.id)
+  try {
+    const outcome = await withTimeout(() => processJob(job), env.AI_GRADING_JOB_TIMEOUT_MS, 'AI grading job')
+    const completedAt = new Date().toISOString()
+    const result = outcome.result || null
+    const { error: saveError } = await supabaseAdmin.from('ai_grading_jobs').update({ status: outcome.status, provider: outcome.provider || 'gemini+ocr+groq', model_used: outcome.model || null, result, error_message: outcome.error || null, error_code: outcome.error_code || null, evidence_confidence: Number.isFinite(Number(result?.evidence_confidence)) ? Number(result.evidence_confidence) : null, usage: result?.usage || null, completed_at: ['completed', 'needs_review'].includes(outcome.status) ? completedAt : null, duration_ms: Date.now() - startedAt, locked_at: null, locked_by: null, next_attempt_at: outcome.status === 'rate_limited' ? new Date(Date.now() + Math.max(15 * 60_000, retryAfterMs(outcome))).toISOString() : null, updated_at: completedAt }).eq('id', job.id)
+    if (saveError) throw saveError
+  } catch (error) {
+    const attempts = Number(job.attempt_count || 1)
+    const retryable = isRetryable(error) && error?.code !== 'INVALID_GRADING_OUTPUT'
+    const status = isRateLimited(error) ? 'rate_limited' : retryable && attempts < env.AI_GRADING_MAX_ATTEMPTS ? 'pending' : 'failed'
+    const delay = isRateLimited(error) ? Math.max(15 * 60_000, retryAfterMs(error)) : Math.min(env.AI_GRADING_RETRY_MAX_MS, env.AI_GRADING_RETRY_BASE_MS * (2 ** Math.max(0, attempts - 1)))
+    await supabaseAdmin.from('ai_grading_jobs').update({ status, error_message: safeError(error), error_code: error?.code || 'AI_JOB_FAILED', locked_at: null, locked_by: null, duration_ms: Date.now() - startedAt, next_attempt_at: status === 'pending' || status === 'rate_limited' ? new Date(Date.now() + delay).toISOString() : null, updated_at: new Date().toISOString() }).eq('id', job.id)
+  }
   return true
 }
 
-export function startAiGradingWorker() { if (!env.AI_GRADING_ENABLED) return () => {}; let running = false; const tick = async () => { if (running) return; running = true; try { await Promise.all(Array.from({ length: env.AI_GRADING_CONCURRENCY }, () => runOneGradingJob())) } catch (error) { console.error('[ai-grading] worker poll failed', { message: safeError(error) }) } finally { running = false } }; void tick(); const timer = setInterval(tick, env.AI_GRADING_POLL_MS); return () => clearInterval(timer) }
+export function startAiGradingWorker({ workerId = 'ai-worker' } = {}) { if (!env.AI_GRADING_ENABLED) return () => {}; let running = false; const tick = async () => { if (running) return; running = true; try { await supabaseAdmin.rpc('recover_stuck_ai_grading_jobs', { p_stuck_after_seconds: Math.round(env.AI_GRADING_STUCK_AFTER_MS / 1000) }); await Promise.all(Array.from({ length: env.AI_GRADING_CONCURRENCY }, () => runOneGradingJob(workerId))) } catch (error) { console.error('[ai-grading] worker poll failed', { message: safeError(error) }) } finally { running = false } }; void tick(); const timer = setInterval(tick, env.AI_GRADING_POLL_MS); return () => clearInterval(timer) }
 export { VALID_STATUSES }

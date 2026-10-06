@@ -2,7 +2,6 @@ import { createApp } from './app.js'
 import { env } from './config/env.js'
 import { startCleaningDutyPushScheduler } from './services/cleaningDutyPush.service.js'
 import { startExamReminderScheduler } from './services/examReminder.service.js'
-import { startAiGradingWorker } from './services/ai-grading/index.js'
 
 const app = createApp()
 
@@ -19,11 +18,6 @@ const server = app.listen(env.PORT, () => {
     startExamReminderScheduler()
   } catch (err) {
     console.warn('[server] không khởi động examReminder scheduler:', err?.message || err)
-  }
-  try {
-    startAiGradingWorker()
-  } catch (err) {
-    console.warn('[server] không khởi động AI grading worker:', err?.message || err)
   }
 })
 

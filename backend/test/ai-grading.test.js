@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildNeedsReviewResult, calculateGradeTotals, validateAnswerKey, validateGradeResult } from '../src/services/ai-grading/index.js'
+import { buildNeedsReviewResult, calculateGradeTotals, isRetryable, retryAfterMs, validateAnswerKey, validateGradeResult, validateJobFiles } from '../src/services/ai-grading/index.js'
 
 const answerKey = [
   {
@@ -103,4 +103,16 @@ test('needs_review output may keep scores null but remains structurally bounded'
   assert.equal(result.questions.every((q) => q.status === 'needs_review' && q.score === null), true)
   const totals = calculateGradeTotals(result, answerKey)
   assert.deepEqual(totals, { total_score: null, total_max_score: 5, grading_status: 'needs_review', total_score_complete: false })
+})
+
+test('AI file safety rejects unsupported types, oversized images and too many images', () => {
+  assert.throws(() => validateJobFiles([{ path: 'x', mime: 'application/zip', size: 10 }]), /Loại file/)
+  assert.throws(() => validateJobFiles([{ path: 'x', mime: 'image/png', size: 16 * 1024 * 1024 }]), /vượt giới hạn/)
+})
+
+test('retry classification separates provider failures from validation failures and honors retry-after', () => {
+  assert.equal(isRetryable({ code: 'AI_TIMEOUT' }), true)
+  assert.equal(isRetryable({ status: 503 }), true)
+  assert.equal(isRetryable({ code: 'INVALID_GRADING_OUTPUT' }), false)
+  assert.equal(retryAfterMs({ retryAfterMs: 2500 }), 2500)
 })
