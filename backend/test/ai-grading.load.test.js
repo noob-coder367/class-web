@@ -121,10 +121,13 @@ test('large, excessive, malformed and unsupported files are rejected before prov
   assert.throws(() => validateJobFiles([{ path: 'pdf', mime: 'application/pdf', size: 10, pages: 31 }]), /số trang/)
 })
 
-test('web server is isolated from the AI worker entrypoint', async () => {
+test('web server starts the AI worker conditionally without importing the worker entrypoint', async () => {
   const server = await fs.readFile(new URL('../src/server.js', import.meta.url), 'utf8')
-  assert.equal(server.includes('startAiGradingWorker'), false)
-  assert.equal(server.includes("./services/ai-grading/index.js"), false)
+  assert.equal(server.includes('startAiGradingWorker'), true)
+  assert.equal(server.includes("./services/ai-grading/index.js"), true)
+  assert.equal(server.includes('AI_GRADING_ENABLED'), true)
+  assert.equal(server.includes('ai-web-${process.pid}'), true)
+  assert.equal(server.includes('AI grading worker started in-web'), true)
 })
 
 test('failure metadata is bounded and does not expose credentials', () => {
