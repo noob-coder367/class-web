@@ -3,6 +3,7 @@ import * as classroomService from '../services/classroomService.js'
 import { useServerClock } from '../lib/useServerClock.js'
 import ExamStatusTable from './ExamStatusTable.jsx'
 import AIGradingManagement from './AIGradingManagement.jsx'
+import ExamAnswerKeyPanel from './ExamAnswerKeyPanel.jsx'
 import {
   EXAM_MAX_IMAGE, PHASE_LABEL, extOf, formatShort, phaseOf, toLocalInputValue,
 } from '../lib/examUtils.js'
@@ -29,12 +30,14 @@ export default function ExamAdminPanel() {
   const [duration, setDuration] = useState('60')
   const [openAt, setOpenAt] = useState(defaultOpen)
   const [closeAt, setCloseAt] = useState(defaultClose)
+  const [questions, setQuestions] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [okMsg, setOkMsg] = useState('')
   const [items, setItems] = useState(null)
   const [listError, setListError] = useState('')
   const [statusTarget, setStatusTarget] = useState(null)
+  const [answerKeyTarget, setAnswerKeyTarget] = useState(null)
   const pickRef = useRef(null)
   const imagesRef = useRef([])
   imagesRef.current = images
@@ -72,7 +75,7 @@ export default function ExamAdminPanel() {
 
   const reset = () => {
     images.forEach((i) => URL.revokeObjectURL(i.url))
-    setTitle(''); setContent(''); setImages([]); setDuration('60'); setOpenAt(defaultOpen()); setCloseAt(defaultClose())
+    setTitle(''); setContent(''); setImages([]); setQuestions([]); setDuration('60'); setOpenAt(defaultOpen()); setCloseAt(defaultClose())
   }
 
   const save = async () => {
@@ -91,6 +94,7 @@ export default function ExamAdminPanel() {
       await classroomService.createExam({
         title: title.trim(), content: content.trim(), duration_minutes: mins,
         open_at: new Date(openMs).toISOString(), close_at: new Date(closeMs).toISOString(),
+        questions,
       }, images.map((i) => i.file))
       reset()
       setOkMsg('Đã tạo bài kiểm tra.')
@@ -150,6 +154,7 @@ export default function ExamAdminPanel() {
           </label>
         </div>
         <p className="ex-muted">Mỗi học sinh có đúng {duration || '…'} phút kể từ lúc bấm Bắt đầu, nhưng không quá hạn chót.</p>
+        <div className="ex-answer-key-create"><ExamAnswerKeyPanel initialQuestions={questions} onChange={setQuestions} /></div>
         {error ? <p className="ex-error">{error}</p> : null}
         {okMsg ? <p className="ex-success">{okMsg}</p> : null}
         <button type="button" className="ex-btn-primary" onClick={save} disabled={saving}>{saving ? 'Đang tạo...' : 'Tạo bài kiểm tra'}</button>
@@ -173,6 +178,7 @@ export default function ExamAdminPanel() {
               </p>
               <div className="ex-admin-actions">
                 <button type="button" className="ex-btn-sm" onClick={() => setStatusTarget(item)}>Xem bài nộp</button>
+                <button type="button" className="ex-btn-sm" onClick={() => setAnswerKeyTarget(item)}>Đáp án / Rubric</button>
                 <button type="button" className="ex-btn-sm ex-btn-sm--danger" onClick={() => remove(item)}>Xóa</button>
               </div>
               <AIGradingManagement
@@ -194,6 +200,13 @@ export default function ExamAdminPanel() {
               <button type="button" className="ex-modal-close" onClick={() => setStatusTarget(null)} aria-label="Đóng">✕</button>
             </header>
             <div className="ex-modal-body"><ExamStatusTable examId={statusTarget.id} canManage /></div>
+          </div>
+        </div>
+      ) : null}
+      {answerKeyTarget ? (
+        <div className="ex-overlay" role="presentation" onClick={() => setAnswerKeyTarget(null)}>
+          <div className="ex-modal ex-modal--wide" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <div className="ex-modal-body"><ExamAnswerKeyPanel examId={answerKeyTarget.id} onSaved={() => {}} onClose={() => setAnswerKeyTarget(null)} /></div>
           </div>
         </div>
       ) : null}

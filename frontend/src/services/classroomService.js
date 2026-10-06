@@ -498,6 +498,14 @@ export async function getExam(id) {
   return apiClient.get(examUrl(id), { auth: true })
 }
 
+export async function getExamAnswerKey(examId) {
+  return apiClient.get(examUrl(examId, '/answer-key'), { auth: true, retry: false })
+}
+
+export async function saveExamAnswerKey(examId, questions) {
+  return apiClient.put(examUrl(examId, '/answer-key'), { questions }, { auth: true, retry: false })
+}
+
 export async function startExam(id) {
   return apiClient.post(examUrl(id, '/start'), {}, { auth: true, retry: false })
 }

@@ -164,6 +164,7 @@
 .ex-btn-sm { border: 1px solid var(--ex-primary-line); background: #fff; color: var(--ex-primary); border-radius: 10px; padding: 8px 14px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 .ex-btn-sm--danger { border-color: var(--ex-danger-line); color: var(--ex-danger); }
 .ex-section-title { margin: 22px 0 4px; font-size: 17px; font-weight: 700; color: var(--ex-text); }
+.ex-answer-key-create { margin-top: 4px; padding: 18px; border: 1px solid var(--ex-line); border-radius: 18px; background: #fff; }
 
 @media (max-width: 520px) {
   .ex-title { font-size: 21px; }

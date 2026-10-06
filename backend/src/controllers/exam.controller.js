@@ -21,6 +21,9 @@ export const completeSubmissionUpload = wrap(async (req, res) =>
 export const cancelSubmissionUpload = wrap(async (req, res) =>
   res.json(await service.cancelSubmissionUpload(req.params.intentId, req.profile)))
 export const getExamStatus = wrap(async (req, res) => res.json(await service.getExamStatus(req.params.id)))
+export const getExamAnswerKey = wrap(async (req, res) => res.json(await service.getExamAnswerKey(req.params.id)))
+export const saveExamAnswerKey = wrap(async (req, res) =>
+  res.json(await service.saveExamAnswerKey(req.params.id, req.body?.questions)))
 export const getExamGradingStatus = wrap(async (req, res) => res.json(await service.getExamGradingStatus(req.params.id)))
 export const startExamGrading = wrap(async (req, res) => res.status(202).json(await service.startExamGrading(req.params.id, req.profile)))
 export const getSubmissionDetail = wrap(async (req, res) =>

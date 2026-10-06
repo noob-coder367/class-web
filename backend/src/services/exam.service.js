@@ -363,6 +363,55 @@ async function loadExamAnswerKey(examId) {
   }
 }
 
+function mapAnswerKeyRows(rows) {
+  return (rows || []).map((row) => ({
+    id: row.id,
+    question_number: row.question_number,
+    question_text: row.question_text,
+    max_score: row.max_score,
+    expected_answer: row.expected_answer,
+    rubric: Array.isArray(row.rubric) ? row.rubric : [],
+  }))
+}
+
+export async function getExamAnswerKey(id) {
+  const exam = await getExamRow(id)
+  const answerKey = await loadExamAnswerKey(exam.id)
+  return { exam_id: exam.id, questions: mapAnswerKeyRows(answerKey.rows) }
+}
+
+export async function saveExamAnswerKey(id, rawQuestions) {
+  const exam = await getExamRow(id)
+  const input = Array.isArray(rawQuestions) ? rawQuestions : []
+  const questions = input.length
+    ? validateAnswerKey(input.map((question) => ({
+      ...question,
+      question_id: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(question.question_id || question.id || ''))
+        ? (question.question_id || question.id)
+        : randomUUID(),
+    })))
+    : []
+
+  const { error: deleteError } = await supabaseAdmin.from('class_exam_questions').delete().eq('exam_id', exam.id)
+  if (deleteError) throw dataError(deleteError, 'Không xóa được answer key cũ')
+  if (questions.length) {
+    const { error: insertError } = await supabaseAdmin.from('class_exam_questions').insert(questions.map((question) => ({
+      id: question.question_id,
+      exam_id: exam.id,
+      question_number: question.question_number,
+      question_text: question.question_text,
+      max_score: question.max_score,
+      expected_answer: question.expected_answer,
+      rubric: question.rubric,
+    })))
+    if (insertError) throw dataError(insertError, 'Không lưu được answer key và rubric')
+  }
+  return {
+    exam_id: exam.id,
+    questions: mapAnswerKeyRows(questions.map((question) => ({ id: question.question_id, ...question }))),
+  }
+}
+
 async function loadExamSubmissions(examId) {
   const { data, error } = await supabaseAdmin.from('class_exam_submissions')
     .select('id, user_id, files').eq('exam_id', examId).order('submitted_at').limit(1000)
