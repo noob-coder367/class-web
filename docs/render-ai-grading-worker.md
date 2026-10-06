@@ -1,36 +1,30 @@
-# Deploy AI Grading Worker trên Render
+# Deploy AI Grading Worker trong web service trên Render
 
-## Kiến trúc
+## Kiến trúc miễn phí
 
-`class-web-backend` tiếp tục chạy API bằng `node src/server.js`. AI grading worker phải là **Background Worker riêng**, dùng cùng repository `noob-coder367/class-web`, branch `main`, và thư mục gốc `backend`.
+`class-web-backend` chạy API và AI grading worker trong **cùng một web process**. Khi `AI_GRADING_ENABLED=true`, `backend/src/server.js` gọi `startAiGradingWorker({ workerId: \`ai-web-${process.pid}\` })` sau khi server listen thành công.
 
-Worker chạy `npm run worker`, poll bảng `ai_grading_jobs`, claim các job `pending`, xử lý chúng và cập nhật trạng thái. Không đổi grading algorithm, model hoặc provider.
+Không tạo Render Background Worker riêng và không dùng `node src/workers/ai-grading.worker.js` làm Start Command cho service web.
 
-## Tạo Background Worker
+## Cấu hình web service
 
-Trong Render Dashboard:
-
-1. Chọn workspace **My Workspace**.
-2. Chọn **New → Background Worker**.
-3. Kết nối repository `https://github.com/noob-coder367/class-web`.
-4. Cấu hình:
+Giữ nguyên service hiện tại:
 
 | Setting | Value |
 |---|---|
-| Name | `class-web-ai-grading-worker` |
+| Service | `class-web-backend` |
+| Repository | `noob-coder367/class-web` |
 | Branch | `main` |
 | Root Directory | `backend` |
-| Runtime | `Node` |
 | Build Command | `npm install` |
-| Start Command | `npm run worker` |
-| Region | Cùng region với web service; hiện web service là `oregon` |
-| Auto-Deploy | Có |
+| Start Command | `node src/server.js` hoặc `npm start` |
+| Region | `oregon` |
 
-Không dùng `node src/server.js` cho worker và không đổi Start Command của web service `class-web-backend`.
+Không tạo Background Worker trả phí và không đổi Start Command của web service thành `npm run worker`.
 
-## Environment variables
+## Environment variables trên web service
 
-Copy các biến backend cần thiết từ `class-web-backend` sang worker. Không commit giá trị secret vào repo và không đặt secret trong `render.yaml`.
+Đặt hoặc kiểm tra các biến sau trong Render Environment:
 
 Bắt buộc do `backend/src/config/env.js`:
 
@@ -38,51 +32,49 @@ Bắt buộc do `backend/src/config/env.js`:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SECRET_CODE`
 
-Cần cho pipeline AI theo provider đang bật:
+AI grading:
 
 - `AI_GRADING_ENABLED=true`
 - `GEMINI_API_KEY`
-- `OCR_SPACE_API_KEY`
 - `GROQ_API_KEY`
+- `OCR_SPACE_API_KEY`
 
-Các biến model/timeout/retry có thể copy nguyên giá trị từ web service để hai process dùng cùng policy, hoặc để mặc định trong `backend/src/config/env.js`:
+Nên giữ thêm các biến `AI_GRADING_*` và biến model hiện có nếu muốn thay đổi mặc định trong `backend/src/config/env.js`, ví dụ `AI_GRADING_CONCURRENCY`, `AI_GRADING_POLL_MS`, `AI_GRADING_MAX_ATTEMPTS`, timeout/retry, giới hạn file và model provider.
 
-- `AI_GRADING_CONCURRENCY` — mặc định `2`
-- `AI_GRADING_POLL_MS` — mặc định `5000`
-- `AI_GRADING_MAX_ATTEMPTS`
-- `AI_GRADING_STUCK_AFTER_MS`
-- `AI_GRADING_*_TIMEOUT_MS`
-- `AI_GRADING_*_CONFIDENCE_THRESHOLD`
-- `AI_GRADING_MAX_*`
-- `GEMINI_PRIMARY_MODEL`, `GEMINI_SECONDARY_MODEL`, `GROQ_MODEL`, `OCR_SPACE_ENDPOINT`
+Không commit giá trị secret vào repository.
 
-Để API có thể enqueue và hiển thị trạng thái AI đúng, đặt `AI_GRADING_ENABLED=true` trên **web service và worker**. Chỉ worker mới chạy `npm run worker`; web service vẫn chỉ chạy API.
+## Log cần thấy sau deploy
 
-Không cần `PORT`, `FRONTEND_ORIGIN`, `API_PUBLIC_URL`, VAPID hoặc GitHub token cho worker nếu worker không dùng các tính năng tương ứng. Nếu Render đã có bộ biến backend chuẩn, cách an toàn nhất là copy cùng bộ biến sang worker, giữ nguyên secret values.
-
-## Xác minh sau deploy
-
-Trong worker logs cần thấy:
+Khi bật AI grading:
 
 ```text
-[ai-grading-worker] starting { enabled: true, pollMs: ..., concurrency: ... }
+[server] AI grading worker started in-web
 ```
 
-Khi có lỗi poll sẽ thấy log `[ai-grading] worker poll failed`. Khi Render dừng/redeploy worker, cần thấy log `shutting down (SIGTERM)` hoặc `shutting down (SIGINT)`.
+Khi chưa bật:
 
-Checklist:
+```text
+[server] AI grading worker disabled (AI_GRADING_ENABLED!=true)
+```
 
-1. Tạo một submission test từ UI.
-2. Xác nhận job chuyển từ `pending` sang `processing`, sau đó `completed`, `needs_review`, `failed` hoặc `rate_limited`.
-3. Trang quản trị không còn báo `Worker AI hiện không hoạt động` sau khi queue có worker đang poll.
-4. Nếu job vẫn `pending`, kiểm tra `AI_GRADING_ENABLED=true`, Supabase service-role key, provider API key và worker logs.
+Worker dùng worker ID `ai-web-${process.pid}` và tự dừng timer khi process nhận `SIGTERM` hoặc `SIGINT`. Nếu worker lỗi lúc khởi động, server vẫn không crash; log sẽ có:
 
-## Code worker hiện tại
+```text
+[server] không khởi động AI grading worker: ...
+```
 
-`backend/src/workers/ai-grading.worker.js` đã:
+## Xác minh queue
 
-- import `startAiGradingWorker` từ `../services/ai-grading/index.js`;
-- thoát sạch khi `AI_GRADING_ENABLED` không phải `true`;
-- log startup với enabled/poll/concurrency;
-- dùng worker id `ai-worker-${process.pid}`;
-- xử lý `SIGTERM`/`SIGINT` và gọi shutdown callback.
+1. Deploy web service sau khi cập nhật environment.
+2. Tạo submission test từ UI.
+3. Xác nhận job chuyển từ `pending` sang `processing`, sau đó `completed`, `needs_review`, `failed` hoặc `rate_limited`.
+4. Kiểm tra web logs nếu job vẫn `pending`.
+
+Free web service có thể sleep sau một thời gian không có traffic. Trong thời gian ngủ, worker cũng dừng; khi mở app hoặc có request làm service wake, worker sẽ được khởi động lại và tiếp tục poll queue.
+
+## Lưu ý giới hạn
+
+- Không chạy thêm `npm run worker` trên cùng web service, vì sẽ tạo process worker thứ hai không cần thiết.
+- Không đổi grading algorithm, model hoặc provider.
+- Không cần migration mới.
+- Cách chạy Background Worker riêng trong tài liệu cũ không áp dụng cho cấu hình miễn phí này.
