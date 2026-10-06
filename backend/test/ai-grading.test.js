@@ -105,6 +105,44 @@ test('needs_review output may keep scores null but remains structurally bounded'
   assert.deepEqual(totals, { total_score: null, total_max_score: 5, grading_status: 'needs_review', total_score_complete: false })
 })
 
+test('normalized handwritten math steps, equivalent notation and final answer are preserved', () => {
+  const output = validOutput()
+  output.questions[0] = {
+    ...output.questions[0],
+    status: 'correct',
+    student_solution: 'x² - 4x + 4 = (x - 2)²',
+    steps: [{ step_number: 1, content: 'Hoàn thành bình phương', math_expression: 'x^2-4x+4=(x-2)^2', intermediate_result: '(x-2)^2', confidence: 0.91 }],
+    final_answer: '(x - 2)^2',
+    readability: 'clear',
+  }
+  const result = validateGradeResult(output, [answerKey[0], answerKey[1]])
+  assert.equal(result.questions[0].status, 'correct')
+  assert.equal(result.questions[0].steps[0].math_expression, 'x^2-4x+4=(x-2)^2')
+  assert.equal(result.questions[0].final_answer, '(x - 2)^2')
+})
+
+test('partially correct physics-style grading remains scoreable while unreadable evidence stays null', () => {
+  const output = validOutput()
+  output.questions[1] = {
+    ...output.questions[1],
+    status: 'partially_correct',
+    score: 2,
+    student_solution: 'v = 10 m/s',
+    steps: [{ step_number: 1, content: 'Đổi đơn vị', math_expression: '10 m/s = 36 km/h', intermediate_result: '36 km/h', confidence: 0.88 }],
+    final_answer: '36 km/h',
+    readability: 'partial',
+  }
+  const result = validateGradeResult(output, answerKey)
+  assert.equal(result.questions[1].status, 'partially_correct')
+  assert.equal(calculateGradeTotals(result, answerKey).grading_status, 'graded')
+
+  const unreadable = validOutput()
+  unreadable.questions[0] = { ...unreadable.questions[0], status: 'unreadable', score: null, readability: 'unreadable', rubric_items: unreadable.questions[0].rubric_items.map((item) => ({ ...item, score: null })) }
+  const safe = validateGradeResult(unreadable, answerKey)
+  assert.equal(safe.questions[0].score, null)
+  assert.equal(safe.questions[0].rubric_items[0].score, null)
+})
+
 test('AI file safety rejects unsupported types, oversized images and too many images', () => {
   assert.throws(() => validateJobFiles([{ path: 'x', mime: 'application/zip', size: 10 }]), /Loại file/)
   assert.throws(() => validateJobFiles([{ path: 'x', mime: 'image/png', size: 16 * 1024 * 1024 }]), /vượt giới hạn/)

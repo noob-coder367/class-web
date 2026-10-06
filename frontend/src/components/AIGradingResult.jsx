@@ -11,6 +11,7 @@ const STATUS_LABEL = {
   completed: 'Đã chấm',
   graded: 'Đã chấm',
   needs_review: 'Cần giáo viên xem lại',
+  unreadable: 'Không đọc rõ — cần xem lại',
   failed: 'Chấm thất bại',
   rate_limited: 'Đang chờ hệ thống AI',
   not_queued: 'Chưa có kết quả chấm AI',
@@ -53,6 +54,25 @@ function RubricItems({ items }) {
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+function SolutionSteps({ question }) {
+  if (!Array.isArray(question.steps) || !question.steps.length) return null
+  return (
+    <div className="air-steps">
+      <p className="air-label">Các bước AI đọc được</p>
+      <ol className="air-step-list">
+        {question.steps.map((step, index) => (
+          <li key={`${step.step_number || index + 1}-${index}`} className="air-step">
+            <strong>Bước {step.step_number || index + 1}</strong>
+            {step.content ? <span>{step.content}</span> : null}
+            {step.math_expression ? <code>{step.math_expression}</code> : null}
+            {step.intermediate_result ? <small>Kết quả trung gian: {step.intermediate_result}</small> : null}
+          </li>
+        ))}
+      </ol>
     </div>
   )
 }
@@ -147,7 +167,7 @@ export default function AIGradingResult({ type, submissionId, title = 'Kết qu�
           {Array.isArray(result.questions) && result.questions.length ? (
             <div className="air-questions">
               {result.questions.map((question, index) => {
-                const questionNeedsReview = question.status === 'needs_review'
+                const questionNeedsReview = ['needs_review', 'unreadable'].includes(question.status) || question.readability === 'unreadable'
                 const hasFinalScore = question.final_score !== null && question.final_score !== undefined
                 return (
                   <article key={`${question.question_id || question.question_number || 'question'}-${index}`} className={`air-question${questionNeedsReview ? ' is-review' : ''}`}>
@@ -156,8 +176,10 @@ export default function AIGradingResult({ type, submissionId, title = 'Kết qu�
                       <strong>{formatScore(hasFinalScore ? question.final_score : question.score)} <span>/ {formatScore(question.max_score)}</span></strong>
                     </div>
                     {hasFinalScore ? <p className="air-final-question">Điểm cuối · AI ban đầu: {formatScore(question.score)} / {formatScore(question.max_score)}</p> : null}
-                    {questionNeedsReview ? <p className="air-question-status">Cần giáo viên xem lại</p> : null}
+                    {question.status && question.status !== 'graded' ? <p className="air-question-status">{STATUS_LABEL[question.status] || question.status}</p> : null}
                     {question.comment ? <p className="air-comment">{question.comment}</p> : null}
+                    {question.final_answer ? <p className="air-final-answer"><b>Đáp án cuối đọc được:</b> {question.final_answer}</p> : null}
+                    <SolutionSteps question={question} />
                     <RubricItems items={question.rubric_items} />
                     {question.confidence !== null && question.confidence !== undefined ? (
                       <p className="air-confidence">Độ tin cậy: {Math.round(Number(question.confidence) * 100)}%</p>

@@ -6,7 +6,9 @@ import { PDFDocument } from 'pdf-lib'
 
 const BUCKET = 'classroom-data'
 const VALID_STATUSES = new Set(['pending', 'processing', 'completed', 'failed', 'rate_limited', 'needs_review'])
-const GRADE_STATUSES = new Set(['graded', 'needs_review'])
+// `graded` remains accepted for results written by Steps 1–8. New statuses are
+// descriptive only; the server still calculates totals from bounded scores.
+const GRADE_STATUSES = new Set(['graded', 'correct', 'partially_correct', 'wrong', 'unreadable', 'needs_review'])
 
 function safeError(error) {
   return String(error?.message || error || 'unknown error').replace(/(?:Bearer\s+|api[_-]?key[=:]\s*)[^\s,;]+/gi, '[redacted]').slice(0, 500)
@@ -59,6 +61,23 @@ async function fetchProvider(url, options, timeoutMs, label) {
 }
 function cleanJson(value) { return String(value || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim() }
 function text(value, max = 4000) { return String(value ?? '').trim().slice(0, max) }
+
+function normalizeStep(value, index) {
+  const stepNumber = Number(value?.step_number ?? index + 1)
+  if (!Number.isInteger(stepNumber) || stepNumber < 1) throw invalid(`Invalid solution step at index ${index}`)
+  const content = text(value?.content, 4000)
+  const mathExpression = text(value?.math_expression ?? value?.expression, 2000)
+  const intermediateResult = text(value?.intermediate_result ?? value?.result, 2000)
+  const confidence = Number(value?.confidence)
+  if (!content && !mathExpression && !intermediateResult) throw invalid(`Empty solution step at index ${index}`)
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw invalid(`Invalid solution step confidence at index ${index}`)
+  return { step_number: stepNumber, content, math_expression: mathExpression, intermediate_result: intermediateResult, confidence }
+}
+
+function normalizeReadability(value) {
+  const readability = text(value, 20)
+  return ['clear', 'partial', 'unreadable'].includes(readability) ? readability : 'clear'
+}
 
 function validateJobFiles(files) {
   const list = Array.isArray(files) ? files : []
@@ -161,7 +180,7 @@ export function validateGradeResult(value, answerKey) {
     seen.add(question.question_id)
     const status = text(raw?.status, 40)
     if (!GRADE_STATUSES.has(status)) throw invalid(`Invalid question status for question ${question.question_number}`)
-    const score = raw?.score === null && status === 'needs_review' ? null : Number(raw?.score)
+    const score = raw?.score === null && ['needs_review', 'unreadable'].includes(status) ? null : Number(raw?.score)
     const maxScore = Number(raw?.max_score)
     const confidence = Number(raw?.confidence)
     if (!Number.isFinite(maxScore) || maxScore !== question.max_score || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw invalid(`Invalid score metadata for question ${question.question_number}`)
@@ -176,14 +195,35 @@ export function validateGradeResult(value, answerKey) {
       if (!expected || rubricSeen.has(criterion)) throw invalid(`Unknown or duplicate rubric criterion for question ${question.question_number}`)
       rubricSeen.add(criterion)
       const itemMax = Number(item?.max_score)
-      const itemScore = item?.score === null && status === 'needs_review' ? null : Number(item?.score)
+      const itemScore = item?.score === null && ['needs_review', 'unreadable'].includes(status) ? null : Number(item?.score)
       if (!Number.isFinite(itemMax) || itemMax !== expected.max_score || (itemScore !== null && (!Number.isFinite(itemScore) || itemScore < 0 || itemScore > expected.max_score))) throw invalid(`Rubric score out of bounds for question ${question.question_number}`)
       return { criterion, score: itemScore, max_score: expected.max_score, comment: text(item?.comment, 2000) }
     })
     if (rubricSeen.size !== question.rubric.length) throw invalid(`Missing rubric criterion for question ${question.question_number}`)
     const rubricScore = rubricItems.reduce((sum, item) => sum + (item.score === null ? 0 : item.score), 0)
     if (rubricScore > question.max_score + 1e-9) throw invalid(`Rubric total exceeds max_score for question ${question.question_number}`)
-    return { question_id: question.question_id, question_number: question.question_number, question_text: question.question_text, score, max_score: question.max_score, confidence, status, comment: text(raw?.comment, 2000), rubric_items: rubricItems }
+    const rawSteps = raw?.steps == null ? [] : raw.steps
+    if (!Array.isArray(rawSteps)) throw invalid(`Invalid solution steps for question ${question.question_number}`)
+    const steps = rawSteps.map(normalizeStep).sort((a, b) => a.step_number - b.step_number)
+    const readability = normalizeReadability(raw?.readability)
+    if (status === 'unreadable' || readability === 'unreadable') {
+      if (score !== null || rubricItems.some((item) => item.score !== null)) throw invalid(`Unreadable question has unsupported score ${question.question_number}`)
+    }
+    return {
+      question_id: question.question_id,
+      question_number: question.question_number,
+      question_text: question.question_text,
+      student_solution: text(raw?.student_solution, 12000),
+      steps,
+      final_answer: text(raw?.final_answer, 2000),
+      readability,
+      score,
+      max_score: question.max_score,
+      confidence,
+      status,
+      comment: text(raw?.comment, 2000),
+      rubric_items: rubricItems,
+    }
   })
   if (seen.size !== key.length) throw invalid('Missing question in grading output')
   return { questions: questions.sort((a, b) => a.question_number - b.question_number) }
@@ -195,7 +235,7 @@ export function calculateGradeTotals(grade, answerKey) {
   const totalMaxScore = key.reduce((sum, question) => sum + question.max_score, 0)
   const scoredQuestions = questions.filter((question) => question.score !== null)
   const totalScore = scoredQuestions.length ? scoredQuestions.reduce((sum, question) => sum + question.score, 0) : null
-  const complete = questions.length === key.length && questions.every((question) => question.status === 'graded' && question.score !== null)
+  const complete = questions.length === key.length && questions.every((question) => ['graded', 'correct', 'partially_correct', 'wrong'].includes(question.status) && question.score !== null)
   return {
     total_score: totalScore,
     total_max_score: totalMaxScore,
@@ -267,10 +307,13 @@ export async function getGradingResult(submissionType, submissionId, profile, { 
 
 async function callGemini(model, files) {
   if (!env.GEMINI_API_KEY) throw new Error('Gemini is not configured')
-  const parts = [{ text: 'Read this student submission. Return JSON only: {"normalized_text":"...","confidence":0..1,"missing_or_unreadable":false,"observations":["..."]}. Do not invent unreadable text.' }]
+  const parts = [{ text: `You are the vision extraction stage for a handwritten Mathematics/Physics submission. Inspect every supplied page as one continuous submission and preserve page/question continuity. Return JSON only in this shape:
+{"normalized_text":"...","student_solution":"...","questions":[{"question_number":1,"student_solution":"...","steps":[{"step_number":1,"content":"what is visibly written","math_expression":"LaTeX or faithful notation","intermediate_result":"...","confidence":0.0}],"final_answer":"...","readability":"clear|partial|unreadable","confidence":0.0}],"confidence":0.0,"missing_or_unreadable":false,"observations":[]}
+Rules: do not infer missing handwriting, do not invent unseen solution steps, and do not silently correct ambiguous symbols. Preserve fractions, roots, superscripts, subscripts, vectors, signs, units, derivatives, integrals and equations. Treat x², x^2 and x2 as distinct observations when the image does not disambiguate. Prefer mathematical structure over plain OCR. If a key expression or answer is unreadable, mark the relevant question partial/unreadable and use a low confidence rather than guessing. ` }]
   validateJobFiles(files)
-  for (const file of files.slice(0, env.AI_GRADING_MAX_IMAGES)) {
+  for (const [index, file] of files.slice(0, env.AI_GRADING_MAX_IMAGES).entries()) {
     if (!String(file.mime || '').match(/^(image\/|application\/pdf$)/)) continue
+    parts.push({ text: `Submission page/file ${index + 1} of ${files.length}. This page may continue a question from another page; do not restart numbering without visible evidence.` })
     const bytes = await withTimeout(async () => {
       const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(file.path)
       if (error) throw error
@@ -321,8 +364,10 @@ async function callGrader({ vision, ocr, job, answerKey }) {
   if (!env.GROQ_API_KEY) throw new Error('Groq is not configured')
   const prompt = {
     question_set: answerKey,
-    submission_evidence: { vision, ocr_fallback: ocr },
-    instruction: 'Grade each supplied question independently using only its expected_answer, rubric, and submission evidence. Never create, omit, duplicate, or rename a question. If evidence is insufficient, use status needs_review and score null; do not guess. Return JSON only in the exact shape {"questions":[{"question_id":"...","question_number":1,"question_text":"...","score":1.5,"max_score":2,"confidence":0.94,"status":"graded","comment":"...","rubric_items":[{"criterion":"...","score":0.5,"max_score":0.5,"comment":"..."}]}]}. Do not return total_score, score totals, or overall_comment.',
+    submission_evidence: { vision, ocr_fallback: ocr, ocr_is_supporting_evidence_only: true },
+    instruction: `Grade each supplied question independently from the visible normalized solution, using only the expected_answer and rubric. Never create, omit, duplicate or rename a question. Do not infer missing handwriting or invent unseen solution steps. OCR is fallback/support only, never ground truth; if vision and OCR conflict on a score-relevant symbol, use needs_review with null score. Preserve and evaluate every visible step, intermediate result, final answer and confidence.
+For Mathematics, accept mathematically equivalent expressions and valid alternative methods (factoring/expansion, equivalent fractions, roots, logarithms, trigonometry, vectors, geometry, derivatives, antiderivatives and integrals); never use string equality. For Physics, check formula, substitution, algebra, signs, vectors, arithmetic, dimensions and units; convert equivalent units (for example 10 m/s = 36 km/h), but do not ignore wrong units. A correct final answer with invalid reasoning is not automatically full credit; a wrong final answer with a valid method receives rubric-based partial credit; a later step that consistently follows an earlier arithmetic error may receive partial credit. Do not award points for unsupported claims.
+Enforce the supplied rubric exactly: scores and rubric item scores must not exceed their max_score; do not invent criteria or totals. If evidence is insufficient for a rubric item, use needs_review and null for that item/question rather than zero. Return JSON only in this exact shape: {"questions":[{"question_id":"...","question_number":1,"question_text":"...","student_solution":"...","steps":[{"step_number":1,"content":"...","math_expression":"...","intermediate_result":"...","confidence":0.0}],"final_answer":"...","readability":"clear|partial|unreadable","score":1.5,"max_score":2,"confidence":0.94,"status":"correct|partially_correct|wrong|unreadable|needs_review","comment":"...","rubric_items":[{"criterion":"...","score":0.5,"max_score":0.5,"comment":"..."}]}]}. Do not return total_score, total_max_score or overall_comment.`,
   }
   const response = await fetchProvider('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${env.GROQ_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: env.GROQ_MODEL, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: JSON.stringify(prompt) }] }) }, env.AI_GRADING_GROQ_TIMEOUT_MS, 'Groq')
   const payload = await response.json(); return validateGradeResult(payload?.choices?.[0]?.message?.content, answerKey)
@@ -338,7 +383,8 @@ async function processJob(job) {
   catch (error) { if (error?.code === 'UNREADABLE_FILE') { const grade = buildNeedsReviewResult(answerKey, 'Không đọc được file bài làm; cần giáo viên kiểm tra.'); return { status: 'needs_review', model: job.model_used, result: { ...grade, ...calculateGradeTotals(grade, answerKey), grading_status: 'needs_review' } } } if (!isRateLimited(error)) throw error; try { vision = await callGemini(env.GEMINI_SECONDARY_MODEL, job.files || []); job.model_used = env.GEMINI_SECONDARY_MODEL } catch (secondary) { if (secondary?.code === 'UNREADABLE_FILE') { const grade = buildNeedsReviewResult(answerKey, 'Không đọc được file bài làm; cần giáo viên kiểm tra.'); return { status: 'needs_review', model: job.model_used, result: { ...grade, ...calculateGradeTotals(grade, answerKey), grading_status: 'needs_review' } } } if (isRateLimited(secondary)) return { status: 'rate_limited', error: 'Gemini providers are rate limited', retryAfterMs: secondary.retryAfterMs }; throw secondary } }
   let ocr = null; const confidence = Number(vision?.confidence)
   if (!Number.isFinite(confidence) || confidence < env.AI_GRADING_OCR_CONFIDENCE_THRESHOLD) { try { ocr = await callOcr((job.files || [])[0]) } catch (error) { console.warn('[ai-grading] OCR fallback failed', { message: safeError(error) }) } }
-  const readableEvidence = !vision?.missing_or_unreadable && (text(vision?.normalized_text) || text(ocr))
+  const visionQuestions = Array.isArray(vision?.questions) ? vision.questions : []
+  const readableEvidence = !vision?.missing_or_unreadable && (text(vision?.normalized_text) || text(vision?.student_solution) || visionQuestions.some((question) => text(question?.student_solution) || Array.isArray(question?.steps) && question.steps.length) || text(ocr))
   if (!readableEvidence) {
     const grade = buildNeedsReviewResult(answerKey, 'Không đọc rõ bài làm; cần giáo viên kiểm tra.')
     return { status: 'needs_review', model: job.model_used, result: { ...grade, ...calculateGradeTotals(grade, answerKey), grading_status: 'needs_review' } }
@@ -346,7 +392,8 @@ async function processJob(job) {
   const grade = await callGrader({ vision, ocr, job, answerKey })
   const totals = calculateGradeTotals(grade, answerKey)
   const finalConfidence = Math.min(Number(vision?.confidence) || 0, ...grade.questions.map((question) => Number(question.confidence) || 0))
-  const status = finalConfidence < env.AI_GRADING_REVIEW_CONFIDENCE_THRESHOLD || vision?.missing_or_unreadable || totals.grading_status === 'needs_review' ? 'needs_review' : 'completed'
+  const hasUnreadableQuestion = grade.questions.some((question) => ['unreadable', 'needs_review'].includes(question.status) || question.readability === 'unreadable')
+  const status = finalConfidence < env.AI_GRADING_REVIEW_CONFIDENCE_THRESHOLD || vision?.missing_or_unreadable || hasUnreadableQuestion || totals.grading_status === 'needs_review' ? 'needs_review' : 'completed'
   return { status, model: job.model_used, result: { ...grade, ...totals, grading_status: status === 'completed' ? 'graded' : 'needs_review', vision, ocr_used: Boolean(ocr), evidence_confidence: finalConfidence } }
 }
 
