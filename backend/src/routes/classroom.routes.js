@@ -94,6 +94,7 @@ router.get(
 router.get('/homework-assignments/submissions/:submissionId/grading', aiGradingController.getHomeworkResult)
 router.get('/homework-assignments/submissions/:submissionId/grading/review', requireCapability('homework'), aiGradingReviewController.getHomeworkReview)
 router.put('/homework-assignments/submissions/:submissionId/grading/review', requireCapability('homework'), aiGradingReviewController.saveHomeworkReview)
+router.post('/homework-assignments/submissions/:submissionId/grading/regrade', requireCapability('homework'), aiGradingReviewController.regradeHomework)
 
 // Kiểm tra online: Admin / LPHT tạo đề; mọi thành viên làm bài + xem thống kê.
 router.get('/exams', examController.listExams)
@@ -110,6 +111,7 @@ router.get('/exams/:id/submissions/:userId', requireCapability('homework'), exam
 router.get('/exams/submissions/:submissionId/grading', aiGradingController.getExamResult)
 router.get('/exams/submissions/:submissionId/grading/review', requireCapability('homework'), aiGradingReviewController.getExamReview)
 router.put('/exams/submissions/:submissionId/grading/review', requireCapability('homework'), aiGradingReviewController.saveExamReview)
+router.post('/exams/submissions/:submissionId/grading/regrade', requireCapability('homework'), aiGradingReviewController.regradeExam)
 
 router.get('/rules', classroomController.getRules)
 router.put('/rules', requireCapability('rules'), classroomController.putRules)

@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
 import './AIGradingResult.css'
 
 const POLL_MS = 8_000
+const MAX_POLLS = 45
 
 const STATUS_LABEL = {
+  pending: 'Đang chờ AI xử lý',
   processing: 'Đang chấm...',
   completed: 'Đã chấm',
   graded: 'Đã chấm',
   needs_review: 'Cần giáo viên xem lại',
   failed: 'Chấm thất bại',
+  rate_limited: 'Đang chờ hệ thống AI',
   not_queued: 'Chưa có kết quả chấm AI',
 }
 
@@ -22,7 +25,9 @@ function formatScore(value) {
 function statusOf(result) {
   if (!result) return 'not_queued'
   if (result.grading_status === 'needs_review' || result.status === 'needs_review') return 'needs_review'
+  if (result.status === 'pending') return 'pending'
   if (result.status === 'processing') return 'processing'
+  if (result.status === 'rate_limited') return 'rate_limited'
   if (result.status === 'failed') return 'failed'
   if (result.grading_status === 'graded' || result.status === 'completed') return 'graded'
   return result.status || 'not_queued'
@@ -56,6 +61,8 @@ export default function AIGradingResult({ type, submissionId, title = 'Kết qu�
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(Boolean(submissionId))
   const [error, setError] = useState('')
+  const pollCount = useRef(0)
+  const [pollTick, setPollTick] = useState(0)
 
   const load = useCallback(async () => {
     if (!submissionId) return
@@ -67,6 +74,7 @@ export default function AIGradingResult({ type, submissionId, title = 'Kết qu�
       setError(err.message || 'Không tải được kết quả chấm AI.')
     } finally {
       setLoading(false)
+      setPollTick((tick) => tick + 1)
     }
   }, [submissionId, type])
 
@@ -74,15 +82,20 @@ export default function AIGradingResult({ type, submissionId, title = 'Kết qu�
     setResult(null)
     setError('')
     setLoading(Boolean(submissionId))
+    pollCount.current = 0
+    setPollTick(0)
     if (submissionId) void load()
   }, [load, submissionId])
 
   const status = statusOf(result)
   useEffect(() => {
-    if (status !== 'processing') return undefined
-    const timer = window.setTimeout(() => { void load() }, POLL_MS)
+    if (!['pending', 'processing', 'rate_limited'].includes(status) || pollCount.current >= MAX_POLLS) return undefined
+    const timer = window.setTimeout(() => {
+      pollCount.current += 1
+      void load()
+    }, POLL_MS)
     return () => window.clearTimeout(timer)
-  }, [load, status])
+  }, [load, status, pollTick])
 
   if (!submissionId) return null
 
@@ -104,13 +117,15 @@ export default function AIGradingResult({ type, submissionId, title = 'Kết qu�
         </div>
       ) : null}
       {!loading && !error && status === 'not_queued' ? <p className="air-muted">Bài nộp chưa được đưa vào hàng chờ chấm.</p> : null}
-      {!loading && !error && status === 'processing' ? <p className="air-muted">Hệ thống đang phân tích bài làm. Kết quả sẽ tự cập nhật.</p> : null}
+      {!loading && !error && ['pending', 'processing'].includes(status) ? <p className="air-muted">AI đang chấm bài...</p> : null}
+      {!loading && !error && status === 'rate_limited' ? <p className="air-muted">Hệ thống AI đang quá tải; bài sẽ được xử lý lại tự động.</p> : null}
+      {!loading && !error && ['pending', 'processing', 'rate_limited'].includes(status) && pollCount.current >= MAX_POLLS ? <p className="air-muted">Đã tạm dừng tự động cập nhật. Bấm thử lại để kiểm tra trạng thái mới.</p> : null}
       {!loading && !error && status === 'failed' ? <p className="air-error">Hệ thống không thể hoàn tất việc chấm bài. Vui lòng thử lại sau.</p> : null}
 
       {!loading && !error && status === 'needs_review' ? (
         <div className="air-review-banner">
-          <strong>Cần giáo viên xem lại</strong>
-          <span>Không đủ thông tin để AI chấm chính xác toàn bộ bài.</span>
+          <strong>AI chưa thể chấm chắc chắn — đang chờ giáo viên kiểm tra.</strong>
+          <span>{result.reason || 'Không đủ thông tin để AI chấm chính xác toàn bộ bài.'}</span>
         </div>
       ) : null}
 

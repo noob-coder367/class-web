@@ -29,6 +29,55 @@ async function getJob(type, submissionId) {
   if (!job) throw new AppError('Bài nộp chưa có kết quả chấm AI.', 404)
   return { job, sub }
 }
+
+export async function requestRegrade(type, submissionId, profile) {
+  assertReviewRole(profile)
+  const { job, sub } = await getJob(type, submissionId)
+  const needsReview = job.status === 'needs_review' || job.result?.grading_status === 'needs_review'
+  if (!['failed', 'rate_limited'].includes(job.status) && !needsReview) {
+    throw new AppError('Chỉ có thể yêu cầu chấm lại bài đang failed, rate_limited hoặc needs_review.', 409)
+  }
+
+  const { error: archiveError } = await supabaseAdmin.from('ai_grading_attempt_history').upsert({
+    grading_job_id: job.id,
+    submission_type: type,
+    submission_id: sub.id,
+    attempt_count: Number(job.attempt_count || 0),
+    status: job.status,
+    provider: job.provider || null,
+    model_used: job.model_used || null,
+    error_code: job.error_code || null,
+    error_message: job.error_message || null,
+    result: job.result || null,
+    started_at: job.started_at || null,
+    completed_at: job.completed_at || null,
+    duration_ms: job.duration_ms || null,
+    evidence_confidence: job.evidence_confidence || null,
+    usage: job.usage || null,
+  }, { onConflict: 'grading_job_id,attempt_count' })
+  if (archiveError) throw archiveError
+
+  const { data: updated, error: updateError } = await supabaseAdmin.from('ai_grading_jobs').update({
+    status: 'pending',
+    attempt_count: 0,
+    model_used: null,
+    error_code: null,
+    error_message: null,
+    result: null,
+    started_at: null,
+    completed_at: null,
+    duration_ms: null,
+    evidence_confidence: null,
+    usage: null,
+    locked_at: null,
+    locked_by: null,
+    next_attempt_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq('id', job.id).in('status', ['failed', 'rate_limited', 'needs_review']).select('id, status, attempt_count').maybeSingle()
+  if (updateError) throw updateError
+  if (!updated) throw new AppError('Job đã thay đổi trạng thái; vui lòng tải lại.', 409)
+  return { job_id: updated.id, status: updated.status, attempt_count: updated.attempt_count, archived_attempt: Number(job.attempt_count || 0) }
+}
 async function answerKeyFor(job) {
   if (!job.exam_id) {
     return (Array.isArray(job.result?.questions) ? job.result.questions : []).map((question, index) => ({
@@ -64,7 +113,7 @@ function normalizedQuestion(raw, key, existing) {
     ai_comment: text(raw?.comment),
     ai_confidence: numberOrNull(raw?.confidence),
     ai_status: raw?.status === 'graded' ? 'graded' : 'needs_review',
-    teacher_score: existing ? Number(existing.teacher_score) : aiScore === null ? 0 : aiScore,
+    teacher_score: existing ? Number(existing.teacher_score) : aiScore,
     final_score: existing ? Number(existing.teacher_score) : null,
     teacher_comment: existing?.teacher_comment || '',
     reviewed: Boolean(existing),

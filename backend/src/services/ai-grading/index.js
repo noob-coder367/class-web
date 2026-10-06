@@ -362,9 +362,11 @@ export async function runOneGradingJob(workerId = 'ai-worker') {
     const result = outcome.result || null
     const { error: saveError } = await supabaseAdmin.from('ai_grading_jobs').update({ status: outcome.status, provider: outcome.provider || 'gemini+ocr+groq', model_used: outcome.model || null, result, error_message: outcome.error || null, error_code: outcome.error_code || null, evidence_confidence: Number.isFinite(Number(result?.evidence_confidence)) ? Number(result.evidence_confidence) : null, usage: result?.usage || null, completed_at: ['completed', 'needs_review'].includes(outcome.status) ? completedAt : null, duration_ms: Date.now() - startedAt, locked_at: null, locked_by: null, next_attempt_at: outcome.status === 'rate_limited' ? new Date(Date.now() + Math.max(15 * 60_000, retryAfterMs(outcome))).toISOString() : null, updated_at: completedAt }).eq('id', job.id)
     if (saveError) throw saveError
+    console.info('[ai-grading] job finished', { job_id: job.id, submission_id: job.submission_id, status: outcome.status, provider: outcome.provider || 'gemini+ocr+groq', model: outcome.model || job.model_used || null, attempt: job.attempt_count, duration_ms: Date.now() - startedAt })
   } catch (error) {
     const outcome = getFailureOutcome(error, job.attempt_count, env)
     await supabaseAdmin.from('ai_grading_jobs').update({ status: outcome.status, provider: 'gemini+ocr+groq', model_used: job.model_used || env.GEMINI_PRIMARY_MODEL, error_message: safeError(error), error_code: outcome.errorCode, locked_at: null, locked_by: null, duration_ms: Date.now() - startedAt, next_attempt_at: outcome.status === 'pending' || outcome.status === 'rate_limited' ? new Date(Date.now() + outcome.delayMs).toISOString() : null, updated_at: new Date().toISOString() }).eq('id', job.id)
+    console.warn('[ai-grading] job failed', { job_id: job.id, submission_id: job.submission_id, status: outcome.status, provider: 'gemini+ocr+groq', model: job.model_used || env.GEMINI_PRIMARY_MODEL, attempt: job.attempt_count, duration_ms: Date.now() - startedAt, error_code: outcome.errorCode, error_message: safeError(error) })
   }
   return true
 }

@@ -443,6 +443,14 @@ export async function saveHomeworkGradingReview(submissionId, payload) {
   )
 }
 
+export async function regradeHomeworkSubmission(submissionId) {
+  return apiClient.post(
+    `/classroom/homework-assignments/submissions/${encodeURIComponent(submissionId)}/grading/regrade`,
+    {},
+    { auth: true, retry: false }
+  )
+}
+
 export async function submitHomeworkAssignment(id, fileList) {
   const files = Array.from(fileList || [])
   if (!files.length) throw new Error('Chưa chọn ảnh hoặc file để nộp.')
@@ -524,6 +532,14 @@ export async function saveExamGradingReview(submissionId, payload) {
   return apiClient.put(
     `/classroom/exams/submissions/${encodeURIComponent(submissionId)}/grading/review`,
     payload,
+    { auth: true, retry: false }
+  )
+}
+
+export async function regradeExamSubmission(submissionId) {
+  return apiClient.post(
+    `/classroom/exams/submissions/${encodeURIComponent(submissionId)}/grading/regrade`,
+    {},
     { auth: true, retry: false }
   )
 }

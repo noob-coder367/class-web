@@ -11,7 +11,12 @@ async function handleGet(type, req, res, next) {
 async function handleSave(type, req, res, next) {
   try { noStore(res); res.json(await reviewService.saveReview(type, req.params.submissionId, req.body, req.profile)) } catch (error) { next(error) }
 }
+async function handleRegrade(type, req, res, next) {
+  try { noStore(res); res.status(202).json(await reviewService.requestRegrade(type, req.params.submissionId, req.profile)) } catch (error) { next(error) }
+}
 export function getHomeworkReview(req, res, next) { return handleGet('homework', req, res, next) }
 export function saveHomeworkReview(req, res, next) { return handleSave('homework', req, res, next) }
+export function regradeHomework(req, res, next) { return handleRegrade('homework', req, res, next) }
 export function getExamReview(req, res, next) { return handleGet('exam', req, res, next) }
 export function saveExamReview(req, res, next) { return handleSave('exam', req, res, next) }
+export function regradeExam(req, res, next) { return handleRegrade('exam', req, res, next) }
