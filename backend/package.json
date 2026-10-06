@@ -7,7 +7,7 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "worker": "node src/workers/ai-grading.worker.js",
-    "test": "node --test test/**/*.test.js"
+    "test": "SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_SERVICE_ROLE_KEY=test-only-not-a-secret SECRET_CODE=test-only node --test test/**/*.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.113.0",

@@ -13,7 +13,27 @@ function safeError(error) {
 }
 function isRateLimited(error) { return error?.status === 429 || /\b429\b|rate.?limit|quota/i.test(String(error?.message || error)) }
 function isRetryable(error) { return isRateLimited(error) || error?.code === 'AI_TIMEOUT' || error?.code === 'AI_NETWORK' || error?.status >= 500 }
-function retryAfterMs(error) { return Math.min(env.AI_GRADING_RETRY_MAX_MS, Math.max(env.AI_GRADING_RETRY_BASE_MS, Number(error?.retryAfterMs) || 0)) }
+function retryAfterMs(error, config = env) { return Math.max(config.AI_GRADING_RETRY_BASE_MS, Number(error?.retryAfterMs) || 0) }
+export function getFailureOutcome(error, attemptCount, config = env) {
+  const attempts = Number(attemptCount || 1)
+  const retryable = isRetryable(error) && error?.code !== 'INVALID_GRADING_OUTPUT'
+  const rateLimited = isRateLimited(error)
+  const status = rateLimited ? 'rate_limited' : retryable && attempts < config.AI_GRADING_MAX_ATTEMPTS ? 'pending' : 'failed'
+  const delay = rateLimited
+    ? Math.max(15 * 60_000, retryAfterMs(error, config))
+    : Math.min(config.AI_GRADING_RETRY_MAX_MS, config.AI_GRADING_RETRY_BASE_MS * (2 ** Math.max(0, attempts - 1)))
+  const errorCode = error?.code || (error?.status === 429 ? 'AI_RATE_LIMITED' : error?.status >= 500 ? 'AI_PROVIDER_5XX' : 'AI_JOB_FAILED')
+  return { status, delayMs: delay, errorCode }
+}
+
+export async function runGradingBatch({ concurrency, runOne }) {
+  const limit = Math.max(1, Number(concurrency) || 1)
+  const results = []
+  for (let offset = 0; offset < limit; offset += 1) {
+    results.push(Promise.resolve().then(runOne))
+  }
+  return Promise.all(results)
+}
 function withTimeout(task, timeoutMs, label) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -343,14 +363,11 @@ export async function runOneGradingJob(workerId = 'ai-worker') {
     const { error: saveError } = await supabaseAdmin.from('ai_grading_jobs').update({ status: outcome.status, provider: outcome.provider || 'gemini+ocr+groq', model_used: outcome.model || null, result, error_message: outcome.error || null, error_code: outcome.error_code || null, evidence_confidence: Number.isFinite(Number(result?.evidence_confidence)) ? Number(result.evidence_confidence) : null, usage: result?.usage || null, completed_at: ['completed', 'needs_review'].includes(outcome.status) ? completedAt : null, duration_ms: Date.now() - startedAt, locked_at: null, locked_by: null, next_attempt_at: outcome.status === 'rate_limited' ? new Date(Date.now() + Math.max(15 * 60_000, retryAfterMs(outcome))).toISOString() : null, updated_at: completedAt }).eq('id', job.id)
     if (saveError) throw saveError
   } catch (error) {
-    const attempts = Number(job.attempt_count || 1)
-    const retryable = isRetryable(error) && error?.code !== 'INVALID_GRADING_OUTPUT'
-    const status = isRateLimited(error) ? 'rate_limited' : retryable && attempts < env.AI_GRADING_MAX_ATTEMPTS ? 'pending' : 'failed'
-    const delay = isRateLimited(error) ? Math.max(15 * 60_000, retryAfterMs(error)) : Math.min(env.AI_GRADING_RETRY_MAX_MS, env.AI_GRADING_RETRY_BASE_MS * (2 ** Math.max(0, attempts - 1)))
-    await supabaseAdmin.from('ai_grading_jobs').update({ status, error_message: safeError(error), error_code: error?.code || 'AI_JOB_FAILED', locked_at: null, locked_by: null, duration_ms: Date.now() - startedAt, next_attempt_at: status === 'pending' || status === 'rate_limited' ? new Date(Date.now() + delay).toISOString() : null, updated_at: new Date().toISOString() }).eq('id', job.id)
+    const outcome = getFailureOutcome(error, job.attempt_count, env)
+    await supabaseAdmin.from('ai_grading_jobs').update({ status: outcome.status, provider: 'gemini+ocr+groq', model_used: job.model_used || env.GEMINI_PRIMARY_MODEL, error_message: safeError(error), error_code: outcome.errorCode, locked_at: null, locked_by: null, duration_ms: Date.now() - startedAt, next_attempt_at: outcome.status === 'pending' || outcome.status === 'rate_limited' ? new Date(Date.now() + outcome.delayMs).toISOString() : null, updated_at: new Date().toISOString() }).eq('id', job.id)
   }
   return true
 }
 
-export function startAiGradingWorker({ workerId = 'ai-worker' } = {}) { if (!env.AI_GRADING_ENABLED) return () => {}; let running = false; const tick = async () => { if (running) return; running = true; try { await supabaseAdmin.rpc('recover_stuck_ai_grading_jobs', { p_stuck_after_seconds: Math.round(env.AI_GRADING_STUCK_AFTER_MS / 1000) }); await Promise.all(Array.from({ length: env.AI_GRADING_CONCURRENCY }, () => runOneGradingJob(workerId))) } catch (error) { console.error('[ai-grading] worker poll failed', { message: safeError(error) }) } finally { running = false } }; void tick(); const timer = setInterval(tick, env.AI_GRADING_POLL_MS); return () => clearInterval(timer) }
+export function startAiGradingWorker({ workerId = 'ai-worker' } = {}) { if (!env.AI_GRADING_ENABLED) return () => {}; let running = false; const tick = async () => { if (running) return; running = true; try { await supabaseAdmin.rpc('recover_stuck_ai_grading_jobs', { p_stuck_after_seconds: Math.round(env.AI_GRADING_STUCK_AFTER_MS / 1000) }); await runGradingBatch({ concurrency: env.AI_GRADING_CONCURRENCY, runOne: () => runOneGradingJob(workerId) }) } catch (error) { console.error('[ai-grading] worker poll failed', { message: safeError(error) }) } finally { running = false } }; void tick(); const timer = setInterval(tick, env.AI_GRADING_POLL_MS); return () => clearInterval(timer) }
 export { VALID_STATUSES }
