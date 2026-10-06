@@ -6,6 +6,11 @@ if (!env.AI_GRADING_ENABLED) {
   process.exit(0)
 }
 
+console.log('[ai-grading-worker] starting', {
+  enabled: env.AI_GRADING_ENABLED,
+  pollMs: env.AI_GRADING_POLL_MS,
+  concurrency: env.AI_GRADING_CONCURRENCY,
+})
 const stop = startAiGradingWorker({ workerId: `ai-worker-${process.pid}` })
 let closing = false
 async function shutdown(signal) {
