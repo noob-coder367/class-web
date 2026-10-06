@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabaseClient.js'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api'
 
-const ACCESS_TOKEN_KEY = 'class-web:access_token'
+const ACCESS_TOKEN_KEY = 'quizly:access_token'
 const FETCH_TIMEOUT_MS = 20_000
 const UPLOAD_TIMEOUT_MS = 120_000
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504])
@@ -131,9 +131,6 @@ async function request(path, { method = 'GET', body, auth = false, formData = fa
     if (retry && shouldRetry(method, res.status, false, _attempt)) {
       await wait(retryDelayMs(_attempt, res.headers.get('Retry-After')))
       return request(path, { method, body, auth, formData, retry, timeoutMs, _retried, _attempt: _attempt + 1 })
-    }
-    if (res.status === 401 && path.startsWith('/classroom') && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('classweb-auth-required', { detail: { path, status: res.status } }))
     }
     const message = data?.message || `Lỗi yêu cầu (${res.status})`
     const err = new Error(message)

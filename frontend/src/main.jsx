@@ -3,11 +3,12 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
-import { registerServiceWorker } from './services/pushService.js'
 
-registerServiceWorker().catch((error) => {
-  console.warn('[sw] không đăng ký được app shell:', error)
-})
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations()
+    .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+    .catch((error) => console.warn('[app] Không thể dọn service worker cũ:', error))
+}
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

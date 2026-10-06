@@ -4,7 +4,6 @@ import assert from 'node:assert/strict'
 process.env.SUPABASE_URL ||= 'https://test.invalid'
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'test-service-role-key'
 process.env.FRONTEND_ORIGIN ||= 'http://localhost:5173'
-process.env.SECRET_CODE ||= 'test-secret'
 
 const { getApplicationRange, normalizeTimetable, diffTimetable } = await import('../src/services/timetable.service.js')
 

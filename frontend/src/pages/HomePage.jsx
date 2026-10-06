@@ -1,859 +1,118 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { initialAuthRedirect, clearAuthRedirectFromUrl } from '../lib/supabaseClient.js'
-import { ROUTES, classTabPath, isAIAssistantPath, isLegacyAIPath, isClassMoneyPath } from '../lib/routes.js'
-import AuthPage from './AuthPage.jsx'
-import SettingsPanel from '../components/SettingsPanel.jsx'
-import { getStoredAvatar } from '../components/ProfileMenu.jsx'
-import EventsSection from '../components/EventsSection.jsx'
-import ClassRoomView from '../components/ClassRoomView.jsx'
-import ProfileMenu from '../components/ProfileMenu.jsx'
-import NotificationPermissionModal from '../components/NotificationPermissionModal.jsx'
-import {
-  Fish,
-  Jellyfish,
-  Anglerfish,
-  Bubbles,
-  Glow,
-} from '../components/decor/SeaDecor.jsx'
-import * as adminService from '../services/adminService.js'
-import * as classroomService from '../services/classroomService.js'
-import {
-  isPushEnabledPref,
-  requestPermissionAndSubscribe,
-  registerServiceWorker,
-  syncPushSubscription,
-  getNotificationPermission,
-  needsPushPrompt,
-  hasPromptedPermission,
-  markPrompted,
-} from '../services/pushService.js'
-import { countNewer } from '../lib/unreadStore.js'
-import AIAssistantPage from './AIAssistantPage.jsx'
-import ClassMoneyPage from './ClassMoneyPage.jsx'
 
-const NAV_LINKS = [
-  { href: '#trang-chu', label: 'Trang chủ' },
-  { href: '#su-kien', label: 'Sự kiện' },
-  { href: '#gioi-thieu', label: 'Giới thiệu' },
-  { href: '#giao-vien', label: 'Giáo viên' },
-  { href: '#anh-lop', label: 'Ảnh lớp' },
-  { href: '#thong-bao', label: 'Trò chuyện' },
+function Brand() {
+  return (
+    <Link className="brand" to="/" aria-label="Quizly, về trang chủ">
+      <span className="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M7 4.5h10a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5H7A2.5 2.5 0 0 1 4.5 17V7A2.5 2.5 0 0 1 7 4.5Z" stroke="currentColor" strokeWidth="1.8"/><path d="m8 12 2.5 2.5L16 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </span>
+      <span>quizly</span>
+    </Link>
+  )
+}
+
+function FeatureIcon({ kind }) {
+  if (kind === 'create') return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+  if (kind === 'play') return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m9 6 9 6-9 6V6Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5"/></svg>
+  return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 2.7 5.48 6.05.88-4.38 4.27 1.03 6.03L12 16.81l-5.4 2.85 1.03-6.03-4.38-4.27 6.05-.88L12 3Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>
+}
+
+function QuizPreview() {
+  return (
+    <div className="preview-wrap" aria-label="Minh họa giao diện quiz, chưa phải tính năng hoạt động">
+      <div className="preview-glow" />
+      <div className="float-chip float-chip-create"><FeatureIcon kind="create" /> Tạo bộ câu hỏi</div>
+      <div className="preview-card">
+        <div className="preview-top"><span className="preview-kicker">Bản xem trước</span><span className="preview-label"><span /> Sắp ra mắt</span></div>
+        <h2>Một câu hỏi thú vị</h2>
+        <p className="preview-subtitle">Giao diện minh họa · Chưa thể chơi</p>
+        <div className="preview-answer is-active"><span className="answer-key">A</span> Cùng học qua trò chơi</div>
+        <div className="preview-answer"><span className="answer-key">B</span> Từng bước, thật vui</div>
+        <div className="preview-answer"><span className="answer-key">C</span> Theo cách của bạn</div>
+        <div className="preview-footer"><span>Quiz tương tác</span><span>Đang phát triển</span></div>
+      </div>
+      <div className="float-chip float-chip-play"><FeatureIcon kind="play" /> Chế độ chơi</div>
+    </div>
+  )
+}
+
+const features = [
+  { kind: 'create', title: 'Create', description: 'Tự xây dựng những bộ câu hỏi của riêng bạn, theo cách thật đơn giản.' },
+  { kind: 'play', title: 'Play', description: 'Biến việc ôn tập thành những lượt chơi ngắn gọn, vui và dễ tham gia.' },
+  { kind: 'compete', title: 'Compete', description: 'Thử thách bản thân và bạn bè trong những trải nghiệm cạnh tranh lành mạnh.' },
 ]
 
-const PHOTO_PLACEHOLDER_COUNT = 6
-
-// Thông báo kết quả khi user vừa bấm link trong email chỉ hiện đúng 1 lần.
-let emailLinkNoticeShown = false
-const CLASSROOM_RETURN_KEY = 'classweb_return_to'
-
-function saveClassroomReturn(path) {
-  try {
-    sessionStorage.setItem(CLASSROOM_RETURN_KEY, path)
-  } catch {
-    // sessionStorage có thể bị chặn trong private mode.
-  }
-}
-
-function takeClassroomReturn() {
-  try {
-    const target = sessionStorage.getItem(CLASSROOM_RETURN_KEY) || ''
-    sessionStorage.removeItem(CLASSROOM_RETURN_KEY)
-    return target
-  } catch {
-    return ''
-  }
-}
-
 export default function HomePage() {
-  const { session, profile, authReady, logout, passwordRecovery } = useAuth()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const classRoomEntryRef = useRef(false)
-
-  // /vo-lop và mọi sub-route của nó -> mở khu vực lớp. /profile-setting -> mở
-  // Cài đặt. Các route này điều khiển trực tiếp bằng URL thay vì state rời rạc.
-  // Route chat AI cũ được giữ để tương thích, nhưng không có entry point điều hướng trong UI.
-  const showAIAssistant = isAIAssistantPath(location.pathname)
-  const showClassMoney = isClassMoneyPath(location.pathname)
-  const showClassRoom = !showAIAssistant && !showClassMoney
-    && (location.pathname === ROUTES.classRoot || location.pathname.startsWith(`${ROUTES.classRoot}/`))
-  const showProfileSetting = location.pathname === ROUTES.profileSetting
-
-  const [showAuth, setShowAuth] = useState(false)
-  const [classInitialTab, setClassInitialTab] = useState('home')
-  const [authLoading, setAuthLoading] = useState(false)
-  const [authInitialStep, setAuthInitialStep] = useState('login')
-  const [activeSection, setActiveSection] = useState('trang-chu')
-
-  const [announcements, setAnnouncements] = useState([])
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [sender, setSender] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [siteImages, setSiteImages] = useState({
-    teacher: [],
-    hero: [],
-    gallery: [],
-  })
-
-  const [unreadTotal, setUnreadTotal] = useState(0)
-  const [avatarUrl, setAvatarUrl] = useState(null)
-
-  useEffect(() => {
-    const uid = session?.user?.id
-    if (!uid) {
-      setAvatarUrl(null)
-      return
-    }
-    const googleAvatar =
-      session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture || null
-    setAvatarUrl(getStoredAvatar(uid) || googleAvatar || null)
-  }, [session?.user?.id, showProfileSetting])
-  const [showPushPrompt, setShowPushPrompt] = useState(false)
-
-  const teacherPhoto = siteImages.teacher[0]
-  const heroPhoto = siteImages.hero[0]
-  const galleryPhotos = siteImages.gallery
-
-  const loadSiteImages = async () => {
-    try {
-      const data = await adminService.getPublicSiteImages()
-      setSiteImages({
-        teacher: data.images?.teacher || [],
-        hero: data.images?.hero || [],
-        gallery: data.images?.gallery || [],
-      })
-    } catch (err) {
-      console.error('Lỗi tải ảnh website:', err)
-    }
-  }
-
-  const refreshUnread = useCallback(async () => {
-    if (!profile?.is_member) {
-      setUnreadTotal(0)
-      return
-    }
-    try {
-      const [ann, hw] = await Promise.all([
-        classroomService.getAnnouncements().catch(() => ({ items: [] })),
-        classroomService.getHomework().catch(() => ({ items: [] })),
-      ])
-      const annItems = Array.isArray(ann?.items) ? ann.items : []
-      const hwItems = Array.isArray(hw?.items) ? hw.items : []
-      const a = countNewer(annItems, 'announcements')
-      const h = countNewer(hwItems, 'homework')
-      setUnreadTotal(Math.min(99, a + h))
-    } catch {
-      setUnreadTotal(0)
-    }
-  }, [profile?.is_member])
-
-  const openAuth = (step = 'login') => {
-    navigate(step === 'register' ? ROUTES.register : ROUTES.login)
-  }
-
-  // Route /dang-nhap và /dang-ky (gõ thẳng URL hoặc bấm nút ở header) -> mở
-  // đúng form tương ứng. Các luồng khác (quên mật khẩu, cần đặt tên...) vẫn
-  // tự mở form bằng setShowAuth bên dưới, không phụ thuộc route.
-  useEffect(() => {
-    if (location.pathname === ROUTES.register) {
-      setAuthInitialStep('register')
-      setShowAuth(true)
-    } else if (location.pathname === ROUTES.login) {
-      setAuthInitialStep('login')
-      setShowAuth(true)
-    }
-  }, [location.pathname])
-
-  // Vừa bấm link "đặt lại mật khẩu" trong email -> hiện form "Đặt mật khẩu mới".
-  useEffect(() => {
-    if (!authReady || !passwordRecovery) return
-    setAuthInitialStep('reset-password')
-    setShowAuth(true)
-  }, [authReady, passwordRecovery])
-
-  // Vừa bấm link trong email xác nhận đăng ký / link bị hết hạn hoặc không hợp lệ.
-  useEffect(() => {
-    if (!authReady || emailLinkNoticeShown) return
-    const { type, error } = initialAuthRedirect
-    if (error) {
-      emailLinkNoticeShown = true
-      clearAuthRedirectFromUrl()
-      alert(
-        error.expired
-          ? 'Liên kết trong email đã hết hạn. Hãy yêu cầu gửi lại email mới.'
-          : 'Liên kết trong email không hợp lệ. Hãy yêu cầu gửi lại email mới.'
-      )
-    } else if (type === 'signup') {
-      emailLinkNoticeShown = true
-      clearAuthRedirectFromUrl()
-      alert('Xác nhận email thành công! Tài khoản của bạn đã sẵn sàng.')
-    } else if (type === 'recovery') {
-      emailLinkNoticeShown = true
-      clearAuthRedirectFromUrl()
-    }
-  }, [authReady])
-
-  useEffect(() => {
-    if (!authReady || passwordRecovery) return
-    if (profile?.needs_display_name) {
-      setAuthInitialStep('display-name')
-      setShowAuth(true)
-    }
-  }, [authReady, passwordRecovery, profile?.needs_display_name])
-
-  useEffect(() => {
-    if (!authReady || !showAIAssistant || session) return
-    setAuthInitialStep('login')
-    setShowAuth(true)
-  }, [authReady, showAIAssistant, session])
-
-  useEffect(() => {
-    if (!authReady || !showClassMoney || session) return
-    saveClassroomReturn(location.pathname)
-    setAuthInitialStep('login')
-    setShowAuth(true)
-  }, [authReady, showClassMoney, session, location.pathname])
-
-  // Link cũ /app -> đường dẫn mới /vo-lop/AI/app.
-  useEffect(() => {
-    if (isLegacyAIPath(location.pathname)) navigate(ROUTES.ai, { replace: true })
-  }, [location.pathname, navigate])
-
-  // Push + SW: moi tai khoan da login (da co ten) deu bat thong bao day duoc.
-  // - Dang nhap ten hien thi: KHONG hoi / khong che form ten.
-  // - Sau khi co ten: hoi neu trinh duyet chua cap quyen.
-  // - Da granted + pref bat: tu subscribe.
-  useEffect(() => {
-    if (!authReady || !session) return
-    if (profile?.needs_display_name || passwordRecovery) {
-      setShowPushPrompt(false)
-      return
-    }
-
-    let onUnread = null
-    if (profile?.is_member) {
-      refreshUnread()
-      onUnread = () => refreshUnread()
-      window.addEventListener('classweb-unread-updated', onUnread)
-    }
-
-    registerServiceWorker().catch((err) => {
-      console.error('[push] không đăng ký được Service Worker:', err)
-    })
-
-    const perm = getNotificationPermission()
-    let promptTimer = null
-
-    // Moi tai khoan (A4 hoac khong) deu duoc hoi / bat push
-    if (needsPushPrompt() && !hasPromptedPermission()) {
-      promptTimer = setTimeout(() => setShowPushPrompt(true), 600)
-    } else if (perm === 'granted' && isPushEnabledPref()) {
-      syncPushSubscription({ createIfMissing: true }).catch((err) => {
-        console.error('[push] không đồng bộ được subscription:', err)
-      })
-    }
-
-    return () => {
-      if (promptTimer) clearTimeout(promptTimer)
-      if (onUnread) window.removeEventListener('classweb-unread-updated', onUnread)
-    }
-  }, [
-    authReady,
-    session,
-    profile?.is_member,
-    profile?.needs_display_name,
-    passwordRecovery,
-    refreshUnread,
-  ])
-
-  useEffect(() => {
-    if (!authReady || !profile?.is_member || showClassRoom) return
-
-    const POLL_MS = 20_000
-    let timer = null
-
-    const tick = () => {
-      if (document.visibilityState === 'visible') refreshUnread()
-    }
-
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') refreshUnread()
-    }
-
-    timer = setInterval(tick, POLL_MS)
-    document.addEventListener('visibilitychange', onVisible)
-
-    return () => {
-      clearInterval(timer)
-      document.removeEventListener('visibilitychange', onVisible)
-    }
-  }, [authReady, profile?.is_member, showClassRoom, refreshUnread])
-
-  // Backend/Service Worker vẫn gửi URL push kiểu cũ ("/#/classroom/homework").
-  // Không sửa backend theo yêu cầu -> dịch hash cũ đó sang route mới ở đây.
-  const goToLegacyClassHash = useCallback(
-    (hash) => {
-      const raw = String(hash || '')
-      if (!raw.startsWith('#/classroom')) return
-      const parts = raw.replace(/^#\/?/, '').split('/')
-      const tab = parts[1] || 'announcements'
-      const allowed = new Set(['announcements', 'timetable', 'homework', 'rules', 'cleaning-duty'])
-      const finalTab = allowed.has(tab) ? tab : 'announcements'
-      setClassInitialTab(finalTab)
-      if (profile?.is_member) navigate(classTabPath(finalTab))
-    },
-    [profile?.is_member, navigate]
-  )
-
-  useEffect(() => {
-    if (window.location.hash) {
-      goToLegacyClassHash(window.location.hash)
-      // Xoá hash cũ khỏi thanh địa chỉ để không lẫn với route mới.
-      window.history.replaceState(null, '', window.location.pathname + window.location.search)
-    }
-
-    const onMsg = (event) => {
-      if (event.data?.type === 'CLASS_REFRESH') {
-        window.dispatchEvent(new CustomEvent('classweb-class-refresh'))
-        window.dispatchEvent(new CustomEvent('classweb-unread-updated'))
-        return
-      }
-      if (event.data?.type === 'PUSH_NAVIGATE' && event.data.url) {
-        try {
-          const u = new URL(event.data.url, window.location.origin)
-          goToLegacyClassHash(u.hash || '#/classroom/announcements')
-        } catch {
-          goToLegacyClassHash('#/classroom/announcements')
-        }
-      }
-    }
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('message', onMsg)
-    }
-    return () => {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.removeEventListener('message', onMsg)
-      }
-    }
-  }, [goToLegacyClassHash])
-
-  useEffect(() => {
-    loadSiteImages()
-
-    const onImagesUpdated = () => loadSiteImages()
-    window.addEventListener('site-images-updated', onImagesUpdated)
-
-    return () => {
-      window.removeEventListener('site-images-updated', onImagesUpdated)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!authReady || !profile?.is_member) return undefined
-    fetchAnnouncements()
-
-    const onHomeRefresh = () => {
-      fetchAnnouncements()
-      refreshUnread()
-    }
-    window.addEventListener('classweb-home-refresh', onHomeRefresh)
-    window.addEventListener('classweb-class-refresh', onHomeRefresh)
-
-    return () => {
-      window.removeEventListener('classweb-home-refresh', onHomeRefresh)
-      window.removeEventListener('classweb-class-refresh', onHomeRefresh)
-    }
-  }, [authReady, profile?.is_member, refreshUnread])
-
-  useEffect(() => {
-    if (!authReady || !showClassRoom) {
-      classRoomEntryRef.current = false
-      return
-    }
-    const current = `${location.pathname}${location.search}`
-    if (!session) {
-      saveClassroomReturn(current)
-      setAuthInitialStep('login')
-      setShowAuth(true)
-      return
-    }
-
-    if (profile) {
-      // Chỉ lấy đường dẫn chờ một lần khi vừa bước vào khu vực lớp.
-      // Không đọc lại ở mỗi lần đổi tab nội bộ, nếu không route cũ
-      // (ví dụ Nội quy) có thể đẩy người dùng quay ngược lại tab đó.
-      const enteringClassRoom = !classRoomEntryRef.current
-      classRoomEntryRef.current = true
-      const target = enteringClassRoom ? takeClassroomReturn() : ''
-      setShowAuth(false)
-      if (profile.is_member && target && target !== current) navigate(target, { replace: true })
-    }
-  }, [authReady, location.pathname, location.search, navigate, profile, session, showClassRoom])
-
-  useEffect(() => {
-    const onAuthRequired = () => {
-      if (!showClassRoom) return
-      saveClassroomReturn(`${location.pathname}${location.search}`)
-      setAuthInitialStep('login')
-      setShowAuth(true)
-    }
-    window.addEventListener('classweb-auth-required', onAuthRequired)
-    return () => window.removeEventListener('classweb-auth-required', onAuthRequired)
-  }, [location.pathname, location.search, showClassRoom])
-
-  useEffect(() => {
-    const sectionIds = NAV_LINKS.map((link) => link.href.replace('#', ''))
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) setActiveSection(entry.target.id)
-        })
-      },
-      { rootMargin: '-40% 0px -55% 0px', threshold: 0 }
-    )
-
-    sectionIds.forEach((id) => {
-      const el = document.getElementById(id)
-      if (el) observer.observe(el)
-    })
-
-    return () => observer.disconnect()
-  }, [])
-
-  const fetchAnnouncements = async () => {
-    try {
-      const result = await classroomService.getAnnouncements()
-      if (Array.isArray(result?.items)) {
-        // Bài tập có thể tạo một announcement liên kết để báo trong khu vực lớp,
-        // nhưng không được xuất hiện ở phần "Trò chuyện lớp" ngoài trang chủ.
-        setAnnouncements(result.items.filter((item) => !item?.source_homework_id))
-      }
-    } catch (error) {
-      console.error('Lỗi lấy dữ liệu:', error)
-    }
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!title || !content) return alert('Vui lòng nhập đủ tiêu đề và nội dung!')
-
-    setSubmitting(true)
-    let result
-    try {
-      result = await classroomService.createAnnouncement({ title, content })
-    } catch (error) {
-      setSubmitting(false)
-      return alert('Lỗi đăng thông báo: ' + error.message)
-    }
-    setSubmitting(false)
-
-    setTitle('')
-    setContent('')
-    setSender('')
-    if (result?.item) setAnnouncements((prev) => [result.item, ...prev])
-  }
-
-  const handleDeleteAnnouncement = async (id) => {
-    if (!window.confirm('Bạn có chắc muốn xóa thông báo này?')) return
-
-    try {
-      await classroomService.deleteAnnouncement(id)
-    } catch (error) {
-      return alert('Xóa thông báo thất bại: ' + error.message)
-    }
-
-    setAnnouncements((prev) => prev.filter((a) => a.id !== id))
-  }
-
-  const handleSignOut = async () => {
-    if (authLoading) return
-    setAuthLoading(true)
-    try {
-      await logout()
-      setShowAuth(false)
-      if (showClassRoom || showClassMoney) navigate(ROUTES.home)
-      setUnreadTotal(0)
-      setShowPushPrompt(false)
-    } finally {
-      setAuthLoading(false)
-    }
-  }
-
-  const handleAllowPush = async () => {
-    try {
-      await requestPermissionAndSubscribe()
-      setShowPushPrompt(false)
-    } catch (err) {
-      console.error('[push] bật thông báo thất bại:', err)
-      markPrompted()
-      alert(
-        err?.message ||
-          'Không bật được thông báo. Hãy cho phép quyền thông báo trong cài đặt trình duyệt, rồi thử lại.'
-      )
-    }
-  }
-
-  const handleDenyPush = () => {
-    markPrompted()
-    setShowPushPrompt(false)
-  }
-
-  const openClassRoom = (tab = 'home') => {
-    setClassInitialTab(tab)
-    navigate(classTabPath(tab))
-  }
-
-  const closeClassRoom = () => {
-    navigate(ROUTES.home)
-    refreshUnread()
-  }
-
-  const closeAuth = () => {
-    setShowAuth(false)
-    if (location.pathname === ROUTES.login || location.pathname === ROUTES.register || showAIAssistant || showClassMoney) {
-      navigate(ROUTES.home)
-    } else if (showClassRoom && !session) {
-      takeClassroomReturn()
-      navigate(ROUTES.home)
-    }
-  }
+  const { authReady, isLoggedIn, profile, logout } = useAuth()
+  const displayName = profile?.display_name || profile?.email?.split('@')[0] || ''
 
   return (
-      <div className={`page ${showAuth || showClassRoom || showAIAssistant || showClassMoney || showProfileSetting ? 'no-scroll' : ''}`}>
-      {showAuth && (
-        <AuthPage
-          key={authInitialStep}
-          initialStep={authInitialStep}
-          deferCloseOnSuccess={showClassRoom || showClassMoney}
-          onClose={closeAuth}
-        />
-      )}
-
-      {showProfileSetting && (
-        <SettingsPanel
-          onClose={() => navigate(ROUTES.home)}
-          avatarUrl={avatarUrl}
-          onAvatarChange={(url) => setAvatarUrl(url)}
-        />
-      )}
-
-      {showClassRoom && authReady && session && (
-        <ClassRoomView
-          onClose={closeClassRoom}
-          initialTab={classInitialTab}
-        />
-      )}
-
-      {showAIAssistant && authReady && session && <AIAssistantPage />}
-
-      {showClassMoney && authReady && session && <ClassMoneyPage onBack={() => navigate(ROUTES.advanced)} />}
-
-      {showPushPrompt && !profile?.needs_display_name && (
-        <NotificationPermissionModal
-          blocked={getNotificationPermission() === 'denied'}
-          onAllow={handleAllowPush}
-          onDeny={handleDenyPush}
-        />
-      )}
-
-      <header className="nav">
-        <div className="nav-inner">
-          <a className="brand" href="#trang-chu">
-            <span className="brand-mark">10A4</span>
-            <span className="brand-name">Nguyen Huu Huan</span>
-          </a>
-
-          <nav className="nav-links">
-            {NAV_LINKS.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className={
-                  activeSection === link.href.replace('#', '') ? 'active' : ''
-                }
-              >
-                {link.label}
-              </a>
-            ))}
-          </nav>
-
-          <div className="nav-actions">
-            {profile?.is_member && (
-              <button
-                type="button"
-                className="btn-class btn-class--badge"
-                onClick={() => openClassRoom('home')}
-              >
-                Vô Lớp 10A4
-                {unreadTotal > 0 ? (
-                  <span className="nav-unread-badge" aria-label={`${unreadTotal} thông báo mới`}>
-                    {unreadTotal > 99 ? '99+' : unreadTotal}
-                  </span>
-                ) : null}
-              </button>
-            )}
-
-            {!authReady ? (
-              <button className="btn-verify" disabled>
-                Đang kiểm tra...
-              </button>
-            ) : session ? (
-              <ProfileMenu onLogout={handleSignOut} />
+    <div className="site-shell">
+      <header className="site-nav">
+        <div className="container nav-inner">
+          <Brand />
+          <nav className="nav-actions" aria-label="Điều hướng tài khoản">
+            {authReady && isLoggedIn ? (
+              <>
+                <span className="nav-user" title={displayName}>{displayName}</span>
+                <button className="button button-quiet" type="button" onClick={() => void logout()}>Đăng xuất</button>
+              </>
             ) : (
               <>
-                <button className="btn-verify" onClick={() => openAuth('login')}>
-                  Đăng nhập
-                </button>
-                <button
-                  className="btn-verify"
-                  style={{
-                    background: 'transparent',
-                    color: 'var(--primary)',
-                    border: '1px solid var(--primary)',
-                    boxShadow: 'none',
-                  }}
-                  onClick={() => openAuth('register')}
-                >
-                  Đăng ký
-                </button>
+                <Link className="button button-quiet" to="/dang-nhap">Đăng nhập</Link>
+                <Link className="button button-primary" to="/dang-ky">Đăng ký</Link>
               </>
             )}
-          </div>
+          </nav>
         </div>
       </header>
 
-      <section id="trang-chu" className="hero">
-        <div className="hero-inner">
-          <div className="hero-text">
-            <p className="eyebrow">Trường THPT Nguyễn Hữu Huân</p>
-            <h1>
-              Lớp <span className="highlight">10A4</span>
-            </h1>
-            <p className="hero-desc">
-              Một khóa học, một tập thể — nơi lưu lại những giờ học, những tấm
-              ảnh và tin tức của cả lớp trong suốt năm học.
-            </p>
-            <div className="hero-stats">
-              <div className="stat-card">
-                <span className="stat-label">Giáo viên chủ nhiệm</span>
-                <span className="stat-value">Cô Lê Thị Út</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-label">Niên khóa</span>
-                <span className="stat-value">2026 – 2027</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-label">Trường</span>
-                <span className="stat-value">THPT Nguyễn Hữu Huân</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="hero-photo">
-            <div className="polaroid polaroid--hero">
-              <div className="photo-frame">
-                {heroPhoto ? (
-                  <img
-                    src={heroPhoto.url}
-                    alt={heroPhoto.caption || 'Ảnh lớp 10A4'}
-                  />
+      <main>
+        <section className="hero">
+          <div className="container hero-grid">
+            <div className="hero-copy">
+              <div className="eyebrow"><span className="eyebrow-dot" /> Một cách học mới đang đến</div>
+              <h1>Học nhanh hơn.<br /><span>Chơi vui hơn.</span></h1>
+              <p className="hero-description">Quizly đang được xây dựng để biến những câu hỏi hay thành trải nghiệm học tập vui, nhẹ nhàng và đáng nhớ.</p>
+              <div className="hero-actions">
+                {isLoggedIn ? (
+                  <a className="button button-primary button-large" href="#tinh-nang">Khám phá nền tảng <span aria-hidden="true">→</span></a>
                 ) : (
-                  'Ảnh lớp'
+                  <Link className="button button-primary button-large" to="/dang-ky">Bắt đầu <span aria-hidden="true">→</span></Link>
                 )}
+                <a className="button button-quiet button-large" href="#tinh-nang">Tìm hiểu thêm</a>
               </div>
-              <span className="polaroid-caption">
-                {heroPhoto?.caption || 'Lớp 10A4'}
-              </span>
+              <p className="hero-note">Đây là nền tảng khởi đầu — các chế độ quiz và game chưa khả dụng.</p>
             </div>
+            <QuizPreview />
           </div>
-        </div>
-      </section>
+        </section>
 
-      <EventsSection profile={profile} />
-
-      <section id="gioi-thieu" className="zone zone--shallow">
-        <Bubbles count={5} />
-        <Fish style={{ top: '20%', left: '8%', width: 46, opacity: 0.5 }} />
-        <Fish
-          style={{ top: '60%', right: '10%', width: 34, opacity: 0.4 }}
-          flip
-        />
-        <div className="section-inner">
-          <p className="eyebrow">Giới thiệu</p>
-          <h2>Về lớp chúng mình</h2>
-          <p className="section-desc">
-            Đây là trang thông tin chung của lớp 10A4, trường THPT Nguyễn Hữu
-            Huân — nơi cả lớp cùng lưu giữ hình ảnh, theo dõi thông báo và tìm
-            hiểu về giáo viên chủ nhiệm. Nội dung ở đây sẽ được cập nhật theo
-            từng học kỳ.
-          </p>
-        </div>
-      </section>
-
-      <section id="giao-vien" className="zone zone--mid">
-        <Bubbles count={4} className="bubbles--right" />
-        <Fish style={{ top: '75%', left: '15%', width: 40, opacity: 0.4 }} />
-        <div className="section-inner teacher">
-          <div className="teacher-photo">
-            <div className="photo-frame photo-frame--teacher">
-              {teacherPhoto ? (
-                <img
-                  src={teacherPhoto.url}
-                  alt={teacherPhoto.caption || 'Ảnh giáo viên chủ nhiệm'}
-                />
-              ) : (
-                'Ảnh cô Út'
-              )}
+        <section className="section" id="tinh-nang">
+          <div className="container">
+            <div className="section-heading">
+              <p className="section-overline">Nền móng cho điều thú vị</p>
+              <h2>Học theo cách của bạn</h2>
+              <p>Chúng tôi đang chuẩn bị những công cụ để bạn tạo, chơi và chia sẻ. Các tính năng bên dưới hiện là định hướng tương lai, chưa thể sử dụng.</p>
             </div>
-            {siteImages.teacher.length > 1 && (
-              <div className="teacher-thumbs">
-                {siteImages.teacher.slice(1).map((photo) => (
-                  <img
-                    key={photo.path}
-                    src={photo.url}
-                    alt={photo.caption || 'Giáo viên'}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="teacher-info">
-            <p className="eyebrow">Giáo viên chủ nhiệm</p>
-            <h2>Cô Lê Thị Út</h2>
-            <p className="section-desc">
-              Cô Lê Thị Út là giáo viên chủ nhiệm của lớp 10A4, đồng hành cùng
-              lớp trong các hoạt động học tập và phong trào của trường THPT
-              Nguyễn Hữu Huân.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="anh-lop" className="zone zone--deep">
-        <Fish style={{ top: '12%', left: '6%', width: 36, opacity: 0.35 }} />
-        <Fish style={{ top: '18%', left: '14%', width: 24, opacity: 0.3 }} />
-        <Fish
-          style={{ top: '85%', right: '8%', width: 38, opacity: 0.3 }}
-          flip
-        />
-        <div className="section-inner">
-          <p className="eyebrow">Kỷ niệm</p>
-          <h2>Ảnh lớp</h2>
-          <p className="section-desc">
-            Những khoảnh khắc của lớp 10A4 sẽ được cập nhật tại đây.
-          </p>
-          <div className="gallery-grid">
-            {(galleryPhotos.length
-              ? galleryPhotos
-              : Array.from({ length: PHOTO_PLACEHOLDER_COUNT }, (_, i) => ({
-                  path: `placeholder-${i}`,
-                  url: '',
-                  caption: '',
-                }))
-            ).map((photo, i) => (
-              <div
-                className={`polaroid ${i % 2 === 0 ? 'tilt-left' : 'tilt-right'}`}
-                key={photo.path}
-              >
-                <div className="photo-frame">
-                  {photo.url ? (
-                    <img
-                      src={photo.url}
-                      alt={photo.caption || `Ảnh lớp ${i + 1}`}
-                    />
-                  ) : (
-                    'Ảnh lớp'
-                  )}
-                </div>
-                {photo.caption ? (
-                  <span className="polaroid-caption">{photo.caption}</span>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="thong-bao" className="zone zone--abyss">
-        <Glow count={7} />
-        <Jellyfish style={{ top: '18%', right: '12%', width: 52, opacity: 0.45 }} />
-        <Anglerfish style={{ bottom: '12%', left: '8%', width: 64, opacity: 0.5 }} />
-        <div className="section-inner">
-          <p className="eyebrow">Cộng đồng</p>
-          <h2>Trò chuyện lớp</h2>
-          <p className="section-desc">
-            Gửi lời chào, thông báo nhanh hoặc chia sẻ khoảnh khắc — mọi người
-            trong lớp đều có thể xem.
-          </p>
-
-          <form className="announcement-form" onSubmit={handleSubmit}>
-            <input
-              type="text"
-              placeholder="Tiêu đề"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-            <textarea
-              placeholder="Nội dung..."
-              rows={3}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-            />
-            <input
-              type="text"
-              placeholder="Người gửi (tùy chọn)"
-              value={sender}
-              onChange={(e) => setSender(e.target.value)}
-            />
-            <button type="submit" disabled={submitting}>
-              {submitting ? 'Đang gửi...' : 'Gửi thông báo'}
-            </button>
-          </form>
-
-          <div className="announcement-list">
-            {announcements.length === 0 ? (
-              <p className="announcement-empty">Chưa có tin nhắn nào.</p>
-            ) : (
-              announcements.map((item) => (
-                <article key={item.id} className="announcement-card">
-                  <div className="announcement-card-header">
-                    <h3>{item.title}</h3>
-                    {profile?.role === 'admin' && (
-                      <button
-                        type="button"
-                        className="btn-delete-announcement"
-                        onClick={() => handleDeleteAnnouncement(item.id)}
-                      >
-                        Xóa
-                      </button>
-                    )}
-                  </div>
-                  <p>{item.content}</p>
-                  <div className="announcement-meta">
-                    <span>{item.sender || 'Ẩn danh'}</span>
-                    <span>
-                      {item.created_at
-                        ? new Date(item.created_at).toLocaleString('vi-VN')
-                        : ''}
-                    </span>
-                  </div>
+            <div className="feature-grid">
+              {features.map((feature) => (
+                <article className="feature-card" key={feature.kind}>
+                  <div className="feature-icon"><FeatureIcon kind={feature.kind} /></div>
+                  <h3>{feature.title}</h3>
+                  <p>{feature.description}</p>
+                  <span className="status-pill">Sắp ra mắt · Chưa khả dụng</span>
                 </article>
-              ))
-            )}
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
-      <footer className="site-footer zone zone--floor">
-        <div className="section-inner">
-          <p>Lớp 10A4 · THPT Nguyễn Hữu Huân · Niên khóa 2026 – 2027</p>
-        </div>
+      <footer className="site-footer">
+        <div className="container footer-inner"><Brand /><span>Quizly · Đang xây dựng nền tảng.</span></div>
       </footer>
-
     </div>
   )
 }

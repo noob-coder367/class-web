@@ -18,25 +18,6 @@ export const env = {
   SUPABASE_URL: required('SUPABASE_URL'),
   SUPABASE_SERVICE_ROLE_KEY: required('SUPABASE_SERVICE_ROLE_KEY'),
 
-  // Mã bí mật để đăng ký làm "Thành viên 10A4".
-  // KHÔNG BAO GIỜ đặt giá trị này ở phía frontend.
-  SECRET_CODE: required('SECRET_CODE'),
-
-  // Token GitHub (fine-grained hoặc classic) với quyền contents:write
-  // trên repo class-web. Chỉ cần khi admin thêm/xóa ảnh website.
-  GITHUB_TOKEN: process.env.GITHUB_TOKEN || '',
-  GITHUB_OWNER: process.env.GITHUB_OWNER || 'noob-coder367',
-  GITHUB_REPO: process.env.GITHUB_REPO || 'class-web',
-  GITHUB_BRANCH: process.env.GITHUB_BRANCH || 'main',
-
-  // Web Push (VAPID). Tạo bằng: npx web-push generate-vapid-keys
-  VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || '',
-  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || '',
-  VAPID_SUBJECT: process.env.VAPID_SUBJECT || 'mailto:admin@10a4.local',
-
-  // Public origin của /api (vd https://xxx.onrender.com/api). Dùng cho push receipt URL.
-  API_PUBLIC_URL: String(process.env.API_PUBLIC_URL || '').replace(/\/$/, ''),
-
   // Groq chỉ được gọi từ backend; tuyệt đối không đưa khóa này sang frontend.
   GROQ_API_KEY: process.env.GROQ_API_KEY || '',
   GROQ_MODEL: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',

@@ -5,55 +5,8 @@ import { validateBody } from '../middlewares/validate.middleware.js'
 
 const router = Router()
 
-router.post(
-  '/register',
-  validateBody({ email: 'string', password: 'string' }),
-  authController.register
-)
-
-router.get('/ghost-preview', authController.previewGhost)
-
-router.post(
-  '/resend-confirmation',
-  validateBody({ email: 'string' }),
-  authController.resendConfirmation
-)
-
-router.post(
-  '/login',
-  validateBody({ username: 'string', password: 'string' }),
-  authController.login
-)
-
-router.post(
-  '/forgot-password',
-  validateBody({ username: 'string' }),
-  authController.forgotPassword
-)
-
+router.post('/register', validateBody({ displayName: 'string', email: 'string', password: 'string' }), authController.register)
+router.post('/login', validateBody({ email: 'string', password: 'string' }), authController.login)
 router.get('/me', requireAuth, authController.me)
-
-router.post(
-  '/display-name',
-  requireAuth,
-  validateBody({ username: 'string' }),
-  authController.setDisplayName
-)
-
-router.post(
-  '/change-username',
-  requireAuth,
-  validateBody({ username: 'string' }),
-  authController.changeUsername
-)
-
-router.post(
-  '/change-password',
-  requireAuth,
-  validateBody({ currentPassword: 'string', newPassword: 'string' }),
-  authController.changePassword
-)
-
-router.get('/username-change-status', requireAuth, authController.usernameChangeStatus)
 
 export default router

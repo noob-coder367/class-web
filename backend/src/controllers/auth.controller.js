@@ -2,126 +2,29 @@ import * as authService from '../services/auth.service.js'
 
 export async function register(req, res, next) {
   try {
-    const { username, email, password, isMember, secretCode } = req.body
-    const result = await authService.registerUser({
-      username,
-      email,
-      password,
-      isMember,
-      secretCode,
-    })
-    if (result.ghost) {
-      res.status(201).json({
-        message: 'Đăng ký tài khoản ma thành công.',
-        email: result.email,
-        ghost: true,
-        profile: result.profile,
-        session: result.session,
-      })
-      return
-    }
+    const result = await authService.registerUser(req.body || {})
     res.status(201).json({
-      message: 'Đăng ký thành công. Vui lòng kiểm tra email và bấm link xác nhận.',
+      message: `Tài khoản đã tạo. Hãy mở email ${result.email} để xác nhận đăng ký.`,
       email: result.email,
-      ghost: false,
     })
-  } catch (err) {
-    next(err)
-  }
-}
-
-export async function previewGhost(req, res, next) {
-  try {
-    const result = await authService.previewGhostAccount()
-    res.json(result)
-  } catch (err) {
-    next(err)
-  }
-}
-
-export async function resendConfirmation(req, res, next) {
-  try {
-    const { email } = req.body
-    await authService.resendConfirmation({ email })
-    res.json({ message: 'Email xác nhận đã được gửi lại.' })
-  } catch (err) {
-    next(err)
+  } catch (error) {
+    next(error)
   }
 }
 
 export async function login(req, res, next) {
   try {
-    const { username, password } = req.body
-    const result = await authService.loginUser({ username, password })
+    const result = await authService.loginUser(req.body || {})
     res.json({
       message: 'Đăng nhập thành công.',
       session: result.session,
       profile: result.profile,
     })
-  } catch (err) {
-    next(err)
+  } catch (error) {
+    next(error)
   }
 }
 
-export async function forgotPassword(req, res, next) {
-  try {
-    const { username } = req.body
-    const result = await authService.forgotPassword({ username })
-    res.json({ message: 'Đã gửi email đặt lại mật khẩu.', email: result.email })
-  } catch (err) {
-    next(err)
-  }
-}
-
-export async function me(req, res) {
-  res.json({ profile: authService.toPublicProfile(req.profile) })
-}
-
-export async function setDisplayName(req, res, next) {
-  try {
-    const { username } = req.body
-    const profile = await authService.setDisplayName(req.profile.id, username)
-    res.json({
-      message: 'Đã lưu tên hiển thị.',
-      profile,
-    })
-  } catch (err) {
-    next(err)
-  }
-}
-
-/** Đổi tên sau khi đã có tên (tính vào hạn mức 2 lần/tuần). */
-export async function changeUsername(req, res, next) {
-  try {
-    const { username } = req.body
-    const profile = await authService.setDisplayName(req.profile.id, username, {
-      countAsChange: true,
-    })
-    const status = await authService.getUsernameChangeStatus(req.profile.id)
-    res.json({
-      message: 'Đã đổi tên hiển thị.',
-      profile,
-      usernameChange: status,
-    })
-  } catch (err) {
-    next(err)
-  }
-}
-
-export async function usernameChangeStatus(req, res, next) {
-  try {
-    const status = await authService.getUsernameChangeStatus(req.profile.id)
-    res.json(status)
-  } catch (err) {
-    next(err)
-  }
-}
-
-export async function changePassword(req, res, next) {
-  try {
-    await authService.changePassword(req.profile, req.body || {})
-    res.json({ message: 'Đã đổi mật khẩu.' })
-  } catch (err) {
-    next(err)
-  }
+export function me(req, res) {
+  res.json({ profile: authService.toPublicProfile(req.profile, req.user) })
 }
