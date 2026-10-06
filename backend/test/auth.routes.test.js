@@ -52,6 +52,11 @@ test('class-management API routes are no longer mounted', async () => {
   assert.equal(response.status, 404)
 })
 
+test('AI API routes are no longer mounted', async () => {
+  const { response } = await jsonRequest('/api/ai')
+  assert.equal(response.status, 404)
+})
+
 test('admin role remains recognized and public profiles do not expose legacy username fields', () => {
   assert.equal(isAdminRole('ADMIN'), true)
   assert.equal(isAdminRole('user'), false)

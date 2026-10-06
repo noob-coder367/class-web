@@ -5,9 +5,9 @@ Quizly là nền tảng quiz/game đang ở giai đoạn foundation. Repository 
 ## Cấu trúc
 
 - `frontend/` — React + Vite; responsive UI và các route `/`, `/dang-nhap`, `/dang-ky`.
-- `backend/` — Express API, Supabase Auth, hồ sơ/role và API AI hiện hữu.
-- `supabase/` — cấu hình email và ghi chú/schema liên quan AI còn cần cho hạ tầng.
-- `docs/render-ai-grading-worker.md` — ghi chú triển khai worker AI grading được giữ lại.
+- `backend/` — Express API, Supabase Auth, hồ sơ và kiểm tra role admin.
+- `supabase/` — cấu hình email xác nhận và SQL dọn schema/data legacy.
+- `supabase/RESET-LEGACY.sql` — chạy một lần trên Supabase SQL Editor để xóa data/user/storage class-management cũ, giữ admin.
 
 ## Authentication
 
@@ -17,7 +17,7 @@ Quizly là nền tảng quiz/game đang ở giai đoạn foundation. Repository 
 - Frontend lưu/khôi phục session qua Supabase client; `GET /api/auth/me` yêu cầu bearer token và trả role đã xác thực.
 - Role admin được nhận diện từ profile; dashboard admin chưa được xây trong phase này.
 
-Cấu hình mẫu frontend ở `frontend/.env.example`; backend ở `backend/.env.example`. Service-role key và khóa AI chỉ được đặt ở backend, không đưa vào frontend hoặc Git.
+Cấu hình mẫu frontend ở `frontend/.env.example`; backend ở `backend/.env.example`. Service-role key chỉ được đặt ở backend, không đưa vào frontend hoặc Git.
 
 ## Chạy cục bộ
 
@@ -45,7 +45,3 @@ npm run build
 cd backend
 npm test
 ```
-
-## AI
-
-AI service abstraction, models/provider settings, OCR/vision, quota/retry và worker hiện hữu được giữ nguyên, không xuất hiện trong UI foundation này. Chưa có quiz generation hoặc AI-driven gameplay.

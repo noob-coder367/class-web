@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "worker": "node src/workers/ai-grading.worker.js",
     "test": "SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_SERVICE_ROLE_KEY=test-only-not-a-secret node --test test/**/*.test.js"
   },
   "dependencies": {
@@ -16,10 +15,6 @@
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
     "helmet": "^7.1.0",
-    "morgan": "^1.10.0",
-    "multer": "^2.4.0",
-    "pdf-lib": "^1.17.1",
-    "sharp": "^0.33.5",
-    "web-push": "^3.6.7"
+    "morgan": "^1.10.0"
   }
 }

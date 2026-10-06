@@ -11,13 +11,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 /**
  * Client này CHỈ dùng anon key (public, an toàn để lộ).
- * Dùng cho:
- *  - Lưu/khôi phục session sau khi backend trả về access/refresh token
- *  - Đọc dữ liệu công khai được bảo vệ bởi RLS (announcements, events)
- *  - Realtime subscriptions
+ * Dùng cho lưu/khôi phục session sau khi backend trả về access/refresh token.
  *
  * Mọi thao tác NHẠY CẢM (đăng ký, đăng nhập, quên mật khẩu, admin) phải đi qua
- * backend (xem services/authService.js, services/adminService.js).
+ * backend (xem services/authService.js).
  * Ngoại lệ: đổi mật khẩu sau khi bấm link khôi phục (PASSWORD_RECOVERY) gọi
  * supabase.auth.updateUser() trực tiếp bằng session khôi phục của chính user.
  */
