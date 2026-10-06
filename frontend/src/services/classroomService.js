@@ -509,7 +509,12 @@ export async function deleteExam(id) {
 export async function getExamStatus(id) {
   return apiClient.get(examUrl(id, '/status'), { auth: true })
 }
-
+export async function getExamGradingStatus(id) {
+  return apiClient.get(examUrl(id, '/grading/status'), { auth: true, retry: false })
+}
+export async function startExamGrading(id) {
+  return apiClient.post(examUrl(id, '/grading/start'), {}, { auth: true, retry: false })
+}
 export async function getExamSubmissionDetail(id, userId) {
   return apiClient.get(examUrl(id, `/submissions/${encodeURIComponent(userId)}`), { auth: true })
 }

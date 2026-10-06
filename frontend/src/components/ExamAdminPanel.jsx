@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import * as classroomService from '../services/classroomService.js'
 import { useServerClock } from '../lib/useServerClock.js'
 import ExamStatusTable from './ExamStatusTable.jsx'
+import AIGradingManagement from './AIGradingManagement.jsx'
 import {
   EXAM_MAX_IMAGE, PHASE_LABEL, extOf, formatShort, phaseOf, toLocalInputValue,
 } from '../lib/examUtils.js'
@@ -174,6 +175,12 @@ export default function ExamAdminPanel() {
                 <button type="button" className="ex-btn-sm" onClick={() => setStatusTarget(item)}>Xem bài nộp</button>
                 <button type="button" className="ex-btn-sm ex-btn-sm--danger" onClick={() => remove(item)}>Xóa</button>
               </div>
+              <AIGradingManagement
+                examId={item.id}
+                canManage
+                onViewResults={() => setStatusTarget(item)}
+                onReview={() => setStatusTarget(item)}
+              />
             </article>
           )
         })}

@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../config/supabaseClient.js'
+import { env } from '../config/env.js'
 import { AppError } from './auth.service.js'
 import { enqueueGradingJob, validateAnswerKey } from './ai-grading/index.js'
+import { requestRegrade } from './ai-grading/review.service.js'
 
 /**
  * "Bài tập về nhà → Kiểm tra" và "Quản lý lớp → Kiểm tra".
@@ -36,6 +38,36 @@ const SUBMIT_TYPES = Object.freeze({
 const EXAM_IMAGE_EXT = new Set(['jpg', 'jpeg', 'png', 'webp'])
 
 const asText = (v) => String(v ?? '').trim()
+
+const GRADING_QUEUE_STATUSES = ['pending', 'processing', 'completed', 'needs_review', 'failed', 'rate_limited']
+
+export function buildGradingQueueStatus({ examId, aiEnabled, hasAnswerKey, submissionCount, jobs = [] }) {
+  const queue = Object.fromEntries(GRADING_QUEUE_STATUSES.map((status) => [status, 0]))
+  for (const job of jobs) if (Object.hasOwn(queue, job.status)) queue[job.status] += 1
+  queue.not_queued = Math.max(0, Number(submissionCount || 0) - jobs.length)
+  const processing = queue.processing > 0
+  return {
+    exam_id: examId,
+    ai_enabled: aiEnabled === true,
+    has_answer_key: hasAnswerKey === true,
+    submission_count: Number(submissionCount || 0),
+    queue,
+    worker_status: processing ? 'processing' : 'unavailable',
+    usage: { available: false },
+  }
+}
+
+export function selectGradingCandidates(submissions, jobs) {
+  const bySubmission = new Map((jobs || []).map((job) => [String(job.submission_id), job]))
+  const candidates = []
+  const skipped = []
+  for (const submission of submissions || []) {
+    const job = bySubmission.get(String(submission.id))
+    if (!job || ['failed', 'rate_limited', 'needs_review'].includes(job.status)) candidates.push({ submission, job: job || null })
+    else skipped.push({ submission, job })
+  }
+  return { candidates, skipped }
+}
 
 function extOf(name) {
   const s = asText(name)
@@ -315,6 +347,67 @@ export async function getExamStatus(id) {
       id: r.id, user_id: r.user_id, user_name: r.user_name || null, submitted_at: r.submitted_at,
       file_count: Array.isArray(r.files) ? r.files.length : 0,
     })),
+  }
+}
+
+async function loadExamAnswerKey(examId) {
+  const { data, error } = await supabaseAdmin.from('class_exam_questions')
+    .select('id, question_number, question_text, max_score, expected_answer, rubric')
+    .eq('exam_id', examId).order('question_number').limit(200)
+  if (error) throw dataError(error, 'Không tải được answer key và rubric')
+  if (!data?.length) return { rows: [], valid: false }
+  try {
+    return { rows: data, valid: Boolean(validateAnswerKey(data.map((row) => ({ question_id: row.id, ...row }))).length) }
+  } catch {
+    return { rows: data, valid: false }
+  }
+}
+
+async function loadExamSubmissions(examId) {
+  const { data, error } = await supabaseAdmin.from('class_exam_submissions')
+    .select('id, user_id, files').eq('exam_id', examId).order('submitted_at').limit(1000)
+  if (error) throw dataError(error, 'Không tải được danh sách bài nộp')
+  return data || []
+}
+
+async function loadExamJobs(examId) {
+  const { data, error } = await supabaseAdmin.from('ai_grading_jobs')
+    .select('id, submission_id, status, attempt_count, result').eq('exam_id', examId).limit(1000)
+  if (error) throw dataError(error, 'Không tải được trạng thái hàng chờ AI')
+  return data || []
+}
+
+export async function getExamGradingStatus(id) {
+  const exam = await getExamRow(id)
+  const [submissions, jobs, answerKey] = await Promise.all([
+    loadExamSubmissions(exam.id), loadExamJobs(exam.id), loadExamAnswerKey(exam.id),
+  ])
+  return buildGradingQueueStatus({
+    examId: exam.id,
+    aiEnabled: env.AI_GRADING_ENABLED,
+    hasAnswerKey: answerKey.valid,
+    submissionCount: submissions.length,
+    jobs,
+  })
+}
+
+export async function startExamGrading(id, profile) {
+  const exam = await getExamRow(id)
+  if (!env.AI_GRADING_ENABLED) throw new AppError('AI grading hiện chưa được bật trên backend.', 503)
+  const answerKey = await loadExamAnswerKey(exam.id)
+  if (!answerKey.valid) throw new AppError('Chưa có answer key/rubric hợp lệ. AI chưa thể chấm.', 409)
+  const [submissions, jobs] = await Promise.all([loadExamSubmissions(exam.id), loadExamJobs(exam.id)])
+  const { candidates, skipped } = selectGradingCandidates(submissions, jobs)
+  let enqueued = 0
+  for (const { submission, job } of candidates) {
+    if (job) await requestRegrade('exam', submission.id, profile)
+    else await enqueueGradingJob({ submissionType: 'exam', submissionId: submission.id, userId: submission.user_id, examId: exam.id, files: submission.files || [] })
+    enqueued += 1
+  }
+  return {
+    enqueued,
+    skipped: skipped.length,
+    message: enqueued ? `Đã đưa ${enqueued} bài vào hàng chờ AI.` : 'Không có bài nào cần đưa vào hàng chờ AI.',
   }
 }
 
