@@ -1,14 +1,54 @@
 import { apiClient, saveAccessToken, setSessionSnapshot } from './apiClient.js'
 import { supabase } from '../lib/supabaseClient.js'
 
+const OAUTH_PENDING_KEY = 'quizly:oauth_pending'
+const OAUTH_PENDING_TTL_MS = 10 * 60 * 1000
+
 export async function register({ displayName, email, password }) {
   return apiClient.post('/auth/register', { displayName, email, password })
 }
 
 export async function login({ email, password }) {
+  clearOAuthPending()
   const result = await apiClient.post('/auth/login', { email, password })
   if (result.session) await applySession(result.session)
   return result
+}
+
+/** Đăng nhập Google qua Supabase OAuth. Trình duyệt sẽ chuyển sang Google rồi quay về trang chủ. */
+export async function signInWithGoogle() {
+  try {
+    sessionStorage.setItem(OAUTH_PENDING_KEY, String(Date.now()))
+  } catch {
+    /* sessionStorage không khả dụng: chỉ mất toast thành công */
+  }
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: `${window.location.origin}/`, queryParams: { prompt: 'select_account' } },
+  })
+  if (error) {
+    clearOAuthPending()
+    throw error
+  }
+}
+
+/** true nếu vừa quay về từ luồng Google (dùng 1 lần, hết hạn sau 10 phút). */
+export function consumeOAuthPending() {
+  try {
+    const startedAt = Number(sessionStorage.getItem(OAUTH_PENDING_KEY))
+    sessionStorage.removeItem(OAUTH_PENDING_KEY)
+    return Number.isFinite(startedAt) && startedAt > 0 && Date.now() - startedAt < OAUTH_PENDING_TTL_MS
+  } catch {
+    return false
+  }
+}
+
+function clearOAuthPending() {
+  try {
+    sessionStorage.removeItem(OAUTH_PENDING_KEY)
+  } catch {
+    /* ignore */
+  }
 }
 
 export async function fetchMe() {

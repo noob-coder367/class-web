@@ -1,16 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-
-function Brand() {
-  return (
-    <Link className="brand" to="/" aria-label="Quizly, về trang chủ">
-      <span className="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M7 4.5h10a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5H7A2.5 2.5 0 0 1 4.5 17V7A2.5 2.5 0 0 1 7 4.5Z" stroke="currentColor" strokeWidth="1.8"/><path d="m8 12 2.5 2.5L16 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-      </span>
-      <span>quizly</span>
-    </Link>
-  )
-}
+import SiteHeader, { Brand } from '../components/SiteHeader.jsx'
 
 function FeatureIcon({ kind }) {
   if (kind === 'create') return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
@@ -44,29 +34,11 @@ const features = [
 ]
 
 export default function HomePage() {
-  const { authReady, isLoggedIn, profile, logout } = useAuth()
-  const displayName = profile?.display_name || profile?.email?.split('@')[0] || ''
+  const { isLoggedIn } = useAuth()
 
   return (
     <div className="site-shell">
-      <header className="site-nav">
-        <div className="container nav-inner">
-          <Brand />
-          <nav className="nav-actions" aria-label="Điều hướng tài khoản">
-            {authReady && isLoggedIn ? (
-              <>
-                <span className="nav-user" title={displayName}>{displayName}</span>
-                <button className="button button-quiet" type="button" onClick={() => void logout()}>Đăng xuất</button>
-              </>
-            ) : (
-              <>
-                <Link className="button button-quiet" to="/dang-nhap">Đăng nhập</Link>
-                <Link className="button button-primary" to="/dang-ky">Đăng ký</Link>
-              </>
-            )}
-          </nav>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main>
         <section className="hero">

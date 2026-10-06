@@ -9,7 +9,7 @@ export class AppError extends Error {
   }
 }
 
-const PROFILE_COLUMNS = 'id, username, email, is_member, role, created_at, updated_at'
+const PROFILE_COLUMNS = 'id, username, email, is_member, role, full_name, created_at, updated_at'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function normalizeDisplayName(value) {
@@ -28,7 +28,10 @@ function normalizeEmail(value) {
 
 export function toPublicProfile(profile, user = null) {
   if (!profile) return null
-  const displayName = String(user?.user_metadata?.display_name || user?.email?.split('@')[0] || '')
+  const meta = user?.user_metadata || {}
+  const displayName = String(
+    profile.full_name || meta.display_name || meta.full_name || meta.name || user?.email?.split('@')[0] || ''
+  )
   return {
     id: profile.id,
     display_name: displayName,
@@ -64,8 +67,8 @@ async function sendSignupConfirmation(email) {
 export async function registerUser({ displayName, email: rawEmail, password }) {
   const email = normalizeEmail(rawEmail)
   const name = normalizeDisplayName(displayName)
-  if (typeof password !== 'string' || password.length < 8) {
-    throw new AppError('Mật khẩu cần có ít nhất 8 ký tự.')
+  if (typeof password !== 'string' || password.length < 8 || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+    throw new AppError('Mật khẩu cần có ít nhất 8 ký tự, gồm 1 chữ hoa và 1 chữ số.')
   }
 
   const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -85,6 +88,7 @@ export async function registerUser({ displayName, email: rawEmail, password }) {
     id: userId,
     username: `account-${userId.replaceAll('-', '').slice(0, 24)}`,
     email,
+    full_name: name,
     is_member: false,
   }, { onConflict: 'id' })
 

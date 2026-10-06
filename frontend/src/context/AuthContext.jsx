@@ -1,15 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient.js'
+import { clearAuthRedirectFromUrl, initialAuthRedirect, supabase } from '../lib/supabaseClient.js'
+import { useToast } from './ToastContext.jsx'
 import * as authService from '../services/authService.js'
 import { setSessionSnapshot } from '../services/apiClient.js'
 import { isAdminRole } from '../lib/roles.js'
 
 const AuthContext = createContext(null)
+let redirectErrorHandled = false
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [authReady, setAuthReady] = useState(false)
+  const toast = useToast()
 
   const loadProfile = useCallback(async (currentSession) => {
     let activeSession = currentSession
@@ -49,6 +52,7 @@ export function AuthProvider({ children }) {
       setSession(nextSession)
       setSessionSnapshot(nextSession)
       if (nextSession?.user) {
+        if (event === 'SIGNED_IN' && authService.consumeOAuthPending()) toast.success('Đăng nhập bằng Google thành công')
         if (event !== 'TOKEN_REFRESHED') void loadProfile(nextSession)
       } else {
         setProfile(null)
@@ -59,17 +63,32 @@ export function AuthProvider({ children }) {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [loadProfile])
+  }, [loadProfile, toast])
+
+  // Link email / OAuth quay về với lỗi trên URL (vd: người dùng huỷ Google, link hết hạn)
+  useEffect(() => {
+    const { error } = initialAuthRedirect
+    if (!error || redirectErrorHandled) return
+    redirectErrorHandled = true
+    const fromGoogle = authService.consumeOAuthPending()
+    clearAuthRedirectFromUrl()
+    if (error.expired) toast.error('Liên kết đã hết hạn. Vui lòng thử lại.')
+    else if (fromGoogle) toast.error('Đăng nhập bằng Google không thành công. Vui lòng thử lại.')
+    else toast.error('Không thể hoàn tất yêu cầu. Vui lòng thử lại.')
+  }, [toast])
 
   const logout = useCallback(async () => {
     try {
       await authService.logout()
+      toast.success('Đăng xuất thành công')
+    } catch {
+      toast.error('Không thể đăng xuất hoàn toàn. Vui lòng thử lại.')
     } finally {
       setSession(null)
       setProfile(null)
       setSessionSnapshot(null)
     }
-  }, [])
+  }, [toast])
 
   const value = {
     session,
