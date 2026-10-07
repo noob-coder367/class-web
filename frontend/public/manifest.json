@@ -1,8 +1,16 @@
 {
-  "name": "Quizly",
-  "short_name": "Quizly",
+  "name": "10A4-Quizz",
+  "short_name": "10A4-Quizz",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f5f7fb",
-  "theme_color": "#5746d8"
+  "theme_color": "#5746d8",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "480x480",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }

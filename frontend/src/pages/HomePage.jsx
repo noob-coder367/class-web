@@ -46,7 +46,7 @@ export default function HomePage() {
             <div className="hero-copy">
               <div className="eyebrow"><span className="eyebrow-dot" /> Một cách học mới đang đến</div>
               <h1>Học nhanh hơn.<br /><span>Chơi vui hơn.</span></h1>
-              <p className="hero-description">Quizly đang được xây dựng để biến những câu hỏi hay thành trải nghiệm học tập vui, nhẹ nhàng và đáng nhớ.</p>
+              <p className="hero-description">10A4-Quizz đang được xây dựng để biến những câu hỏi hay thành trải nghiệm học tập vui, nhẹ nhàng và đáng nhớ.</p>
               <div className="hero-actions">
                 {isLoggedIn ? (
                   <a className="button button-primary button-large" href="#tinh-nang">Khám phá nền tảng <span aria-hidden="true">→</span></a>
@@ -83,7 +83,7 @@ export default function HomePage() {
       </main>
 
       <footer className="site-footer">
-        <div className="container footer-inner"><Brand /><span>Quizly · Đang xây dựng nền tảng.</span></div>
+        <div className="container footer-inner"><Brand /><span>10A4-Quizz · Đang xây dựng nền tảng.</span></div>
       </footer>
     </div>
   )

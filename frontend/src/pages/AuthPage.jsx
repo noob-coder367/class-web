@@ -102,7 +102,7 @@ export default function AuthPage({ mode = 'login' }) {
       <main className="login-panel"><div className="login-brand"><Brand /></div><section className="login-card" aria-labelledby="auth-title">
         <nav className="login-tabs" aria-label="Chọn đăng nhập hoặc đăng ký"><Link to={ROUTES.login} className={isRegister ? '' : 'is-active'}>Đăng nhập</Link><Link to={ROUTES.register} className={isRegister ? 'is-active' : ''}>Đăng ký</Link></nav>
         <h1 id="auth-title">{isRegister ? (ghostMode ? 'Tài khoản ma' : 'Tạo tài khoản') : 'Đăng nhập'}</h1>
-        <p className="login-sub">{ghostMode ? 'Tài khoản dùng thử cho thành viên Quizly.' : isRegister ? 'Điền thông tin bên dưới để bắt đầu.' : 'Vui lòng nhập email và mật khẩu để đăng nhập.'}</p>
+        <p className="login-sub">{ghostMode ? 'Tài khoản dùng thử cho thành viên 10A4-Quizz.' : isRegister ? 'Điền thông tin bên dưới để bắt đầu.' : 'Vui lòng nhập email và mật khẩu để đăng nhập.'}</p>
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           {isRegister && !ghostMode && <div className="form-field"><label htmlFor="displayName">Tên hiển thị</label><input id="displayName" value={form.displayName} onChange={setField('displayName')} autoComplete="nickname" maxLength={60} disabled={Boolean(busy)} aria-invalid={Boolean(errors.displayName)} />{errors.displayName && <p className="field-error">{errors.displayName}</p>}</div>}
           {!ghostMode && <div className="form-field"><label htmlFor="email">Email</label><input id="email" type="email" value={form.email} onChange={setField('email')} autoComplete="email" disabled={Boolean(busy)} aria-invalid={Boolean(errors.email)} />{errors.email && <p className="field-error">{errors.email}</p>}</div>}

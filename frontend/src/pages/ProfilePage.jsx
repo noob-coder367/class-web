@@ -157,7 +157,7 @@ export default function ProfilePage() {
       <main className="container profile-main">
         <header className="profile-heading">
           <h1>{authProfile?.needs_display_name ? 'Hoàn tất tài khoản' : 'Thông tin cá nhân'}</h1>
-          <p>{authProfile?.needs_display_name ? 'Vui lòng nhập tên hiển thị trước khi tiếp tục sử dụng Quizly.' : 'Quản lý thông tin tài khoản và bảo mật của bạn.'}</p>
+          <p>{authProfile?.needs_display_name ? 'Vui lòng nhập tên hiển thị trước khi tiếp tục sử dụng 10A4-Quizz.' : 'Quản lý thông tin tài khoản và bảo mật của bạn.'}</p>
         </header>
 
         <section className="profile-card profile-summary" aria-label="Tài khoản">

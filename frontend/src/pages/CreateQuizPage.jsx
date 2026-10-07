@@ -37,7 +37,7 @@ function GoogleRequired() {
         </>
       )}
     >
-      Tài khoản email/mật khẩu vẫn dùng được Quizly, nhưng chỉ tài khoản Google mới được tạo phòng.
+      Tài khoản email/mật khẩu vẫn dùng được 10A4-Quizz, nhưng chỉ tài khoản Google mới được tạo phòng.
     </Notice>
   )
 }
