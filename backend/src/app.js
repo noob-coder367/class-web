@@ -58,6 +58,7 @@ export function createApp() {
   // Chặn flood theo IP trước khi tốn lượt xác thực Supabase; quota theo user nằm trong ai.routes.
   app.use('/api/ai', rateLimit({ ...limiterBase, keyGenerator: ipKey, windowMs: 15 * 60 * 1000, limit: 120 }))
   app.use('/api/quizzes', rateLimit({ ...limiterBase, keyGenerator: ipKey, windowMs: 15 * 60 * 1000, limit: 600 }))
+  app.use('/api/game-rooms', rateLimit({ ...limiterBase, keyGenerator: ipKey, windowMs: 15 * 60 * 1000, limit: 600 }))
   app.use('/api', routes)
   app.use(notFoundHandler)
   app.use(errorHandler)

@@ -42,7 +42,7 @@ function GoogleRequired() {
   )
 }
 
-/** /tao-phong và /tao-phong/:quizId. Quyền được backend xác định; trang này chỉ hiển thị kết quả. */
+/** /tao-quiz và /tao-quiz/:quizId. Quyền được backend xác định; trang này chỉ hiển thị kết quả. */
 export default function CreateQuizPage() {
   const { quizId: routeQuizId } = useParams()
   const [state, setState] = useState({ status: 'loading' })

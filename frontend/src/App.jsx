@@ -6,6 +6,8 @@ import CreateQuizPage from './pages/CreateQuizPage.jsx'
 import HomePage from './pages/HomePage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
 import AdminAccountsPage from './pages/AdminAccountsPage.jsx'
+import CreateRoomPage from './pages/CreateRoomPage.jsx'
+import RoomPage from './pages/RoomPage.jsx'
 import { ROUTES } from './lib/routes.js'
 import './App.css'
 import './account.css'
@@ -42,8 +44,10 @@ function AppRoutes() {
       <Route path={ROUTES.register} element={<AuthRoute mode="register" />} />
       <Route path={ROUTES.profile} element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path={ROUTES.adminAccounts} element={<ProtectedRoute><AdminAccountsPage /></ProtectedRoute>} />
-      <Route path={ROUTES.createRoom} element={<ProtectedRoute><CreateQuizPage /></ProtectedRoute>} />
-      <Route path={`${ROUTES.createRoom}/:quizId`} element={<ProtectedRoute><CreateQuizPage /></ProtectedRoute>} />
+      <Route path={ROUTES.createRoom} element={<ProtectedRoute><CreateRoomPage /></ProtectedRoute>} />
+      <Route path={ROUTES.createQuiz} element={<ProtectedRoute><CreateQuizPage /></ProtectedRoute>} />
+      <Route path={`${ROUTES.createQuiz}/:quizId`} element={<ProtectedRoute><CreateQuizPage /></ProtectedRoute>} />
+      <Route path={`${ROUTES.room}/:code`} element={<ProtectedRoute><RoomPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
     </Routes>
   )

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import SiteHeader, { Brand } from '../components/SiteHeader.jsx'
+import { ROUTES } from '../lib/routes.js'
 
 function FeatureIcon({ kind }) {
   if (kind === 'create') return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
@@ -49,13 +50,13 @@ export default function HomePage() {
               <p className="hero-description">10A4-Quizz đang được xây dựng để biến những câu hỏi hay thành trải nghiệm học tập vui, nhẹ nhàng và đáng nhớ.</p>
               <div className="hero-actions">
                 {isLoggedIn ? (
-                  <a className="button button-primary button-large" href="#tinh-nang">Khám phá nền tảng <span aria-hidden="true">→</span></a>
+                  <Link className="button button-primary button-large" to={ROUTES.createRoom}>🎮 Tạo phòng <span aria-hidden="true">→</span></Link>
                 ) : (
                   <Link className="button button-primary button-large" to="/dang-ky">Bắt đầu <span aria-hidden="true">→</span></Link>
                 )}
                 <a className="button button-quiet button-large" href="#tinh-nang">Tìm hiểu thêm</a>
               </div>
-              <p className="hero-note">Đây là nền tảng khởi đầu — các chế độ quiz và game chưa khả dụng.</p>
+              <p className="hero-note">MVP đầu tiên: Đua tới kho báu — tạo phòng và chơi cùng bạn bè.</p>
             </div>
             <QuizPreview />
           </div>

@@ -5,4 +5,7 @@ export const ROUTES = Object.freeze({
   profile: '/thong-tin-ca-nhan',
   adminAccounts: '/quan-tri/tai-khoan',
   createRoom: '/tao-phong',
+  createQuiz: '/tao-quiz',
+  gameMode: '/tao-phong/game-mode',
+  room: '/phong',
 })
