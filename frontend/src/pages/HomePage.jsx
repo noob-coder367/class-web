@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext.jsx'
 import SiteHeader, { Brand } from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
 
@@ -58,7 +57,6 @@ const features = [
 ]
 
 export default function HomePage() {
-  const { isLoggedIn } = useAuth()
   const [guideOpen, setGuideOpen] = useState(false)
 
   return (
@@ -72,7 +70,7 @@ export default function HomePage() {
               <h1>Học nhanh hơn.<br /><span>Chơi vui hơn.</span></h1>
               <p className="hero-description">10A4-Quizz biến những câu hỏi hay thành trải nghiệm học tập vui, nhẹ nhàng và đáng nhớ.</p>
               <div className="hero-actions">
-                {isLoggedIn ? <Link className="button button-primary button-large" to={ROUTES.createRoom}>🎮 Tạo phòng <span aria-hidden="true">→</span></Link> : <Link className="button button-primary button-large" to={ROUTES.register}>Bắt đầu <span aria-hidden="true">→</span></Link>}
+                <button className="button button-primary button-large" type="button" onClick={() => setGuideOpen(true)}>Hướng dẫn <span aria-hidden="true">→</span></button>
                 <a className="button button-quiet button-large" href="#tinh-nang">Tìm hiểu thêm</a>
               </div>
               <p className="hero-note">MVP đầu tiên: Đua tới kho báu — tạo phòng và chơi cùng bạn bè.</p>
@@ -94,7 +92,7 @@ export default function HomePage() {
                 <p>{features[0].description}</p>
                 <span className="feature-cta">Tạo phòng <span aria-hidden="true">→</span></span>
               </Link>
-              <Link className="feature-card feature-card-link" to={ROUTES.gameMode}>
+              <Link className="feature-card feature-card-link" to={ROUTES.play}>
                 <div className="feature-icon"><FeatureIcon kind="play" /></div>
                 <h3>{features[1].title}</h3>
                 <p>{features[1].description}</p>
