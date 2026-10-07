@@ -4,8 +4,14 @@ import { supabase } from '../lib/supabaseClient.js'
 const OAUTH_PENDING_KEY = 'quizly:oauth_pending'
 const OAUTH_PENDING_TTL_MS = 10 * 60 * 1000
 
-export async function register({ displayName, email, password }) {
-  return apiClient.post('/auth/register', { displayName, email, password })
+export async function register({ displayName, email, password, ghost = false, secretCode = '' }) {
+  const result = await apiClient.post('/auth/register', { displayName, email, password, ghost, secretCode })
+  if (result.session) await applySession(result.session)
+  return result
+}
+
+export async function previewGhostAccount() {
+  return apiClient.get('/auth/ghost-preview')
 }
 
 export async function login({ email, password }) {

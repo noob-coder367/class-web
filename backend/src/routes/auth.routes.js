@@ -5,7 +5,8 @@ import { validateBody } from '../middlewares/validate.middleware.js'
 
 const router = Router()
 
-router.post('/register', validateBody({ displayName: 'string', email: 'string', password: 'string' }), authController.register)
+router.post('/register', authController.register)
+router.get('/ghost-preview', authController.previewGhost)
 router.post('/login', validateBody({ email: 'string', password: 'string' }), authController.login)
 router.get('/me', requireAuth, authController.me)
 

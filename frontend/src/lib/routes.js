@@ -3,5 +3,6 @@ export const ROUTES = Object.freeze({
   login: '/dang-nhap',
   register: '/dang-ky',
   profile: '/thong-tin-ca-nhan',
+  adminAccounts: '/quan-tri/tai-khoan',
   createRoom: '/tao-phong',
 })

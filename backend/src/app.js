@@ -7,7 +7,7 @@ import { env } from './config/env.js'
 import routes from './routes/index.js'
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js'
 
-const AUTH_READ_ONLY_PATHS = new Set(['/me'])
+const AUTH_READ_ONLY_PATHS = new Set(['/me', '/ghost-preview'])
 
 function clientKey(req) {
   const auth = String(req.headers.authorization || '')

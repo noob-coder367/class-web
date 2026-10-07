@@ -45,6 +45,12 @@ export default function ProfilePage() {
   const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
+    if (authProfile?.needs_display_name && state.status === 'ready') {
+      setEditing(true)
+    }
+  }, [authProfile?.needs_display_name, state.status])
+
+  useEffect(() => {
     if (!user?.id) return undefined
     let active = true
     Promise.all([fetchOwnProfile(user.id), fetchAuthIdentity()])
@@ -150,8 +156,8 @@ export default function ProfilePage() {
       <SiteHeader />
       <main className="container profile-main">
         <header className="profile-heading">
-          <h1>Thông tin cá nhân</h1>
-          <p>Quản lý thông tin tài khoản và bảo mật của bạn.</p>
+          <h1>{authProfile?.needs_display_name ? 'Hoàn tất tài khoản' : 'Thông tin cá nhân'}</h1>
+          <p>{authProfile?.needs_display_name ? 'Vui lòng nhập tên hiển thị trước khi tiếp tục sử dụng Quizly.' : 'Quản lý thông tin tài khoản và bảo mật của bạn.'}</p>
         </header>
 
         <section className="profile-card profile-summary" aria-label="Tài khoản">
@@ -186,7 +192,7 @@ export default function ProfilePage() {
               </div>
               <div className="profile-actions">
                 <button className="button button-primary" type="submit" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu thay đổi'}</button>
-                <button className="button button-quiet" type="button" onClick={() => setEditing(false)} disabled={saving}>Hủy</button>
+                {!authProfile?.needs_display_name && <button className="button button-quiet" type="button" onClick={() => setEditing(false)} disabled={saving}>Hủy</button>}
               </div>
             </form>
           ) : (
@@ -208,7 +214,7 @@ export default function ProfilePage() {
           )}
         </section>
 
-        <section className="profile-card" aria-labelledby="profile-password-title">
+        {!authProfile?.needs_display_name && <section className="profile-card" aria-labelledby="profile-password-title">
           <h2 id="profile-password-title">Đổi mật khẩu</h2>
           {identity.hasPassword ? (
             <>
@@ -225,7 +231,7 @@ export default function ProfilePage() {
           ) : (
             <p className="profile-note">Tài khoản này đăng nhập bằng Google nên mật khẩu do Google quản lý. Bạn không cần và không thể đổi mật khẩu tại đây.</p>
           )}
-        </section>
+        </section>}
       </main>
     </div>
   )

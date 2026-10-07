@@ -1,0 +1,26 @@
+.admin-shell { background: #f7f6fb; }
+.admin-main { display: grid; gap: 22px; max-width: 1120px; padding: 36px 0 72px; }
+.admin-page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.admin-page-heading h1 { margin: 0 0 5px; font-family: Manrope, sans-serif; font-size: 30px; letter-spacing: -.05em; }
+.admin-page-heading p:not(.section-overline) { max-width: 680px; margin: 0; color: #7b8499; font-size: 14px; line-height: 1.6; }
+.admin-count { padding: 9px 12px; border-radius: 999px; color: #5144ba; background: #ece9ff; font-size: 12px; font-weight: 800; white-space: nowrap; }
+.admin-card { min-width: 0; }
+.admin-toolbar { display: flex; gap: 10px; margin-bottom: 18px; }
+.admin-toolbar input { flex: 1; min-height: 44px; padding: 0 13px; border: 1px solid var(--border); border-radius: 11px; font: inherit; }
+.account-table-wrap { overflow-x: auto; }
+.account-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+.account-table th { padding: 10px 12px; color: #8a93a4; font-size: 11px; letter-spacing: .05em; text-align: left; text-transform: uppercase; }
+.account-table td { padding: 14px 12px; border-top: 1px solid #eef0f6; color: #4d5870; font-size: 13px; vertical-align: middle; }
+.account-table td:first-child { min-width: 230px; }
+.account-table td:first-child strong, .account-table td:first-child span { display: block; }
+.account-table td:first-child strong { color: var(--foreground); font-size: 14px; }
+.account-table td:first-child span { margin-top: 3px; color: #8790a2; overflow-wrap: anywhere; }
+.provider-badge { display: inline-flex; padding: 5px 9px; border-radius: 999px; background: #f1f3f8; font-size: 11px; font-weight: 800; }
+.provider-google { color: #3267c9; background: #edf4ff; }
+.provider-ghost { color: #6e4aa5; background: #f2eaff; }
+.account-row-actions { display: flex; gap: 7px; justify-content: flex-end; }
+.account-row-actions .button { min-height: 34px; padding: 0 10px; border-radius: 9px; font-size: 12px; }
+.button-danger { color: #b52d40; background: #fff0f1; border-color: #ffcbd0; }
+.button-danger:hover:not(:disabled) { background: #ffe2e5; }
+.admin-loading, .account-empty { padding: 42px 16px; color: #8790a2; text-align: center; }
+@media (max-width: 640px) { .admin-page-heading { align-items: flex-start; flex-direction: column; } .admin-main { padding-top: 24px; } .admin-toolbar { flex-direction: column; } }

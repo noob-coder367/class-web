@@ -17,6 +17,7 @@ export const env = {
 
   SUPABASE_URL: required('SUPABASE_URL'),
   SUPABASE_SERVICE_ROLE_KEY: required('SUPABASE_SERVICE_ROLE_KEY'),
+  SECRET_CODE: process.env.SECRET_CODE || '',
 
   // AI (tuỳ chọn): thiếu key thì /api/ai/generate-questions trả 503 rõ ràng, phần còn lại vẫn chạy.
   AI_PROVIDER: process.env.AI_PROVIDER || 'groq',
