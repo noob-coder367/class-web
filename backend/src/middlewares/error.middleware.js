@@ -1,10 +1,23 @@
 import { AppError } from '../services/auth.service.js'
+import { HttpError } from '../lib/httpError.js'
 
 export function errorHandler(err, req, res, _next) {
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
       message: err.message,
     })
+  }
+
+  if (err instanceof HttpError) {
+    return res.status(err.statusCode).json({ message: err.message, ...(err.code ? { code: err.code } : {}) })
+  }
+
+  // Lỗi của body-parser (JSON hỏng, body quá lớn)
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ message: 'Dữ liệu gửi lên quá lớn (file tối đa 8 MB).', code: 'payload_too_large' })
+  }
+  if (err?.type === 'entity.parse.failed') {
+    return res.status(400).json({ message: 'Dữ liệu gửi lên không hợp lệ.', code: 'bad_request' })
   }
 
   console.error('[Unhandled Error]', err)

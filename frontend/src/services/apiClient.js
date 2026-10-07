@@ -71,8 +71,26 @@ function shouldRetry(method, status, networkError, attempt) {
   return false
 }
 
-async function request(path, { method = 'GET', body, auth = false, retry = true, timeoutMs = FETCH_TIMEOUT_MS, _retried = false, _attempt = 0 } = {}) {
-  const headers = { 'Content-Type': 'application/json' }
+/**
+ * Options:
+ *  - rawBody: gửi `body` nguyên bản (File/Blob/ArrayBuffer) thay vì JSON.stringify, dùng cùng `contentType`.
+ *  - headers: header bổ sung (ví dụ X-File-Name khi upload).
+ */
+async function request(path, options = {}) {
+  const {
+    method = 'GET',
+    body,
+    auth = false,
+    retry = true,
+    timeoutMs = FETCH_TIMEOUT_MS,
+    rawBody = false,
+    contentType = 'application/json',
+    headers: extraHeaders = {},
+    _retried = false,
+    _attempt = 0,
+  } = options
+  const again = (patch) => request(path, { ...options, ...patch })
+  const headers = { 'Content-Type': contentType, ...extraHeaders }
 
   if (auth) {
     const token = await getFreshAccessToken()
@@ -82,19 +100,24 @@ async function request(path, { method = 'GET', body, auth = false, retry = true,
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
+  let payload
+  if (body !== undefined && body !== null && method !== 'GET' && method !== 'HEAD') {
+    payload = rawBody ? body : JSON.stringify(body)
+  }
+
   let res
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       method,
       headers,
-      ...(body && method !== 'GET' && method !== 'HEAD' ? { body: JSON.stringify(body) } : {}),
+      ...(payload !== undefined ? { body: payload } : {}),
       signal: controller.signal,
     })
   } catch (err) {
     clearTimeout(timer)
     if (retry && shouldRetry(method, 0, true, _attempt)) {
       await wait(retryDelayMs(_attempt))
-      return request(path, { method, body, auth, retry, timeoutMs, _retried, _attempt: _attempt + 1 })
+      return again({ _attempt: _attempt + 1 })
     }
     const failed = new Error(
       err?.name === 'AbortError'
@@ -102,6 +125,7 @@ async function request(path, { method = 'GET', body, auth = false, retry = true,
         : 'Không kết nối được máy chủ. Thử lại sau vài giây.'
     )
     failed.status = err?.name === 'AbortError' ? 408 : 0
+    failed.code = err?.name === 'AbortError' ? 'timeout' : 'network'
     throw failed
   }
   clearTimeout(timer)
@@ -119,7 +143,7 @@ async function request(path, { method = 'GET', body, auth = false, retry = true,
       const { data: refreshed, error } = await supabase.auth.refreshSession()
       if (!error && refreshed?.session?.access_token) {
         setSessionSnapshot(refreshed.session)
-        return request(path, { method, body, auth, retry, timeoutMs, _retried: true, _attempt })
+        return again({ _retried: true })
       }
     } catch {
       /* fall through */
@@ -129,11 +153,12 @@ async function request(path, { method = 'GET', body, auth = false, retry = true,
   if (!res.ok) {
     if (retry && shouldRetry(method, res.status, false, _attempt)) {
       await wait(retryDelayMs(_attempt, res.headers.get('Retry-After')))
-      return request(path, { method, body, auth, retry, timeoutMs, _retried, _attempt: _attempt + 1 })
+      return again({ _attempt: _attempt + 1 })
     }
     const message = data?.message || `Lỗi yêu cầu (${res.status})`
     const err = new Error(message)
     err.status = res.status
+    if (data?.code) err.code = data.code
     throw err
   }
 

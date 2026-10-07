@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext.jsx'
 import { ToastProvider } from './context/ToastContext.jsx'
 import AuthPage from './pages/AuthPage.jsx'
+import CreateQuizPage from './pages/CreateQuizPage.jsx'
 import HomePage from './pages/HomePage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
 import { ROUTES } from './lib/routes.js'
@@ -33,6 +34,8 @@ function AppRoutes() {
       <Route path={ROUTES.login} element={<AuthRoute mode="login" />} />
       <Route path={ROUTES.register} element={<AuthRoute mode="register" />} />
       <Route path={ROUTES.profile} element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path={ROUTES.createRoom} element={<ProtectedRoute><CreateQuizPage /></ProtectedRoute>} />
+      <Route path={`${ROUTES.createRoom}/:quizId`} element={<ProtectedRoute><CreateQuizPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
     </Routes>
   )

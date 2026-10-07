@@ -9,6 +9,8 @@ import { normalizeRole } from '../lib/roles.js'
  *
  * Role được normalize theo allowlist — role lạ từ DB bị hạ thành 'user',
  * không thể tự phong quyền bằng cách ghi giá trị tùy ý vào cột role.
+ *
+ * req.accessToken được giữ lại (đã xác minh) để middleware requireGoogle đọc claim amr.
  */
 export async function requireAuth(req, res, next) {
   try {
@@ -26,6 +28,7 @@ export async function requireAuth(req, res, next) {
     }
 
     req.user = result.user
+    req.accessToken = token
     req.profile = {
       ...result.profile,
       role: normalizeRole(result.profile.role),

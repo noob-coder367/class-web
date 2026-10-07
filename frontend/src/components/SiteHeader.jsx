@@ -81,6 +81,10 @@ function AccountMenu() {
             <strong title={email}>{email || name}</strong>
             <span>{getRoleLabel(profile?.role)}</span>
           </div>
+          <Link className="account-item" role="menuitem" to={ROUTES.createRoom} onClick={() => setOpen(false)}>
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>
+            Tạo phòng
+          </Link>
           <Link className="account-item" role="menuitem" to={ROUTES.profile} onClick={() => setOpen(false)}>
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.6" stroke="currentColor" strokeWidth="1.7" /><path d="M5 19.5c.8-3.6 3.6-5.2 7-5.2s6.2 1.6 7 5.2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>
             Thông tin cá nhân
