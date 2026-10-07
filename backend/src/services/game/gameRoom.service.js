@@ -34,7 +34,7 @@ export async function createRoom(userId, body = {}) {
   const maxPlayers = Math.min(12, Math.max(1, Number(body.max_players_per_team) || 4))
   const boardLength = [10, 20, 30, 40, 50].includes(Number(body.board_length)) ? Number(body.board_length) : 20
   const questionLimit = Math.min(quiz.questions.length, Math.max(1, Number(body.question_limit) || quiz.questions.length))
-  const settings = { title: String(body.title || 'Phòng đua kho báu').trim().slice(0, 80), team_count: teamCount, max_players_per_team: maxPlayers, board_length: boardLength, question_limit: questionLimit, timer_enabled: body.timer_enabled !== false, question_time_seconds: 30 }
+  const settings = { title: String(body.title || 'Phòng đua kho báu').trim().slice(0, 80), team_count: teamCount, max_players_per_team: maxPlayers, board_length: boardLength, question_limit: questionLimit, timer_enabled: body.timer_enabled !== false, single_device_mode: body.single_device_mode === true, question_time_seconds: 30 }
   let room
   for (let attempt = 0; attempt < 3; attempt += 1) {
     room = await db(supabaseAdmin.from('game_rooms').insert({ id: randomUUID(), code: makeCode(), host_id: userId, quiz_id: quiz.id, game_mode: 'treasure_race', status: 'lobby', settings }).select(ROOM_COLUMNS).single()).catch((error) => { if (error?.status === 503) throw error; return null })
@@ -92,7 +92,7 @@ export async function startRoom(code, userId) {
   const teams = await db(supabaseAdmin.from('game_teams').select('id').eq('game_id', game.id).order('created_at', { ascending: true }))
   const players = await db(supabaseAdmin.from('game_room_players').select('team_id').eq('room_id', room.id))
   const activeTeamIds = new Set(players.map((p) => p.team_id).filter(Boolean))
-  if (activeTeamIds.size < 2) fail('Cần ít nhất 2 đội có người chơi để bắt đầu.')
+  if (!room.settings.single_device_mode && activeTeamIds.size < 2) fail('Cần ít nhất 2 đội có người chơi để bắt đầu.')
   const ordered = orderTeamsByDice(teams.map((team) => ({ teamId: team.id, value: randomInt(1, 7) })))
   for (let index = 0; index < ordered.length; index += 1) await db(supabaseAdmin.from('game_teams').update({ turn_order: index }).eq('id', ordered[index].teamId))
   await db(supabaseAdmin.from('game_rooms').update({ status: 'playing' }).eq('id', room.id))
@@ -110,7 +110,8 @@ export async function answerRoom(code, userId, body = {}) {
   if (!player) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
   const teams = await db(supabaseAdmin.from('game_teams').select('id, position, turn_order, correct_count, wrong_count, total_movement').eq('game_id', game.id).order('turn_order', { ascending: true }))
   const currentTeam = teams[game.current_turn]
-  if (!currentTeam || player.team_id !== currentTeam.id) fail('Chưa đến lượt đội của bạn.', 409, 'not_your_turn')
+  const isSingleDeviceHost = room.settings.single_device_mode === true && room.host_id === userId
+  if (!currentTeam || (!isSingleDeviceHost && player.team_id !== currentTeam.id)) fail('Chưa đến lượt đội của bạn.', 409, 'not_your_turn')
   const questions = await db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(game.question_index + 1))
   const question = questions?.[game.question_index]
   if (!question) fail('Không còn câu hỏi hợp lệ.', 409, 'no_question')
@@ -124,5 +125,19 @@ export async function answerRoom(code, userId, body = {}) {
   const nextIndex = nextTurnIndex(game.current_turn, teams.length)
   await db(supabaseAdmin.from('game_games').update({ current_turn: nextIndex, question_index: game.question_index + 1, ...(winner ? { status: 'finished', winner_team_id: currentTeam.id, finished_at: new Date().toISOString() } : game.question_index + 1 >= game.total_questions ? { status: 'finished', winner_team_id: null, finished_at: new Date().toISOString() } : {}) }).eq('id', game.id))
   if (winner || game.question_index + 1 >= game.total_questions) await db(supabaseAdmin.from('game_rooms').update({ status: 'finished' }).eq('id', room.id))
+  return getRoomForUser(code, userId)
+}
+
+export async function switchRoomTurn(code, userId, teamId) {
+  const room = await findRoom(code)
+  if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
+  if (room.settings.single_device_mode !== true) fail('Chức năng chuyển đội chỉ dùng cho chế độ một thiết bị.', 403, 'single_device_only')
+  if (room.host_id !== userId) fail('Chỉ người tạo phòng mới có thể chuyển đội.', 403, 'host_required')
+  const game = await db(supabaseAdmin.from('game_games').select('id, status').eq('room_id', room.id).single())
+  if (game.status !== 'playing') fail('Game chưa bắt đầu.', 409, 'game_not_playing')
+  const teams = await db(supabaseAdmin.from('game_teams').select('id, turn_order').eq('game_id', game.id).order('turn_order', { ascending: true }))
+  const nextIndex = teams.findIndex((team) => team.id === teamId)
+  if (nextIndex < 0) fail('Đội không hợp lệ.', 400, 'invalid_team')
+  await db(supabaseAdmin.from('game_games').update({ current_turn: nextIndex }).eq('id', game.id))
   return getRoomForUser(code, userId)
 }
