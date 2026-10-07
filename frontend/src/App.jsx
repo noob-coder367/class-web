@@ -8,6 +8,7 @@ import ProfilePage from './pages/ProfilePage.jsx'
 import AdminAccountsPage from './pages/AdminAccountsPage.jsx'
 import CreateRoomPage from './pages/CreateRoomPage.jsx'
 import RoomPage from './pages/RoomPage.jsx'
+import GameModePickerPage from './pages/GameModePickerPage.jsx'
 import { ROUTES } from './lib/routes.js'
 import './App.css'
 import './account.css'
@@ -44,6 +45,7 @@ function AppRoutes() {
       <Route path={ROUTES.register} element={<AuthRoute mode="register" />} />
       <Route path={ROUTES.profile} element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path={ROUTES.adminAccounts} element={<ProtectedRoute><AdminAccountsPage /></ProtectedRoute>} />
+      <Route path={ROUTES.play} element={<GameModePickerPage />} />
       <Route path={ROUTES.createRoom} element={<ProtectedRoute><CreateRoomPage /></ProtectedRoute>} />
       <Route path={ROUTES.createQuiz} element={<ProtectedRoute><CreateQuizPage /></ProtectedRoute>} />
       <Route path={`${ROUTES.createQuiz}/:quizId`} element={<ProtectedRoute><CreateQuizPage /></ProtectedRoute>} />

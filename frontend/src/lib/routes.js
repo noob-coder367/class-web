@@ -7,5 +7,6 @@ export const ROUTES = Object.freeze({
   createRoom: '/tao-phong',
   createQuiz: '/tao-quiz',
   gameMode: '/tao-phong/game-mode',
+  play: '/choi',
   room: '/phong',
 })

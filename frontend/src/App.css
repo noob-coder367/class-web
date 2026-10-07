@@ -43,7 +43,8 @@
 .preview-answer.is-active { border-color: #dcd7ff; color: #5044b1; background: #f6f5ff; }
 .preview-answer.is-active .answer-key { color: #fff; background: var(--primary); }
 .preview-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 19px; padding-top: 15px; border-top: 1px solid #f0f1f5; color: #9299aa; font-size: 11px; }
-.float-chip { position: absolute; display: flex; align-items: center; gap: 9px; padding: 10px 13px; border: 1px solid #e8eaf2; border-radius: 14px; background: white; box-shadow: var(--shadow-sm); color: #49536a; font-size: 11px; font-weight: 800; }
+.float-chip { position: absolute; display: flex; align-items: center; gap: 9px; padding: 10px 13px; border: 1px solid #e8eaf2; border-radius: 14px; background: white; box-shadow: var(--shadow-sm); color: #49536a; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.float-chip:hover { border-color: #d5d0ff; box-shadow: 0 10px 24px rgba(52, 57, 108, .12); }
 .float-chip svg { width: 17px; height: 17px; color: var(--primary); }
 .float-chip-create { top: 43px; left: 0; transform: rotate(-5deg); }
 .float-chip-play { right: -5px; bottom: 48px; transform: rotate(4deg); }
@@ -54,6 +55,10 @@
 .section-heading p { margin: 12px 0 0; color: var(--muted); font-size: 15px; line-height: 1.65; }
 .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .feature-card { min-height: 222px; padding: 23px; border: 1px solid var(--border); border-radius: 18px; background: var(--card); box-shadow: 0 5px 18px rgba(30,43,75,.025); }
+.feature-card-link { display: block; color: inherit; cursor: pointer; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.feature-card-link:hover, .feature-card-link:focus-visible { border-color: #cfc8ff; box-shadow: 0 14px 30px rgba(66, 57, 160, .12); transform: translateY(-4px); outline: none; }
+.feature-card-muted { opacity: .72; }
+.feature-cta { display: inline-flex; align-items: center; gap: 7px; margin-top: 17px; color: var(--primary); font-size: 12px; font-weight: 800; }
 .feature-icon { width: 44px; height: 44px; display: grid; place-items: center; margin-bottom: 22px; border-radius: 14px; color: var(--primary); background: var(--primary-soft); }
 .feature-card:nth-child(2) .feature-icon { color: #178665; background: #e7f7f0; }
 .feature-card:nth-child(3) .feature-icon { color: #bf7a20; background: #fff4df; }
@@ -63,6 +68,14 @@
 .status-pill { display: inline-flex; margin-top: 17px; padding: 6px 9px; border: 1px solid #eceef4; border-radius: 999px; color: #737d91; background: #f7f8fb; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
 .site-footer { padding: 23px 0; border-top: 1px solid var(--border); color: #8a93a4; background: rgba(255,255,255,.55); font-size: 12px; }
 .footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+.guide-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(28, 34, 56, .42); backdrop-filter: blur(5px); }
+.guide-modal { position: relative; width: min(100%, 500px); padding: 31px; border: 1px solid #e5e7f1; border-radius: 22px; background: #fff; box-shadow: 0 24px 70px rgba(25, 31, 63, .24); }
+.guide-modal h2 { margin: 0 0 20px; color: var(--foreground); font-family: Manrope, sans-serif; font-size: 28px; letter-spacing: -.05em; }
+.guide-close { position: absolute; top: 12px; right: 14px; width: 34px; height: 34px; border: 0; border-radius: 10px; color: #6d768b; background: #f5f6fa; cursor: pointer; font-size: 23px; line-height: 1; }
+.guide-close:hover { color: var(--foreground); background: #eceef5; }
+.guide-list { display: grid; gap: 12px; margin: 0 0 24px; padding-left: 23px; color: #59657c; font-size: 14px; line-height: 1.55; }
+.guide-list strong { color: var(--foreground); }
+.guide-action { width: 100%; }
 .auth-page { min-height: 100vh; display: flex; flex-direction: column; background: var(--background); }
 .auth-main { flex: 1; display: grid; place-items: center; padding: 44px 20px 60px; }
 .auth-card { width: min(100%, 448px); padding: 34px; border: 1px solid var(--border); border-radius: 22px; background: #fff; box-shadow: var(--shadow-sm); }
