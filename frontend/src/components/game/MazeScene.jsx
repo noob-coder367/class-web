@@ -5,11 +5,18 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { mazePosition, normalizeMaze, shortestPath } from '../../lib/maze.js'
 
 const TEAM_COLORS = { blue: '#6d9dff', green: '#67e5b0', purple: '#c09aff', orange: '#ffb56f', pink: '#ff91bb', cyan: '#70e6f5', red: '#ff7c80', gold: '#f7d277' }
-const DEBUG_FULL_LIGHT = true
 const PLAYER_MOVE_DURATION_MS = 75
 const WALL_COLORS = ['#8a5a36', '#7d4f2e', '#94643c', '#86563a']
 const WALL_DETAIL_COLOR = '#4e2f1a'
 const FLOOR_COLORS = ['#4a3524', '#523a28']
+
+// Ánh sáng: lúc chơi chỉ có lửa đuốc màu đỏ, hết game thì bật đèn (sáng dần).
+const TORCH_COLOR = '#ff4a1c'
+const BG_DARK = new THREE.Color('#050206')
+const BG_LIGHT = new THREE.Color('#dce8f5')
+const AMBIENT_DARK = new THREE.Color('#ff5a2a')
+const AMBIENT_LIGHT = new THREE.Color('#ffffff')
+const LIGHT_FADE_SPEED = 1.8
 
 function MazeWalls({ maze }) {
   const meshRef = useRef(null)
@@ -51,7 +58,7 @@ function MazeWalls({ maze }) {
     meshRef.current.instanceMatrix.needsUpdate = true
     if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true
   }, [wallMatrices, wallColors])
-  return <><instancedMesh ref={meshRef} args={[wallGeometry, null, wallMatrices.length]} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={0.9} metalness={0.02} /></instancedMesh><WallDetails matrices={wallDetails} /></>
+  return <><instancedMesh ref={meshRef} args={[wallGeometry, null, wallMatrices.length]} receiveShadow><meshStandardMaterial vertexColors roughness={0.9} metalness={0.02} /></instancedMesh><WallDetails matrices={wallDetails} /></>
 }
 
 function WallDetails({ matrices }) {
@@ -69,11 +76,33 @@ function WallDetails({ matrices }) {
   return <instancedMesh ref={meshRef} args={[null, null, matrices.length]}><boxGeometry args={[0.62, 0.026, 0.018]} /><meshStandardMaterial color={WALL_DETAIL_COLOR} roughness={0.78} metalness={0.04} /></instancedMesh>
 }
 
+// Luôn mount đủ 3 đèn (ambient + 2 directional) và chỉ đổi cường độ: thêm/bớt đèn sẽ làm shader biên dịch lại gây đứng hình.
+function SceneLighting({ lightsOn }) {
+  const ambientRef = useRef(null)
+  const sunRef = useRef(null)
+  const fillRef = useRef(null)
+  const level = useRef(lightsOn ? 1 : 0)
+  useFrame(({ scene }, delta) => {
+    const target = lightsOn ? 1 : 0
+    level.current += (target - level.current) * Math.min(1, delta * LIGHT_FADE_SPEED)
+    if (Math.abs(target - level.current) < 0.002) level.current = target
+    const l = level.current
+    if (ambientRef.current) {
+      ambientRef.current.intensity = 0.01 + l * 1.49
+      ambientRef.current.color.copy(AMBIENT_DARK).lerp(AMBIENT_LIGHT, l)
+    }
+    if (sunRef.current) sunRef.current.intensity = l * 2.2
+    if (fillRef.current) fillRef.current.intensity = l * 0.8
+    if (scene.background?.isColor) scene.background.copy(BG_DARK).lerp(BG_LIGHT, l)
+  })
+  return <><ambientLight ref={ambientRef} intensity={lightsOn ? 1.5 : 0.01} color={lightsOn ? '#ffffff' : '#ff5a2a'} /><directionalLight ref={sunRef} position={[-3, 8, 4]} intensity={lightsOn ? 2.2 : 0} color="#ffffff" /><directionalLight ref={fillRef} position={[4, 6, -5]} intensity={lightsOn ? 0.8 : 0} color="#ffffff" /></>
+}
+
 function Torch({ active }) {
   const flameRef = useRef(null)
   const haloRef = useRef(null)
   const lightRef = useRef(null)
-  const baseIntensity = active ? 16 : 5
+  const baseIntensity = active ? 16 : 6
   useFrame(({ clock }) => {
     const t = clock.elapsedTime
     const pulse = 1 + Math.sin(t * 11) * 0.1 + Math.sin(t * 17) * 0.06
@@ -82,14 +111,34 @@ function Torch({ active }) {
     if (lightRef.current) lightRef.current.intensity = baseIntensity * (0.9 + (pulse - 1) * 1.6)
   })
   return <group position={[0.27, 0.55, -0.08]}>
-    <mesh rotation={[0, 0, -0.35]} castShadow><cylinderGeometry args={[0.03, 0.04, 0.3, 6]} /><meshStandardMaterial color="#6e4329" /></mesh>
-    <mesh ref={flameRef} position={[0.04, 0.19, 0]} scale={[1.1, 1.7, 1.1]}><dodecahedronGeometry args={[0.1, 0]} /><meshBasicMaterial color="#fff1a8" /></mesh>
-    <mesh ref={haloRef} position={[0.04, 0.2, 0]}><sphereGeometry args={[0.34, 16, 12]} /><meshBasicMaterial color="#ffa733" transparent opacity={active ? 0.32 : 0.18} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
-    <pointLight ref={lightRef} position={[0.04, 0.25, 0]} color="#ffb04a" intensity={baseIntensity} distance={active ? 6.5 : 3.5} decay={1.6} />
+    <mesh rotation={[0, 0, -0.35]}><cylinderGeometry args={[0.03, 0.04, 0.3, 6]} /><meshStandardMaterial color="#6e4329" /></mesh>
+    <mesh ref={flameRef} position={[0.04, 0.19, 0]} scale={[1.1, 1.7, 1.1]}><dodecahedronGeometry args={[0.1, 0]} /><meshBasicMaterial color="#ff7a2a" /></mesh>
+    <mesh ref={haloRef} position={[0.04, 0.2, 0]}><sphereGeometry args={[0.34, 16, 12]} /><meshBasicMaterial color="#ff3b12" transparent opacity={active ? 0.32 : 0.18} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
+    <pointLight ref={lightRef} position={[0.04, 0.25, 0]} color={TORCH_COLOR} intensity={baseIntensity} distance={active ? 6.5 : 3.5} decay={1.6} />
   </group>
 }
 
-function Player({ team, active }) {
+const pulseGeometry = new THREE.RingGeometry(0.42, 0.5, 40)
+
+// Báo hiệu tới lượt đội: các vòng tròn phóng to dần rồi mờ mất, lặp lại liên tục.
+function PulseRings({ color, active }) {
+  const refs = useRef([])
+  const materials = useMemo(() => [0, 1, 2].map(() => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false })), [color])
+  useFrame(({ clock }) => {
+    if (!active) return
+    materials.forEach((material, index) => {
+      const mesh = refs.current[index]
+      if (!mesh) return
+      const phase = (clock.elapsedTime * 0.85 + index / 3) % 1
+      const size = 0.5 + phase * 2.8
+      mesh.scale.set(size, size, 1)
+      material.opacity = (1 - phase) * 0.9
+    })
+  })
+  return <group visible={active}>{materials.map((material, index) => <mesh key={index} ref={(node) => { refs.current[index] = node }} position={[0, -0.28, 0]} rotation={[-Math.PI / 2, 0, 0]} geometry={pulseGeometry} material={material} />)}</group>
+}
+
+function Player({ team, active, pulse }) {
   const position = mazePosition(team)
   const x = position.x - 4
   const z = position.y - 4
@@ -113,7 +162,7 @@ function Player({ team, active }) {
     if (groupRef.current) groupRef.current.position.copy(visualPosition.current)
   })
 
-  return <group ref={groupRef} position={[x, 0.42, z]} scale={active ? 1.08 : 0.92}><mesh castShadow><cylinderGeometry args={[0.24, 0.3, 0.62, 6]} /><meshStandardMaterial color={color} emissive={active ? color : '#111522'} emissiveIntensity={active ? 0.55 : 0.12} roughness={0.55} /></mesh><mesh position={[0, 0.38, 0]} castShadow><sphereGeometry args={[0.16, 10, 8]} /><meshStandardMaterial color="#f0c4a0" roughness={0.9} /></mesh><Torch active={active} /></group>
+  return <group ref={groupRef} position={[x, 0.42, z]} scale={active ? 1.08 : 0.92}><mesh><cylinderGeometry args={[0.24, 0.3, 0.62, 6]} /><meshStandardMaterial color={color} emissive={active || pulse ? color : '#111522'} emissiveIntensity={active || pulse ? 0.55 : 0.12} roughness={0.55} /></mesh><mesh position={[0, 0.38, 0]}><sphereGeometry args={[0.16, 10, 8]} /><meshStandardMaterial color="#f0c4a0" roughness={0.9} /></mesh><Torch active={active} /><PulseRings color={color} active={pulse} /></group>
 }
 
 function Floor({ maze }) {
@@ -165,15 +214,17 @@ function GreenPaths({ maze, teams }) {
   </group>)}</>
 }
 
-function MazeContent({ maze, teams, currentTeamId, quality, revealPaths }) {
-  return <><ambientLight intensity={DEBUG_FULL_LIGHT ? 1.5 : quality === 'low' ? 0.035 : 0.055} color={DEBUG_FULL_LIGHT ? '#ffffff' : '#536487'} /><directionalLight position={[-3, 8, 4]} intensity={DEBUG_FULL_LIGHT ? 2.2 : quality === 'low' ? 0.06 : 0.1} color={DEBUG_FULL_LIGHT ? '#ffffff' : '#a5b9e8'} castShadow={!DEBUG_FULL_LIGHT && quality !== 'low'} shadow-mapSize={[256, 256]} />{DEBUG_FULL_LIGHT && <directionalLight position={[4, 6, -5]} intensity={0.8} color="#ffffff" />}<MazeWalls maze={maze} /><Floor maze={maze} /><ExitMarker maze={maze} />{teams.map((team) => <Player key={team.id} team={team} active={team.id === currentTeamId} />)}{revealPaths && <GreenPaths maze={maze} teams={teams} />}</>
+function MazeContent({ maze, teams, currentTeamId, pulseTeamId, lightsOn, revealPaths }) {
+  return <><SceneLighting lightsOn={lightsOn} /><MazeWalls maze={maze} /><Floor maze={maze} /><ExitMarker maze={maze} />{teams.map((team) => <Player key={team.id} team={team} active={team.id === currentTeamId} pulse={team.id === pulseTeamId} />)}{revealPaths && <GreenPaths maze={maze} teams={teams} />}</>
 }
 
-export default function MazeScene({ maze: rawMaze, teams = [], currentTeamId, quality = 'high', revealPaths = false }) {
+// lightsOn=false: tối đen, chỉ có ánh lửa đuốc đỏ. lightsOn=true: bật đèn sáng dần.
+// pulseTeamId: đội đang được báo tới lượt -> hiện các vòng tròn lan toả quanh người chơi của đội đó.
+export default function MazeScene({ maze: rawMaze, teams = [], currentTeamId, pulseTeamId = null, quality = 'high', lightsOn = false, revealPaths = false }) {
   const maze = normalizeMaze(rawMaze)
   if (!maze) return <div className="maze-fallback">Đang dựng mê cung…</div>
   const isLowQuality = quality === 'low'
   const cameraPosition = [0, 14, 0.01]
   const cameraFov = 45
-  return <div className={`maze-canvas maze-quality-${quality}`} aria-label="Mê cung 3D Treasure Race"><Canvas camera={{ position: cameraPosition, fov: cameraFov }} shadows={!DEBUG_FULL_LIGHT && !isLowQuality} dpr={isLowQuality ? 1 : [1, 1.25]} gl={{ antialias: !isLowQuality, powerPreference: 'high-performance' }}><color attach="background" args={[DEBUG_FULL_LIGHT ? '#dce8f5' : '#08101d']} />{!DEBUG_FULL_LIGHT && <fog attach="fog" args={['#08101d', 3.8, 11.5]} />}<MazeContent maze={maze} teams={teams} currentTeamId={currentTeamId} quality={quality} revealPaths={revealPaths} /></Canvas></div>
+  return <div className={`maze-canvas maze-quality-${quality}`} aria-label="Mê cung 3D Treasure Race"><Canvas camera={{ position: cameraPosition, fov: cameraFov }} dpr={isLowQuality ? 1 : [1, 1.25]} gl={{ antialias: !isLowQuality, powerPreference: 'high-performance' }}><color attach="background" args={[lightsOn ? '#dce8f5' : '#050206']} /><MazeContent maze={maze} teams={teams} currentTeamId={currentTeamId} pulseTeamId={pulseTeamId} lightsOn={lightsOn} revealPaths={revealPaths} /></Canvas></div>
 }

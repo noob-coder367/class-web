@@ -1,4 +1,10 @@
-/* Hiện bản đồ lần lượt từng đội */
+/* Hiện bản đồ lần lượt từng đội (mỗi đội 3 giây) */
+.route-hint{animation-duration:3s}
+.route-hint-line{animation-duration:2.2s}
+.route-hint-end{animation-delay:2.1s}
+.route-hint-ripple{transform-box:fill-box;transform-origin:center;opacity:0;animation:route-ripple 1.2s ease-out infinite}
+@keyframes route-ripple{0%{transform:scale(.6);opacity:.95}100%{transform:scale(4.4);opacity:0}}
+.route-hint-label span{color:#f6b94b;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
 .route-hint-label{position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:1;display:flex;align-items:center;gap:8px;padding:8px 16px;border:1px solid #f6b94b;border-radius:999px;color:#fff1c3;background:rgba(11,17,30,.94);box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:14px;white-space:nowrap}
 .route-hint-label strong{font-family:Manrope,sans-serif;font-weight:800}
 .route-hint-label small{color:#8f9cb6;font-weight:700}

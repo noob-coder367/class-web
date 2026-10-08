@@ -9,4 +9,5 @@ export const ROUTES = Object.freeze({
   gameMode: '/tao-phong/game-mode',
   play: '/choi',
   room: '/phong',
+  pet: '/thu-cung',
 })

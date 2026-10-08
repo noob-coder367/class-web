@@ -1,8 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import SiteHeader, { Brand } from '../components/SiteHeader.jsx'
+import PetMascot from '../components/pet/PetMascot.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
+import { loadOutfit } from '../lib/petOutfit.js'
 import { ROUTES } from '../lib/routes.js'
 import { ArrowRight } from 'lucide-react'
+import '../pet.css'
 
 function FeatureIcon({ kind }) {
   if (kind === 'create') return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
@@ -59,6 +63,8 @@ const features = [
 
 export default function HomePage() {
   const [guideOpen, setGuideOpen] = useState(false)
+  const { session } = useAuth()
+  const petOutfit = useMemo(() => loadOutfit(session?.user?.id || 'guest'), [session])
 
   return (
     <div className="site-shell">
@@ -105,6 +111,14 @@ export default function HomePage() {
                 <p>{features[2].description}</p>
                 <span className="status-pill">Sắp ra mắt</span>
               </article>
+              <Link className="feature-card feature-card-link pet-card" to={ROUTES.pet}>
+                <div className="pet-card-art"><PetMascot outfit={petOutfit} size={110} /></div>
+                <div>
+                  <h3>Điều chỉnh giao diện của bạn</h3>
+                  <p>Nuôi linh vật ngọn lửa và thay cho bạn ấy những bộ trang phục thật xinh.</p>
+                  <span className="feature-cta">Tùy chỉnh ngay <ArrowRight className="ico" size={16} aria-hidden="true" /></span>
+                </div>
+              </Link>
             </div>
           </div>
         </section>

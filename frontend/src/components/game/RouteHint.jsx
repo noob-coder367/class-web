@@ -30,7 +30,7 @@ export default function RouteHint({ maze, from, teamName, token, order, total })
   }, [maze, from])
   if (!d) return null
   return <div className="route-hint" role="img" aria-label={`Gợi ý hướng đi tới đích${teamName ? ` của ${teamName}` : ''}`}>
-    {teamName && <div className="route-hint-label"><span className="route-hint-dot" style={{ background: color }} /><strong>{teamName}</strong>{total > 1 && <small>{order}/{total}</small>}</div>}
-    <svg viewBox={`-0.3 -0.3 ${maze.width + 0.6} ${maze.height + 0.6}`}><path className="route-hint-line" d={d} pathLength="1" fill="none" stroke={color} strokeWidth="0.2" strokeLinecap="round" strokeLinejoin="round" /><circle cx={start[0]} cy={start[1]} r="0.24" fill={color} /><circle className="route-hint-end" cx={end[0]} cy={end[1]} r="0.3" fill="none" stroke={color} strokeWidth="0.1" /></svg>
+    {teamName && <div className="route-hint-label"><span className="route-hint-dot" style={{ background: color }} /><span>Tới lượt</span><strong>{teamName}</strong>{total > 1 && <small>{order}/{total}</small>}</div>}
+    <svg viewBox={`-0.3 -0.3 ${maze.width + 0.6} ${maze.height + 0.6}`}>{[0, 0.4, 0.8].map((delay) => <circle key={delay} className="route-hint-ripple" cx={start[0]} cy={start[1]} r="0.26" fill="none" stroke={color} strokeWidth="0.07" style={{ animationDelay: `${delay}s` }} />)}<path className="route-hint-line" d={d} pathLength="1" fill="none" stroke={color} strokeWidth="0.2" strokeLinecap="round" strokeLinejoin="round" /><circle cx={start[0]} cy={start[1]} r="0.24" fill={color} /><circle className="route-hint-end" cx={end[0]} cy={end[1]} r="0.3" fill="none" stroke={color} strokeWidth="0.1" /></svg>
   </div>
 }
