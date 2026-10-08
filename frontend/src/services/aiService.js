@@ -15,9 +15,19 @@ export async function generateQuestions({ mode, text, file, count, types, diffic
     return apiClient.post(`/ai/generate-questions?${query}`, file, {
       ...common,
       rawBody: true,
-      contentType: 'application/octet-stream',
+      contentType: file.type?.startsWith('image/') ? file.type : 'application/octet-stream',
       headers: { 'X-File-Name': encodeURIComponent(file.name) },
     })
   }
   return apiClient.post('/ai/generate-questions', { text, count, types: types || undefined, difficulty }, common)
+}
+export async function ocrImage(file) {
+  return apiClient.post('/ai/ocr-image', file, {
+    auth: true,
+    retry: false,
+    rawBody: true,
+    contentType: file.type || 'image/jpeg',
+    timeoutMs: 60_000,
+    headers: { 'X-File-Name': encodeURIComponent(file.name || 'image.jpg') },
+  })
 }

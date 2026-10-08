@@ -13,8 +13,9 @@ router.post(
   requireGoogle,
   aiBurstLimiter,
   aiDailyLimiter,
-  express.raw({ type: 'application/octet-stream', limit: FILE_LIMITS.MAX_BYTES }),
-  aiController.generate,
+    express.raw({ type: ['application/octet-stream', 'image/*'], limit: FILE_LIMITS.MAX_BYTES }),
+    aiController.generate,
 )
+router.post('/ocr-image', requireAuth, requireGoogle, express.raw({ type: 'image/*', limit: FILE_LIMITS.MAX_BYTES }), aiController.ocrImage)
 
 export default router

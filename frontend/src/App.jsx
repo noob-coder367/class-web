@@ -14,6 +14,7 @@ import { ROUTES } from './lib/routes.js'
 import './App.css'
 import './account.css'
 import './admin-accounts.css'
+import './admin-extensions.css'
 
 function RouteLoading() {
   return <main className="route-loading" aria-label="Đang tải phiên đăng nhập"><span /></main>

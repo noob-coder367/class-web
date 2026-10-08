@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { generateQuestions } from '../../services/aiService.js'
+import { generateQuestions, ocrImage } from '../../services/aiService.js'
 import { describeApiError } from '../../services/quizService.js'
 import { QUESTION_TYPES, TYPE_LABELS } from '../../lib/questionModel.js'
 import FileDropzone from './FileDropzone.jsx'
@@ -23,6 +23,7 @@ export default function AIQuestionGenerator({ onGenerated, disabled = false }) {
   const [types, setTypes] = useState([...QUESTION_TYPES])
   const [difficulty, setDifficulty] = useState('auto')
   const [phase, setPhase] = useState('idle') // idle | reading | generating
+  const [ocrText, setOcrText] = useState('')
   const [error, setError] = useState('')
   const timer = useRef(null)
   const busy = phase !== 'idle'
@@ -37,16 +38,31 @@ export default function AIQuestionGenerator({ onGenerated, disabled = false }) {
   const typesReady = typeMode === 'auto' || types.length > 0
   const countValid = Number.isInteger(count) && count >= 1 && count <= 30
 
+  const chooseFile = async (candidate) => {
+    setFile(candidate)
+    setOcrText('')
+    setError('')
+    if (!candidate?.type?.startsWith('image/')) return
+    setPhase('reading')
+    try {
+      const result = await ocrImage(candidate)
+      setOcrText(result.text || '')
+    } catch (err) {
+      setFile(null)
+      setError(describeApiError(err, 'Không đọc được nội dung trong ảnh. Hãy thử ảnh rõ hơn.'))
+    } finally { setPhase('idle') }
+  }
   const submit = async () => {
     if (busy || !sourceReady || !typesReady || !countValid) return
     setError('')
-    setPhase(mode === 'file' ? 'reading' : 'generating')
-    if (mode === 'file') timer.current = setTimeout(() => setPhase('generating'), 2500)
+    const image = mode === 'file' && file?.type?.startsWith('image/')
+    setPhase(mode === 'file' && !image ? 'reading' : 'generating')
+    if (mode === 'file' && !image) timer.current = setTimeout(() => setPhase('generating'), 2500)
     try {
       const result = await generateQuestions({
-        mode,
-        text,
-        file,
+        mode: image ? 'text' : mode,
+        text: image ? ocrText : text,
+        file: image ? null : file,
         count,
         types: typeMode === 'custom' ? types : null,
         difficulty,
@@ -96,8 +112,9 @@ export default function AIQuestionGenerator({ onGenerated, disabled = false }) {
           <span className="qz-muted qz-counter">{text.length.toLocaleString('vi-VN')} / {MAX_TEXT.toLocaleString('vi-VN')}</span>
         </div>
       ) : (
-        <FileDropzone file={file} onFile={setFile} onReject={setError} disabled={busy} />
+        <FileDropzone file={file} onFile={(candidate) => void chooseFile(candidate)} onReject={setError} disabled={busy} />
       )}
+      {ocrText && <div className="qz-ocr-preview"><strong>Đã đọc được nội dung từ ảnh</strong><textarea className="qz-input qz-textarea" rows={5} value={ocrText} readOnly aria-label="Nội dung OCR xem trước" /></div>}
 
       <div className="qz-ai-options">
         <div className="qz-field">

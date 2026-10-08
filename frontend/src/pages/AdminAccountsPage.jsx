@@ -7,15 +7,21 @@ import { ROUTES } from '../lib/routes.js'
 import { GAME_MODES } from '../lib/gameModes.js'
 import * as accountService from '../services/adminAccountService.js'
 import { deleteGameModeImage, listGameModeImages, saveGameModeContent, uploadGameModeImage } from '../services/gameModeImageService.js'
+import AdminRoomsWorkspace from '../components/admin/AdminRoomsWorkspace.jsx'
+import AdminQuestionsWorkspace from '../components/admin/AdminQuestionsWorkspace.jsx'
 
 const providerLabels = { google: 'Google', email: 'Email', ghost: 'Tài khoản ma', unknown: 'Không rõ' }
 const navItems = [
   { id: 'accounts', label: 'Tài khoản', icon: 'users' },
+  { id: 'rooms', label: 'Quản lý phòng', icon: 'rooms' },
+  { id: 'questions', label: 'Quản lý các câu hỏi', icon: 'questions' },
   { id: 'game-images', label: 'Quản lý các trò chơi', icon: 'images' },
   { id: 'settings', label: 'Cài đặt chung', icon: 'settings' },
 ]
 
 function NavIcon({ name }) {
+  if (name === 'rooms') return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.7"/><path d="M7 9h10M7 13h6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>
+  if (name === 'questions') return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 5h14v14H5z" stroke="currentColor" strokeWidth="1.7"/><path d="M8 9h8M8 13h8M8 17h5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>
   if (name === 'settings') {
     return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" stroke="currentColor" strokeWidth="1.7"/><path d="m19 13.2 1.2 1-.9 1.6-1.5-.5a7.6 7.6 0 0 1-1.4 1l-.2 1.6h-1.9l-.5-1.5a7.4 7.4 0 0 1-1.7.1l-.8 1.3-1.7-.7.2-1.6a7.5 7.5 0 0 1-1.3-1.1l-1.5.4-.8-1.6 1.1-1.1a7.8 7.8 0 0 1-.2-1.7l-1.3-.8.7-1.7 1.5.2a7.3 7.3 0 0 1 1.2-1.3L9 5.2l1.6-.8.9 1.2a7.6 7.6 0 0 1 1.7-.2l.7-1.4 1.8.6-.1 1.6a7.4 7.4 0 0 1 1.4 1l1.5-.5.9 1.6-1.1 1.1c.2.5.3 1.1.3 1.7Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
   }
@@ -193,7 +199,7 @@ export default function AdminAccountsPage() {
         <div className="browser-sidebar-footer"><span className="browser-avatar">{(profile?.display_name || profile?.email || 'A').charAt(0).toUpperCase()}</span><div><strong>{profile?.display_name || 'Quản trị viên'}</strong><small>Administrator</small></div></div>
       </aside>
       <section className="browser-content">
-        {section === 'game-images' ? <GameImagesWorkspace toast={toast} /> : section === 'settings' ? <>
+        {section === 'rooms' ? <AdminRoomsWorkspace toast={toast} /> : section === 'questions' ? <AdminQuestionsWorkspace toast={toast} /> : section === 'game-images' ? <GameImagesWorkspace toast={toast} /> : section === 'settings' ? <>
           <header className="browser-heading"><div><p className="browser-eyebrow">Cấu hình giao diện</p><h1>Cài đặt chung</h1><p>Tùy chỉnh không gian quản trị theo phong cách của lớp.</p></div></header>
           <div className="browser-panel settings-panel"><div><h2>Ảnh nền dashboard</h2><p>Tải ảnh lên để hiển thị phía sau giao diện quản trị. Ảnh chỉ được áp dụng trong phiên xem hiện tại.</p></div><label className="upload-background"><input type="file" accept="image/*" onChange={chooseBackground} /><span>{background ? 'Đổi ảnh nền' : 'Chọn ảnh nền'}</span></label><div className="settings-preview" style={background ? { backgroundImage: `linear-gradient(90deg, rgba(5,9,12,.5), rgba(5,9,12,.12)), url(${background})` } : undefined}><strong>{background ? 'Ảnh nền đã sẵn sàng' : 'Chưa có ảnh nền'}</strong><small>Ảnh sẽ được làm tối để nội dung luôn dễ đọc.</small></div></div>
         </> : <>
