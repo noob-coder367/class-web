@@ -5,4 +5,6 @@ export const get = wrap(async (req, res) => res.json({ room: await gameRoomServi
 export const join = wrap(async (req, res) => res.json({ room: await gameRoomService.joinRoom(req.params.code, req.user.id, req.body) }))
 export const start = wrap(async (req, res) => res.json({ room: await gameRoomService.startRoom(req.params.code, req.user.id) }))
 export const answer = wrap(async (req, res) => res.json({ room: await gameRoomService.answerRoom(req.params.code, req.user.id, req.body) }))
+export const diceComplete = wrap(async (req, res) => res.json({ room: await gameRoomService.completeDiceRoll(req.params.code, req.user.id) }))
+export const move = wrap(async (req, res) => res.json({ room: await gameRoomService.moveRoom(req.params.code, req.user.id, req.body.direction) }))
 export const switchTurn = wrap(async (req, res) => res.json({ room: await gameRoomService.switchRoomTurn(req.params.code, req.user.id, req.body.team_id) }))

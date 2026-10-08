@@ -1,0 +1,1 @@
+{"routes":[{"path":"/","title":"Trang chủ"},{"path":"/tao-phong","title":"Tạo phòng"},{"path":"/tao-phong/:quizId","title":"Sửa phòng"},{"path":"/phong/:code","title":"Treasure Race"}]}

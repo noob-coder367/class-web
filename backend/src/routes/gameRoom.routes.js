@@ -8,5 +8,7 @@ router.get('/:code', controller.get)
 router.post('/:code/join', controller.join)
 router.post('/:code/start', controller.start)
 router.post('/:code/answer', controller.answer)
+router.post('/:code/dice-complete', controller.diceComplete)
+router.post('/:code/move', controller.move)
 router.post('/:code/switch-turn', controller.switchTurn)
 export default router
