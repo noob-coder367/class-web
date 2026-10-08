@@ -177,6 +177,36 @@ export async function moveRoom(code, userId, direction) {
   return getRoomForUser(code, userId, { collision: false, direction, remaining_moves: Math.max(0, nextMoves), moved: true })
 }
 
+export async function moveRoomBatch(code, userId, directions = []) {
+  const { room, game, teams } = await getActiveGame(code)
+  if (game.status !== 'playing' || game.phase !== GAME_PHASES.MOVEMENT) fail('Chưa đến phase di chuyển.', 409, 'game_not_movement')
+  if (!Array.isArray(directions) || !directions.length || directions.length > 50 || !directions.every((d) => DIRECTIONS[d])) fail('Hướng di chuyển không hợp lệ.', 400, 'invalid_direction')
+  const currentTeam = await assertTurn(room, game, teams, userId)
+  if (!game.remaining_moves) fail('Đã hết lượt di chuyển.', 409, 'no_remaining_moves')
+  let position = { x: currentTeam.maze_x, y: currentTeam.maze_y }
+  let remaining = game.remaining_moves
+  let steps = 0
+  let reachedExit = false
+  let collision = false
+  for (const direction of directions) {
+    if (remaining <= 0 || reachedExit) break
+    const result = canMove(game.maze_layout, position, direction)
+    if (!result.allowed) { collision = true; continue }
+    position = result.position
+    remaining -= 1
+    steps += 1
+    reachedExit = isExit(position, game.maze_layout)
+  }
+  if (steps > 0) {
+    await db(supabaseAdmin.from('game_teams').update({ maze_x: position.x, maze_y: position.y, position: currentTeam.position + steps, total_movement: (currentTeam.total_movement || 0) + steps }).eq('id', currentTeam.id))
+    const movedTeam = { ...currentTeam, maze_x: position.x, maze_y: position.y }
+    if (reachedExit) await finishOrAdvance(room, game, teams, currentTeam, currentTeam.id)
+    else if (remaining <= 0) await finishOrAdvance(room, game, teams.map((team) => team.id === currentTeam.id ? movedTeam : team), movedTeam)
+    else await db(supabaseAdmin.from('game_games').update({ remaining_moves: remaining }).eq('id', game.id))
+  }
+  return getRoomForUser(code, userId, { collision: collision && steps === 0, moved: steps > 0, remaining_moves: Math.max(0, remaining) })
+}
+
 export async function completeDiceRoll(code, userId) {
   const { room, game, teams } = await getActiveGame(code)
   if (game.status !== 'playing' || game.phase !== GAME_PHASES.DICE_ROLL) fail('Không có lượt xúc xắc đang chờ.', 409, 'game_not_dice_roll')

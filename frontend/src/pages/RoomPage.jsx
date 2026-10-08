@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import SiteHeader from '../components/SiteHeader.jsx'
-import { completeDiceRoll, getRoom, joinRoom, moveRoom, startRoom, submitAnswer, switchRoomTurn } from '../services/gameRoomService.js'
+import { completeDiceRoll, getRoom, joinRoom, moveRoomBatch, startRoom, submitAnswer, switchRoomTurn } from '../services/gameRoomService.js'
 import { ROUTES } from '../lib/routes.js'
 import { mazeCell, normalizeMaze } from '../lib/maze.js'
 import MazeScene from '../components/game/MazeScene.jsx'
@@ -28,7 +28,8 @@ export default function RoomPage() {
   const questionStarted = useRef(Date.now())
   const roomRef = useRef(null)
   const pendingMoves = useRef(0)
-  const moveQueue = useRef(Promise.resolve())
+  const outbox = useRef([])
+  const flushing = useRef(false)
   const toastTimer = useRef(null)
 
   const applyRoom = useCallback((next) => { roomRef.current = next; setRoom(next) }, [])
@@ -44,6 +45,23 @@ export default function RoomPage() {
 
   const run = async (action) => { setBusy(true); setError(''); try { applyRoom(await action()) } catch (e) { setError(e.message) } finally { setBusy(false) } }
   const submit = async (event) => { event.preventDefault(); if (!answer) return; await run(() => submitAnswer(code, { answer, response_time_ms: Date.now() - questionStarted.current })) }
+  const flush = useCallback(async () => {
+    if (flushing.current) return
+    flushing.current = true
+    try {
+      while (outbox.current.length) {
+        const batch = outbox.current.splice(0)
+        const serverRoom = await moveRoomBatch(code, batch)
+        pendingMoves.current -= batch.length
+        if (pendingMoves.current === 0) applyRoom(serverRoom)
+      }
+    } catch (e) {
+      outbox.current = []
+      pendingMoves.current = 0
+      setError(e.message)
+      getRoom(code).then(applyRoom).catch(() => {})
+    } finally { flushing.current = false }
+  }, [code, applyRoom])
   // Di chuyển tức thì: tính trước ở client (optimistic), gửi server theo hàng đợi, không chờ phản hồi mới cho đi tiếp.
   const move = useCallback((direction) => {
     const current = roomRef.current
@@ -69,16 +87,9 @@ export default function RoomPage() {
     const remaining = reachedExit ? 0 : game.remaining_moves - 1
     applyRoom({ ...current, movement_feedback: null, teams: current.teams.map((t) => (t.id === team.id ? { ...t, maze_x: nx, maze_y: ny } : t)), game: { ...game, remaining_moves: remaining } })
     pendingMoves.current += 1
-    moveQueue.current = moveQueue.current.then(() => moveRoom(code, direction)).then((serverRoom) => {
-      pendingMoves.current -= 1
-      if (pendingMoves.current === 0) applyRoom(serverRoom)
-    }).catch((e) => {
-      pendingMoves.current = 0
-      moveQueue.current = Promise.resolve()
-      setError(e.message)
-      getRoom(code).then(applyRoom).catch(() => {})
-    })
-  }, [code, applyRoom])
+    outbox.current.push(direction)
+    flush()
+  }, [applyRoom, flush])
   useEffect(() => { const onKey = (event) => { const direction = KEY_TO_DIRECTION[event.key]; if (!direction || phase !== 'movement') return; event.preventDefault(); move(direction) }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey) }, [phase, move])
   const finishDice = useCallback(() => { run(() => completeDiceRoll(code)) }, [code])
 

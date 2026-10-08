@@ -7,4 +7,5 @@ export const start = wrap(async (req, res) => res.json({ room: await gameRoomSer
 export const answer = wrap(async (req, res) => res.json({ room: await gameRoomService.answerRoom(req.params.code, req.user.id, req.body) }))
 export const diceComplete = wrap(async (req, res) => res.json({ room: await gameRoomService.completeDiceRoll(req.params.code, req.user.id) }))
 export const move = wrap(async (req, res) => res.json({ room: await gameRoomService.moveRoom(req.params.code, req.user.id, req.body.direction) }))
+export const moveBatch = wrap(async (req, res) => res.json({ room: await gameRoomService.moveRoomBatch(req.params.code, req.user.id, req.body.directions) }))
 export const switchTurn = wrap(async (req, res) => res.json({ room: await gameRoomService.switchRoomTurn(req.params.code, req.user.id, req.body.team_id) }))

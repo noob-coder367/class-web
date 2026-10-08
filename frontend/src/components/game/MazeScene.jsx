@@ -135,7 +135,7 @@ export default function MazeScene({ maze: rawMaze, teams = [], currentTeamId, qu
   const maze = normalizeMaze(rawMaze)
   if (!maze) return <div className="maze-fallback">Đang dựng mê cung…</div>
   const isLowQuality = quality === 'low'
-  const cameraPosition = isLowQuality ? [0, 8.4, 7.2] : [0, 10.2, 9.3]
-  const cameraFov = isLowQuality ? 49 : 52
+  const cameraPosition = [0, 14, 0.01]
+  const cameraFov = 45
   return <div className={`maze-canvas maze-quality-${quality}`} aria-label="Mê cung 3D Treasure Race"><Canvas camera={{ position: cameraPosition, fov: cameraFov }} shadows={!DEBUG_FULL_LIGHT && !isLowQuality} dpr={isLowQuality ? 1 : [1, 1.25]} gl={{ antialias: !isLowQuality, powerPreference: 'high-performance' }}><color attach="background" args={[DEBUG_FULL_LIGHT ? '#dce8f5' : '#08101d']} />{!DEBUG_FULL_LIGHT && <fog attach="fog" args={['#08101d', 3.8, 11.5]} />}<MazeContent maze={maze} teams={teams} currentTeamId={currentTeamId} quality={quality} /></Canvas></div>
 }

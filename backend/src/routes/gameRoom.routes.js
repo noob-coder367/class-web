@@ -10,5 +10,6 @@ router.post('/:code/start', controller.start)
 router.post('/:code/answer', controller.answer)
 router.post('/:code/dice-complete', controller.diceComplete)
 router.post('/:code/move', controller.move)
+router.post('/:code/move-batch', controller.moveBatch)
 router.post('/:code/switch-turn', controller.switchTurn)
 export default router

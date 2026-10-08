@@ -32,6 +32,10 @@ export const moveRoom = async (code, direction) => {
   const { room } = await apiClient.post(`/game-rooms/${code}/move`, { direction }, { auth: true, retry: false })
   return room
 }
+export const moveRoomBatch = async (code, directions) => {
+  const { room } = await apiClient.post(`/game-rooms/${code}/move-batch`, { directions }, { auth: true, retry: false })
+  return room
+}
 export const switchRoomTurn = async (code, teamId) => {
   const { room } = await apiClient.post(`/game-rooms/${code}/switch-turn`, { team_id: teamId }, { auth: true, retry: false })
   return room
