@@ -127,11 +127,11 @@ export default function HomePage() {
               </div>
             </Link>
             <div className="feature-grid">
-              <Link className="feature-card feature-card-link" to={ROUTES.createRoom}>
+              <Link className="feature-card feature-card-link" to={ROUTES.createQuiz}>
                 <div className="feature-icon"><FeatureIcon kind="create" /></div>
                 <h3>{features[0].title}</h3>
                 <p>{features[0].description}</p>
-                <span className="feature-cta">Tạo phòng <ArrowRight className="ico" size={16} aria-hidden="true" /></span>
+                <span className="feature-cta">Tạo quiz <ArrowRight className="ico" size={16} aria-hidden="true" /></span>
               </Link>
               <Link className="feature-card feature-card-link" to={ROUTES.play}>
                 <div className="feature-icon"><FeatureIcon kind="play" /></div>
