@@ -4,6 +4,7 @@ import SiteHeader from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
 import { joinRoom } from '../services/gameRoomService.js'
 import '../game.css'
+import { ArrowRight, ChevronRight, Lock, Play, Plus, Trophy } from 'lucide-react'
 
 function JoinRoomModal({ onClose }) {
   const navigate = useNavigate()
@@ -63,7 +64,7 @@ export default function GameModePickerPage() {
     <div className="game-shell">
       <SiteHeader />
       <main className="container game-main">
-        <div className="game-breadcrumb">Play <span>→</span> Chọn Game Mode</div>
+        <div className="game-breadcrumb">Play <ChevronRight className="ico" size={14} aria-hidden="true" /> Chọn Game Mode</div>
         <header className="game-heading">
           <p className="game-overline">Play</p>
           <h1>Chọn Game Mode</h1>
@@ -71,18 +72,18 @@ export default function GameModePickerPage() {
         </header>
         <section className="mode-grid" aria-label="Danh sách game mode">
           <article className="mode-card mode-card-active">
-            <div className="mode-icon">🏆</div>
-            <div className="mode-card-topline"><span className="live-pill">Sẵn sàng</span><span className="mode-arrow" aria-hidden="true">→</span></div>
+            <div className="mode-icon"><Trophy size={38} aria-hidden="true" /></div>
+            <div className="mode-card-topline"><span className="live-pill">Sẵn sàng</span><span className="mode-arrow" aria-hidden="true"><ArrowRight size={22} /></span></div>
             <h2>Đua tới kho báu</h2>
             <p>Chia đội, trả lời câu hỏi và đua tới kho báu. Đội trả lời tốt sẽ tiến về phía trước nhanh hơn.</p>
-            <div className="mode-preview"><span>START</span><i /><i /><i /><b>🏆</b></div>
+            <div className="mode-preview"><span>START</span><i /><i /><i /><b><Trophy size={26} aria-hidden="true" /></b></div>
             <div className="mode-actions">
-              <button className="game-button primary" type="button" onClick={() => setJoinOpen(true)}>▶ Vào phòng bằng passcode</button>
-              <Link className="game-button quiet" to={ROUTES.createRoom}>+ Tạo phòng mới</Link>
+              <button className="game-button primary" type="button" onClick={() => setJoinOpen(true)}><Play className="ico" size={16} aria-hidden="true" /> Vào phòng bằng passcode</button>
+              <Link className="game-button quiet" to={ROUTES.createRoom}><Plus className="ico" size={16} aria-hidden="true" /> Tạo phòng mới</Link>
             </div>
           </article>
           <article className="mode-card mode-card-locked">
-            <div className="mode-icon">🔒</div>
+            <div className="mode-icon"><Lock size={38} aria-hidden="true" /></div>
             <h2>Game mode mới</h2>
             <p>Các trải nghiệm chơi mới đang được chuẩn bị để bạn khám phá.</p>
             <span className="coming-pill">Sắp ra mắt</span>

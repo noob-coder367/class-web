@@ -1,6 +1,7 @@
 import { describeTypeChange, TYPE_LABELS } from '../../lib/questionModel.js'
 import QuestionEditor from './QuestionEditor.jsx'
 import QuestionTypeSelector from './QuestionTypeSelector.jsx'
+import { ArrowDown, ArrowUp } from 'lucide-react'
 
 /**
  * variant 'draft': thẻ trong phòng (lên/xuống, nhân đôi, xóa).
@@ -27,8 +28,8 @@ export default function QuestionCard({ question, index, total, error, dispatch, 
       <footer className="qz-card-actions">
         {variant === 'draft' ? (
           <>
-            <button type="button" className="qz-btn qz-btn-quiet" disabled={index === 0} onClick={() => dispatch({ type: 'move', key: question.key, delta: -1 })} aria-label={`Đưa câu ${index + 1} lên`}>↑ Lên</button>
-            <button type="button" className="qz-btn qz-btn-quiet" disabled={index === total - 1} onClick={() => dispatch({ type: 'move', key: question.key, delta: 1 })} aria-label={`Đưa câu ${index + 1} xuống`}>↓ Xuống</button>
+            <button type="button" className="qz-btn qz-btn-quiet" disabled={index === 0} onClick={() => dispatch({ type: 'move', key: question.key, delta: -1 })} aria-label={`Đưa câu ${index + 1} lên`}><ArrowUp className="ico" size={15} aria-hidden="true" /> Lên</button>
+            <button type="button" className="qz-btn qz-btn-quiet" disabled={index === total - 1} onClick={() => dispatch({ type: 'move', key: question.key, delta: 1 })} aria-label={`Đưa câu ${index + 1} xuống`}><ArrowDown className="ico" size={15} aria-hidden="true" /> Xuống</button>
             <button type="button" className="qz-btn qz-btn-quiet" onClick={() => dispatch({ type: 'duplicate', key: question.key })}>Nhân đôi</button>
           </>
         ) : (

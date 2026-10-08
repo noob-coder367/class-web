@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import SiteHeader, { Brand } from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
+import { ArrowRight } from 'lucide-react'
 
 function FeatureIcon({ kind }) {
   if (kind === 'create') return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
@@ -70,7 +71,7 @@ export default function HomePage() {
               <h1>Học nhanh hơn.<br /><span>Chơi vui hơn.</span></h1>
               <p className="hero-description">10A4-Quizz biến những câu hỏi hay thành trải nghiệm học tập vui, nhẹ nhàng và đáng nhớ.</p>
               <div className="hero-actions">
-                <button className="button button-primary button-large" type="button" onClick={() => setGuideOpen(true)}>Hướng dẫn <span aria-hidden="true">→</span></button>
+                <button className="button button-primary button-large" type="button" onClick={() => setGuideOpen(true)}>Hướng dẫn <ArrowRight className="ico" size={16} aria-hidden="true" /></button>
                 <a className="button button-quiet button-large" href="#tinh-nang">Tìm hiểu thêm</a>
               </div>
               <p className="hero-note">MVP đầu tiên: Đua tới kho báu — tạo phòng và chơi cùng bạn bè.</p>
@@ -90,13 +91,13 @@ export default function HomePage() {
                 <div className="feature-icon"><FeatureIcon kind="create" /></div>
                 <h3>{features[0].title}</h3>
                 <p>{features[0].description}</p>
-                <span className="feature-cta">Tạo phòng <span aria-hidden="true">→</span></span>
+                <span className="feature-cta">Tạo phòng <ArrowRight className="ico" size={16} aria-hidden="true" /></span>
               </Link>
               <Link className="feature-card feature-card-link" to={ROUTES.play}>
                 <div className="feature-icon"><FeatureIcon kind="play" /></div>
                 <h3>{features[1].title}</h3>
                 <p>{features[1].description}</p>
-                <span className="feature-cta">Chọn game mode <span aria-hidden="true">→</span></span>
+                <span className="feature-cta">Chọn game mode <ArrowRight className="ico" size={16} aria-hidden="true" /></span>
               </Link>
               <article className="feature-card feature-card-muted">
                 <div className="feature-icon"><FeatureIcon kind="compete" /></div>

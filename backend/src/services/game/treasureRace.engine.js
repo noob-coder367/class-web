@@ -50,7 +50,45 @@ const directionDelta = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }
 export function cellKey(x, y) { return `${x},${y}` }
 export function cellIndex(x, y, width) { return y * width + x }
 
-export function generateMaze(seed = 1, width = 9, height = 9) {
+// Chọn điểm xuất phát cho mọi đội sao cho số ô phải đi (đường ngắn nhất, không xuyên tường) tới đích là BẰNG NHAU.
+// Lấy mức khoảng cách xa nhất mà vẫn có đủ ô cho tất cả đội, rồi chọn các ô cách xa nhau nhất trong mức đó.
+function equalDistanceSpawns(cells, width, height, exit, teamCount) {
+  const count = Math.max(1, Math.min(8, Number(teamCount) || 4))
+  const distance = new Map([[cellKey(exit.x, exit.y), 0]])
+  const queue = [exit]
+  for (let head = 0; head < queue.length; head += 1) {
+    const current = queue[head]
+    const cell = cells[cellIndex(current.x, current.y, width)]
+    for (const [wall, [dx, dy]] of Object.entries(directionDelta)) {
+      const nx = current.x + dx
+      const ny = current.y + dy
+      if (cell.walls[wall] || nx < 0 || ny < 0 || nx >= width || ny >= height || distance.has(cellKey(nx, ny))) continue
+      distance.set(cellKey(nx, ny), distance.get(cellKey(current.x, current.y)) + 1)
+      queue.push({ x: nx, y: ny })
+    }
+  }
+  const levels = new Map()
+  for (const cell of queue) {
+    const d = distance.get(cellKey(cell.x, cell.y))
+    if (d === 0) continue
+    if (!levels.has(d)) levels.set(d, [])
+    levels.get(d).push(cell)
+  }
+  const usable = [...levels.keys()].filter((d) => levels.get(d).length >= count)
+  const ok = usable.length > 0
+  const level = ok ? Math.max(...usable) : Math.max(...levels.keys())
+  const pool = levels.get(level)
+  const spread = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
+  const picked = [pool.reduce((best, cell) => (spread(cell, exit) > spread(best, exit) ? cell : best), pool[0])]
+  while (picked.length < count && picked.length < pool.length) {
+    const rest = pool.filter((cell) => !picked.includes(cell))
+    picked.push(rest.reduce((best, cell) => (Math.min(...picked.map((p) => spread(p, cell))) > Math.min(...picked.map((p) => spread(p, best))) ? cell : best), rest[0]))
+  }
+  while (picked.length < count) picked.push(picked[picked.length % pool.length])
+  return { spawns: picked.map((cell) => [cell.x, cell.y]), level, ok }
+}
+
+export function generateMaze(seed = 1, width = 9, height = 9, teamCount = 4) {
   const safeWidth = Math.max(5, Number(width) || 9)
   const safeHeight = Math.max(5, Number(height) || 9)
   const random = seededRandom(seed)
@@ -76,8 +114,33 @@ export function generateMaze(seed = 1, width = 9, height = 9) {
     }
   }
   visit(0, 0)
-  const spawns = [[0, 0], [safeWidth - 1, 0], [0, safeHeight - 1], [Math.floor(safeWidth / 2), 0]]
-  return { seed: Number(seed) >>> 0, width: safeWidth, height: safeHeight, cells, exit: { x: safeWidth - 1, y: safeHeight - 1 }, spawns }
+  const exit = { x: safeWidth - 1, y: safeHeight - 1 }
+  // Mê cung DFS thuần là một con đường rắn, gần như không có 2 ô cùng khoảng cách tới đích.
+  // Mở thêm vài bức tường (tạo ngã rẽ/vòng) tới khi có đủ ô cùng khoảng cách cho mọi đội, mà đường vẫn đủ dài.
+  const closedWalls = []
+  for (const cell of cells) {
+    if (cell.x + 1 < safeWidth && cell.walls.e) closedWalls.push([cell, 'e'])
+    if (cell.y + 1 < safeHeight && cell.walls.s) closedWalls.push([cell, 's'])
+  }
+  closedWalls.sort(() => random() - 0.5)
+  const openWall = ([cell, wall]) => {
+    const [dx, dy] = directionDelta[wall]
+    const neighbour = cells[cellIndex(cell.x + dx, cell.y + dy, safeWidth)]
+    cell.walls[wall] = false
+    neighbour.walls[reverseDirection[wall]] = false
+  }
+  const wantedLevel = Math.max(8, Math.round((safeWidth + safeHeight) * 0.6))
+  let opened = 0
+  let result
+  const openMore = (amount) => { for (let i = 0; i < amount && closedWalls.length; i += 1) { openWall(closedWalls.pop()); opened += 1 } }
+  openMore(Math.round(safeWidth * safeHeight * 0.06))
+  result = equalDistanceSpawns(cells, safeWidth, safeHeight, exit, teamCount)
+  while ((!result.ok || result.level < wantedLevel) && opened < safeWidth * safeHeight * 0.5 && closedWalls.length) {
+    openMore(3)
+    result = equalDistanceSpawns(cells, safeWidth, safeHeight, exit, teamCount)
+  }
+  const spawns = result.spawns
+  return { seed: Number(seed) >>> 0, width: safeWidth, height: safeHeight, cells, exit, spawns }
 }
 
 export function getMazeCell(maze, x, y) {

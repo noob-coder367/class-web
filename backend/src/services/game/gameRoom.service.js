@@ -94,7 +94,7 @@ export async function startRoom(code, userId) {
   const activeTeamIds = new Set(players.map((p) => p.team_id).filter(Boolean))
   if (!room.settings.single_device_mode && activeTeamIds.size < 2) fail('Cần ít nhất 2 đội có người chơi để bắt đầu.')
   const ordered = orderTeamsByDice(teams.map((team) => ({ teamId: team.id, value: randomInt(1, 7) })))
-  const maze = generateMaze(randomInt(1, 0xFFFFFFFF), 9, 9)
+  const maze = generateMaze(randomInt(1, 0xFFFFFFFF), 9, 9, teams.length)
   for (let index = 0; index < ordered.length; index += 1) {
     const originalIndex = teams.findIndex((team) => team.id === ordered[index].teamId)
     const spawn = maze.spawns[originalIndex % maze.spawns.length] || maze.spawns[0]
