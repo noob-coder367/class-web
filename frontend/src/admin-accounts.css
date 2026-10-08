@@ -47,4 +47,30 @@
 .settings-preview strong { color: #eaf1f1; font-size: 13px; }
 .settings-preview small { color: #87999a; font-size: 10px; }
 @media (max-width: 760px) { .browser-layout { grid-template-columns: 1fr; gap: 13px; padding-top: 15px; } .browser-sidebar { min-height: auto; padding: 14px; } .browser-brand { padding-bottom: 14px; } .browser-sidebar nav { display: flex; gap: 7px; } .browser-nav-label { display: none; } .browser-nav-item { justify-content: center; } .browser-nav-item svg { display: none; } .browser-sidebar-footer { display: none; } .browser-content { padding: 14px 0 30px; } .browser-heading { align-items: flex-start; flex-direction: column; } .browser-stat { text-align: left; } }
-@media (max-width: 520px) { .browser-nav-item { font-size: 10px; } .browser-panel { padding: 12px; } .admin-toolbar { flex-direction: column; } }
+.account-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.account-table { width: 100%; min-width: 700px; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+.account-table th, .account-table td { vertical-align: middle; padding: 14px 12px; }
+.account-table th:first-child, .account-table td:first-child { width: 34%; padding-left: 12px; }
+.account-table th:nth-child(2), .account-table td:nth-child(2) { width: 20%; }
+.account-table th:nth-child(3), .account-table td:nth-child(3) { width: 17%; }
+.account-table th:nth-child(4), .account-table td:nth-child(4) { width: 17%; }
+.account-table th:last-child, .account-table td:last-child { width: 12%; }
+.account-table td:first-child strong, .account-table td:first-child span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.admin-toolbar input { width: 100%; min-width: 0; }
+.admin-toolbar .button { white-space: nowrap; }
+@media (max-width: 760px) {
+  .browser-layout { width: min(100% - 24px, var(--content-width)); }
+  .browser-heading { gap: 14px; }
+  .browser-heading > div { min-width: 0; }
+  .browser-heading h1 { overflow-wrap: anywhere; }
+  .browser-stat { align-self: stretch; width: fit-content; }
+}
+@media (max-width: 520px) {
+  .browser-nav-item { font-size: 10px; }
+  .browser-panel { padding: 12px; }
+  .admin-toolbar { grid-template-columns: 1fr; }
+  .admin-toolbar .button { width: 100%; }
+  .account-table { min-width: 640px; }
+  .account-table th, .account-table td { padding: 12px 8px; }
+}
