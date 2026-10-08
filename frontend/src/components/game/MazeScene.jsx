@@ -5,7 +5,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { mazePosition, normalizeMaze } from '../../lib/maze.js'
 
 const TEAM_COLORS = { blue: '#6d9dff', green: '#67e5b0', purple: '#c09aff', orange: '#ffb56f', pink: '#ff91bb', cyan: '#70e6f5', red: '#ff7c80', gold: '#f7d277' }
-const DEBUG_FULL_LIGHT = false
+const DEBUG_FULL_LIGHT = true
 const PLAYER_MOVE_DURATION_MS = 150
 const WALL_COLORS = ['#35425a', '#3d4b64', '#44536d', '#384660']
 
