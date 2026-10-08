@@ -178,11 +178,23 @@ export async function moveRoom(code, userId, direction) {
 }
 
 export async function moveRoomBatch(code, userId, directions = []) {
-  const { room, game, teams } = await getActiveGame(code)
+  // Bản nhanh: ít vòng truy vấn hơn (đọc song song, ghi song song, dựng phản hồi trong bộ nhớ).
+  const room = await findRoom(code)
+  if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
+  const [game, players] = await Promise.all([
+    db(supabaseAdmin.from('game_games').select(GAME_COLUMNS).eq('room_id', room.id).single()),
+    db(supabaseAdmin.from('game_room_players').select('id, user_id, team_id, joined_at').eq('room_id', room.id).order('joined_at', { ascending: true })),
+  ])
+  const teams = await db(supabaseAdmin.from('game_teams').select(TEAM_COLUMNS).eq('game_id', game.id).order('turn_order', { ascending: true }))
   if (game.status !== 'playing' || game.phase !== GAME_PHASES.MOVEMENT) fail('Chưa đến phase di chuyển.', 409, 'game_not_movement')
   if (!Array.isArray(directions) || !directions.length || directions.length > 50 || !directions.every((d) => DIRECTIONS[d])) fail('Hướng di chuyển không hợp lệ.', 400, 'invalid_direction')
-  const currentTeam = await assertTurn(room, game, teams, userId)
+  const player = players.find((item) => item.user_id === userId)
+  if (!player) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
+  const currentTeam = teams[game.current_turn]
+  const isSingleDeviceHost = room.settings.single_device_mode === true && room.host_id === userId
+  if (!currentTeam || (!isSingleDeviceHost && player.team_id !== currentTeam.id)) fail('Chưa đến lượt đội của bạn.', 409, 'not_your_turn')
   if (!game.remaining_moves) fail('Đã hết lượt di chuyển.', 409, 'no_remaining_moves')
+
   let position = { x: currentTeam.maze_x, y: currentTeam.maze_y }
   let remaining = game.remaining_moves
   let steps = 0
@@ -197,14 +209,35 @@ export async function moveRoomBatch(code, userId, directions = []) {
     steps += 1
     reachedExit = isExit(position, game.maze_layout)
   }
-  if (steps > 0) {
-    await db(supabaseAdmin.from('game_teams').update({ maze_x: position.x, maze_y: position.y, position: currentTeam.position + steps, total_movement: (currentTeam.total_movement || 0) + steps }).eq('id', currentTeam.id))
-    const movedTeam = { ...currentTeam, maze_x: position.x, maze_y: position.y }
-    if (reachedExit) await finishOrAdvance(room, game, teams, currentTeam, currentTeam.id)
-    else if (remaining <= 0) await finishOrAdvance(room, game, teams.map((team) => team.id === currentTeam.id ? movedTeam : team), movedTeam)
-    else await db(supabaseAdmin.from('game_games').update({ remaining_moves: remaining }).eq('id', game.id))
+  const feedback = { collision: collision && steps === 0, moved: steps > 0, remaining_moves: Math.max(0, remaining) }
+  if (steps === 0) return getRoomForUser(code, userId, feedback)
+
+  const movedTeam = { ...currentTeam, maze_x: position.x, maze_y: position.y, position: currentTeam.position + steps, total_movement: (currentTeam.total_movement || 0) + steps }
+  const nextTeams = teams.map((team) => (team.id === currentTeam.id ? movedTeam : team))
+  let gamePatch
+  if (reachedExit || remaining <= 0) {
+    const nextQuestionIndex = game.question_index + 1
+    const isFinished = reachedExit || nextQuestionIndex >= game.total_questions
+    let winnerId = reachedExit ? currentTeam.id : null
+    if (isFinished && !winnerId) winnerId = rankTeamsAtFinish(nextTeams, game.maze_layout)[0]?.id || null
+    gamePatch = { current_turn: nextTurnIndex(game.current_turn, teams.length), question_index: nextQuestionIndex, phase: isFinished ? GAME_PHASES.FINISHED : GAME_PHASES.QUESTION, status: isFinished ? 'finished' : 'playing', winner_team_id: isFinished ? winnerId : null, remaining_moves: 0, dice_result: null, ...(isFinished ? { finished_at: new Date().toISOString() } : {}) }
+  } else {
+    gamePatch = { remaining_moves: remaining }
   }
-  return getRoomForUser(code, userId, { collision: collision && steps === 0, moved: steps > 0, remaining_moves: Math.max(0, remaining) })
+  const nextGame = { ...game, ...gamePatch }
+  const needsQuestion = nextGame.status === 'playing' && nextGame.question_index < nextGame.total_questions
+  const questionIndex = Math.min(room.settings.question_limit - 1, nextGame.question_index)
+  const [, , , questions] = await Promise.all([
+    db(supabaseAdmin.from('game_teams').update({ maze_x: movedTeam.maze_x, maze_y: movedTeam.maze_y, position: movedTeam.position, total_movement: movedTeam.total_movement }).eq('id', currentTeam.id)),
+    db(supabaseAdmin.from('game_games').update(gamePatch).eq('id', game.id)),
+    nextGame.status === 'finished' ? db(supabaseAdmin.from('game_rooms').update({ status: 'finished' }).eq('id', room.id)) : null,
+    needsQuestion ? db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(questionIndex + 1)) : null,
+  ])
+  let question = needsQuestion ? questions?.[questionIndex] || null : null
+  if (question) { question = { ...question }; delete question.correct_option; delete question.correct_boolean }
+  const finished = nextGame.status === 'finished'
+  const ranking = finished && nextGame.maze_layout ? rankTeamsAtFinish(nextTeams, nextGame.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(nextGame.maze_layout, { x: team.maze_x, y: team.maze_y }) })) : []
+  return { ...room, status: finished ? 'finished' : room.status, players, teams: nextTeams, game: { ...nextGame, maze: publicMazeState(nextGame), ranking }, question, is_host: room.host_id === userId, current_user_team_id: player.team_id || null, movement_feedback: feedback }
 }
 
 export async function completeDiceRoll(code, userId) {

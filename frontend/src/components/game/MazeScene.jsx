@@ -128,30 +128,40 @@ function ExitMarker({ maze }) {
 }
 
 const PATH_STEP_SECONDS = 0.14
+const pathTileGeometry = new THREE.PlaneGeometry(0.86, 0.86)
+const pathGlowGeometry = new THREE.PlaneGeometry(1.2, 1.2)
+const pathTileMaterial = new THREE.MeshBasicMaterial({ color: '#39ff7a', transparent: true, opacity: 0.9 })
+const pathGlowMaterial = new THREE.MeshBasicMaterial({ color: '#39ff7a', transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false })
 
 // Các ô trên đường ngắn nhất (không xuyên tường) của mọi đội lần lượt phát sáng xanh lá.
+// Nhẹ: dùng chung geometry/material, không thêm đèn (thêm đèn làm shader biên dịch lại gây đứng hình).
 function GreenPaths({ maze, teams }) {
   const startedAt = useRef(performance.now())
-  const tiles = useMemo(() => teams.flatMap((team, teamIndex) => shortestPath(maze, mazePosition(team), maze.exit).map((cell, step) => ({ key: `${team.id}-${step}`, x: cell.x - maze.width / 2 + 0.5, z: cell.y - maze.height / 2 + 0.5, step, teamIndex }))), [maze, teams])
+  const tiles = useMemo(() => {
+    const byCell = new Map()
+    teams.forEach((team) => shortestPath(maze, mazePosition(team), maze.exit).forEach((cell, step) => {
+      const key = `${cell.x},${cell.y}`
+      const known = byCell.get(key)
+      if (!known || step < known.step) byCell.set(key, { key, x: cell.x - maze.width / 2 + 0.5, z: cell.y - maze.height / 2 + 0.5, step })
+    }))
+    return [...byCell.values()]
+  }, [maze, teams])
   const refs = useRef([])
   useFrame(() => {
     const elapsed = (performance.now() - startedAt.current) / 1000
-    tiles.forEach((tile, index) => {
+    for (let index = 0; index < tiles.length; index += 1) {
       const group = refs.current[index]
-      if (!group) return
-      const local = elapsed - tile.step * PATH_STEP_SECONDS
-      group.visible = local > 0
-      if (local > 0) {
-        const pulse = 0.85 + Math.sin(elapsed * 6 + tile.step) * 0.15
-        const grow = Math.min(1, local / 0.18)
-        group.scale.set(grow * pulse, 1, grow * pulse)
-      }
-    })
+      if (!group) continue
+      const local = elapsed - tiles[index].step * PATH_STEP_SECONDS
+      if (local <= 0) { group.visible = false; continue }
+      group.visible = true
+      const scale = Math.min(1, local / 0.18) * (0.92 + Math.sin(elapsed * 6 + tiles[index].step) * 0.08)
+      group.scale.set(scale, 1, scale)
+    }
   })
-  return <>{tiles.map((tile, index) => <group key={tile.key} ref={(node) => { refs.current[index] = node }} position={[tile.x, 0.03 + tile.teamIndex * 0.002, tile.z]} visible={false}>
-    <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[0.86, 0.86]} /><meshBasicMaterial color="#39ff7a" transparent opacity={0.85} /></mesh>
-    <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[1.25, 1.25]} /><meshBasicMaterial color="#39ff7a" transparent opacity={0.28} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
-    <pointLight color="#39ff7a" intensity={1.2} distance={1.8} decay={1.8} position={[0, 0.3, 0]} />
+  return <>{tiles.map((tile, index) => <group key={tile.key} ref={(node) => { refs.current[index] = node }} position={[tile.x, 0.03, tile.z]} visible={false}>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} geometry={pathTileGeometry} material={pathTileMaterial} />
+    <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} geometry={pathGlowGeometry} material={pathGlowMaterial} />
   </group>)}</>
 }
 
