@@ -14,7 +14,7 @@ export function errorHandler(err, req, res, _next) {
 
   // Lỗi của body-parser (JSON hỏng, body quá lớn)
   if (err?.type === 'entity.too.large') {
-    return res.status(413).json({ message: 'Dữ liệu gửi lên quá lớn (file tối đa 8 MB).', code: 'payload_too_large' })
+    return res.status(413).json({ message: 'Dữ liệu tải lên vượt quá giới hạn dung lượng cho phép.', code: 'payload_too_large' })
   }
   if (err?.type === 'entity.parse.failed') {
     return res.status(400).json({ message: 'Dữ liệu gửi lên không hợp lệ.', code: 'bad_request' })

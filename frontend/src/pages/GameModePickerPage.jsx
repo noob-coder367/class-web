@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
+import { GAME_MODES } from '../lib/gameModes.js'
+import { listGameModeImages } from '../services/gameModeImageService.js'
 import { joinRoom } from '../services/gameRoomService.js'
 import '../game.css'
-import { ArrowRight, ChevronRight, Lock, Play, Plus, Trophy } from 'lucide-react'
+import { ArrowRight, ChevronRight, Lock, Play, Plus } from 'lucide-react'
 
-function JoinRoomModal({ onClose }) {
+function JoinRoomModal({ onClose, description }) {
   const navigate = useNavigate()
   const [code, setCode] = useState('')
   const [state, setState] = useState({ loading: false, error: '' })
@@ -33,7 +35,7 @@ function JoinRoomModal({ onClose }) {
         <button className="join-modal-close" type="button" aria-label="Đóng" onClick={onClose}>×</button>
         <p className="game-overline">Vào phòng chơi</p>
         <h2 id="join-room-title">Nhập passcode</h2>
-        <p className="join-modal-description">Nhập mã phòng 6 ký tự do host chia sẻ để tham gia Đua tới kho báu.</p>
+        <p className="join-modal-description">{description}</p>
         <form onSubmit={submit}>
           <label className="join-code-label" htmlFor="join-room-code">Passcode phòng</label>
           <input
@@ -58,8 +60,49 @@ function JoinRoomModal({ onClose }) {
   )
 }
 
+function ModeCard({ mode, image, onJoin }) {
+  const ModeIcon = mode.icon
+  return (
+    <article className="mode-card mode-card-active mode-card-with-image">
+      <div className="mode-card-cover">
+        {image
+          ? <img src={image} alt={`Ảnh đại diện Game Mode: ${mode.title}`} loading="lazy" />
+          : <div className="mode-card-cover-placeholder"><ModeIcon size={38} aria-hidden="true" /><span>Ảnh trò chơi</span></div>}
+      </div>
+      <div className="mode-icon"><ModeIcon size={38} aria-hidden="true" /></div>
+      <div className="mode-card-topline"><span className="live-pill">{mode.status}</span><span className="mode-arrow" aria-hidden="true"><ArrowRight size={22} /></span></div>
+      <h2>{mode.title}</h2>
+      <p>{mode.description}</p>
+      <div className="mode-preview"><span>{mode.previewLabel || 'PLAY'}</span><i /><i /><i /><b><ModeIcon size={26} aria-hidden="true" /></b></div>
+      <div className="mode-actions">
+        {mode.joinAction === 'passcode' && mode.joinLabel && (
+          <button className="game-button primary" type="button" onClick={() => onJoin(mode)}><Play className="ico" size={16} aria-hidden="true" /> {mode.joinLabel}</button>
+        )}
+        {mode.joinPath && mode.joinLabel && (
+          <Link className="game-button primary" to={mode.joinPath}><Play className="ico" size={16} aria-hidden="true" /> {mode.joinLabel}</Link>
+        )}
+        {mode.createPath && mode.createLabel !== null && (
+          <Link className="game-button quiet" to={mode.createPath}><Plus className="ico" size={16} aria-hidden="true" /> {mode.createLabel || 'Tạo phòng mới'}</Link>
+        )}
+      </div>
+    </article>
+  )
+}
+
 export default function GameModePickerPage() {
-  const [joinOpen, setJoinOpen] = useState(false)
+  const [joinMode, setJoinMode] = useState(null)
+  const [images, setImages] = useState({})
+
+  useEffect(() => {
+    let active = true
+    listGameModeImages(GAME_MODES.map((mode) => mode.id))
+      .then((rows) => {
+        if (active) setImages(Object.fromEntries(rows.map((row) => [row.game_key, row.image_url])))
+      })
+      .catch((error) => console.warn('[GameModePicker] Could not load game images:', error?.message || error))
+    return () => { active = false }
+  }, [])
+
   return (
     <div className="game-shell">
       <SiteHeader />
@@ -71,17 +114,7 @@ export default function GameModePickerPage() {
           <p>Chọn cách bạn muốn chơi cùng bộ câu hỏi của mình.</p>
         </header>
         <section className="mode-grid" aria-label="Danh sách game mode">
-          <article className="mode-card mode-card-active">
-            <div className="mode-icon"><Trophy size={38} aria-hidden="true" /></div>
-            <div className="mode-card-topline"><span className="live-pill">Sẵn sàng</span><span className="mode-arrow" aria-hidden="true"><ArrowRight size={22} /></span></div>
-            <h2>Đua tới kho báu</h2>
-            <p>Chia đội, trả lời câu hỏi và đua tới kho báu. Đội trả lời tốt sẽ tiến về phía trước nhanh hơn.</p>
-            <div className="mode-preview"><span>START</span><i /><i /><i /><b><Trophy size={26} aria-hidden="true" /></b></div>
-            <div className="mode-actions">
-              <button className="game-button primary" type="button" onClick={() => setJoinOpen(true)}><Play className="ico" size={16} aria-hidden="true" /> Vào phòng bằng passcode</button>
-              <Link className="game-button quiet" to={ROUTES.createRoom}><Plus className="ico" size={16} aria-hidden="true" /> Tạo phòng mới</Link>
-            </div>
-          </article>
+          {GAME_MODES.map((mode) => <ModeCard key={mode.id} mode={mode} image={images[mode.id]} onJoin={setJoinMode} />)}
           <article className="mode-card mode-card-locked">
             <div className="mode-icon"><Lock size={38} aria-hidden="true" /></div>
             <h2>Game mode mới</h2>
@@ -90,7 +123,7 @@ export default function GameModePickerPage() {
           </article>
         </section>
       </main>
-      {joinOpen && <JoinRoomModal onClose={() => setJoinOpen(false)} />}
+      {joinMode && <JoinRoomModal onClose={() => setJoinMode(null)} description={joinMode.joinDescription || `Nhập passcode để tham gia ${joinMode.title}.`} />}
     </div>
   )
 }

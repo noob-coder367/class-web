@@ -37,3 +37,8 @@
 .answer-result.ok{color:#bdffd3;background:#10361f;border:1px solid #2a7a49}.answer-result.bad{color:#ffd0d5;background:#401e27;border:1px solid #8a3a47}
 
 .ico{display:inline-block;flex:none;vertical-align:-.17em}.mode-icon{display:flex}.mode-preview b{display:inline-flex;align-items:center}.dice-cube span{display:grid;place-items:center}.mobile-controls button{display:grid;place-items:center}.game-button,.qz-btn{gap:6px}
+
+/* Game Mode cover images: placeholder remains visible until a public image is configured. */
+.mode-card-with-image{overflow:hidden}.mode-card-with-image>.mode-card-cover{position:relative;height:220px;margin:-27px -27px 22px;overflow:hidden;border-radius:21px 21px 0 0;background:radial-gradient(ellipse at 18% 12%,rgba(255,209,125,.5),transparent 35%),linear-gradient(135deg,#302969,#6653cb 52%,#d78361)}.mode-card-cover>img{display:block;width:100%;height:100%;object-fit:cover}.mode-card-cover-placeholder{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:rgba(255,255,255,.84);background:linear-gradient(135deg,rgba(21,26,59,.28),rgba(239,159,111,.18))}.mode-card-cover-placeholder span{font-size:12px;font-weight:800;letter-spacing:.06em}.mode-card-with-image>.mode-icon{color:#5b4bd8}.mode-card-cover:has(img){background:#e9e7f6}@media(max-width:760px){.mode-card-with-image>.mode-card-cover{height:205px;margin:-20px -20px 18px;border-radius:21px 21px 0 0}}
+
+.mode-card-with-image>.mode-card-cover{height:clamp(220px,28vw,320px)}@media(max-width:760px){.mode-card-with-image>.mode-card-cover{height:220px}}

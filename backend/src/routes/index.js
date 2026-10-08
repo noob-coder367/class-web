@@ -3,6 +3,7 @@ import authRoutes from './auth.routes.js'
 import quizRoutes from './quiz.routes.js'
 import aiRoutes from './ai.routes.js'
 import adminAccountRoutes from './adminAccount.routes.js'
+import adminGameModeImageRoutes from './adminGameModeImage.routes.js'
 import gameRoomRoutes from './gameRoom.routes.js'
 
 const router = Router()
@@ -12,6 +13,7 @@ router.use('/auth', authRoutes)
 router.use('/quizzes', quizRoutes)
 router.use('/ai', aiRoutes)
 router.use('/admin/accounts', adminAccountRoutes)
+router.use('/admin/game-mode-images', adminGameModeImageRoutes)
 router.use('/game-rooms', gameRoomRoutes)
 
 export default router
