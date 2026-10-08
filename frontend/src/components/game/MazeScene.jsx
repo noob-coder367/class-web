@@ -2,7 +2,7 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
-import { mazePosition, normalizeMaze } from '../../lib/maze.js'
+import { mazePosition, normalizeMaze, shortestPath } from '../../lib/maze.js'
 
 const TEAM_COLORS = { blue: '#6d9dff', green: '#67e5b0', purple: '#c09aff', orange: '#ffb56f', pink: '#ff91bb', cyan: '#70e6f5', red: '#ff7c80', gold: '#f7d277' }
 const DEBUG_FULL_LIGHT = true
@@ -127,15 +127,43 @@ function ExitMarker({ maze }) {
   return <group position={[exitX, 0.08, exitZ]}><mesh rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.28, 0.43, 12]} /><meshBasicMaterial color="#f7ce72" transparent opacity={0.72} /></mesh><mesh position={[0, 0.42, 0]}><torusGeometry args={[0.28, 0.045, 8, 16, Math.PI]} /><meshBasicMaterial color="#ffe6a0" /></mesh><pointLight color="#f6b94b" intensity={0.35} distance={1.6} decay={2} /></group>
 }
 
-function MazeContent({ maze, teams, currentTeamId, quality }) {
-  return <><ambientLight intensity={DEBUG_FULL_LIGHT ? 1.5 : quality === 'low' ? 0.035 : 0.055} color={DEBUG_FULL_LIGHT ? '#ffffff' : '#536487'} /><directionalLight position={[-3, 8, 4]} intensity={DEBUG_FULL_LIGHT ? 2.2 : quality === 'low' ? 0.06 : 0.1} color={DEBUG_FULL_LIGHT ? '#ffffff' : '#a5b9e8'} castShadow={!DEBUG_FULL_LIGHT && quality !== 'low'} shadow-mapSize={[256, 256]} />{DEBUG_FULL_LIGHT && <directionalLight position={[4, 6, -5]} intensity={0.8} color="#ffffff" />}<MazeWalls maze={maze} /><Floor maze={maze} /><ExitMarker maze={maze} />{teams.map((team) => <Player key={team.id} team={team} active={team.id === currentTeamId} />)}</>
+const PATH_STEP_SECONDS = 0.14
+
+// Các ô trên đường ngắn nhất (không xuyên tường) của mọi đội lần lượt phát sáng xanh lá.
+function GreenPaths({ maze, teams }) {
+  const startedAt = useRef(performance.now())
+  const tiles = useMemo(() => teams.flatMap((team, teamIndex) => shortestPath(maze, mazePosition(team), maze.exit).map((cell, step) => ({ key: `${team.id}-${step}`, x: cell.x - maze.width / 2 + 0.5, z: cell.y - maze.height / 2 + 0.5, step, teamIndex }))), [maze, teams])
+  const refs = useRef([])
+  useFrame(() => {
+    const elapsed = (performance.now() - startedAt.current) / 1000
+    tiles.forEach((tile, index) => {
+      const group = refs.current[index]
+      if (!group) return
+      const local = elapsed - tile.step * PATH_STEP_SECONDS
+      group.visible = local > 0
+      if (local > 0) {
+        const pulse = 0.85 + Math.sin(elapsed * 6 + tile.step) * 0.15
+        const grow = Math.min(1, local / 0.18)
+        group.scale.set(grow * pulse, 1, grow * pulse)
+      }
+    })
+  })
+  return <>{tiles.map((tile, index) => <group key={tile.key} ref={(node) => { refs.current[index] = node }} position={[tile.x, 0.03 + tile.teamIndex * 0.002, tile.z]} visible={false}>
+    <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[0.86, 0.86]} /><meshBasicMaterial color="#39ff7a" transparent opacity={0.85} /></mesh>
+    <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[1.25, 1.25]} /><meshBasicMaterial color="#39ff7a" transparent opacity={0.28} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
+    <pointLight color="#39ff7a" intensity={1.2} distance={1.8} decay={1.8} position={[0, 0.3, 0]} />
+  </group>)}</>
 }
 
-export default function MazeScene({ maze: rawMaze, teams = [], currentTeamId, quality = 'high' }) {
+function MazeContent({ maze, teams, currentTeamId, quality, revealPaths }) {
+  return <><ambientLight intensity={DEBUG_FULL_LIGHT ? 1.5 : quality === 'low' ? 0.035 : 0.055} color={DEBUG_FULL_LIGHT ? '#ffffff' : '#536487'} /><directionalLight position={[-3, 8, 4]} intensity={DEBUG_FULL_LIGHT ? 2.2 : quality === 'low' ? 0.06 : 0.1} color={DEBUG_FULL_LIGHT ? '#ffffff' : '#a5b9e8'} castShadow={!DEBUG_FULL_LIGHT && quality !== 'low'} shadow-mapSize={[256, 256]} />{DEBUG_FULL_LIGHT && <directionalLight position={[4, 6, -5]} intensity={0.8} color="#ffffff" />}<MazeWalls maze={maze} /><Floor maze={maze} /><ExitMarker maze={maze} />{teams.map((team) => <Player key={team.id} team={team} active={team.id === currentTeamId} />)}{revealPaths && <GreenPaths maze={maze} teams={teams} />}</>
+}
+
+export default function MazeScene({ maze: rawMaze, teams = [], currentTeamId, quality = 'high', revealPaths = false }) {
   const maze = normalizeMaze(rawMaze)
   if (!maze) return <div className="maze-fallback">Đang dựng mê cung…</div>
   const isLowQuality = quality === 'low'
   const cameraPosition = [0, 14, 0.01]
   const cameraFov = 45
-  return <div className={`maze-canvas maze-quality-${quality}`} aria-label="Mê cung 3D Treasure Race"><Canvas camera={{ position: cameraPosition, fov: cameraFov }} shadows={!DEBUG_FULL_LIGHT && !isLowQuality} dpr={isLowQuality ? 1 : [1, 1.25]} gl={{ antialias: !isLowQuality, powerPreference: 'high-performance' }}><color attach="background" args={[DEBUG_FULL_LIGHT ? '#dce8f5' : '#08101d']} />{!DEBUG_FULL_LIGHT && <fog attach="fog" args={['#08101d', 3.8, 11.5]} />}<MazeContent maze={maze} teams={teams} currentTeamId={currentTeamId} quality={quality} /></Canvas></div>
+  return <div className={`maze-canvas maze-quality-${quality}`} aria-label="Mê cung 3D Treasure Race"><Canvas camera={{ position: cameraPosition, fov: cameraFov }} shadows={!DEBUG_FULL_LIGHT && !isLowQuality} dpr={isLowQuality ? 1 : [1, 1.25]} gl={{ antialias: !isLowQuality, powerPreference: 'high-performance' }}><color attach="background" args={[DEBUG_FULL_LIGHT ? '#dce8f5' : '#08101d']} />{!DEBUG_FULL_LIGHT && <fog attach="fog" args={['#08101d', 3.8, 11.5]} />}<MazeContent maze={maze} teams={teams} currentTeamId={currentTeamId} quality={quality} revealPaths={revealPaths} /></Canvas></div>
 }
