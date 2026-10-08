@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import SiteHeader, { Brand } from '../components/SiteHeader.jsx'
 import PetMascot from '../components/pet/PetMascot.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { loadOutfit } from '../lib/petOutfit.js'
+import { EMPTY_OUTFIT, loadOutfit } from '../lib/petOutfit.js'
 import { ROUTES } from '../lib/routes.js'
 import { ArrowRight } from 'lucide-react'
 import '../pet.css'
@@ -63,8 +63,34 @@ const features = [
 
 export default function HomePage() {
   const [guideOpen, setGuideOpen] = useState(false)
-  const { session } = useAuth()
-  const petOutfit = useMemo(() => loadOutfit(session?.user?.id || 'guest'), [session])
+  const { session, authReady } = useAuth()
+  const userId = session?.user?.id ?? null
+  const requestId = useRef(0)
+  const [petState, setPetState] = useState({ userId: null, outfit: { ...EMPTY_OUTFIT } })
+
+  useEffect(() => {
+    if (!authReady) return undefined
+    const currentRequest = ++requestId.current
+    let active = true
+
+    if (!userId) {
+      setPetState({ userId: null, outfit: { ...EMPTY_OUTFIT } })
+      return () => { active = false }
+    }
+
+    void loadOutfit(userId).then((outfit) => {
+      if (active && requestId.current === currentRequest) setPetState({ userId, outfit })
+    }).catch((error) => {
+      if (active && requestId.current === currentRequest) {
+        console.error('[home] Không tải được trang phục:', error)
+        setPetState({ userId, outfit: { ...EMPTY_OUTFIT } })
+      }
+    })
+
+    return () => { active = false }
+  }, [authReady, userId])
+
+  const petOutfit = authReady && petState.userId === userId ? petState.outfit : EMPTY_OUTFIT
 
   return (
     <div className="site-shell">
@@ -93,13 +119,13 @@ export default function HomePage() {
               <p>Create để xây dựng phòng, Play để chọn game mode và bắt đầu cuộc chơi.</p>
             </div>
             <Link className="feature-card feature-card-link pet-card" to={ROUTES.pet}>
-                <div className="pet-card-art"><PetMascot outfit={petOutfit} size={110} /></div>
-                <div>
-                  <h3>Điều chỉnh giao diện của bạn</h3>
-                  <p>Nuôi linh vật ngọn lửa và thay cho bạn ấy những bộ trang phục thật xinh.</p>
-                  <span className="feature-cta">Tùy chỉnh ngay <ArrowRight className="ico" size={16} aria-hidden="true" /></span>
-                </div>
-              </Link>
+              <div className="pet-card-art"><PetMascot outfit={petOutfit} size={110} /></div>
+              <div>
+                <h3>Điều chỉnh giao diện của bạn</h3>
+                <p>Nuôi linh vật ngọn lửa và thay cho bạn ấy những bộ trang phục thật xinh.</p>
+                <span className="feature-cta">Tùy chỉnh ngay <ArrowRight className="ico" size={16} aria-hidden="true" /></span>
+              </div>
+            </Link>
             <div className="feature-grid">
               <Link className="feature-card feature-card-link" to={ROUTES.createRoom}>
                 <div className="feature-icon"><FeatureIcon kind="create" /></div>
