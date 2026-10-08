@@ -28,3 +28,10 @@
 @keyframes route-hint-pop{to{opacity:1}}
 @keyframes route-hint-fade{0%{opacity:0}10%{opacity:1}85%{opacity:1}100%{opacity:0}}
 .finish-ranking{margin-top:14px;padding-top:12px;border-top:1px solid #28354e}.finish-ranking h3{margin:0 0 8px;color:#7dffa8;font-size:13px}.finish-rank-row{display:flex;align-items:center;gap:10px;padding:7px 0;color:#e8f6ee;font-size:13px}.finish-rank-row span{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;color:#06210f;background:#39ff7a;font-weight:900;font-size:12px}.finish-rank-row strong{flex:1}.finish-rank-row b{color:#7dffa8}
+
+.maze-game-shell .answer-option.is-correct-answer{border-color:#39ff7a;color:#06210f;background:#7dffa8;box-shadow:0 0 22px #39ff7a66}
+.maze-game-shell .answer-option.is-wrong-answer{border-color:#ff5d6c;color:#fff;background:#b3263a;box-shadow:0 0 22px #ff5d6c55}
+.maze-game-shell .answer-option.is-dimmed{opacity:.45}
+.maze-game-shell .answer-option:disabled{cursor:default}
+.answer-result{margin:0 0 12px;padding:11px 14px;border-radius:12px;font-size:14px}.answer-result p{margin:6px 0 0;opacity:.9}
+.answer-result.ok{color:#bdffd3;background:#10361f;border:1px solid #2a7a49}.answer-result.bad{color:#ffd0d5;background:#401e27;border:1px solid #8a3a47}

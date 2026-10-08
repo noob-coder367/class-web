@@ -63,7 +63,6 @@ async function getRoomForUser(code, userId, feedback = null) {
     const questionIndex = Math.min(room.settings.question_limit - 1, game.question_index)
     const questions = await db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(questionIndex + 1))
     question = questions?.[questionIndex] || null
-    if (question) { delete question.correct_option; delete question.correct_boolean }
   }
   const ranked = game?.status === 'finished' && game.maze_layout ? rankTeamsAtFinish(teams, game.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(game.maze_layout, { x: team.maze_x, y: team.maze_y }) })) : []
   return { ...room, players, teams, game: game ? { ...game, maze: publicMazeState(game), ranking: ranked } : null, question, is_host: room.host_id === userId, current_user_team_id: players.find((p) => p.user_id === userId)?.team_id || null, movement_feedback: feedback }
@@ -135,23 +134,56 @@ async function finishOrAdvance(room, game, teams, currentTeam, winnerTeamId = nu
 }
 
 export async function answerRoom(code, userId, body = {}) {
-  const { room, game, teams } = await getActiveGame(code)
+  // Bản nhanh: đọc song song, ghi song song, dựng phản hồi trong bộ nhớ (không đọc lại DB).
+  const room = await findRoom(code)
+  if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
+  const [game, players] = await Promise.all([
+    db(supabaseAdmin.from('game_games').select(GAME_COLUMNS).eq('room_id', room.id).single()),
+    db(supabaseAdmin.from('game_room_players').select('id, user_id, team_id, joined_at').eq('room_id', room.id).order('joined_at', { ascending: true })),
+  ])
   if (game.status !== 'playing' || game.phase !== GAME_PHASES.QUESTION) fail('Game chưa ở trạng thái nhận câu trả lời.', 409, 'game_not_question')
-  const currentTeam = await assertTurn(room, game, teams, userId)
-  const questions = await db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(game.question_index + 1))
+  const [teams, questions] = await Promise.all([
+    db(supabaseAdmin.from('game_teams').select(TEAM_COLUMNS).eq('game_id', game.id).order('turn_order', { ascending: true })),
+    db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(game.question_index + 1)),
+  ])
+  const player = players.find((item) => item.user_id === userId)
+  if (!player) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
+  const currentTeam = teams[game.current_turn]
+  const isSingleDeviceHost = room.settings.single_device_mode === true && room.host_id === userId
+  if (!currentTeam || (!isSingleDeviceHost && player.team_id !== currentTeam.id)) fail('Chưa đến lượt đội của bạn.', 409, 'not_your_turn')
   const question = questions?.[game.question_index]
   if (!question) fail('Không còn câu hỏi hợp lệ.', 409, 'no_question')
+
   const isCorrect = evaluateAnswer(question, body.answer)
   const responseTime = Math.max(0, Number(body.response_time_ms) || 0)
-  await db(supabaseAdmin.from('game_turns').insert({ game_id: game.id, team_id: currentTeam.id, question_id: question.id, turn_number: game.question_index, answer: { submitted: body.answer }, is_correct: isCorrect, movement: isCorrect ? null : 0, response_time: responseTime || null }))
   const updatedTeam = { ...currentTeam, correct_count: currentTeam.correct_count + (isCorrect ? 1 : 0), wrong_count: currentTeam.wrong_count + (isCorrect ? 0 : 1), total_response_time: (currentTeam.total_response_time || 0) + responseTime }
-  await db(supabaseAdmin.from('game_teams').update({ correct_count: updatedTeam.correct_count, wrong_count: updatedTeam.wrong_count, total_response_time: updatedTeam.total_response_time }).eq('id', currentTeam.id))
-  if (!isCorrect) await finishOrAdvance(room, game, teams.map((team) => team.id === currentTeam.id ? updatedTeam : team), updatedTeam)
-  else {
+  const nextTeams = teams.map((team) => (team.id === currentTeam.id ? updatedTeam : team))
+
+  let gamePatch
+  if (isCorrect) {
     const diceResult = randomInt(1, 7)
-    await db(supabaseAdmin.from('game_games').update({ phase: GAME_PHASES.DICE_ROLL, dice_result: diceResult, remaining_moves: diceResult }).eq('id', game.id))
+    gamePatch = { phase: GAME_PHASES.DICE_ROLL, dice_result: diceResult, remaining_moves: diceResult }
+  } else {
+    const nextQuestionIndex = game.question_index + 1
+    const isFinished = nextQuestionIndex >= game.total_questions
+    const winnerId = isFinished ? rankTeamsAtFinish(nextTeams, game.maze_layout)[0]?.id || null : null
+    gamePatch = { current_turn: nextTurnIndex(game.current_turn, teams.length), question_index: nextQuestionIndex, phase: isFinished ? GAME_PHASES.FINISHED : GAME_PHASES.QUESTION, status: isFinished ? 'finished' : 'playing', winner_team_id: isFinished ? winnerId : null, remaining_moves: 0, dice_result: null, ...(isFinished ? { finished_at: new Date().toISOString() } : {}) }
   }
-  return getRoomForUser(code, userId)
+  const nextGame = { ...game, ...gamePatch }
+  const needsQuestion = nextGame.status === 'playing' && nextGame.question_index < nextGame.total_questions
+  const nextIndex = Math.min(room.settings.question_limit - 1, nextGame.question_index)
+  const needsFetch = needsQuestion && nextIndex !== game.question_index
+  const [, , , , fetched] = await Promise.all([
+    db(supabaseAdmin.from('game_turns').insert({ game_id: game.id, team_id: currentTeam.id, question_id: question.id, turn_number: game.question_index, answer: { submitted: body.answer }, is_correct: isCorrect, movement: isCorrect ? null : 0, response_time: responseTime || null })),
+    db(supabaseAdmin.from('game_teams').update({ correct_count: updatedTeam.correct_count, wrong_count: updatedTeam.wrong_count, total_response_time: updatedTeam.total_response_time }).eq('id', currentTeam.id)),
+    db(supabaseAdmin.from('game_games').update(gamePatch).eq('id', game.id)),
+    nextGame.status === 'finished' ? db(supabaseAdmin.from('game_rooms').update({ status: 'finished' }).eq('id', room.id)) : null,
+    needsFetch ? db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(nextIndex + 1)) : null,
+  ])
+  const nextQuestion = needsQuestion ? (needsFetch ? fetched?.[nextIndex] : question) || null : null
+  const finished = nextGame.status === 'finished'
+  const ranking = finished && nextGame.maze_layout ? rankTeamsAtFinish(nextTeams, nextGame.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(nextGame.maze_layout, { x: team.maze_x, y: team.maze_y }) })) : []
+  return { ...room, status: finished ? 'finished' : room.status, players, teams: nextTeams, game: { ...nextGame, maze: publicMazeState(nextGame), ranking }, question: nextQuestion, is_host: room.host_id === userId, current_user_team_id: player.team_id || null, movement_feedback: null }
 }
 
 export async function moveRoom(code, userId, direction) {
@@ -234,7 +266,6 @@ export async function moveRoomBatch(code, userId, directions = []) {
     needsQuestion ? db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(questionIndex + 1)) : null,
   ])
   let question = needsQuestion ? questions?.[questionIndex] || null : null
-  if (question) { question = { ...question }; delete question.correct_option; delete question.correct_boolean }
   const finished = nextGame.status === 'finished'
   const ranking = finished && nextGame.maze_layout ? rankTeamsAtFinish(nextTeams, nextGame.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(nextGame.maze_layout, { x: team.maze_x, y: team.maze_y }) })) : []
   return { ...room, status: finished ? 'finished' : room.status, players, teams: nextTeams, game: { ...nextGame, maze: publicMazeState(nextGame), ranking }, question, is_host: room.host_id === userId, current_user_team_id: player.team_id || null, movement_feedback: feedback }
