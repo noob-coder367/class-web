@@ -6,12 +6,12 @@ import { useToast } from '../context/ToastContext.jsx'
 import { ROUTES } from '../lib/routes.js'
 import { GAME_MODES } from '../lib/gameModes.js'
 import * as accountService from '../services/adminAccountService.js'
-import { deleteGameModeImage, listGameModeImages, uploadGameModeImage } from '../services/gameModeImageService.js'
+import { deleteGameModeImage, listGameModeImages, saveGameModeContent, uploadGameModeImage } from '../services/gameModeImageService.js'
 
 const providerLabels = { google: 'Google', email: 'Email', ghost: 'Tài khoản ma', unknown: 'Không rõ' }
 const navItems = [
   { id: 'accounts', label: 'Tài khoản', icon: 'users' },
-  { id: 'game-images', label: 'Ảnh Game Mode', icon: 'images' },
+  { id: 'game-images', label: 'Quản lý các trò chơi', icon: 'images' },
   { id: 'settings', label: 'Cài đặt chung', icon: 'settings' },
 ]
 
@@ -25,8 +25,17 @@ function NavIcon({ name }) {
   return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 19v-1.3a3.7 3.7 0 0 0-3.7-3.7H7.7A3.7 3.7 0 0 0 4 17.7V19M10 10.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM15.5 4.2a3 3 0 0 1 0 5.8M17 14.2a3.8 3.8 0 0 1 3 3.7V19" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>
 }
 
+function defaultContent(mode, image) {
+  return {
+    display_title: image?.display_title || mode.title,
+    display_note: image?.display_note || '',
+    text_color: image?.text_color || '#FFFFFF',
+  }
+}
+
 function GameImagesWorkspace({ toast }) {
   const [images, setImages] = useState({})
+  const [drafts, setDrafts] = useState({})
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [busyId, setBusyId] = useState('')
@@ -38,14 +47,36 @@ function GameImagesWorkspace({ toast }) {
     setLoadError('')
     listGameModeImages(GAME_MODES.map((mode) => mode.id))
       .then((rows) => {
-        if (active) setImages(Object.fromEntries(rows.map((row) => [row.game_key, row])))
+        if (!active) return
+        const nextImages = Object.fromEntries(rows.map((row) => [row.game_key, row]))
+        setImages(nextImages)
+        setDrafts(Object.fromEntries(GAME_MODES.map((mode) => [mode.id, defaultContent(mode, nextImages[mode.id])])))
       })
       .catch((error) => {
-        if (active) setLoadError(error?.message || 'Không thể tải ảnh Game Mode.')
+        if (active) setLoadError(error?.message || 'Không thể tải thiết lập trò chơi.')
       })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [reloadKey])
+
+  const updateDraft = (gameKey, field, value) => {
+    setDrafts((current) => ({ ...current, [gameKey]: { ...current[gameKey], [field]: value } }))
+  }
+
+  const saveContent = async (mode, event) => {
+    event.preventDefault()
+    setBusyId(mode.id)
+    try {
+      const image = await saveGameModeContent(mode.id, drafts[mode.id] || defaultContent(mode, images[mode.id]))
+      setImages((current) => ({ ...current, [mode.id]: image }))
+      setDrafts((current) => ({ ...current, [mode.id]: defaultContent(mode, image) }))
+      toast.success(`Đã lưu thông tin cho “${image.display_title || mode.title}”.`)
+    } catch (error) {
+      toast.error(error?.message || 'Không thể lưu thông tin trò chơi.')
+    } finally {
+      setBusyId('')
+    }
+  }
 
   const upload = async (mode, event) => {
     const file = event.currentTarget.files?.[0]
@@ -55,8 +86,7 @@ function GameImagesWorkspace({ toast }) {
     try {
       const image = await uploadGameModeImage(mode.id, file)
       setImages((current) => ({ ...current, [mode.id]: image }))
-      setLoadError('')
-      toast.success(`Đã lưu ảnh cho “${mode.title}”.`)
+      toast.success(`Đã lưu ảnh cho “${image.display_title || mode.title}”.`)
     } catch (error) {
       toast.error(error?.message || 'Không thể tải ảnh lên.')
     } finally {
@@ -65,16 +95,12 @@ function GameImagesWorkspace({ toast }) {
   }
 
   const remove = async (mode) => {
-    if (!images[mode.id] || !window.confirm(`Xóa ảnh của Game Mode “${mode.title}”?`)) return
+    if (!images[mode.id]?.image_path || !window.confirm(`Xóa ảnh bìa của “${drafts[mode.id]?.display_title || mode.title}”? Tên, màu chữ và ghi chú sẽ được giữ lại.`)) return
     setBusyId(mode.id)
     try {
       await deleteGameModeImage(mode.id)
-      setImages((current) => {
-        const next = { ...current }
-        delete next[mode.id]
-        return next
-      })
-      toast.success(`Đã xóa ảnh của “${mode.title}”.`)
+      setImages((current) => ({ ...current, [mode.id]: { ...current[mode.id], image_path: null, image_url: null } }))
+      toast.success('Đã xóa ảnh bìa; các thiết lập trò chơi vẫn được giữ lại.')
     } catch (error) {
       toast.error(error?.message || 'Không thể xóa ảnh.')
     } finally {
@@ -84,33 +110,46 @@ function GameImagesWorkspace({ toast }) {
 
   return <>
     <header className="browser-heading">
-      <div><p className="browser-eyebrow">Nội dung Game Mode</p><h1>Ảnh Game Mode</h1><p>Quản lý ảnh bìa hiển thị ở khu vực đầu mỗi thẻ Game Mode trên trang chọn chế độ chơi.</p></div>
+      <div><p className="browser-eyebrow">Nội dung Game Mode</p><h1>Quản lý các trò chơi</h1><p>Chỉnh ảnh bìa, tên hiển thị, màu chữ và ghi chú xuất hiện trên thẻ trò chơi.</p></div>
     </header>
     <section className="browser-panel">
       <div className="game-image-toolbar"><button className="button button-quiet" type="button" onClick={() => setReloadKey((value) => value + 1)} disabled={loading || Boolean(busyId)}>Làm mới</button></div>
       {loadError && <div className="game-image-error" role="alert">{loadError}</div>}
-      {loading ? <div className="game-image-loading">Đang tải ảnh Game Mode…</div> : (
+      {loading ? <div className="game-image-loading">Đang tải thiết lập trò chơi…</div> : (
         <div className="game-image-list">
           {GAME_MODES.map((mode) => {
             const image = images[mode.id]
+            const draft = drafts[mode.id] || defaultContent(mode, image)
             const ModeIcon = mode.icon
             const busy = busyId === mode.id
             return <article className="game-image-row" key={mode.id}>
-              <div className="game-image-preview">
+              <div className="game-image-preview" style={{ '--game-image-text-color': draft.text_color }}>
                 {image?.image_url
-                  ? <img src={image.image_url} alt={`Ảnh Game Mode: ${mode.title}`} />
+                  ? <img src={image.image_url} alt="" aria-hidden="true" />
                   : <div className="game-image-placeholder"><ModeIcon size={32} aria-hidden="true" /><span>Chưa có ảnh</span></div>}
+                <div className="game-image-preview-copy"><strong>{draft.display_title}</strong><small>{draft.display_note || mode.description}</small></div>
               </div>
               <div className="game-image-details">
-                <span className={`game-image-status${image ? '' : ' game-image-status-empty'}`}>{image ? 'Đã có ảnh' : 'Chưa thiết lập'}</span>
-                <h2>{mode.title}</h2>
-                <p>{mode.description}</p>
+                <span className={`game-image-status${image?.image_path ? '' : ' game-image-status-empty'}`}>{image?.image_path ? 'Đã có ảnh' : 'Chưa có ảnh'}</span>
+                <form className="game-image-settings" onSubmit={(event) => void saveContent(mode, event)}>
+                  <label>Tên trò chơi
+                    <input type="text" required minLength={1} maxLength={60} value={draft.display_title} onChange={(event) => updateDraft(mode.id, 'display_title', event.target.value)} />
+                  </label>
+                  <label>Ghi chú
+                    <textarea rows={3} maxLength={300} value={draft.display_note} onChange={(event) => updateDraft(mode.id, 'display_note', event.target.value)} placeholder="Ví dụ: Chơi theo đội, trả lời câu hỏi để tiến về kho báu…" />
+                    <small>Tối đa 300 ký tự; ghi chú sẽ hiển thị trên ảnh bìa.</small>
+                  </label>
+                  <label className="game-image-color-field">Màu chữ
+                    <span><input type="color" value={draft.text_color} onChange={(event) => updateDraft(mode.id, 'text_color', event.target.value.toUpperCase())} /><code>{draft.text_color}</code></span>
+                  </label>
+                  <button className="button button-primary game-image-save" type="submit" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu thông tin trò chơi'}</button>
+                </form>
                 <div className="game-image-actions">
                   <label className="game-image-upload">
                     <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={busy} onChange={(event) => void upload(mode, event)} aria-label={`Tải ảnh lên cho ${mode.title}`} />
-                    <span>{busy ? 'Đang lưu…' : image ? 'Đổi ảnh' : 'Tải ảnh lên'}</span>
+                    <span>{busy ? 'Đang lưu…' : image?.image_path ? 'Đổi ảnh bìa' : 'Tải ảnh bìa lên'}</span>
                   </label>
-                  {image && <button className="button button-quiet game-image-remove" type="button" onClick={() => void remove(mode)} disabled={busy}>Xóa ảnh</button>}
+                  {image?.image_path && <button className="button button-quiet game-image-remove" type="button" onClick={() => void remove(mode)} disabled={busy}>Xóa ảnh</button>}
                 </div>
                 <p className="game-image-hint">JPG, PNG, WebP hoặc GIF · tối đa 5 MB · nên dùng ảnh ngang 16:9</p>
               </div>

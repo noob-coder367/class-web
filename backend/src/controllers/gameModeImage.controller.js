@@ -9,6 +9,15 @@ export async function upload(req, res, next) {
   }
 }
 
+export async function saveContent(req, res, next) {
+  try {
+    const image = await gameModeImageService.saveGameModeContent(req.params.gameKey, req.body)
+    res.json({ image })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export async function remove(req, res, next) {
   try {
     const result = await gameModeImageService.deleteGameModeImage(req.params.gameKey)

@@ -60,19 +60,29 @@ function JoinRoomModal({ onClose, description }) {
   )
 }
 
-function ModeCard({ mode, image, onJoin }) {
+function ModeCard({ mode, content, onJoin }) {
   const ModeIcon = mode.icon
+  const title = content?.display_title || mode.title
+  const image = content?.image_url
+  const textColor = content?.text_color || '#FFFFFF'
+  const note = content?.display_note || ''
+
   return (
     <article className="mode-card mode-card-active mode-card-with-image">
-      <div className="mode-card-cover">
+      <div className="mode-card-cover" style={{ '--mode-card-text-color': textColor }}>
         {image
-          ? <img src={image} alt={`Ảnh đại diện Game Mode: ${mode.title}`} loading="lazy" />
+          ? <img src={image} alt="" aria-hidden="true" loading="lazy" />
           : <div className="mode-card-cover-placeholder"><ModeIcon size={38} aria-hidden="true" /><span>Ảnh trò chơi</span></div>}
+        <div className="mode-card-cover-overlay">
+          <div className="mode-card-topline"><span className="live-pill">{mode.status}</span><span className="mode-arrow" aria-hidden="true"><ArrowRight size={22} /></span></div>
+          <div className="mode-card-cover-copy">
+            <ModeIcon className="mode-card-cover-icon" size={31} aria-hidden="true" />
+            <h2>{title}</h2>
+            <p>{mode.description}</p>
+            {note && <p className="mode-card-note">{note}</p>}
+          </div>
+        </div>
       </div>
-      <div className="mode-icon"><ModeIcon size={38} aria-hidden="true" /></div>
-      <div className="mode-card-topline"><span className="live-pill">{mode.status}</span><span className="mode-arrow" aria-hidden="true"><ArrowRight size={22} /></span></div>
-      <h2>{mode.title}</h2>
-      <p>{mode.description}</p>
       <div className="mode-preview"><span>{mode.previewLabel || 'PLAY'}</span><i /><i /><i /><b><ModeIcon size={26} aria-hidden="true" /></b></div>
       <div className="mode-actions">
         {mode.joinAction === 'passcode' && mode.joinLabel && (
@@ -97,11 +107,21 @@ export default function GameModePickerPage() {
     let active = true
     listGameModeImages(GAME_MODES.map((mode) => mode.id))
       .then((rows) => {
-        if (active) setImages(Object.fromEntries(rows.map((row) => [row.game_key, row.image_url])))
+        if (active) setImages(Object.fromEntries(rows.map((row) => [row.game_key, row])))
       })
-      .catch((error) => console.warn('[GameModePicker] Could not load game images:', error?.message || error))
+      .catch((error) => console.warn('[GameModePicker] Could not load game content:', error?.message || error))
     return () => { active = false }
   }, [])
+
+  const openJoin = (mode) => {
+    const title = images[mode.id]?.display_title || mode.title
+    setJoinMode({
+      ...mode,
+      joinDescription: mode.id === 'treasure-race'
+        ? `Nhập mã phòng 6 ký tự do host chia sẻ để tham gia ${title}.`
+        : mode.joinDescription || `Nhập passcode để tham gia ${title}.`,
+    })
+  }
 
   return (
     <div className="game-shell">
@@ -114,7 +134,7 @@ export default function GameModePickerPage() {
           <p>Chọn cách bạn muốn chơi cùng bộ câu hỏi của mình.</p>
         </header>
         <section className="mode-grid" aria-label="Danh sách game mode">
-          {GAME_MODES.map((mode) => <ModeCard key={mode.id} mode={mode} image={images[mode.id]} onJoin={setJoinMode} />)}
+          {GAME_MODES.map((mode) => <ModeCard key={mode.id} mode={mode} content={images[mode.id]} onJoin={openJoin} />)}
           <article className="mode-card mode-card-locked">
             <div className="mode-icon"><Lock size={38} aria-hidden="true" /></div>
             <h2>Game mode mới</h2>
