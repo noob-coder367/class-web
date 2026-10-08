@@ -87,7 +87,7 @@ function AccountMenu() {
           </Link>
           {isAdmin && <Link className="account-item" role="menuitem" to={ROUTES.adminAccounts} onClick={() => setOpen(false)}>
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5h16v13H4zM8 9h8M8 13h5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            Quản lý tài khoản
+            Quản lý trình duyệt
           </Link>}
           <button className="account-item account-item-danger" role="menuitem" type="button" onClick={() => void handleLogout()}>
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19H10M14 8l4 4-4 4M18 12H9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>

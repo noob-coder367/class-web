@@ -7,45 +7,32 @@ import { ROUTES } from '../lib/routes.js'
 import * as accountService from '../services/adminAccountService.js'
 
 const providerLabels = { google: 'Google', email: 'Email', ghost: 'Tài khoản ma', unknown: 'Không rõ' }
+const navItems = [{ id: 'accounts', label: 'Tài khoản', icon: 'users' }, { id: 'settings', label: 'Cài đặt chung', icon: 'settings' }]
+
+function NavIcon({ name }) {
+  return name === 'settings' ? <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" stroke="currentColor" strokeWidth="1.7"/><path d="m19 13.2 1.2 1-.9 1.6-1.5-.5a7.6 7.6 0 0 1-1.4 1l-.2 1.6h-1.9l-.5-1.5a7.4 7.4 0 0 1-1.7.1l-.8 1.3-1.7-.7.2-1.6a7.5 7.5 0 0 1-1.3-1.1l-1.5.4-.8-1.6 1.1-1.1a7.8 7.8 0 0 1-.2-1.7l-1.3-.8.7-1.7 1.5.2a7.3 7.3 0 0 1 1.2-1.3L9 5.2l1.6-.8.9 1.2a7.6 7.6 0 0 1 1.7-.2l.7-1.4 1.8.6-.1 1.6a7.4 7.4 0 0 1 1.4 1l1.5-.5.9 1.6-1.1 1.1c.2.5.3 1.1.3 1.7Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg> : <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 19v-1.3a3.7 3.7 0 0 0-3.7-3.7H7.7A3.7 3.7 0 0 0 4 17.7V19M10 10.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM15.5 4.2a3 3 0 0 1 0 5.8M17 14.2a3.8 3.8 0 0 1 3 3.7V19" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>
+}
 
 export default function AdminAccountsPage() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, profile } = useAuth()
   const toast = useToast()
+  const [section, setSection] = useState('accounts')
+  const [background, setBackground] = useState('')
   const [accounts, setAccounts] = useState([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState('')
 
-  const load = async () => {
-    setLoading(true)
-    try { setAccounts(await accountService.listAccounts()) } catch (error) { toast.error(error?.message || 'Không thể tải danh sách tài khoản.') } finally { setLoading(false) }
-  }
+  const load = async () => { setLoading(true); try { setAccounts(await accountService.listAccounts()) } catch (error) { toast.error(error?.message || 'Không thể tải danh sách tài khoản.') } finally { setLoading(false) } }
   useEffect(() => { void load() }, [])
-
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    return accounts.filter((account) => !needle || [account.email, account.full_name, account.display_name, providerLabels[account.provider]].some((value) => String(value || '').toLowerCase().includes(needle)))
-  }, [accounts, query])
-
-  const rename = async (account) => {
-    const next = window.prompt('Tên hiển thị mới cho tài khoản ma:', account.full_name || '')
-    if (next === null || !next.trim()) return
-    setBusyId(account.id)
-    try { await accountService.updateGhostDisplayName(account.id, next.trim()); toast.success('Đã cập nhật tên.'); await load() } catch (error) { toast.error(error?.message || 'Không thể cập nhật tên.') } finally { setBusyId('') }
-  }
-
-  const remove = async (account) => {
-    if (!window.confirm(`Xóa tài khoản ma "${account.full_name || account.email}"? Hành động này không thể hoàn tác.`)) return
-    setBusyId(account.id)
-    try { await accountService.deleteGhostAccount(account.id); toast.success('Đã xóa tài khoản ma.'); await load() } catch (error) { toast.error(error?.message || 'Không thể xóa tài khoản ma.') } finally { setBusyId('') }
-  }
-
+  const filtered = useMemo(() => { const needle = query.trim().toLowerCase(); return accounts.filter((account) => !needle || [account.email, account.full_name, account.display_name, providerLabels[account.provider]].some((value) => String(value || '').toLowerCase().includes(needle))) }, [accounts, query])
+  const rename = async (account) => { const next = window.prompt('Tên hiển thị mới cho tài khoản ma:', account.full_name || ''); if (next === null || !next.trim()) return; setBusyId(account.id); try { await accountService.updateGhostDisplayName(account.id, next.trim()); toast.success('Đã cập nhật tên.'); await load() } catch (error) { toast.error(error?.message || 'Không thể cập nhật tên.') } finally { setBusyId('') } }
+  const remove = async (account) => { if (!window.confirm(`Xóa tài khoản ma "${account.full_name || account.email}"? Hành động này không thể hoàn tác.`)) return; setBusyId(account.id); try { await accountService.deleteGhostAccount(account.id); toast.success('Đã xóa tài khoản ma.'); await load() } catch (error) { toast.error(error?.message || 'Không thể xóa tài khoản ma.') } finally { setBusyId('') } }
+  const chooseBackground = (event) => { const file = event.target.files?.[0]; if (!file) return; if (!file.type.startsWith('image/')) { toast.error('Vui lòng chọn một tệp hình ảnh.'); return } setBackground(URL.createObjectURL(file)); toast.success('Đã cập nhật ảnh nền xem trước.') }
   if (!isAdmin) return <Navigate to={ROUTES.home} replace />
 
-  return <div className="site-shell admin-shell"><SiteHeader /><main className="container admin-main">
-    <header className="admin-page-heading"><div><p className="section-overline">Quản trị</p><h1>Quản lý tài khoản</h1><p>Theo dõi tài khoản 10A4-Quizz và quản lý tài khoản ma. Thao tác xóa chỉ khả dụng với tài khoản ma.</p></div><span className="admin-count">{accounts.length} tài khoản</span></header>
-    <section className="profile-card admin-card" aria-label="Danh sách tài khoản"><div className="admin-toolbar"><input aria-label="Tìm tài khoản" placeholder="Tìm theo email hoặc tên…" value={query} onChange={(event) => setQuery(event.target.value)} /><button className="button button-quiet" type="button" onClick={() => void load()} disabled={loading}>Làm mới</button></div>
-      {loading ? <div className="admin-loading">Đang tải danh sách…</div> : <div className="account-table-wrap"><table className="account-table"><thead><tr><th>Tài khoản</th><th>Provider</th><th>Vai trò</th><th>Trạng thái</th><th /></tr></thead><tbody>{filtered.map((account) => <tr key={account.id}><td><strong>{account.full_name || account.display_name || 'Chưa đặt tên'}</strong><span>{account.email}</span></td><td><span className={`provider-badge provider-${account.provider}`}>{providerLabels[account.provider] || account.provider}</span></td><td>{account.role === 'admin' ? 'Quản trị viên' : 'Thành viên'}</td><td>{account.confirmed ? 'Đã xác nhận' : 'Chưa xác nhận'}</td><td>{account.is_ghost && <div className="account-row-actions"><button className="button button-quiet" type="button" onClick={() => void rename(account)} disabled={busyId === account.id}>Sửa tên</button><button className="button button-danger" type="button" onClick={() => void remove(account)} disabled={busyId === account.id}>Xóa</button></div>}</td></tr>)}{!filtered.length && <tr><td colSpan="5" className="account-empty">Không có tài khoản phù hợp.</td></tr>}</tbody></table></div>}
-    </section>
+  return <div className={`browser-shell${background ? ' has-background' : ''}`} style={background ? { '--admin-background': `url(${background})` } : undefined}><SiteHeader /><main className="browser-layout container">
+    <aside className="browser-sidebar"><div className="browser-brand"><span className="browser-brand-mark">10</span><div><strong>Dashboard</strong><small>V10 / Quản trị</small></div></div><nav aria-label="Các mục quản trị"><p className="browser-nav-label">Workspace</p>{navItems.map((item) => <button className={`browser-nav-item${section === item.id ? ' active' : ''}`} type="button" key={item.id} onClick={() => setSection(item.id)}><NavIcon name={item.icon} />{item.label}</button>)}</nav><div className="browser-sidebar-footer"><span className="browser-avatar">{(profile?.display_name || profile?.email || 'A').charAt(0).toUpperCase()}</span><div><strong>{profile?.display_name || 'Quản trị viên'}</strong><small>Administrator</small></div></div></aside>
+    <section className="browser-content">{section === 'settings' ? <><header className="browser-heading"><div><p className="browser-eyebrow">Cấu hình giao diện</p><h1>Cài đặt chung</h1><p>Tùy chỉnh không gian quản trị theo phong cách của lớp.</p></div></header><div className="browser-panel settings-panel"><div><h2>Ảnh nền dashboard</h2><p>Tải ảnh lên để hiển thị phía sau giao diện quản trị. Ảnh chỉ được áp dụng trong phiên xem hiện tại.</p></div><label className="upload-background"><input type="file" accept="image/*" onChange={chooseBackground} /><span>{background ? 'Đổi ảnh nền' : 'Chọn ảnh nền'}</span></label><div className="settings-preview" style={background ? { backgroundImage: `linear-gradient(90deg, rgba(5,9,12,.5), rgba(5,9,12,.12)), url(${background})` } : undefined}><strong>{background ? 'Ảnh nền đã sẵn sàng' : 'Chưa có ảnh nền'}</strong><small>Ảnh sẽ được làm tối để nội dung luôn dễ đọc.</small></div></div></> : <><header className="browser-heading"><div><p className="browser-eyebrow">Verification workspace</p><h1>Quản lý tài khoản</h1><p>Theo dõi thành viên, tài khoản ma và quyền truy cập của 10A4-Quizz.</p></div><span className="browser-stat"><strong>{accounts.length}</strong><small>Tài khoản</small></span></header><section className="browser-panel"><div className="admin-toolbar"><input aria-label="Tìm tài khoản" placeholder="Tìm theo email hoặc tên…" value={query} onChange={(event) => setQuery(event.target.value)} /><button className="button button-quiet" type="button" onClick={() => void load()} disabled={loading}>Làm mới</button></div>{loading ? <div className="admin-loading">Đang tải danh sách…</div> : <div className="account-table-wrap"><table className="account-table"><thead><tr><th>Tài khoản</th><th>Provider</th><th>Vai trò</th><th>Trạng thái</th><th /></tr></thead><tbody>{filtered.map((account) => <tr key={account.id}><td><strong>{account.full_name || account.display_name || 'Chưa đặt tên'}</strong><span>{account.email}</span></td><td><span className={`provider-badge provider-${account.provider}`}>{providerLabels[account.provider] || account.provider}</span></td><td>{account.role === 'admin' ? 'Quản trị viên' : 'Thành viên'}</td><td>{account.confirmed ? 'Đã xác nhận' : 'Chưa xác nhận'}</td><td>{account.is_ghost && <div className="account-row-actions"><button className="button button-quiet" type="button" onClick={() => void rename(account)} disabled={busyId === account.id}>Sửa tên</button><button className="button button-danger" type="button" onClick={() => void remove(account)} disabled={busyId === account.id}>Xóa</button></div>}</td></tr>)}{!filtered.length && <tr><td colSpan="5" className="account-empty">Không có tài khoản phù hợp.</td></tr>}</tbody></table></div>}</section></>}</section>
   </main></div>
 }
