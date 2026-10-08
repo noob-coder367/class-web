@@ -8,5 +8,5 @@ export default function DiceOverlay({ value, onComplete }) {
     const timer = setTimeout(() => { setRolling(false); onComplete?.() }, 900)
     return () => clearTimeout(timer)
   }, [onComplete])
-  return <div className="dice-overlay" role="status" aria-live="polite"><div className={`dice-cube ${rolling ? 'dice-cube-rolling' : ''}`}><span>{faces[value] || '⚄'}</span></div><strong>{rolling ? 'Xúc xắc đang lăn…' : `Bạn được đi ${value} bước`}</strong></div>
+  return <div className="dice-overlay" role="status" aria-live="polite"><div className="dice-kicker">KẾT QUẢ LƯỢT ĐI</div><div className={`dice-cube ${rolling ? 'dice-cube-rolling' : ''}`}><span>{faces[value] || '⚄'}</span></div><strong>{rolling ? 'Xúc xắc đang lăn…' : `Bạn được đi ${value} bước`}</strong><span className="dice-hint">Chuẩn bị tiến vào mê cung</span></div>
 }
