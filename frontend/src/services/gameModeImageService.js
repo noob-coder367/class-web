@@ -24,7 +24,7 @@ export async function listGameModeImages(gameKeys) {
 
   const { data, error } = await supabase
     .from('game_mode_images')
-    .select('game_key, image_path, display_title, display_note, text_color, updated_at')
+    .select('game_key, image_path, display_title, display_note, overlay_content, text_color, updated_at')
     .in('game_key', keys)
     .limit(Math.min(keys.length, 100))
 

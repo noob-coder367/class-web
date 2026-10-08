@@ -12,7 +12,7 @@ const IMAGE_FORMATS = Object.freeze({
   'image/gif': { extension: 'gif', matches: (buffer) => buffer.length >= 6 && /^GIF8[79]a$/.test(buffer.toString('ascii', 0, 6)) },
 })
 const GAME_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-const IMAGE_ROW_FIELDS = 'game_key, image_path, display_title, display_note, text_color, updated_at'
+const IMAGE_ROW_FIELDS = 'game_key, image_path, display_title, display_note, overlay_content, text_color, updated_at'
 
 function validateGameKey(gameKey) {
   if (typeof gameKey !== 'string' || gameKey.length > 64 || !GAME_KEY_PATTERN.test(gameKey)) {
@@ -80,6 +80,7 @@ export async function uploadGameModeImage(gameKey, buffer, contentType) {
       image_path: imagePath,
       display_title: existing?.display_title || null,
       display_note: existing?.display_note || null,
+      overlay_content: existing?.overlay_content || null,
       text_color: existing?.text_color || null,
     }, { onConflict: 'game_key' })
     .select(IMAGE_ROW_FIELDS)
@@ -108,6 +109,7 @@ export async function saveGameModeContent(gameKey, input) {
     ? input.display_title.trim().replace(/\s+/g, ' ')
     : ''
   const displayNote = typeof input.display_note === 'string' ? input.display_note.trim() : ''
+  const overlayContent = typeof input.overlay_content === 'string' ? input.overlay_content.trim() : ''
   const textColor = typeof input.text_color === 'string' ? input.text_color.trim().toUpperCase() : ''
 
   if (displayTitle.length < 1 || displayTitle.length > 60) {
@@ -115,6 +117,9 @@ export async function saveGameModeContent(gameKey, input) {
   }
   if (displayNote.length > 300) {
     throw new HttpError('Ghi chú không được dài quá 300 ký tự.', 400, 'invalid_game_note')
+  }
+  if (overlayContent.length > 300) {
+    throw new HttpError('Nội dung trên ảnh không được dài quá 300 ký tự.', 400, 'invalid_overlay_content')
   }
   if (!/^#[0-9A-F]{6}$/.test(textColor)) {
     throw new HttpError('Màu chữ phải là mã HEX dạng #RRGGBB.', 400, 'invalid_text_color')
@@ -128,6 +133,7 @@ export async function saveGameModeContent(gameKey, input) {
       image_path: existing?.image_path || null,
       display_title: displayTitle,
       display_note: displayNote || null,
+      overlay_content: overlayContent || null,
       text_color: textColor,
     }, { onConflict: 'game_key' })
     .select(IMAGE_ROW_FIELDS)

@@ -66,6 +66,7 @@ function ModeCard({ mode, content, onJoin }) {
   const image = content?.image_url
   const textColor = content?.text_color || '#FFFFFF'
   const note = content?.display_note || ''
+  const overlayContent = content?.overlay_content || ''
 
   return (
     <article className="mode-card mode-card-active mode-card-with-image">
@@ -78,6 +79,7 @@ function ModeCard({ mode, content, onJoin }) {
           <div className="mode-card-cover-copy">
             <ModeIcon className="mode-card-cover-icon" size={31} aria-hidden="true" />
             <h2>{title}</h2>
+            {overlayContent && <p className="mode-card-overlay-content">{overlayContent}</p>}
             <p>{mode.description}</p>
             {note && <p className="mode-card-note">{note}</p>}
           </div>

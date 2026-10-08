@@ -96,14 +96,17 @@ test('upload/delete ảnh Game Mode chỉ đi qua API admin có xác thực', as
   assert.equal((await call(endpoint, { method: 'PATCH', token: USER_TOKEN, json: { display_title: 'X', display_note: '', text_color: '#FFFFFF' } })).status, 403)
   assert.equal(uploadCalls, 0)
 
-  const settings = await call(endpoint, { method: 'PATCH', token: ADMIN_TOKEN, json: { display_title: 'Đua kho báu', display_note: 'Ghi chú mẫu', text_color: '#F4D35E' } })
+  const settings = await call(endpoint, { method: 'PATCH', token: ADMIN_TOKEN, json: { display_title: 'Đua kho báu', display_note: 'Ghi chú mẫu', overlay_content: 'Nội dung phủ ảnh', text_color: '#F4D35E' } })
   assert.equal(settings.status, 200)
   assert.equal(settings.body.image.image_path, null)
   assert.equal(settings.body.image.display_title, 'Đua kho báu')
   assert.equal(settings.body.image.display_note, 'Ghi chú mẫu')
+  assert.equal(settings.body.image.overlay_content, 'Nội dung phủ ảnh')
   assert.equal(settings.body.image.text_color, '#F4D35E')
   const invalidColor = await call(endpoint, { method: 'PATCH', token: ADMIN_TOKEN, json: { display_title: 'Tên', display_note: '', text_color: 'red' } })
   assert.equal(invalidColor.status, 400)
+  const longOverlay = await call(endpoint, { method: 'PATCH', token: ADMIN_TOKEN, json: { display_title: 'Tên', display_note: '', overlay_content: 'x'.repeat(301), text_color: '#FFFFFF' } })
+  assert.equal(longOverlay.status, 400)
 
   const firstUpload = await call(endpoint, { method: 'PUT', token: ADMIN_TOKEN, bytes: validPng() })
   assert.equal(firstUpload.status, 200)
@@ -112,6 +115,7 @@ test('upload/delete ảnh Game Mode chỉ đi qua API admin có xác thực', as
   assert.equal(storedObjects.has(firstPath), true)
   assert.equal(imageRows.get('treasure-race').image_path, firstPath)
   assert.equal(firstUpload.body.image.display_title, 'Đua kho báu')
+  assert.equal(firstUpload.body.image.overlay_content, 'Nội dung phủ ảnh')
   assert.equal(firstUpload.body.image.text_color, '#F4D35E')
 
   const invalidImage = await call(endpoint, { method: 'PUT', token: ADMIN_TOKEN, bytes: Buffer.from('not an image') })
@@ -128,6 +132,7 @@ test('upload/delete ảnh Game Mode chỉ đi qua API admin có xác thực', as
   assert.equal(deleted.body.deleted, true)
   assert.equal(imageRows.get('treasure-race').image_path, null)
   assert.equal(imageRows.get('treasure-race').display_note, 'Ghi chú mẫu')
+  assert.equal(imageRows.get('treasure-race').overlay_content, 'Nội dung phủ ảnh')
   assert.equal(storedObjects.size, 0)
 })
 

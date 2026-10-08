@@ -29,6 +29,7 @@ function defaultContent(mode, image) {
   return {
     display_title: image?.display_title || mode.title,
     display_note: image?.display_note || '',
+    overlay_content: image?.overlay_content || '',
     text_color: image?.text_color || '#FFFFFF',
   }
 }
@@ -95,7 +96,7 @@ function GameImagesWorkspace({ toast }) {
   }
 
   const remove = async (mode) => {
-    if (!images[mode.id]?.image_path || !window.confirm(`Xóa ảnh bìa của “${drafts[mode.id]?.display_title || mode.title}”? Tên, màu chữ và ghi chú sẽ được giữ lại.`)) return
+    if (!images[mode.id]?.image_path || !window.confirm(`Xóa ảnh bìa của “${drafts[mode.id]?.display_title || mode.title}”? Tên, màu chữ, ghi chú và nội dung trên ảnh sẽ được giữ lại.`)) return
     setBusyId(mode.id)
     try {
       await deleteGameModeImage(mode.id)
@@ -127,7 +128,7 @@ function GameImagesWorkspace({ toast }) {
                 {image?.image_url
                   ? <img src={image.image_url} alt="" aria-hidden="true" />
                   : <div className="game-image-placeholder"><ModeIcon size={32} aria-hidden="true" /><span>Chưa có ảnh</span></div>}
-                <div className="game-image-preview-copy"><strong>{draft.display_title}</strong><small>{draft.display_note || mode.description}</small></div>
+                <div className="game-image-preview-copy"><strong>{draft.display_title}</strong><small>{draft.overlay_content || draft.display_note || mode.description}</small></div>
               </div>
               <div className="game-image-details">
                 <span className={`game-image-status${image?.image_path ? '' : ' game-image-status-empty'}`}>{image?.image_path ? 'Đã có ảnh' : 'Chưa có ảnh'}</span>
@@ -137,7 +138,11 @@ function GameImagesWorkspace({ toast }) {
                   </label>
                   <label>Ghi chú
                     <textarea rows={3} maxLength={300} value={draft.display_note} onChange={(event) => updateDraft(mode.id, 'display_note', event.target.value)} placeholder="Ví dụ: Chơi theo đội, trả lời câu hỏi để tiến về kho báu…" />
-                    <small>Tối đa 300 ký tự; ghi chú sẽ hiển thị trên ảnh bìa.</small>
+                    <small>Tối đa 300 ký tự; ghi chú nhỏ hiển thị trên ảnh bìa.</small>
+                  </label>
+                  <label>Nội dung hiển thị trên ảnh
+                    <textarea rows={3} maxLength={300} value={draft.overlay_content} onChange={(event) => updateDraft(mode.id, 'overlay_content', event.target.value)} placeholder="Nhập nội dung nổi bật muốn đặt trên ảnh…" />
+                    <small>Tối đa 300 ký tự; nội dung này được làm nổi bật trên ảnh.</small>
                   </label>
                   <label className="game-image-color-field">Màu chữ
                     <span><input type="color" value={draft.text_color} onChange={(event) => updateDraft(mode.id, 'text_color', event.target.value.toUpperCase())} /><code>{draft.text_color}</code></span>
@@ -151,7 +156,7 @@ function GameImagesWorkspace({ toast }) {
                   </label>
                   {image?.image_path && <button className="button button-quiet game-image-remove" type="button" onClick={() => void remove(mode)} disabled={busy}>Xóa ảnh</button>}
                 </div>
-                <p className="game-image-hint">JPG, PNG, WebP hoặc GIF · tối đa 5 MB · nên dùng ảnh ngang 16:9</p>
+                <p className="game-image-hint">JPG, PNG, WebP hoặc GIF · tối đa 5 MB · ảnh dọc 4:5 được khuyến nghị</p>
               </div>
             </article>
           })}
