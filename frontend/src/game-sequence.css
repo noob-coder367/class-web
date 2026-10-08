@@ -1,0 +1,24 @@
+/* Hiện bản đồ lần lượt từng đội */
+.route-hint-label{position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:1;display:flex;align-items:center;gap:8px;padding:8px 16px;border:1px solid #f6b94b;border-radius:999px;color:#fff1c3;background:rgba(11,17,30,.94);box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:14px;white-space:nowrap}
+.route-hint-label strong{font-family:Manrope,sans-serif;font-weight:800}
+.route-hint-label small{color:#8f9cb6;font-weight:700}
+.route-hint-dot{width:14px;height:14px;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+
+/* Bảng kết quả khi kết thúc */
+.result-backdrop{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:20px;background:rgba(3,5,10,.74);backdrop-filter:blur(6px);animation:result-fade .25s ease}
+.result-modal{width:min(100%,460px);max-height:90vh;overflow:auto;padding:26px 24px;border:1px solid #34496d;border-radius:22px;color:#f0f3fa;background:linear-gradient(145deg,#152036,#0a111e);box-shadow:0 30px 90px rgba(0,0,0,.6);animation:result-pop .3s cubic-bezier(.2,.8,.3,1)}
+.result-modal h2{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 6px;color:#f6b94b;font-family:Manrope,sans-serif;font-size:26px;letter-spacing:-.03em}
+.result-sub{margin:0 0 18px;color:#98a5bd;font-size:14px;text-align:center;line-height:1.5}
+.result-list{display:grid;gap:9px}
+.result-row{display:flex;align-items:center;gap:11px;padding:12px 14px;border:1px solid transparent;border-radius:14px;background:#111b2d}
+.result-row.is-first{border-color:#f6b94b88;background:#2a2412;box-shadow:0 0 22px rgba(246,185,75,.15)}
+.result-rank{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;color:#1d1608;background:#f6b94b;font-weight:900;font-size:13px}
+.result-row:not(.is-first) .result-rank{color:#dbe6ff;background:#2a3a58}
+.result-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.result-left{flex:none;font-weight:800;font-size:13px;color:#f6b94b}
+.result-left.done{color:#7dffa8}
+.result-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+.result-actions .game-button{display:inline-flex;align-items:center;justify-content:center;margin:0;text-decoration:none;text-align:center}
+@keyframes result-fade{from{opacity:0}to{opacity:1}}
+@keyframes result-pop{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}
+@media(max-width:480px){.result-actions{grid-template-columns:1fr}.result-modal{padding:22px 16px}}

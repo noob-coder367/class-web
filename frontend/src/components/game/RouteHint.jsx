@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import { shortestPath } from '../../lib/maze.js'
 
+const TOKEN_COLORS = { blue: '#4b73dc', green: '#35ad78', purple: '#9670dc', orange: '#ed9a47', pink: '#df6f9f', cyan: '#42bacc', red: '#e16161', gold: '#d1a62c' }
+
 // Chuyển các tâm ô thành đường cong mượt (Catmull-Rom -> Bezier), có chút uốn lượn để không thẳng/vuông góc.
 function curvePath(points) {
   if (points.length < 2) return ''
@@ -18,12 +20,17 @@ function curvePath(points) {
   return d
 }
 
-export default function RouteHint({ maze, from }) {
+// teamName/token/order/total: để hiện nhãn "Bản đồ của đội X (1/4)" khi các đội lần lượt xem bản đồ.
+export default function RouteHint({ maze, from, teamName, token, order, total }) {
+  const color = TOKEN_COLORS[token] || '#e11d2e'
   const { d, start, end } = useMemo(() => {
     const path = shortestPath(maze, from, maze.exit)
     const points = path.map((cell) => [cell.x + 0.5, cell.y + 0.5])
     return { d: curvePath(points), start: points[0], end: points[points.length - 1] }
   }, [maze, from])
   if (!d) return null
-  return <div className="route-hint" role="img" aria-label="Gợi ý hướng đi tới đích"><svg viewBox={`-0.3 -0.3 ${maze.width + 0.6} ${maze.height + 0.6}`}><path className="route-hint-line" d={d} pathLength="1" fill="none" stroke="#e11d2e" strokeWidth="0.2" strokeLinecap="round" strokeLinejoin="round" /><circle cx={start[0]} cy={start[1]} r="0.24" fill="#e11d2e" /><circle className="route-hint-end" cx={end[0]} cy={end[1]} r="0.3" fill="none" stroke="#e11d2e" strokeWidth="0.1" /></svg></div>
+  return <div className="route-hint" role="img" aria-label={`Gợi ý hướng đi tới đích${teamName ? ` của ${teamName}` : ''}`}>
+    {teamName && <div className="route-hint-label"><span className="route-hint-dot" style={{ background: color }} /><strong>{teamName}</strong>{total > 1 && <small>{order}/{total}</small>}</div>}
+    <svg viewBox={`-0.3 -0.3 ${maze.width + 0.6} ${maze.height + 0.6}`}><path className="route-hint-line" d={d} pathLength="1" fill="none" stroke={color} strokeWidth="0.2" strokeLinecap="round" strokeLinejoin="round" /><circle cx={start[0]} cy={start[1]} r="0.24" fill={color} /><circle className="route-hint-end" cx={end[0]} cy={end[1]} r="0.3" fill="none" stroke={color} strokeWidth="0.1" /></svg>
+  </div>
 }
