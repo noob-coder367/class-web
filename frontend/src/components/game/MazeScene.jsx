@@ -6,8 +6,10 @@ import { mazePosition, normalizeMaze } from '../../lib/maze.js'
 
 const TEAM_COLORS = { blue: '#6d9dff', green: '#67e5b0', purple: '#c09aff', orange: '#ffb56f', pink: '#ff91bb', cyan: '#70e6f5', red: '#ff7c80', gold: '#f7d277' }
 const DEBUG_FULL_LIGHT = true
-const PLAYER_MOVE_DURATION_MS = 150
-const WALL_COLORS = ['#35425a', '#3d4b64', '#44536d', '#384660']
+const PLAYER_MOVE_DURATION_MS = 75
+const WALL_COLORS = ['#8a5a36', '#7d4f2e', '#94643c', '#86563a']
+const WALL_DETAIL_COLOR = '#4e2f1a'
+const FLOOR_COLORS = ['#4a3524', '#523a28']
 
 function MazeWalls({ maze }) {
   const meshRef = useRef(null)
@@ -49,7 +51,7 @@ function MazeWalls({ maze }) {
     meshRef.current.instanceMatrix.needsUpdate = true
     if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true
   }, [wallMatrices, wallColors])
-  return <><instancedMesh ref={meshRef} args={[wallGeometry, null, wallMatrices.length]} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={0.88} metalness={0.06} /></instancedMesh><WallDetails matrices={wallDetails} /></>
+  return <><instancedMesh ref={meshRef} args={[wallGeometry, null, wallMatrices.length]} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={0.9} metalness={0.02} /></instancedMesh><WallDetails matrices={wallDetails} /></>
 }
 
 function WallDetails({ matrices }) {
@@ -64,17 +66,27 @@ function WallDetails({ matrices }) {
     })
     meshRef.current.instanceMatrix.needsUpdate = true
   }, [matrices])
-  return <instancedMesh ref={meshRef} args={[null, null, matrices.length]}><boxGeometry args={[0.62, 0.026, 0.018]} /><meshStandardMaterial color="#71809b" roughness={0.78} metalness={0.04} /></instancedMesh>
+  return <instancedMesh ref={meshRef} args={[null, null, matrices.length]}><boxGeometry args={[0.62, 0.026, 0.018]} /><meshStandardMaterial color={WALL_DETAIL_COLOR} roughness={0.78} metalness={0.04} /></instancedMesh>
 }
 
 function Torch({ active }) {
   const flameRef = useRef(null)
+  const haloRef = useRef(null)
+  const lightRef = useRef(null)
+  const baseIntensity = active ? 16 : 5
   useFrame(({ clock }) => {
-    if (!flameRef.current) return
-    const pulse = 1 + Math.sin(clock.elapsedTime * 11) * 0.08 + Math.sin(clock.elapsedTime * 17) * 0.04
-    flameRef.current.scale.set(0.75 * pulse, 1.2 * pulse, 0.75 * pulse)
+    const t = clock.elapsedTime
+    const pulse = 1 + Math.sin(t * 11) * 0.1 + Math.sin(t * 17) * 0.06
+    if (flameRef.current) flameRef.current.scale.set(1.1 * pulse, 1.7 * pulse, 1.1 * pulse)
+    if (haloRef.current) haloRef.current.scale.setScalar(pulse * (active ? 1.25 : 0.9))
+    if (lightRef.current) lightRef.current.intensity = baseIntensity * (0.9 + (pulse - 1) * 1.6)
   })
-  return <group position={[0.27, 0.55, -0.08]}><mesh rotation={[0, 0, -0.35]} castShadow><cylinderGeometry args={[0.025, 0.035, 0.28, 6]} /><meshStandardMaterial color="#6e4329" /></mesh><mesh ref={flameRef} position={[0.04, 0.16, 0]} scale={[0.75, 1.2, 0.75]}><dodecahedronGeometry args={[0.09, 0]} /><meshBasicMaterial color="#ffd36a" /></mesh>{active && !DEBUG_FULL_LIGHT && <pointLight color="#ffb84d" intensity={1.65} distance={3.25} decay={2} />}</group>
+  return <group position={[0.27, 0.55, -0.08]}>
+    <mesh rotation={[0, 0, -0.35]} castShadow><cylinderGeometry args={[0.03, 0.04, 0.3, 6]} /><meshStandardMaterial color="#6e4329" /></mesh>
+    <mesh ref={flameRef} position={[0.04, 0.19, 0]} scale={[1.1, 1.7, 1.1]}><dodecahedronGeometry args={[0.1, 0]} /><meshBasicMaterial color="#fff1a8" /></mesh>
+    <mesh ref={haloRef} position={[0.04, 0.2, 0]}><sphereGeometry args={[0.34, 16, 12]} /><meshBasicMaterial color="#ffa733" transparent opacity={active ? 0.32 : 0.18} blending={THREE.AdditiveBlending} depthWrite={false} /></mesh>
+    <pointLight ref={lightRef} position={[0.04, 0.25, 0]} color="#ffb04a" intensity={baseIntensity} distance={active ? 6.5 : 3.5} decay={1.6} />
+  </group>
 }
 
 function Player({ team, active }) {
@@ -101,12 +113,12 @@ function Player({ team, active }) {
     if (groupRef.current) groupRef.current.position.copy(visualPosition.current)
   })
 
-  return <group ref={groupRef} position={[x, 0.42, z]} scale={active ? 1.08 : 0.92}><mesh castShadow><cylinderGeometry args={[0.24, 0.3, 0.62, 6]} /><meshStandardMaterial color={color} emissive={active ? color : '#111522'} emissiveIntensity={active ? 0.55 : 0.12} roughness={0.55} /></mesh><mesh position={[0, 0.38, 0]} castShadow><sphereGeometry args={[0.16, 10, 8]} /><meshStandardMaterial color="#f0c4a0" roughness={0.9} /></mesh><Torch active={active} />{active && !DEBUG_FULL_LIGHT && <pointLight color="#ffd27b" intensity={0.55} distance={2.7} decay={2} />}</group>
+  return <group ref={groupRef} position={[x, 0.42, z]} scale={active ? 1.08 : 0.92}><mesh castShadow><cylinderGeometry args={[0.24, 0.3, 0.62, 6]} /><meshStandardMaterial color={color} emissive={active ? color : '#111522'} emissiveIntensity={active ? 0.55 : 0.12} roughness={0.55} /></mesh><mesh position={[0, 0.38, 0]} castShadow><sphereGeometry args={[0.16, 10, 8]} /><meshStandardMaterial color="#f0c4a0" roughness={0.9} /></mesh><Torch active={active} /></group>
 }
 
 function Floor({ maze }) {
   const tiles = useMemo(() => Array.from({ length: maze.width * maze.height }, (_, index) => { const x = index % maze.width - maze.width / 2 + 0.5; const z = Math.floor(index / maze.width) - maze.height / 2 + 0.5; return [x, z] }), [maze])
-  return <><mesh position={[0, -0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[maze.width, maze.height]} /><meshStandardMaterial color="#0d1422" roughness={0.96} /></mesh>{tiles.map(([x, z], index) => <mesh key={index} position={[x, -0.065, z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[0.92, 0.92]} /><meshStandardMaterial color={index % 2 ? '#111b2b' : '#0f1827'} roughness={0.98} /></mesh>)}</>
+  return <><mesh position={[0, -0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[maze.width, maze.height]} /><meshStandardMaterial color="#2e2016" roughness={0.96} /></mesh>{tiles.map(([x, z], index) => <mesh key={index} position={[x, -0.065, z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[0.92, 0.92]} /><meshStandardMaterial color={index % 2 ? FLOOR_COLORS[0] : FLOOR_COLORS[1]} roughness={0.98} /></mesh>)}</>
 }
 
 function ExitMarker({ maze }) {
