@@ -15,6 +15,7 @@ import './App.css'
 import './account.css'
 import './admin-accounts.css'
 import './admin-extensions.css'
+import './responsive.css'
 
 function RouteLoading() {
   return <main className="route-loading" aria-label="Đang tải phiên đăng nhập"><span /></main>

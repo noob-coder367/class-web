@@ -1,0 +1,109 @@
+/* Shared responsive safeguards: layout changes only, existing visual theme is preserved. */
+*, *::before, *::after { min-width: 0; }
+img, svg, video, canvas { max-width: 100%; }
+button, input, select, textarea { max-width: 100%; }
+
+.admin-mobile-only { display: none; }
+.admin-room-card { display: grid; gap: 16px; padding: 16px; border: 1px solid rgba(143,181,181,.14); border-radius: 13px; background: rgba(5,12,14,.38); }
+.admin-room-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.admin-room-card-head h2 { margin: 4px 0 0; color: #eff5f5; font-size: 17px; line-height: 1.35; overflow-wrap: anywhere; }
+.admin-eyebrow { color: #ed6948; font-size: 9px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.admin-room-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; color: #b7c6c6; font-size: 12px; line-height: 1.45; }
+.admin-room-meta span { display: grid; gap: 3px; min-width: 0; }
+.admin-room-meta b { color: #718487; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.admin-room-meta code { color: #ffb09c; font: 800 14px ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .12em; overflow-wrap: anywhere; }
+.admin-room-meta em { width: fit-content; font-style: normal; }
+.admin-room-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-room-actions .button { flex: 1 1 110px; min-height: 42px; }
+
+@media (max-width: 1200px) {
+  .container { width: min(var(--content-width), calc(100% - 40px)); }
+  .browser-layout { gap: 20px; }
+  .browser-panel { padding: 16px; }
+}
+
+@media (max-width: 992px) {
+  .hero-grid { gap: 32px; }
+  .login-visual { padding: 32px; }
+  .profile-main { padding-top: 28px; }
+  .qz-savebar .qz-btn { min-width: 0; }
+}
+
+@media (max-width: 760px) {
+  html, body, #root { max-width: 100%; }
+  .container { width: calc(100% - 32px); }
+  .nav-inner { gap: 10px; }
+  .nav-actions { min-width: 0; flex-wrap: wrap; }
+  .nav-actions .button { white-space: normal; }
+  .browser-shell { overflow-x: clip; }
+  .browser-layout { width: calc(100% - 24px); grid-template-columns: 1fr; }
+  .browser-sidebar nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .browser-nav-item { width: 100%; justify-content: flex-start; min-width: 0; padding-inline: 9px; }
+  .browser-nav-item svg { display: block; flex: none; }
+  .browser-nav-label { display: block; grid-column: 1 / -1; margin-bottom: 2px; }
+  .browser-heading h1 { font-size: clamp(26px, 8vw, 36px); overflow-wrap: anywhere; }
+  .browser-heading p:not(.browser-eyebrow) { overflow-wrap: anywhere; }
+  .browser-stat { align-self: flex-start; }
+  .admin-desktop-only { display: none !important; }
+  .admin-mobile-only { display: grid; gap: 12px; }
+  .admin-quiz-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); }
+  .admin-question-card { min-width: 0; }
+  .admin-question-card h3, .admin-question-card p, .admin-question-card li { overflow-wrap: anywhere; }
+  .admin-subheading { gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+  .admin-modal-backdrop, .guide-backdrop, .join-modal-backdrop, .result-backdrop { padding: 12px; }
+  .admin-modal, .guide-modal, .join-modal, .result-modal { width: 100%; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
+  .admin-modal-actions { flex-wrap: wrap; }
+  .admin-modal-actions .button { flex: 1 1 120px; }
+  .qz-ai-options, .qz-tf { grid-template-columns: 1fr; }
+  .qz-card-head { align-items: flex-start; flex-wrap: wrap; }
+  .qz-card-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .qz-card-actions .qz-btn { width: 100%; min-width: 0; }
+  .qz-savebar { align-items: stretch; flex-direction: column; gap: 8px; }
+  .qz-savebar .qz-btn { width: 100%; }
+  .game-heading h1, .room-top h1 { overflow-wrap: anywhere; }
+  .room-code { min-width: 0; }
+  .room-code strong { overflow-wrap: anywhere; letter-spacing: .1em; }
+  .answer-grid { grid-template-columns: 1fr; }
+  .result-actions { grid-template-columns: 1fr; }
+  .login-panel { padding-inline: 16px; }
+  .account-menu { right: -8px; max-width: calc(100vw - 24px); }
+  .profile-summary { align-items: flex-start; flex-wrap: wrap; }
+  .pet-topbar { padding-inline: 12px; }
+  .pet-tabs { overflow-x: auto; justify-content: flex-start; }
+  .pet-tab { flex: 1 0 78px; }
+}
+
+@media (max-width: 480px) {
+  .container { width: calc(100% - 24px); }
+  .nav-inner { min-height: 62px; }
+  .brand { min-width: 0; }
+  .brand > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-actions .button { padding-inline: 9px; font-size: 11px; }
+  .browser-layout { width: calc(100% - 16px); }
+  .browser-panel { padding: 12px; }
+  .browser-heading { margin-bottom: 18px; }
+  .admin-room-meta { grid-template-columns: 1fr; }
+  .admin-room-actions .button { flex-basis: 0; }
+  .qz-panel, .qz-card { padding: 12px; }
+  .qz-segment-item { padding-inline: 5px; font-size: .78rem; }
+  .qz-file { align-items: flex-start; flex-wrap: wrap; }
+  .qz-file .qz-btn { width: 100%; }
+  .mode-card, .game-panel { padding: 16px; }
+  .mode-actions, .join-modal-actions { grid-template-columns: 1fr; }
+  .mode-card-with-image > .mode-card-cover { min-height: 360px; }
+  .login-tabs a { font-size: 12px; }
+  .auth-card { padding-inline: 16px; }
+  .profile-actions .button { width: 100%; }
+  .pet-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 10px; }
+  .pet-card-art { width: 100px; height: 120px; }
+}
+
+@media (max-width: 360px) {
+  .nav-actions .button { padding-inline: 7px; font-size: 10px; }
+  .browser-nav-item { font-size: 10px; }
+  .admin-room-card { padding: 12px; }
+  .admin-room-card-head { display: grid; }
+  .qz-card-actions { grid-template-columns: 1fr; }
+  .qz-segment { gap: 2px; }
+  .qz-segment-item { font-size: .72rem; }
+}
