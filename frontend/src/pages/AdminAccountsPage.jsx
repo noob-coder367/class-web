@@ -162,7 +162,7 @@ function GameImagesWorkspace({ toast }) {
                   </label>
                   {image?.image_path && <button className="button button-quiet game-image-remove" type="button" onClick={() => void remove(mode)} disabled={busy}>Xóa ảnh</button>}
                 </div>
-                <p className="game-image-hint">JPG, PNG, WebP hoặc GIF · tối đa 5 MB · ảnh dọc 4:5 được khuyến nghị</p>
+                <p className="game-image-hint">JPG, PNG, WebP hoặc GIF · tối đa 5 MB · khuyến nghị ảnh ngang 16:9</p>
               </div>
             </article>
           })}
