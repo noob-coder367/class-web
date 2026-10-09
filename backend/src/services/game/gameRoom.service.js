@@ -127,13 +127,21 @@ export async function startRoom(code, userId) {
   if (!room.settings.single_device_mode && activeTeamIds.size < 2) fail('Cần ít nhất 2 đội có người chơi để bắt đầu.')
   const ordered = orderTeamsByDice(teams.map((team) => ({ teamId: team.id, value: randomInt(1, 7) })))
   const maze = generateMaze(randomInt(1, 0xFFFFFFFF), 9, 9, teams.length)
-  for (let index = 0; index < ordered.length; index += 1) {
-    const originalIndex = teams.findIndex((team) => team.id === ordered[index].teamId)
+  const teamLayout = ordered.map((item, index) => {
+    const originalIndex = teams.findIndex((team) => team.id === item.teamId)
     const spawn = maze.spawns[originalIndex % maze.spawns.length] || maze.spawns[0]
-    await db(supabaseAdmin.from('game_teams').update({ turn_order: index, maze_x: spawn[0], maze_y: spawn[1], position: 0 }).eq('id', ordered[index].teamId))
-  }
-  await db(supabaseAdmin.from('game_rooms').update({ status: 'playing' }).eq('id', room.id))
-  await db(supabaseAdmin.from('game_games').update({ status: 'playing', phase: GAME_PHASES.QUESTION, current_turn: 0, question_index: 0, maze_seed: maze.seed, maze_layout: maze, dice_result: null, remaining_moves: 0, started_at: new Date().toISOString() }).eq('id', game.id))
+    return { team_id: item.teamId, turn_order: index, maze_x: spawn[0], maze_y: spawn[1] }
+  })
+  const { data: started, error } = await supabaseAdmin.rpc('start_game_atomic', {
+    p_user_id: userId,
+    p_room_id: room.id,
+    p_game_id: game.id,
+    p_team_layout: teamLayout,
+    p_maze_seed: maze.seed,
+    p_maze_layout: maze,
+  })
+  if (error) throw mapError(error)
+  if (started !== true) return getRoomForUser(code, userId)
   return getRoomForUser(code, userId)
 }
 
