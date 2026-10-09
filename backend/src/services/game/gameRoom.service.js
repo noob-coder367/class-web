@@ -5,12 +5,18 @@ import { evaluateAnswer, nextTurnIndex, orderTeamsByDice, generateMaze, canMove,
 
 const ROOM_COLUMNS = 'id, code, host_id, quiz_id, game_mode, status, settings, created_at, updated_at'
 const QUESTION_COLUMNS = 'id, order_index, type, content, options, correct_option, correct_boolean, explanation'
+const PUBLIC_QUESTION_COLUMNS = 'id, order_index, type, content, options, explanation'
 const GAME_COLUMNS = 'id, status, current_turn, question_index, total_questions, winner_team_id, phase, maze_seed, maze_layout, dice_result, remaining_moves, started_at, finished_at'
 const TEAM_COLUMNS = 'id, name, token, position, maze_x, maze_y, turn_order, correct_count, wrong_count, total_movement, total_response_time'
 const TOKENS = ['blue', 'green', 'purple', 'orange', 'pink', 'cyan', 'red', 'gold']
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const makeCode = () => Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('')
 const fail = (message, status = 400, code = 'validation_error') => { throw new HttpError(message, status, code) }
+export function toPublicQuestion(question) {
+  if (!question) return null
+  const { id, order_index, type, content, options, explanation } = question
+  return { id, order_index, type, content, options, explanation }
+}
 
 function mapError(error) {
   if (error?.code === '23505') return new HttpError('Mã phòng vừa bị trùng, vui lòng thử lại.', 409, 'room_conflict')
@@ -61,11 +67,11 @@ async function getRoomForUser(code, userId, feedback = null) {
   let question = null
   if (game?.status === 'playing' && teams.length && game.question_index < game.total_questions) {
     const questionIndex = Math.min(room.settings.question_limit - 1, game.question_index)
-    const questions = await db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(questionIndex + 1))
-    question = questions?.[questionIndex] || null
+    const questions = await db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(questionIndex + 1))
+    question = toPublicQuestion(questions?.[questionIndex])
   }
   const ranked = game?.status === 'finished' && game.maze_layout ? rankTeamsAtFinish(teams, game.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(game.maze_layout, { x: team.maze_x, y: team.maze_y }) })) : []
-  return { ...room, players, teams, game: game ? { ...game, maze: publicMazeState(game), ranking: ranked } : null, question, is_host: room.host_id === userId, current_user_team_id: players.find((p) => p.user_id === userId)?.team_id || null, movement_feedback: feedback }
+  return { ...room, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams, game: game ? { ...game, maze: publicMazeState(game), ranking: ranked } : null, question, is_host: room.host_id === userId, current_user_team_id: players.find((p) => p.user_id === userId)?.team_id || null, movement_feedback: feedback }
 }
 
 export async function getRoomState(code, userId) { return getRoomForUser(code, userId) }
@@ -178,12 +184,12 @@ export async function answerRoom(code, userId, body = {}) {
     db(supabaseAdmin.from('game_teams').update({ correct_count: updatedTeam.correct_count, wrong_count: updatedTeam.wrong_count, total_response_time: updatedTeam.total_response_time }).eq('id', currentTeam.id)),
     db(supabaseAdmin.from('game_games').update(gamePatch).eq('id', game.id)),
     nextGame.status === 'finished' ? db(supabaseAdmin.from('game_rooms').update({ status: 'finished' }).eq('id', room.id)) : null,
-    needsFetch ? db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(nextIndex + 1)) : null,
+    needsFetch ? db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(nextIndex + 1)) : null,
   ])
-  const nextQuestion = needsQuestion ? (needsFetch ? fetched?.[nextIndex] : question) || null : null
+  const nextQuestion = needsQuestion ? toPublicQuestion((needsFetch ? fetched?.[nextIndex] : question) || null) : null
   const finished = nextGame.status === 'finished'
   const ranking = finished && nextGame.maze_layout ? rankTeamsAtFinish(nextTeams, nextGame.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(nextGame.maze_layout, { x: team.maze_x, y: team.maze_y }) })) : []
-  return { ...room, status: finished ? 'finished' : room.status, players, teams: nextTeams, game: { ...nextGame, maze: publicMazeState(nextGame), ranking }, question: nextQuestion, is_host: room.host_id === userId, current_user_team_id: player.team_id || null, movement_feedback: null }
+  return { ...room, status: finished ? 'finished' : room.status, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams: nextTeams, game: { ...nextGame, maze: publicMazeState(nextGame), ranking }, question: nextQuestion, answer_feedback: { is_correct: isCorrect }, is_host: room.host_id === userId, current_user_team_id: player.team_id || null, movement_feedback: null }
 }
 
 export async function moveRoom(code, userId, direction) {
@@ -263,12 +269,12 @@ export async function moveRoomBatch(code, userId, directions = []) {
     db(supabaseAdmin.from('game_teams').update({ maze_x: movedTeam.maze_x, maze_y: movedTeam.maze_y, position: movedTeam.position, total_movement: movedTeam.total_movement }).eq('id', currentTeam.id)),
     db(supabaseAdmin.from('game_games').update(gamePatch).eq('id', game.id)),
     nextGame.status === 'finished' ? db(supabaseAdmin.from('game_rooms').update({ status: 'finished' }).eq('id', room.id)) : null,
-    needsQuestion ? db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(questionIndex + 1)) : null,
+    needsQuestion ? db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(questionIndex + 1)) : null,
   ])
-  let question = needsQuestion ? questions?.[questionIndex] || null : null
+  const question = needsQuestion ? toPublicQuestion(questions?.[questionIndex]) : null
   const finished = nextGame.status === 'finished'
   const ranking = finished && nextGame.maze_layout ? rankTeamsAtFinish(nextTeams, nextGame.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(nextGame.maze_layout, { x: team.maze_x, y: team.maze_y }) })) : []
-  return { ...room, status: finished ? 'finished' : room.status, players, teams: nextTeams, game: { ...nextGame, maze: publicMazeState(nextGame), ranking }, question, is_host: room.host_id === userId, current_user_team_id: player.team_id || null, movement_feedback: feedback }
+  return { ...room, status: finished ? 'finished' : room.status, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams: nextTeams, game: { ...nextGame, maze: publicMazeState(nextGame), ranking }, question, is_host: room.host_id === userId, current_user_team_id: player.team_id || null, movement_feedback: feedback }
 }
 
 export async function completeDiceRoll(code, userId) {

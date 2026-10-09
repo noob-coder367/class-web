@@ -25,18 +25,10 @@ const LIGHTS_ON_MS = 1200
 const GREEN_STEP_MS = 140
 const GREEN_HOLD_MS = 1500
 
-// Chấm ngay tại client (giống hệ thống làm bài cũ) để hiện đáp án tức thì; server vẫn chấm lại để tính điểm.
-function isAnswerCorrect(question, answer) {
-  if (!question) return false
-  if (question.type === 'multiple_choice') return Number(answer) === Number(question.correct_option)
-  if (question.type === 'true_false') return String(answer) === String(question.correct_boolean)
-  return String(answer || '').trim().length > 0
-}
-
 function optionClass(selected, revealed, isRight) {
   if (revealed) {
     if (isRight) return 'answer-option is-correct-answer'
-    if (selected) return 'answer-option is-wrong-answer'
+    if (selected) return 'answer-option selected'
     return 'answer-option is-dimmed'
   }
   return selected ? 'answer-option selected' : 'answer-option'
@@ -44,8 +36,8 @@ function optionClass(selected, revealed, isRight) {
 
 function answerOptions(question, answer, setAnswer, revealed) {
   const lock = Boolean(revealed)
-  if (question.type === 'multiple_choice') return <div className="answer-grid">{(question.options || []).map((option, index) => <button type="button" disabled={lock} className={optionClass(answer === String(index), lock, index === Number(question.correct_option))} key={`${option}-${index}`} onClick={() => setAnswer(String(index))}>{String.fromCharCode(65 + index)}. {option}</button>)}</div>
-  return <div className="answer-grid"><button type="button" disabled={lock} className={optionClass(answer === 'true', lock, String(question.correct_boolean) === 'true')} onClick={() => setAnswer('true')}>Đúng</button><button type="button" disabled={lock} className={optionClass(answer === 'false', lock, String(question.correct_boolean) === 'false')} onClick={() => setAnswer('false')}>Sai</button></div>
+  if (question.type === 'multiple_choice') return <div className="answer-grid">{(question.options || []).map((option, index) => <button type="button" disabled={lock} className={optionClass(answer === String(index), lock, false)} key={`${option}-${index}`} onClick={() => setAnswer(String(index))}>{String.fromCharCode(65 + index)}. {option}</button>)}</div>
+  return <div className="answer-grid"><button type="button" disabled={lock} className={optionClass(answer === 'true', lock, false)} onClick={() => setAnswer('true')}>Đúng</button><button type="button" disabled={lock} className={optionClass(answer === 'false', lock, false)} onClick={() => setAnswer('false')}>Sai</button></div>
 }
 
 export default function RoomPage() {
@@ -105,13 +97,14 @@ export default function RoomPage() {
     event.preventDefault()
     const question = roomRef.current?.question
     if (!answer || !question || revealing.current) return
-    const ok = isAnswerCorrect(question, answer)
     revealing.current = true
-    setReveal({ questionId: question.id, ok })
-    playAnswerSound(ok ? 'correct' : 'wrong')
     setError('')
     try {
-      const [next] = await Promise.all([submitAnswer(code, { answer, response_time_ms: Date.now() - questionStarted.current }), new Promise((resolve) => { setTimeout(resolve, REVEAL_MS) })])
+      const next = await submitAnswer(code, { answer, response_time_ms: Date.now() - questionStarted.current })
+      const ok = next.answer_feedback?.is_correct === true
+      setReveal({ questionId: question.id, ok })
+      playAnswerSound(ok ? 'correct' : 'wrong')
+      await new Promise((resolve) => { setTimeout(resolve, REVEAL_MS) })
       applyRoom(next)
     } catch (e) { setError(e.message); getRoom(code).then(applyRoom).catch(() => {}) } finally { revealing.current = false; setReveal(null) }
   }
