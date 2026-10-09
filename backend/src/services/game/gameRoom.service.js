@@ -43,20 +43,6 @@ export function normalizeResponseTime(value) {
   return Number.isFinite(numeric) ? Math.min(120000, Math.max(0, Math.floor(numeric))) : 0
 }
 
-async function claimAction(userId, requestId, action, roomId, gameId) {
-  const parsed = parseRequestId(requestId)
-  if (!parsed) return true
-  const { data, error } = await supabaseAdmin.rpc('claim_game_action', {
-    p_user_id: userId,
-    p_request_id: parsed,
-    p_action: action,
-    p_room_id: roomId,
-    p_game_id: gameId,
-  })
-  if (error) throw mapError(error)
-  return data !== false
-}
-
 export async function createRoom(userId, body = {}, requestId = null) {
   const quiz = await getOwnedQuiz(userId, body.quiz_id)
   const teamCount = Math.min(8, Math.max(2, Number(body.team_count) || 2))
