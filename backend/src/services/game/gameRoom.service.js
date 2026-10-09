@@ -199,9 +199,6 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
   if (!currentTeam || (!isSingleDeviceHost && player.team_id !== currentTeam.id)) fail('Chưa đến lượt đội của bạn.', 409, 'not_your_turn')
   const question = questions?.[game.question_index]
   if (!question) fail('Không còn câu hỏi hợp lệ.', 409, 'no_question')
-  const claimed = await claimAction(userId, requestId, 'answer', room.id, game.id)
-  if (!claimed) return getRoomForUser(code, userId)
-
   const isCorrect = evaluateAnswer(question, body.answer)
   const responseTime = normalizeResponseTime(body.response_time_ms)
   const updatedTeam = { ...currentTeam, correct_count: currentTeam.correct_count + (isCorrect ? 1 : 0), wrong_count: currentTeam.wrong_count + (isCorrect ? 0 : 1), total_response_time: (currentTeam.total_response_time || 0) + responseTime }
@@ -221,22 +218,24 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
   const needsQuestion = nextGame.status === 'playing' && nextGame.question_index < nextGame.total_questions
   const nextIndex = Math.min(room.settings.question_limit - 1, nextGame.question_index)
   const needsFetch = needsQuestion && nextIndex !== game.question_index
-  const { error: turnError } = await supabaseAdmin.from('game_turns').insert({ game_id: game.id, team_id: currentTeam.id, question_id: question.id, turn_number: game.question_index, answer: { submitted: body.answer }, is_correct: isCorrect, movement: isCorrect ? null : 0, response_time: responseTime || null })
-  if (turnError?.code === '23505') return getRoomForUser(code, userId)
-  if (turnError) throw mapError(turnError)
-  const { data: advanced, error: advanceError } = await supabaseAdmin
-    .from('game_games')
-    .update(gamePatch)
-    .eq('id', game.id)
-    .eq('status', 'playing')
-    .eq('phase', GAME_PHASES.QUESTION)
-    .eq('question_index', game.question_index)
-    .select('id')
-    .maybeSingle()
-  if (advanceError) throw mapError(advanceError)
-  if (!advanced) return getRoomForUser(code, userId)
-  await db(supabaseAdmin.from('game_teams').update({ correct_count: updatedTeam.correct_count, wrong_count: updatedTeam.wrong_count, total_response_time: updatedTeam.total_response_time }).eq('id', currentTeam.id))
-  if (nextGame.status === 'finished') await db(supabaseAdmin.from('game_rooms').update({ status: 'finished' }).eq('id', room.id))
+  const { data: committed, error: commitError } = await supabaseAdmin.rpc('submit_game_answer_atomic', {
+    p_user_id: userId,
+    p_request_id: parseRequestId(requestId),
+    p_room_id: room.id,
+    p_game_id: game.id,
+    p_expected_question_index: game.question_index,
+    p_team_id: currentTeam.id,
+    p_question_id: question.id,
+    p_answer: { submitted: body.answer },
+    p_is_correct: isCorrect,
+    p_response_time: responseTime,
+    p_game_patch: gamePatch,
+  })
+  if (commitError) {
+    if (commitError.code === '40001') fail('Trạng thái game vừa thay đổi. Hãy tải lại phòng.', 409, 'game_state_conflict')
+    throw mapError(commitError)
+  }
+  if (committed !== true) return getRoomForUser(code, userId)
   const fetched = needsFetch ? await db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(nextIndex + 1)) : null
   const nextQuestion = needsQuestion ? toPublicQuestion((needsFetch ? fetched?.[nextIndex] : question) || null) : null
   const finished = nextGame.status === 'finished'
