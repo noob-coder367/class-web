@@ -107,3 +107,25 @@ button, input, select, textarea { max-width: 100%; }
   .qz-segment { gap: 2px; }
   .qz-segment-item { font-size: .72rem; }
 }
+
+
+/* Admin room cards: keep the destructive action readable on dark mobile cards. */
+.browser-shell .admin-room-card .admin-room-actions .button-danger {
+  color: #fff !important;
+  background: #b94335 !important;
+  border: 1px solid #d65c4c !important;
+  opacity: 1;
+  text-shadow: none;
+  -webkit-text-fill-color: #fff;
+}
+.browser-shell .admin-room-card .admin-room-actions .button-danger:disabled {
+  color: #fff !important;
+  opacity: .65;
+}
+.browser-shell .admin-room-card .admin-room-actions .button-danger:hover:not(:disabled) {
+  background: #d14e3e !important;
+}
+.browser-shell .admin-room-card .admin-room-actions .button-quiet {
+  color: #d5e1e1 !important;
+  -webkit-text-fill-color: #d5e1e1;
+}
