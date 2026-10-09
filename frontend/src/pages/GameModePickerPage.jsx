@@ -70,7 +70,7 @@ function ModeCard({ mode, content, onJoin }) {
 
   return (
     <article className="mode-card mode-card-active mode-card-with-image">
-      <div className="mode-card-cover" style={{ '--mode-card-text-color': textColor }}>
+      <div className="mode-card-cover mode-card-cover-landscape" style={{ '--mode-card-text-color': textColor }}>
         {image
           ? <img src={image} alt="" aria-hidden="true" loading="lazy" />
           : <div className="mode-card-cover-placeholder"><ModeIcon size={38} aria-hidden="true" /><span>Ảnh trò chơi</span></div>}
