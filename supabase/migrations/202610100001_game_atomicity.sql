@@ -108,6 +108,114 @@ $$;
 revoke all on function public.create_game_room_atomic(uuid, uuid, uuid, uuid, text, jsonb, integer, integer, uuid) from public, anon, authenticated;
 grant execute on function public.create_game_room_atomic(uuid, uuid, uuid, uuid, text, jsonb, integer, integer, uuid) to service_role;
 
+create or replace function public.apply_game_movement_atomic(
+  p_user_id uuid,
+  p_room_id uuid,
+  p_game_id uuid,
+  p_team_id uuid,
+  p_expected_turn integer,
+  p_expected_x integer,
+  p_expected_y integer,
+  p_expected_remaining_moves integer,
+  p_new_x integer,
+  p_new_y integer,
+  p_steps integer,
+  p_remaining_moves integer,
+  p_game_patch jsonb
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $
+declare
+  v_room public.game_rooms%rowtype;
+  v_game public.game_games%rowtype;
+  v_player_team uuid;
+  v_current_team uuid;
+  v_team_x integer;
+  v_team_y integer;
+  v_team_position integer;
+  v_single_device boolean;
+begin
+  if p_user_id is null or p_room_id is null or p_game_id is null or p_team_id is null then
+    raise exception 'Required movement identifiers are missing' using errcode = '22023';
+  end if;
+  if p_steps is null or p_steps < 1 or p_steps > 50
+     or p_remaining_moves is null or p_remaining_moves < 0
+     or p_expected_remaining_moves is null or p_expected_remaining_moves < 1
+     or p_remaining_moves > p_expected_remaining_moves
+     or p_new_x is null or p_new_y is null or p_new_x < 0 or p_new_y < 0 then
+    raise exception 'Invalid movement values' using errcode = '22023';
+  end if;
+  if jsonb_typeof(coalesce(p_game_patch, '{}'::jsonb)) <> 'object'
+     or (coalesce(p_game_patch, '{}'::jsonb) - array['current_turn','question_index','status','phase','winner_team_id','remaining_moves','dice_result','finished_at']) <> '{}'::jsonb then
+    raise exception 'Movement patch contains unsupported fields' using errcode = '22023';
+  end if;
+
+  select * into v_game from public.game_games
+  where id = p_game_id and room_id = p_room_id for update;
+  if not found then raise exception 'Game not found' using errcode = 'P0002'; end if;
+  if v_game.status <> 'playing' or v_game.phase <> 'movement'
+     or v_game.current_turn <> p_expected_turn
+     or v_game.remaining_moves <> p_expected_remaining_moves then
+    raise exception 'Game state changed; reload room' using errcode = '40001';
+  end if;
+
+  select * into v_room from public.game_rooms where id = p_room_id;
+  if not found then raise exception 'Room not found' using errcode = 'P0002'; end if;
+  v_single_device := coalesce((v_room.settings->>'single_device_mode')::boolean, false);
+
+  select team_id into v_player_team from public.game_room_players
+  where room_id = p_room_id and user_id = p_user_id;
+  if not found then raise exception 'Player is not in room' using errcode = '42501'; end if;
+
+  select id into v_current_team from public.game_teams
+  where game_id = p_game_id
+  order by turn_order asc nulls last, created_at asc, id asc
+  offset v_game.current_turn limit 1;
+  if v_current_team is distinct from p_team_id then
+    raise exception 'Team is not the current turn' using errcode = '40001';
+  end if;
+  if not (v_single_device and v_room.host_id = p_user_id) and v_player_team is distinct from v_current_team then
+    raise exception 'Player does not control the current team' using errcode = '42501';
+  end if;
+
+  select maze_x, maze_y, position into v_team_x, v_team_y, v_team_position
+  from public.game_teams where id = p_team_id and game_id = p_game_id for update;
+  if not found then raise exception 'Team not found' using errcode = 'P0002'; end if;
+  if v_team_x is distinct from p_expected_x or v_team_y is distinct from p_expected_y then
+    raise exception 'Team position changed; reload room' using errcode = '40001';
+  end if;
+
+  update public.game_teams set
+    maze_x = p_new_x,
+    maze_y = p_new_y,
+    position = v_team_position + p_steps,
+    total_movement = total_movement + p_steps
+  where id = p_team_id and game_id = p_game_id;
+
+  update public.game_games set
+    current_turn = case when p_game_patch ? 'current_turn' then (p_game_patch->>'current_turn')::integer else current_turn end,
+    question_index = case when p_game_patch ? 'question_index' then (p_game_patch->>'question_index')::integer else question_index end,
+    status = case when p_game_patch ? 'status' then p_game_patch->>'status' else status end,
+    phase = case when p_game_patch ? 'phase' then p_game_patch->>'phase' else phase end,
+    winner_team_id = case when p_game_patch ? 'winner_team_id' then nullif(p_game_patch->>'winner_team_id', '')::uuid else winner_team_id end,
+    remaining_moves = case when p_game_patch ? 'remaining_moves' then (p_game_patch->>'remaining_moves')::integer else remaining_moves end,
+    dice_result = case when p_game_patch ? 'dice_result' then nullif(p_game_patch->>'dice_result', '')::integer else dice_result end,
+    finished_at = case when p_game_patch ? 'finished_at' then nullif(p_game_patch->>'finished_at', '')::timestamptz else finished_at end
+  where id = p_game_id;
+
+  if (p_game_patch->>'status') = 'finished' then
+    update public.game_rooms set status = 'finished' where id = p_room_id;
+  end if;
+  return true;
+end;
+$;
+
+revoke all on function public.apply_game_movement_atomic(uuid, uuid, uuid, uuid, integer, integer, integer, integer, integer, integer, integer, integer, jsonb) from public, anon, authenticated;
+grant execute on function public.apply_game_movement_atomic(uuid, uuid, uuid, uuid, integer, integer, integer, integer, integer, integer, integer, integer, jsonb) to service_role;
+
 create or replace function public.start_game_atomic(
   p_user_id uuid,
   p_room_id uuid,
