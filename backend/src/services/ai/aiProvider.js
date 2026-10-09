@@ -13,7 +13,7 @@ export function getAIProvider(config) {
   }
   const groq = config.GROQ_API_KEY ? createGroqProvider({ apiKey: config.GROQ_API_KEY, model: config.GROQ_MODEL || 'openai/gpt-oss-20b', fetchImpl: config.fetchImpl || fetch }) : null
   if (config.GEMINI_API_KEY) {
-    const gemini = createGeminiProvider({ apiKey: config.GEMINI_API_KEY, model: config.GEMINI_MODEL || 'gemini-2.5-flash', fetchImpl: config.fetchImpl || fetch })
+    const gemini = createGeminiProvider({ apiKey: config.GEMINI_API_KEY, model: config.GEMINI_MODEL || 'gemini-3.8-flash', fetchImpl: config.fetchImpl || fetch })
     return {
       name: 'gemini',
       async generateQuestions(args) {

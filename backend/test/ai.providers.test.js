@@ -7,9 +7,15 @@ const okGemini = { ok: true, json: async () => ({ candidates: [{ content: { part
 const okGroq = { ok: true, json: async () => ({ choices: [{ message: { content: '{"questions":[]}' } }] }) }
 test('Gemini thành công không gọi Groq', async () => {
   const calls = []
-  const provider = getAIProvider({ GEMINI_API_KEY: 'g', GROQ_API_KEY: 'q', fetchImpl: async (url) => { calls.push(url); return okGemini } })
+  const provider = getAIProvider({ GEMINI_API_KEY: 'g', GROQ_API_KEY: 'q', fetchImpl: async (url, init) => { calls.push({ url, init }); return okGemini } })
   assert.equal(await provider.generateQuestions(args), '{"questions":[]}')
-  assert.equal(calls.length, 1); assert.match(calls[0], /generativelanguage/); assert.equal(provider.name, 'gemini')
+  assert.equal(calls.length, 1); assert.match(calls[0].url, /generativelanguage/); assert.match(calls[0].url, /gemini-3\.8-flash/); assert.equal(provider.name, 'gemini')
+  const generationConfig = JSON.parse(calls[0].init.body).generationConfig
+  assert.deepEqual(generationConfig, { responseMimeType: 'application/json' })
+  assert.equal('temperature' in generationConfig, false)
+  assert.equal('topP' in generationConfig, false)
+  assert.equal('topK' in generationConfig, false)
+  assert.equal('candidateCount' in generationConfig, false)
 })
 test('Gemini lỗi tạm thời fallback đúng một lần sang Groq', async () => {
   const calls = []

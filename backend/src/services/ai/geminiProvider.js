@@ -39,7 +39,8 @@ export function createGeminiProvider({ apiKey, model, fetchImpl = fetch }) {
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: systemPrompt }] },
             contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-            generationConfig: { temperature: 0.3, responseMimeType: 'application/json' },
+            // Gemini 3.8 rejects legacy sampling parameters; its default thinking level is medium.
+            generationConfig: { responseMimeType: 'application/json' },
           }),
           signal: controller.signal,
         })
