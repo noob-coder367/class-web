@@ -163,16 +163,6 @@ async function assertTurn(room, game, teams, userId) {
   return currentTeam
 }
 
-async function finishOrAdvance(room, game, teams, currentTeam, winnerTeamId = null) {
-  const nextQuestionIndex = game.question_index + 1
-  const isFinished = Boolean(winnerTeamId) || nextQuestionIndex >= game.total_questions
-  let resolvedWinner = winnerTeamId
-  if (isFinished && !resolvedWinner) resolvedWinner = rankTeamsAtFinish(teams, game.maze_layout)[0]?.id || null
-  const nextIndex = nextTurnIndex(game.current_turn, teams.length)
-  await db(supabaseAdmin.from('game_games').update({ current_turn: nextIndex, question_index: nextQuestionIndex, phase: isFinished ? GAME_PHASES.FINISHED : GAME_PHASES.QUESTION, status: isFinished ? 'finished' : 'playing', winner_team_id: isFinished ? resolvedWinner : null, remaining_moves: 0, dice_result: null, ...(isFinished ? { finished_at: new Date().toISOString() } : {}) }).eq('id', game.id))
-  if (isFinished) await db(supabaseAdmin.from('game_rooms').update({ status: 'finished' }).eq('id', room.id))
-}
-
 export async function answerRoom(code, userId, body = {}, requestId = null) {
   // Bản nhanh: đọc song song, ghi song song, dựng phản hồi trong bộ nhớ (không đọc lại DB).
   const room = await findRoom(code)
