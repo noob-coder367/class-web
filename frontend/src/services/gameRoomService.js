@@ -4,8 +4,8 @@ export const listRoomQuizzes = async () => {
   const { quizzes } = await apiClient.get('/quizzes', { auth: true })
   return quizzes || []
 }
-export const createRoom = async (payload) => {
-  const { room } = await apiClient.post('/game-rooms', payload, { auth: true, retry: false })
+export const createRoom = async (payload, idempotencyKey = null) => {
+  const { room } = await apiClient.post('/game-rooms', payload, { auth: true, retry: false, idempotencyKey })
   return room
 }
 export const getRoom = async (code) => {
@@ -20,8 +20,8 @@ export const startRoom = async (code) => {
   const { room } = await apiClient.post(`/game-rooms/${code}/start`, {}, { auth: true, retry: false })
   return room
 }
-export const submitAnswer = async (code, payload) => {
-  const { room } = await apiClient.post(`/game-rooms/${code}/answer`, payload, { auth: true, retry: false })
+export const submitAnswer = async (code, payload, idempotencyKey = null) => {
+  const { room } = await apiClient.post(`/game-rooms/${code}/answer`, payload, { auth: true, retry: false, idempotencyKey })
   return room
 }
 export const completeDiceRoll = async (code) => {

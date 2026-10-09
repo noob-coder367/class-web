@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
@@ -13,9 +13,10 @@ export default function CreateRoomPage() {
   const [modeSelected, setModeSelected] = useState(false)
   const [form, setForm] = useState({ title: 'Phòng đua kho báu', team_count: 2, max_players_per_team: 4, board_length: 20, question_limit: '', timer_enabled: true, single_device_mode: false })
   const [status, setStatus] = useState({ loading: true, error: '' })
+  const createRequestKey = useRef(null)
   useEffect(() => { listRoomQuizzes().then((items) => { setQuizzes(items); setSelectedQuiz(items[0]?.id || ''); setStatus({ loading: false, error: '' }) }).catch((error) => setStatus({ loading: false, error: error.message })) }, [])
   const currentQuiz = useMemo(() => quizzes.find((quiz) => quiz.id === selectedQuiz), [quizzes, selectedQuiz])
-  const submit = async (event) => { event.preventDefault(); setStatus({ loading: true, error: '' }); try { const room = await createRoom({ ...form, quiz_id: selectedQuiz, question_limit: form.question_limit || undefined }); navigate(`${ROUTES.room}/${room.code}`) } catch (error) { setStatus({ loading: false, error: error.message }) } }
+  const submit = async (event) => { event.preventDefault(); setStatus({ loading: true, error: '' }); try { createRequestKey.current ||= crypto.randomUUID(); const room = await createRoom({ ...form, quiz_id: selectedQuiz, question_limit: form.question_limit || undefined }, createRequestKey.current); navigate(`${ROUTES.room}/${room.code}`) } catch (error) { setStatus({ loading: false, error: error.message }) } }
   return <div className="game-shell"><SiteHeader /><main className="container game-main">
     <div className="game-breadcrumb">Tạo phòng <ChevronRight className="ico" size={14} aria-hidden="true" /> Chọn game <ChevronRight className="ico" size={14} aria-hidden="true" /> Thiết lập</div>
     <header className="game-heading"><p className="game-overline">Game mode</p><h1>{modeSelected ? 'Thiết lập phòng' : 'Chọn cách chơi'}</h1><p>Biến quiz của bạn thành một cuộc đua vui nhộn cùng bạn bè.</p></header>

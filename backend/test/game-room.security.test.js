@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-const { toPublicQuestion } = await import('../src/services/game/gameRoom.service.js')
+const { toPublicQuestion, normalizeResponseTime } = await import('../src/services/game/gameRoom.service.js')
 
 test('game public question không lộ đáp án đúng hoặc reference answer', () => {
   const publicQuestion = toPublicQuestion({
@@ -26,4 +26,11 @@ test('game public question không lộ đáp án đúng hoặc reference answer'
   assert.equal('correct_option' in publicQuestion, false)
   assert.equal('correct_boolean' in publicQuestion, false)
   assert.equal('reference_answer' in publicQuestion, false)
+})
+
+test('response time từ client bị chặn về miền hợp lệ', () => {
+  assert.equal(normalizeResponseTime(-20), 0)
+  assert.equal(normalizeResponseTime('250000'), 120000)
+  assert.equal(normalizeResponseTime('not-a-number'), 0)
+  assert.equal(normalizeResponseTime(1234.9), 1234)
 })

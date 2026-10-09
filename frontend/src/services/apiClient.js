@@ -66,7 +66,7 @@ function retryDelayMs(attempt, retryAfterHeader) {
 
 function shouldRetry(method, status, networkError, attempt) {
   if (attempt >= 3) return false
-  if (status && RETRYABLE_STATUS.has(status)) return true
+  if (status && RETRYABLE_STATUS.has(status) && (method === 'GET' || method === 'HEAD')) return true
   if (networkError && method === 'GET') return true
   return false
 }
@@ -86,11 +86,13 @@ async function request(path, options = {}) {
     rawBody = false,
     contentType = 'application/json',
     headers: extraHeaders = {},
+    idempotencyKey = null,
     _retried = false,
     _attempt = 0,
   } = options
   const again = (patch) => request(path, { ...options, ...patch })
   const headers = { 'Content-Type': contentType, ...extraHeaders }
+  if (idempotencyKey && method !== 'GET' && method !== 'HEAD') headers['Idempotency-Key'] = idempotencyKey
 
   if (auth) {
     const token = await getFreshAccessToken()

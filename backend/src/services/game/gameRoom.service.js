@@ -8,7 +8,6 @@ const QUESTION_COLUMNS = 'id, order_index, type, content, options, correct_optio
 const PUBLIC_QUESTION_COLUMNS = 'id, order_index, type, content, options, explanation'
 const GAME_COLUMNS = 'id, status, current_turn, question_index, total_questions, winner_team_id, phase, maze_seed, maze_layout, dice_result, remaining_moves, started_at, finished_at'
 const TEAM_COLUMNS = 'id, name, token, position, maze_x, maze_y, turn_order, correct_count, wrong_count, total_movement, total_response_time'
-const TOKENS = ['blue', 'green', 'purple', 'orange', 'pink', 'cyan', 'red', 'gold']
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const makeCode = () => Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('')
 const fail = (message, status = 400, code = 'validation_error') => { throw new HttpError(message, status, code) }
@@ -34,34 +33,74 @@ async function getOwnedQuiz(userId, quizId) {
 async function roomById(id) { return db(supabaseAdmin.from('game_rooms').select(ROOM_COLUMNS).eq('id', id).maybeSingle()) }
 async function findRoom(code) { return db(supabaseAdmin.from('game_rooms').select(ROOM_COLUMNS).eq('code', String(code).toUpperCase()).maybeSingle()) }
 
-export async function createRoom(userId, body = {}) {
+function parseRequestId(value) {
+  const raw = String(value || '').trim()
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw) ? raw : null
+}
+
+export function normalizeResponseTime(value) {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? Math.min(120000, Math.max(0, Math.floor(numeric))) : 0
+}
+
+async function claimAction(userId, requestId, action, roomId, gameId) {
+  const parsed = parseRequestId(requestId)
+  if (!parsed) return true
+  const { data, error } = await supabaseAdmin.rpc('claim_game_action', {
+    p_user_id: userId,
+    p_request_id: parsed,
+    p_action: action,
+    p_room_id: roomId,
+    p_game_id: gameId,
+  })
+  if (error) throw mapError(error)
+  return data !== false
+}
+
+export async function createRoom(userId, body = {}, requestId = null) {
   const quiz = await getOwnedQuiz(userId, body.quiz_id)
   const teamCount = Math.min(8, Math.max(2, Number(body.team_count) || 2))
   const maxPlayers = Math.min(12, Math.max(1, Number(body.max_players_per_team) || 4))
   const boardLength = [10, 20, 30, 40, 50].includes(Number(body.board_length)) ? Number(body.board_length) : 20
   const questionLimit = Math.min(quiz.questions.length, Math.max(1, Number(body.question_limit) || quiz.questions.length))
   const settings = { title: String(body.title || 'Phòng đua kho báu').trim().slice(0, 80), team_count: teamCount, max_players_per_team: maxPlayers, board_length: boardLength, question_limit: questionLimit, timer_enabled: body.timer_enabled !== false, single_device_mode: body.single_device_mode === true, question_time_seconds: 30 }
-  let room
+  const parsedRequestId = parseRequestId(requestId)
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    room = await db(supabaseAdmin.from('game_rooms').insert({ id: randomUUID(), code: makeCode(), host_id: userId, quiz_id: quiz.id, game_mode: 'treasure_race', status: 'lobby', settings }).select(ROOM_COLUMNS).single()).catch((error) => { if (error?.status === 503) throw error; return null })
-    if (room) break
+    const roomId = randomUUID()
+    const gameId = randomUUID()
+    const { data: createdRoomId, error } = await supabaseAdmin.rpc('create_game_room_atomic', {
+      p_room_id: roomId,
+      p_game_id: gameId,
+      p_host_id: userId,
+      p_quiz_id: quiz.id,
+      p_code: makeCode(),
+      p_settings: settings,
+      p_team_count: teamCount,
+      p_question_limit: questionLimit,
+      p_request_id: parsedRequestId,
+    })
+    if (!error) return getRoomForUserById(createdRoomId || roomId, userId)
+    if (error.code !== '23505') throw mapError(error)
   }
-  if (!room) fail('Không tạo được mã phòng, vui lòng thử lại.', 503, 'room_unavailable')
-  const game = await db(supabaseAdmin.from('game_games').insert({ room_id: room.id, status: 'ordering', phase: GAME_PHASES.QUESTION, total_questions: questionLimit }).select('id').single())
-  const teams = Array.from({ length: teamCount }, (_, index) => ({ game_id: game.id, name: `Đội ${index + 1}`, token: TOKENS[index], position: 0, maze_x: 0, maze_y: 0 }))
-  const createdTeams = await db(supabaseAdmin.from('game_teams').insert(teams).select('id, name, token, position, maze_x, maze_y, turn_order'))
-  await db(supabaseAdmin.from('game_room_players').insert({ room_id: room.id, user_id: userId, team_id: createdTeams[0].id }))
-  return getRoomForUser(room.code, userId)
+  fail('Không tạo được mã phòng, vui lòng thử lại.', 503, 'room_unavailable')
 }
 
 function publicMazeState(game) {
   return game?.maze_layout || null
 }
 
-async function getRoomForUser(code, userId, feedback = null) {
+async function getRoomForUserById(roomId, userId, feedback = null) {
+  const room = await roomById(roomId)
+  if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
+  return getRoomForUser(room.code, userId, feedback)
+}
+
+async function getRoomForUser(code, userId, feedback = null, { allowPreview = true } = {}) {
   const room = await findRoom(code)
   if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
   const players = await db(supabaseAdmin.from('game_room_players').select('id, user_id, team_id, joined_at').eq('room_id', room.id).order('joined_at', { ascending: true }))
+  const isMember = players.some((player) => player.user_id === userId)
+  if (!isMember && (!allowPreview || room.status !== 'lobby')) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
   const game = await db(supabaseAdmin.from('game_games').select(GAME_COLUMNS).eq('room_id', room.id).maybeSingle())
   const teams = game ? await db(supabaseAdmin.from('game_teams').select(TEAM_COLUMNS).eq('game_id', game.id).order('turn_order', { ascending: true, nullsFirst: false })) : []
   let question = null
@@ -71,6 +110,7 @@ async function getRoomForUser(code, userId, feedback = null) {
     question = toPublicQuestion(questions?.[questionIndex])
   }
   const ranked = game?.status === 'finished' && game.maze_layout ? rankTeamsAtFinish(teams, game.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(game.maze_layout, { x: team.maze_x, y: team.maze_y }) })) : []
+  if (!isMember) return { ...room, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams: teams.map(({ id, name, token }) => ({ id, name, token })), game: null, question: null, is_host: false, current_user_team_id: null, movement_feedback: null }
   return { ...room, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams, game: game ? { ...game, maze: publicMazeState(game), ranking: ranked } : null, question, is_host: room.host_id === userId, current_user_team_id: players.find((p) => p.user_id === userId)?.team_id || null, movement_feedback: feedback }
 }
 
@@ -139,7 +179,7 @@ async function finishOrAdvance(room, game, teams, currentTeam, winnerTeamId = nu
   if (isFinished) await db(supabaseAdmin.from('game_rooms').update({ status: 'finished' }).eq('id', room.id))
 }
 
-export async function answerRoom(code, userId, body = {}) {
+export async function answerRoom(code, userId, body = {}, requestId = null) {
   // Bản nhanh: đọc song song, ghi song song, dựng phản hồi trong bộ nhớ (không đọc lại DB).
   const room = await findRoom(code)
   if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
@@ -159,9 +199,11 @@ export async function answerRoom(code, userId, body = {}) {
   if (!currentTeam || (!isSingleDeviceHost && player.team_id !== currentTeam.id)) fail('Chưa đến lượt đội của bạn.', 409, 'not_your_turn')
   const question = questions?.[game.question_index]
   if (!question) fail('Không còn câu hỏi hợp lệ.', 409, 'no_question')
+  const claimed = await claimAction(userId, requestId, 'answer', room.id, game.id)
+  if (!claimed) return getRoomForUser(code, userId)
 
   const isCorrect = evaluateAnswer(question, body.answer)
-  const responseTime = Math.max(0, Number(body.response_time_ms) || 0)
+  const responseTime = normalizeResponseTime(body.response_time_ms)
   const updatedTeam = { ...currentTeam, correct_count: currentTeam.correct_count + (isCorrect ? 1 : 0), wrong_count: currentTeam.wrong_count + (isCorrect ? 0 : 1), total_response_time: (currentTeam.total_response_time || 0) + responseTime }
   const nextTeams = teams.map((team) => (team.id === currentTeam.id ? updatedTeam : team))
 
@@ -179,13 +221,23 @@ export async function answerRoom(code, userId, body = {}) {
   const needsQuestion = nextGame.status === 'playing' && nextGame.question_index < nextGame.total_questions
   const nextIndex = Math.min(room.settings.question_limit - 1, nextGame.question_index)
   const needsFetch = needsQuestion && nextIndex !== game.question_index
-  const [, , , , fetched] = await Promise.all([
-    db(supabaseAdmin.from('game_turns').insert({ game_id: game.id, team_id: currentTeam.id, question_id: question.id, turn_number: game.question_index, answer: { submitted: body.answer }, is_correct: isCorrect, movement: isCorrect ? null : 0, response_time: responseTime || null })),
-    db(supabaseAdmin.from('game_teams').update({ correct_count: updatedTeam.correct_count, wrong_count: updatedTeam.wrong_count, total_response_time: updatedTeam.total_response_time }).eq('id', currentTeam.id)),
-    db(supabaseAdmin.from('game_games').update(gamePatch).eq('id', game.id)),
-    nextGame.status === 'finished' ? db(supabaseAdmin.from('game_rooms').update({ status: 'finished' }).eq('id', room.id)) : null,
-    needsFetch ? db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(nextIndex + 1)) : null,
-  ])
+  const { error: turnError } = await supabaseAdmin.from('game_turns').insert({ game_id: game.id, team_id: currentTeam.id, question_id: question.id, turn_number: game.question_index, answer: { submitted: body.answer }, is_correct: isCorrect, movement: isCorrect ? null : 0, response_time: responseTime || null })
+  if (turnError?.code === '23505') return getRoomForUser(code, userId)
+  if (turnError) throw mapError(turnError)
+  const { data: advanced, error: advanceError } = await supabaseAdmin
+    .from('game_games')
+    .update(gamePatch)
+    .eq('id', game.id)
+    .eq('status', 'playing')
+    .eq('phase', GAME_PHASES.QUESTION)
+    .eq('question_index', game.question_index)
+    .select('id')
+    .maybeSingle()
+  if (advanceError) throw mapError(advanceError)
+  if (!advanced) return getRoomForUser(code, userId)
+  await db(supabaseAdmin.from('game_teams').update({ correct_count: updatedTeam.correct_count, wrong_count: updatedTeam.wrong_count, total_response_time: updatedTeam.total_response_time }).eq('id', currentTeam.id))
+  if (nextGame.status === 'finished') await db(supabaseAdmin.from('game_rooms').update({ status: 'finished' }).eq('id', room.id))
+  const fetched = needsFetch ? await db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(nextIndex + 1)) : null
   const nextQuestion = needsQuestion ? toPublicQuestion((needsFetch ? fetched?.[nextIndex] : question) || null) : null
   const finished = nextGame.status === 'finished'
   const ranking = finished && nextGame.maze_layout ? rankTeamsAtFinish(nextTeams, nextGame.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(nextGame.maze_layout, { x: team.maze_x, y: team.maze_y }) })) : []
