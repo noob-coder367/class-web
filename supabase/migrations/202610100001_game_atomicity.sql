@@ -108,6 +108,105 @@ $$;
 revoke all on function public.create_game_room_atomic(uuid, uuid, uuid, uuid, text, jsonb, integer, integer, uuid) from public, anon, authenticated;
 grant execute on function public.create_game_room_atomic(uuid, uuid, uuid, uuid, text, jsonb, integer, integer, uuid) to service_role;
 
+create or replace function public.start_game_atomic(
+  p_user_id uuid,
+  p_room_id uuid,
+  p_game_id uuid,
+  p_team_layout jsonb,
+  p_maze_seed bigint,
+  p_maze_layout jsonb
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $
+declare
+  v_room public.game_rooms%rowtype;
+  v_game public.game_games%rowtype;
+  v_team_count integer;
+  v_active_team_count integer;
+begin
+  if p_user_id is null or p_room_id is null or p_game_id is null or p_maze_seed is null then
+    raise exception 'Required start-game fields are missing' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_team_layout) <> 'array' or jsonb_typeof(p_maze_layout) <> 'object' then
+    raise exception 'Invalid start-game layout' using errcode = '22023';
+  end if;
+
+  select * into v_room from public.game_rooms where id = p_room_id for update;
+  if not found then raise exception 'Room not found' using errcode = 'P0002'; end if;
+  if v_room.host_id <> p_user_id then
+    raise exception 'Only the host can start the game' using errcode = '42501';
+  end if;
+
+  select * into v_game from public.game_games where id = p_game_id and room_id = p_room_id for update;
+  if not found then raise exception 'Game not found' using errcode = 'P0002'; end if;
+  if v_room.status <> 'lobby' or v_game.status <> 'ordering' then
+    return false;
+  end if;
+
+  select count(*) into v_team_count from public.game_teams where game_id = p_game_id;
+  if v_team_count < 2 or v_team_count > 8 or jsonb_array_length(p_team_layout) <> v_team_count then
+    raise exception 'Invalid team layout count' using errcode = '22023';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(p_team_layout) e
+    where nullif(e->>'team_id','') is null
+       or nullif(e->>'turn_order','') is null
+       or nullif(e->>'maze_x','') is null
+       or nullif(e->>'maze_y','') is null
+  ) then
+    raise exception 'Incomplete team layout entry' using errcode = '22023';
+  end if;
+  if (select count(distinct e->>'team_id') from jsonb_array_elements(p_team_layout) e) <> v_team_count
+     or exists (
+       select 1 from jsonb_array_elements(p_team_layout) e
+       where not exists (
+         select 1 from public.game_teams t
+         where t.id = (e->>'team_id')::uuid and t.game_id = p_game_id
+       )
+     ) then
+    raise exception 'Team layout does not match this game' using errcode = '22023';
+  end if;
+
+  select count(distinct rp.team_id) into v_active_team_count
+  from public.game_room_players rp
+  where rp.room_id = p_room_id and rp.team_id is not null;
+  if not coalesce((v_room.settings->>'single_device_mode')::boolean, false) and v_active_team_count < 2 then
+    raise exception 'At least two teams must have players' using errcode = '22023';
+  end if;
+
+  update public.game_teams t set
+    turn_order = (e->>'turn_order')::integer,
+    maze_x = (e->>'maze_x')::integer,
+    maze_y = (e->>'maze_y')::integer,
+    position = 0
+  from jsonb_array_elements(p_team_layout) e
+  where t.id = (e->>'team_id')::uuid and t.game_id = p_game_id;
+
+  update public.game_games set
+    status = 'playing',
+    phase = 'question',
+    current_turn = 0,
+    question_index = 0,
+    maze_seed = p_maze_seed,
+    maze_layout = p_maze_layout,
+    dice_result = null,
+    remaining_moves = 0,
+    started_at = now(),
+    finished_at = null,
+    winner_team_id = null
+  where id = p_game_id;
+
+  update public.game_rooms set status = 'playing' where id = p_room_id;
+  return true;
+end;
+$;
+
+revoke all on function public.start_game_atomic(uuid, uuid, uuid, jsonb, bigint, jsonb) from public, anon, authenticated;
+grant execute on function public.start_game_atomic(uuid, uuid, uuid, jsonb, bigint, jsonb) to service_role;
+
 create or replace function public.submit_game_answer_atomic(
   p_user_id uuid,
   p_request_id uuid,
