@@ -155,8 +155,6 @@ async function getActiveGame(code) {
 
 async function assertTurn(room, game, teams, userId) {
   const players = await db(supabaseAdmin.from('game_room_players').select('user_id, team_id').eq('room_id', room.id))
-  const player = players.find((item) => item.user_id === userId)
-  if (!player) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
   const currentTeam = teams[game.current_turn]
   const isSingleDeviceHost = room.settings.single_device_mode === true && room.host_id === userId
   if (!currentTeam || (!isSingleDeviceHost && player.team_id !== currentTeam.id)) fail('Chưa đến lượt đội của bạn.', 409, 'not_your_turn')
@@ -171,6 +169,9 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
     db(supabaseAdmin.from('game_games').select(GAME_COLUMNS).eq('room_id', room.id).single()),
     db(supabaseAdmin.from('game_room_players').select('id, user_id, team_id, joined_at').eq('room_id', room.id).order('joined_at', { ascending: true })),
   ])
+  const player = players.find((item) => item.user_id === userId)
+  if (!player) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
+
   // A retry after a successful answer may arrive after the game has already advanced.
   // Return the current state for an already-committed key before validating the new phase.
   const parsedRequestId = parseRequestId(requestId)
@@ -288,7 +289,7 @@ export async function moveRoom(code, userId, direction) {
     throw mapError(error)
   }
   if (moved !== true) return getRoomForUser(code, userId)
-  return getRoomForUser(code, userId, { collision: false, direction, remaining_moves: Math.max(0, nextMoves), moved: true })
+  return getRoomForUser(code, userId, { collision: false, direction, remaining_moves: Number(gamePatch.remaining_moves ?? nextMoves), moved: true })
 }
 
 export async function moveRoomBatch(code, userId, directions = []) {
@@ -338,6 +339,7 @@ export async function moveRoomBatch(code, userId, directions = []) {
   } else {
     gamePatch = { remaining_moves: remaining }
   }
+  feedback.remaining_moves = Number(gamePatch.remaining_moves ?? remaining)
   const { data: moved, error } = await supabaseAdmin.rpc('apply_game_movement_atomic', {
     p_user_id: userId,
     p_room_id: room.id,
