@@ -148,9 +148,11 @@ begin
      or p_new_x is null or p_new_y is null or p_new_x < 0 or p_new_y < 0 then
     raise exception 'Invalid movement values' using errcode = '22023';
   end if;
-  if jsonb_typeof(coalesce(p_game_patch, '{}'::jsonb)) <> 'object'
-     or (coalesce(p_game_patch, '{}'::jsonb) - array['current_turn','question_index','status','phase','winner_team_id','remaining_moves','dice_result','finished_at']) <> '{}'::jsonb then
-    raise exception 'Movement patch contains unsupported fields' using errcode = '22023';
+  if p_game_patch is null or jsonb_typeof(p_game_patch) <> 'object'
+     or (p_game_patch - array['current_turn','question_index','status','phase','winner_team_id','remaining_moves','dice_result','finished_at']) <> '{}'::jsonb
+     or not (p_game_patch ? 'remaining_moves')
+     or (p_game_patch->>'remaining_moves')::integer <> p_remaining_moves then
+    raise exception 'Movement patch contains unsupported or inconsistent fields' using errcode = '22023';
   end if;
 
   select * into v_game from public.game_games
@@ -238,7 +240,7 @@ begin
   if p_user_id is null or p_room_id is null or p_game_id is null or p_maze_seed is null then
     raise exception 'Required start-game fields are missing' using errcode = '22023';
   end if;
-  if jsonb_typeof(p_team_layout) <> 'array' or jsonb_typeof(p_maze_layout) <> 'object' then
+  if p_team_layout is null or jsonb_typeof(p_team_layout) <> 'array' or p_maze_layout is null or jsonb_typeof(p_maze_layout) <> 'object' then
     raise exception 'Invalid start-game layout' using errcode = '22023';
   end if;
 
