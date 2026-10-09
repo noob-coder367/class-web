@@ -1,8 +1,11 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { mazePosition, normalizeMaze, shortestPath } from '../../lib/maze.js'
+import PetMascot from '../pet/PetMascot.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
+import { EMPTY_OUTFIT, loadOutfit } from '../../lib/petOutfit.js'
 
 const TEAM_COLORS = { blue: '#6d9dff', green: '#67e5b0', purple: '#c09aff', orange: '#ffb56f', pink: '#ff91bb', cyan: '#70e6f5', red: '#ff7c80', gold: '#f7d277' }
 const PLAYER_MOVE_DURATION_MS = 75
@@ -214,8 +217,52 @@ function GreenPaths({ maze, teams }) {
   </group>)}</>
 }
 
-function MazeContent({ maze, teams, currentTeamId, pulseTeamId, lightsOn, revealPaths }) {
-  return <><SceneLighting lightsOn={lightsOn} /><MazeWalls maze={maze} /><Floor maze={maze} /><ExitMarker maze={maze} />{teams.map((team) => <Player key={team.id} team={team} active={team.id === currentTeamId} pulse={team.id === pulseTeamId} />)}{revealPaths && <GreenPaths maze={maze} teams={teams} />}</>
+function MazeContent({ maze, teams, lightsOn, revealPaths }) {
+  return <><SceneLighting lightsOn={lightsOn} /><MazeWalls maze={maze} /><Floor maze={maze} /><ExitMarker maze={maze} />{revealPaths && <GreenPaths maze={maze} teams={teams} />}</>
+}
+
+function GamePetMarkers({ maze, teams, currentTeamId, pulseTeamId, outfit }) {
+  return <div className="game-pet-markers" aria-hidden="true">
+    {teams.map((team) => {
+      const position = mazePosition(team)
+      const left = ((position.x + 0.5) / maze.width) * 100
+      const top = ((position.y + 0.5) / maze.height) * 100
+      const active = team.id === currentTeamId
+      return <div
+        className={`game-pet-marker${active ? ' is-active' : ''}${team.id === pulseTeamId ? ' is-pulsing' : ''}`}
+        key={team.id}
+        style={{ left: `${left}%`, top: `${top}%`, '--team-color': TEAM_COLORS[team.token] || '#fff' }}
+      >
+        <PetMascot outfit={outfit} size={active ? 54 : 46} label={`Linh vật của ${team.name}`} />
+        <span className="game-pet-marker-name">{team.name}</span>
+      </div>
+    })}
+  </div>
+}
+
+function GamePets({ maze, teams, currentTeamId, pulseTeamId, lightsOn, revealPaths, quality }) {
+  const { session, authReady } = useAuth()
+  const [outfit, setOutfit] = useState({ ...EMPTY_OUTFIT })
+  const userId = session?.user?.id ?? null
+
+  useEffect(() => {
+    if (!authReady || !userId) {
+      setOutfit({ ...EMPTY_OUTFIT })
+      return undefined
+    }
+    let active = true
+    void loadOutfit(userId).then((savedOutfit) => {
+      if (active) setOutfit(savedOutfit)
+    }).catch(() => {
+      if (active) setOutfit({ ...EMPTY_OUTFIT })
+    })
+    return () => { active = false }
+  }, [authReady, userId])
+
+  return <>
+    <div className="game-maze-render"><Canvas camera={{ position: [0, 14, 0.01], fov: 45 }} dpr={quality === 'low' ? 1 : [1, 1.25]} gl={{ antialias: quality !== 'low', powerPreference: 'high-performance' }}><color attach="background" args={[lightsOn ? '#dce8f5' : '#050206']} /><MazeContent maze={maze} teams={teams} lightsOn={lightsOn} revealPaths={revealPaths} /></Canvas></div>
+    <GamePetMarkers maze={maze} teams={teams} currentTeamId={currentTeamId} pulseTeamId={pulseTeamId} outfit={outfit} />
+  </>
 }
 
 // lightsOn=false: tối đen, chỉ có ánh lửa đuốc đỏ. lightsOn=true: bật đèn sáng dần.
@@ -224,7 +271,5 @@ export default function MazeScene({ maze: rawMaze, teams = [], currentTeamId, pu
   const maze = normalizeMaze(rawMaze)
   if (!maze) return <div className="maze-fallback">Đang dựng mê cung…</div>
   const isLowQuality = quality === 'low'
-  const cameraPosition = [0, 14, 0.01]
-  const cameraFov = 45
-  return <div className={`maze-canvas maze-quality-${quality}`} aria-label="Mê cung 3D Treasure Race"><Canvas camera={{ position: cameraPosition, fov: cameraFov }} dpr={isLowQuality ? 1 : [1, 1.25]} gl={{ antialias: !isLowQuality, powerPreference: 'high-performance' }}><color attach="background" args={[lightsOn ? '#dce8f5' : '#050206']} /><MazeContent maze={maze} teams={teams} currentTeamId={currentTeamId} pulseTeamId={pulseTeamId} lightsOn={lightsOn} revealPaths={revealPaths} /></Canvas></div>
+  return <div className={`maze-canvas maze-quality-${quality}`} aria-label="Mê cung 3D Treasure Race"><GamePets maze={maze} teams={teams} currentTeamId={currentTeamId} pulseTeamId={pulseTeamId} lightsOn={lightsOn} revealPaths={revealPaths} /></div>
 }
