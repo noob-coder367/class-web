@@ -280,7 +280,7 @@ export async function moveRoom(code, userId, direction) {
     p_new_x: next.x,
     p_new_y: next.y,
     p_steps: 1,
-    p_remaining_moves: nextMoves,
+    p_remaining_moves: Number(gamePatch.remaining_moves ?? nextMoves),
     p_game_patch: gamePatch,
   })
   if (error) {
