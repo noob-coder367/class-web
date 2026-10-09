@@ -127,7 +127,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $
+as $$
 declare
   v_room public.game_rooms%rowtype;
   v_game public.game_games%rowtype;
@@ -213,7 +213,7 @@ begin
   end if;
   return true;
 end;
-$;
+$$;
 
 revoke all on function public.apply_game_movement_atomic(uuid, uuid, uuid, uuid, integer, integer, integer, integer, integer, integer, integer, integer, jsonb) from public, anon, authenticated;
 grant execute on function public.apply_game_movement_atomic(uuid, uuid, uuid, uuid, integer, integer, integer, integer, integer, integer, integer, integer, jsonb) to service_role;
@@ -230,7 +230,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $
+as $$
 declare
   v_room public.game_rooms%rowtype;
   v_game public.game_games%rowtype;
@@ -312,7 +312,7 @@ begin
   update public.game_rooms set status = 'playing' where id = p_room_id;
   return true;
 end;
-$;
+$$;
 
 revoke all on function public.start_game_atomic(uuid, uuid, uuid, jsonb, bigint, jsonb) from public, anon, authenticated;
 grant execute on function public.start_game_atomic(uuid, uuid, uuid, jsonb, bigint, jsonb) to service_role;
@@ -351,7 +351,7 @@ begin
   if p_is_correct is null or p_response_time is null or p_response_time < 0 or p_response_time > 120000 then
     raise exception 'Invalid answer result or response time' using errcode = '22023';
   end if;
-  if jsonb_typeof(coalesce(p_game_patch, '{}'::jsonb)) <> 'object'
+  if p_game_patch is null or jsonb_typeof(p_game_patch) <> 'object'
      or (p_game_patch - array['current_turn','question_index','status','phase','winner_team_id','remaining_moves','dice_result','finished_at']) <> '{}'::jsonb then
     raise exception 'Game patch contains unsupported fields' using errcode = '22023';
   end if;
