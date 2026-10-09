@@ -173,6 +173,14 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
     db(supabaseAdmin.from('game_games').select(GAME_COLUMNS).eq('room_id', room.id).single()),
     db(supabaseAdmin.from('game_room_players').select('id, user_id, team_id, joined_at').eq('room_id', room.id).order('joined_at', { ascending: true })),
   ])
+  // A retry after a successful answer may arrive after the game has already advanced.
+  // Return the current state for an already-committed key before validating the new phase.
+  const parsedRequestId = parseRequestId(requestId)
+  if (parsedRequestId) {
+    const priorClaim = await db(supabaseAdmin.from('game_action_claims').select('id')
+      .eq('user_id', userId).eq('request_id', parsedRequestId).eq('action', 'answer').maybeSingle())
+    if (priorClaim) return getRoomForUser(code, userId)
+  }
   if (game.status !== 'playing' || game.phase !== GAME_PHASES.QUESTION) fail('Game chưa ở trạng thái nhận câu trả lời.', 409, 'game_not_question')
   const [teams, questions] = await Promise.all([
     db(supabaseAdmin.from('game_teams').select(TEAM_COLUMNS).eq('game_id', game.id).order('turn_order', { ascending: true })),
