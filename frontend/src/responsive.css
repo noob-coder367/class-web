@@ -90,7 +90,7 @@ button, input, select, textarea { max-width: 100%; }
   .qz-file .qz-btn { width: 100%; }
   .mode-card, .game-panel { padding: 16px; }
   .mode-actions, .join-modal-actions { grid-template-columns: 1fr; }
-  .mode-card-with-image > .mode-card-cover { min-height: 360px; }
+  .mode-card-with-image > .mode-card-cover { min-height: 0; aspect-ratio: 16 / 9; }
   .login-tabs a { font-size: 12px; }
   .auth-card { padding-inline: 16px; }
   .profile-actions .button { width: 100%; }
