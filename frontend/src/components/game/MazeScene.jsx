@@ -1,4 +1,5 @@
 import { Canvas, useFrame } from '@react-three/fiber'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
@@ -141,7 +142,22 @@ function PulseRings({ color, active }) {
   return <group visible={active}>{materials.map((material, index) => <mesh key={index} ref={(node) => { refs.current[index] = node }} position={[0, -0.28, 0]} rotation={[-Math.PI / 2, 0, 0]} geometry={pulseGeometry} material={material} />)}</group>
 }
 
-function Player({ team, active, pulse }) {
+function PetTexture({ outfit }) {
+  const texture = useMemo(() => {
+    const svg = renderToStaticMarkup(<PetMascot outfit={outfit} size={256} label="" />)
+    const encoded = window.btoa(unescape(encodeURIComponent(svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))))
+    const image = new Image()
+    image.src = `data:image/svg+xml;base64,${encoded}`
+    const nextTexture = new THREE.Texture(image)
+    nextTexture.colorSpace = THREE.SRGBColorSpace
+    image.onload = () => { nextTexture.needsUpdate = true }
+    return nextTexture
+  }, [outfit])
+  useEffect(() => () => texture.dispose(), [texture])
+  return texture
+}
+
+function Player({ team, active, pulse, outfit }) {
   const position = mazePosition(team)
   const x = position.x - 4
   const z = position.y - 4
@@ -151,6 +167,7 @@ function Player({ team, active, pulse }) {
   const moveTo = useRef(new THREE.Vector3(x, 0.42, z))
   const moveStartedAt = useRef(0)
   const color = TEAM_COLORS[team.token] || '#fff'
+  const texture = PetTexture({ outfit })
 
   useEffect(() => {
     moveFrom.current.copy(visualPosition.current)
@@ -165,7 +182,17 @@ function Player({ team, active, pulse }) {
     if (groupRef.current) groupRef.current.position.copy(visualPosition.current)
   })
 
-  return <group ref={groupRef} position={[x, 0.42, z]} scale={active ? 1.08 : 0.92}><mesh><cylinderGeometry args={[0.24, 0.3, 0.62, 6]} /><meshStandardMaterial color={color} emissive={active || pulse ? color : '#111522'} emissiveIntensity={active || pulse ? 0.55 : 0.12} roughness={0.55} /></mesh><mesh position={[0, 0.38, 0]}><sphereGeometry args={[0.16, 10, 8]} /><meshStandardMaterial color="#f0c4a0" roughness={0.9} /></mesh><Torch active={active} /><PulseRings color={color} active={pulse} /></group>
+  return <group ref={groupRef} position={[x, 0.42, z]} scale={active ? 1.08 : 0.92}>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]} receiveShadow>
+      <planeGeometry args={[0.68, 0.78]} />
+      <meshStandardMaterial map={texture} transparent alphaTest={0.08} roughness={0.9} side={THREE.DoubleSide} />
+    </mesh>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+      <circleGeometry args={[0.31, 24]} />
+      <meshBasicMaterial color={color} transparent opacity={active || pulse ? 0.28 : 0.14} depthWrite={false} />
+    </mesh>
+    <Torch active={active} /><PulseRings color={color} active={pulse} />
+  </group>
 }
 
 function Floor({ maze }) {
@@ -240,6 +267,10 @@ function GamePetMarkers({ maze, teams, currentTeamId, pulseTeamId, outfit }) {
   </div>
 }
 
+function Game3DPlayers({ teams, currentTeamId, pulseTeamId, outfit }) {
+  return <>{teams.map((team) => <Player key={team.id} team={team} active={team.id === currentTeamId} pulse={team.id === pulseTeamId} outfit={outfit} />)}</>
+}
+
 function GamePets({ maze, teams, currentTeamId, pulseTeamId, lightsOn, revealPaths, quality }) {
   const { session, authReady } = useAuth()
   const [outfit, setOutfit] = useState({ ...EMPTY_OUTFIT })
@@ -260,8 +291,7 @@ function GamePets({ maze, teams, currentTeamId, pulseTeamId, lightsOn, revealPat
   }, [authReady, userId])
 
   return <>
-    <div className="game-maze-render"><Canvas camera={{ position: [0, 14, 0.01], fov: 45 }} dpr={quality === 'low' ? 1 : [1, 1.25]} gl={{ antialias: quality !== 'low', powerPreference: 'high-performance' }}><color attach="background" args={[lightsOn ? '#dce8f5' : '#050206']} /><MazeContent maze={maze} teams={teams} lightsOn={lightsOn} revealPaths={revealPaths} /></Canvas></div>
-    <GamePetMarkers maze={maze} teams={teams} currentTeamId={currentTeamId} pulseTeamId={pulseTeamId} outfit={outfit} />
+    <div className="game-maze-render"><Canvas camera={{ position: [0, 14, 0.01], fov: 45 }} dpr={quality === 'low' ? 1 : [1, 1.25]} gl={{ antialias: quality !== 'low', powerPreference: 'high-performance' }}><color attach="background" args={[lightsOn ? '#dce8f5' : '#050206']} /><MazeContent maze={maze} teams={teams} lightsOn={lightsOn} revealPaths={revealPaths} /><Game3DPlayers teams={teams} currentTeamId={currentTeamId} pulseTeamId={pulseTeamId} outfit={outfit} /></Canvas></div>
   </>
 }
 
