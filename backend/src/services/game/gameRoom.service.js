@@ -348,19 +348,27 @@ export async function moveRoomBatch(code, userId, directions = []) {
   } else {
     gamePatch = { remaining_moves: remaining }
   }
-  const nextGame = { ...game, ...gamePatch }
-  const needsQuestion = nextGame.status === 'playing' && nextGame.question_index < nextGame.total_questions
-  const questionIndex = Math.min(room.settings.question_limit - 1, nextGame.question_index)
-  const [, , , questions] = await Promise.all([
-    db(supabaseAdmin.from('game_teams').update({ maze_x: movedTeam.maze_x, maze_y: movedTeam.maze_y, position: movedTeam.position, total_movement: movedTeam.total_movement }).eq('id', currentTeam.id)),
-    db(supabaseAdmin.from('game_games').update(gamePatch).eq('id', game.id)),
-    nextGame.status === 'finished' ? db(supabaseAdmin.from('game_rooms').update({ status: 'finished' }).eq('id', room.id)) : null,
-    needsQuestion ? db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(questionIndex + 1)) : null,
-  ])
-  const question = needsQuestion ? toPublicQuestion(questions?.[questionIndex]) : null
-  const finished = nextGame.status === 'finished'
-  const ranking = finished && nextGame.maze_layout ? rankTeamsAtFinish(nextTeams, nextGame.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(nextGame.maze_layout, { x: team.maze_x, y: team.maze_y }) })) : []
-  return { ...room, status: finished ? 'finished' : room.status, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams: nextTeams, game: { ...nextGame, maze: publicMazeState(nextGame), ranking }, question, is_host: room.host_id === userId, current_user_team_id: player.team_id || null, movement_feedback: feedback }
+  const { data: moved, error } = await supabaseAdmin.rpc('apply_game_movement_atomic', {
+    p_user_id: userId,
+    p_room_id: room.id,
+    p_game_id: game.id,
+    p_team_id: currentTeam.id,
+    p_expected_turn: game.current_turn,
+    p_expected_x: currentTeam.maze_x,
+    p_expected_y: currentTeam.maze_y,
+    p_expected_remaining_moves: game.remaining_moves,
+    p_new_x: position.x,
+    p_new_y: position.y,
+    p_steps: steps,
+    p_remaining_moves: remaining,
+    p_game_patch: gamePatch,
+  })
+  if (error) {
+    if (error.code === '40001') fail('Trạng thái di chuyển vừa thay đổi. Hãy tải lại phòng.', 409, 'game_state_conflict')
+    throw mapError(error)
+  }
+  if (moved !== true) return getRoomForUser(code, userId)
+  return getRoomForUser(code, userId, feedback)
 }
 
 export async function completeDiceRoll(code, userId) {
