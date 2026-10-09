@@ -378,7 +378,7 @@ begin
     raise exception 'Game state changed; reload room' using errcode = '40001';
   end if;
 
-  select host_id, settings into v_room.host_id, v_room.settings
+  select host_id, settings, quiz_id into v_room.host_id, v_room.settings, v_room.quiz_id
   from public.game_rooms where id = p_room_id;
   if not found then
     raise exception 'Room not found' using errcode = 'P0002';
