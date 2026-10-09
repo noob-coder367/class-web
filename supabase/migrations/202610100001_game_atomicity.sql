@@ -52,6 +52,9 @@ begin
   if p_question_limit is null or p_question_limit < 1 then
     raise exception 'Question limit must be positive' using errcode = '22023';
   end if;
+  if p_question_limit > (select count(*) from public.questions where quiz_id = p_quiz_id) then
+    raise exception 'Question limit exceeds quiz question count' using errcode = '22023';
+  end if;
 
   -- Serialize requests sharing the same idempotency key before checking or creating.
   if p_request_id is not null then
@@ -139,8 +142,9 @@ begin
   if p_is_correct is null or p_response_time is null or p_response_time < 0 or p_response_time > 120000 then
     raise exception 'Invalid answer result or response time' using errcode = '22023';
   end if;
-  if jsonb_typeof(coalesce(p_game_patch, '{}'::jsonb)) <> 'object' then
-    raise exception 'Game patch must be a JSON object' using errcode = '22023';
+  if jsonb_typeof(coalesce(p_game_patch, '{}'::jsonb)) <> 'object'
+     or (p_game_patch - array['current_turn','question_index','status','phase','winner_team_id','remaining_moves','dice_result','finished_at']) <> '{}'::jsonb then
+    raise exception 'Game patch contains unsupported fields' using errcode = '22023';
   end if;
 
   select * into v_game from public.game_games
@@ -171,6 +175,12 @@ begin
     raise exception 'Room not found' using errcode = 'P0002';
   end if;
   v_single_device := coalesce((v_room.settings->>'single_device_mode')::boolean, false);
+  if not exists (
+    select 1 from public.questions q
+    where q.id = p_question_id and q.quiz_id = v_room.quiz_id
+  ) then
+    raise exception 'Question does not belong to room quiz' using errcode = '22023';
+  end if;
 
   select team_id into v_player_team
   from public.game_room_players
