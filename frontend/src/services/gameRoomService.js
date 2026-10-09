@@ -4,8 +4,8 @@ export const listRoomQuizzes = async () => {
   const { quizzes } = await apiClient.get('/quizzes', { auth: true })
   return quizzes || []
 }
-export const createRoom = async (payload) => {
-  const { room } = await apiClient.post('/game-rooms', payload, { auth: true, retry: false })
+export const createRoom = async (payload, idempotencyKey = null) => {
+  const { room } = await apiClient.post('/game-rooms', payload, { auth: true, retry: false, idempotencyKey })
   return room
 }
 export const getRoom = async (code) => {
@@ -20,20 +20,20 @@ export const startRoom = async (code) => {
   const { room } = await apiClient.post(`/game-rooms/${code}/start`, {}, { auth: true, retry: false })
   return room
 }
-export const submitAnswer = async (code, payload) => {
-  const { room } = await apiClient.post(`/game-rooms/${code}/answer`, payload, { auth: true, retry: false })
+export const submitAnswer = async (code, payload, idempotencyKey = null) => {
+  const { room } = await apiClient.post(`/game-rooms/${code}/answer`, payload, { auth: true, retry: false, idempotencyKey })
   return room
 }
 export const completeDiceRoll = async (code) => {
   const { room } = await apiClient.post(`/game-rooms/${code}/dice-complete`, {}, { auth: true, retry: false })
   return room
 }
-export const moveRoom = async (code, direction) => {
-  const { room } = await apiClient.post(`/game-rooms/${code}/move`, { direction }, { auth: true, retry: false })
+export const moveRoom = async (code, direction, idempotencyKey = null) => {
+  const { room } = await apiClient.post(`/game-rooms/${code}/move`, { direction }, { auth: true, retry: false, idempotencyKey })
   return room
 }
-export const moveRoomBatch = async (code, directions) => {
-  const { room } = await apiClient.post(`/game-rooms/${code}/move-batch`, { directions }, { auth: true, retry: false })
+export const moveRoomBatch = async (code, directions, idempotencyKey = null) => {
+  const { room } = await apiClient.post(`/game-rooms/${code}/move-batch`, { directions }, { auth: true, retry: false, idempotencyKey })
   return room
 }
 export const switchRoomTurn = async (code, teamId) => {

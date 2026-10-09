@@ -48,9 +48,6 @@ function GameImagesWorkspace({ toast }) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [busyId, setBusyId] = useState('')
-  const [detailsAccount, setDetailsAccount] = useState(null)
-  const [detailsLoading, setDetailsLoading] = useState(false)
-  const [detailsError, setDetailsError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {

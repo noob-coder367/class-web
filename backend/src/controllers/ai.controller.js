@@ -77,9 +77,17 @@ export async function generate(req, res, next) {
 }
 
 export async function ocrImage(req, res, next) {
+  const userId = req.user.id
+  if (inflight.has(`ocr:${userId}`)) {
+    return next(new HttpError('Bạn đang có một yêu cầu OCR đang xử lý. Hãy đợi hoàn tất.', 429, 'ocr_busy'))
+  }
+  inflight.add(`ocr:${userId}`)
   try {
     const contentType = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase()
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) throw new HttpError('Không nhận được ảnh.', 400, 'validation_error')
+    if (!contentType.startsWith('image/')) throw new HttpError('Định dạng ảnh không được hỗ trợ.', 415, 'unsupported_media_type')
     const result = await extractTextFromImage({ buffer: req.body, filename: readFileName(req), contentType, apiKey: env.OCR_SPACE_API_KEY })
+    req.body = null
     res.json(result)
-  } catch (error) { next(error) }
+  } catch (error) { next(error) } finally { inflight.delete(`ocr:${userId}`) }
 }

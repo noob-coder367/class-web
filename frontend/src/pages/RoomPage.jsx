@@ -49,6 +49,7 @@ export default function RoomPage() {
   const [joined, setJoined] = useState(false)
   const [quality] = useState(() => (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || (navigator.hardwareConcurrency || 4) <= 2 ? 'low' : 'high'))
   const questionStarted = useRef(Date.now())
+  const answerRequestKey = useRef(null)
   const roomRef = useRef(null)
   const pendingMoves = useRef(0)
   const outbox = useRef([])
@@ -69,7 +70,7 @@ export default function RoomPage() {
   const applyRoom = useCallback((next) => { roomRef.current = next; setRoom(next) }, [])
   const refresh = useCallback(() => { if (pendingMoves.current > 0 || revealing.current) return Promise.resolve(); return getRoom(code).then((next) => { if (pendingMoves.current === 0) applyRoom(next) }).catch((e) => setError(e.message)) }, [code, applyRoom])
   useEffect(() => { refresh(); const timer = setInterval(refresh, 3000); return () => clearInterval(timer) }, [refresh])
-  useEffect(() => { questionStarted.current = Date.now(); setAnswer('') }, [room?.game?.question_index, room?.game?.phase])
+  useEffect(() => { questionStarted.current = Date.now(); answerRequestKey.current = null; setAnswer('') }, [room?.game?.question_index, room?.game?.phase])
 
   const currentTeam = useMemo(() => room?.teams?.[room?.game?.current_turn || 0], [room])
   const isSingleDevice = room?.settings?.single_device_mode === true
@@ -100,7 +101,8 @@ export default function RoomPage() {
     revealing.current = true
     setError('')
     try {
-      const next = await submitAnswer(code, { answer, response_time_ms: Date.now() - questionStarted.current })
+      answerRequestKey.current ||= crypto.randomUUID()
+      const next = await submitAnswer(code, { answer, response_time_ms: Date.now() - questionStarted.current }, answerRequestKey.current)
       const ok = next.answer_feedback?.is_correct === true
       setReveal({ questionId: question.id, ok })
       playAnswerSound(ok ? 'correct' : 'wrong')
@@ -114,7 +116,7 @@ export default function RoomPage() {
     try {
       while (outbox.current.length) {
         const batch = outbox.current.splice(0)
-        const serverRoom = await moveRoomBatch(code, batch)
+        const serverRoom = await moveRoomBatch(code, batch, crypto.randomUUID())
         pendingMoves.current -= batch.length
         if (pendingMoves.current === 0) applyRoom(serverRoom)
       }

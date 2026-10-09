@@ -1,21 +1,23 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext.jsx'
 import { ToastProvider } from './context/ToastContext.jsx'
-import AuthPage from './pages/AuthPage.jsx'
-import CreateQuizPage from './pages/CreateQuizPage.jsx'
-import HomePage from './pages/HomePage.jsx'
-import ProfilePage from './pages/ProfilePage.jsx'
-import AdminAccountsPage from './pages/AdminAccountsPage.jsx'
-import CreateRoomPage from './pages/CreateRoomPage.jsx'
-import RoomPage from './pages/RoomPage.jsx'
-import GameModePickerPage from './pages/GameModePickerPage.jsx'
-import PetPage from './pages/PetPage.jsx'
 import { ROUTES } from './lib/routes.js'
 import './App.css'
 import './account.css'
 import './admin-accounts.css'
 import './admin-extensions.css'
 import './responsive.css'
+
+const AuthPage = lazy(() => import('./pages/AuthPage.jsx'))
+const CreateQuizPage = lazy(() => import('./pages/CreateQuizPage.jsx'))
+const HomePage = lazy(() => import('./pages/HomePage.jsx'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'))
+const AdminAccountsPage = lazy(() => import('./pages/AdminAccountsPage.jsx'))
+const CreateRoomPage = lazy(() => import('./pages/CreateRoomPage.jsx'))
+const RoomPage = lazy(() => import('./pages/RoomPage.jsx'))
+const GameModePickerPage = lazy(() => import('./pages/GameModePickerPage.jsx'))
+const PetPage = lazy(() => import('./pages/PetPage.jsx'))
 
 function RouteLoading() {
   return <main className="route-loading" aria-label="Đang tải phiên đăng nhập"><span /></main>
@@ -42,7 +44,8 @@ function AppRoutes() {
     return <Navigate to={ROUTES.profile} replace />
   }
   return (
-    <Routes>
+    <Suspense fallback={<RouteLoading />}>
+      <Routes>
       <Route path={ROUTES.home} element={<HomePage />} />
       <Route path={ROUTES.login} element={<AuthRoute mode="login" />} />
       <Route path={ROUTES.register} element={<AuthRoute mode="register" />} />
@@ -55,7 +58,8 @@ function AppRoutes() {
       <Route path={`${ROUTES.createQuiz}/:quizId`} element={<ProtectedRoute><CreateQuizPage /></ProtectedRoute>} />
       <Route path={`${ROUTES.room}/:code`} element={<ProtectedRoute><RoomPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
-    </Routes>
+      </Routes>
+    </Suspense>
   )
 }
 

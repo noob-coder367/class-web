@@ -248,25 +248,6 @@ function MazeContent({ maze, teams, lightsOn, revealPaths }) {
   return <><SceneLighting lightsOn={lightsOn} /><MazeWalls maze={maze} /><Floor maze={maze} /><ExitMarker maze={maze} />{revealPaths && <GreenPaths maze={maze} teams={teams} />}</>
 }
 
-function GamePetMarkers({ maze, teams, currentTeamId, pulseTeamId, outfit }) {
-  return <div className="game-pet-markers" aria-hidden="true">
-    {teams.map((team) => {
-      const position = mazePosition(team)
-      const left = ((position.x + 0.5) / maze.width) * 100
-      const top = ((position.y + 0.5) / maze.height) * 100
-      const active = team.id === currentTeamId
-      return <div
-        className={`game-pet-marker${active ? ' is-active' : ''}${team.id === pulseTeamId ? ' is-pulsing' : ''}`}
-        key={team.id}
-        style={{ left: `${left}%`, top: `${top}%`, '--team-color': TEAM_COLORS[team.token] || '#fff' }}
-      >
-        <PetMascot outfit={outfit} size={active ? 54 : 46} label={`Linh vật của ${team.name}`} />
-        <span className="game-pet-marker-name">{team.name}</span>
-      </div>
-    })}
-  </div>
-}
-
 function Game3DPlayers({ teams, currentTeamId, pulseTeamId, outfit }) {
   return <>{teams.map((team) => <Player key={team.id} team={team} active={team.id === currentTeamId} pulse={team.id === pulseTeamId} outfit={outfit} />)}</>
 }
@@ -300,6 +281,5 @@ function GamePets({ maze, teams, currentTeamId, pulseTeamId, lightsOn, revealPat
 export default function MazeScene({ maze: rawMaze, teams = [], currentTeamId, pulseTeamId = null, quality = 'high', lightsOn = false, revealPaths = false }) {
   const maze = normalizeMaze(rawMaze)
   if (!maze) return <div className="maze-fallback">Đang dựng mê cung…</div>
-  const isLowQuality = quality === 'low'
   return <div className={`maze-canvas maze-quality-${quality}`} aria-label="Mê cung 3D Treasure Race"><GamePets maze={maze} teams={teams} currentTeamId={currentTeamId} pulseTeamId={pulseTeamId} lightsOn={lightsOn} revealPaths={revealPaths} /></div>
 }
