@@ -56,6 +56,39 @@ export async function listAccounts() {
   })
 }
 
+export async function getAccountDetails(targetId) {
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('id, email, username, role, full_name, is_member, gender, province, school, phone, facebook_url, created_at, updated_at')
+    .eq('id', targetId)
+    .maybeSingle()
+  if (profileError) throw new AppError('Không thể đọc thông tin tài khoản.', 503)
+  const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(targetId)
+  if (userError || !userData?.user) throw new AppError('Không tìm thấy tài khoản.', 404)
+  const user = userData.user
+  const account = profile || {
+    id: user.id,
+    email: user.email || '',
+    username: null,
+    role: 'user',
+    full_name: null,
+    is_member: false,
+    created_at: user.created_at,
+    updated_at: user.updated_at,
+  }
+  const ghost = isGhostUser(user, account)
+  return {
+    ...account,
+    display_name: account.full_name || user.user_metadata?.display_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || '',
+    provider: ghost ? 'ghost' : providerFor(user),
+    is_ghost: ghost,
+    confirmed: Boolean(user.email_confirmed_at),
+    email_confirmed_at: user.email_confirmed_at || null,
+    last_sign_in_at: user.last_sign_in_at || null,
+    auth_created_at: user.created_at || null,
+    identities: (user.identities || []).map((identity) => ({ provider: identity.provider, identity_id: identity.identity_id || null, created_at: identity.created_at || null, last_sign_in_at: identity.last_sign_in_at || null })),
+  }
+}
 export async function updateGhostDisplayName(targetId, rawName) {
   const { data: profile, error } = await supabaseAdmin.from('profiles').select('id, email, full_name').eq('id', targetId).maybeSingle()
   if (error) throw new AppError('Không thể đọc tài khoản.', 503)

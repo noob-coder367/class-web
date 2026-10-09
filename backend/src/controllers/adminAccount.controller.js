@@ -4,6 +4,9 @@ export async function list(req, res, next) {
   try { res.json({ accounts: await accountService.listAccounts() }) } catch (error) { next(error) }
 }
 
+export async function details(req, res, next) {
+  try { res.json({ account: await accountService.getAccountDetails(req.params.id) }) } catch (error) { next(error) }
+}
 export async function renameGhost(req, res, next) {
   try {
     const profile = await accountService.updateGhostDisplayName(req.params.id, req.body?.displayName)

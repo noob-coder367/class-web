@@ -5,6 +5,10 @@ export async function listAccounts() {
   return data.accounts || []
 }
 
+export async function getAccountDetails(id) {
+  const data = await apiClient.get(`/admin/accounts/${encodeURIComponent(id)}/details`, { auth: true })
+  return data.account
+}
 export async function updateGhostDisplayName(id, displayName) {
   return apiClient.patch(`/admin/accounts/${encodeURIComponent(id)}/display-name`, { displayName }, { auth: true })
 }

@@ -47,6 +47,9 @@ function GameImagesWorkspace({ toast }) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [busyId, setBusyId] = useState('')
+  const [detailsAccount, setDetailsAccount] = useState(null)
+  const [detailsLoading, setDetailsLoading] = useState(false)
+  const [detailsError, setDetailsError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
@@ -194,6 +197,44 @@ function AuthBrowserImageWorkspace({ toast }) {
   </>
 }
 
+
+function formatAccountDate(value) {
+  if (!value) return 'Chưa có dữ liệu'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Chưa có dữ liệu'
+  return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+}
+function AccountDetailsModal({ account, loading, error, onClose }) {
+  if (!account && !loading && !error) return null
+  const rows = account ? [
+    ['ID tài khoản', account.id],
+    ['Tên hiển thị', account.display_name || account.full_name || 'Chưa đặt tên'],
+    ['Email', account.email || 'Chưa có email'],
+    ['Provider', providerLabels[account.provider] || account.provider || 'Không rõ'],
+    ['Vai trò', account.role === 'admin' ? 'Quản trị viên' : 'Thành viên'],
+    ['Trạng thái thành viên', account.is_member ? 'Đã kích hoạt' : 'Chưa kích hoạt'],
+    ['Xác nhận email', account.confirmed ? `Đã xác nhận · ${formatAccountDate(account.email_confirmed_at)}` : 'Chưa xác nhận'],
+    ['Tên tài khoản hệ thống', account.username || 'Chưa có'],
+    ['Giới tính', account.gender || 'Chưa cập nhật'],
+    ['Tỉnh / thành', account.province || 'Chưa cập nhật'],
+    ['Trường học', account.school || 'Chưa cập nhật'],
+    ['Số điện thoại', account.phone || 'Chưa cập nhật'],
+    ['Facebook', account.facebook_url || 'Chưa cập nhật'],
+    ['Đăng nhập gần nhất', formatAccountDate(account.last_sign_in_at)],
+    ['Ngày tạo hồ sơ', formatAccountDate(account.created_at)],
+    ['Cập nhật hồ sơ', formatAccountDate(account.updated_at)],
+  ] : []
+  return <div className="admin-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+    <section className="admin-modal account-details-modal" role="dialog" aria-modal="true" aria-labelledby="account-details-title">
+      <div className="account-details-header"><div><p className="browser-eyebrow">Thông tin tài khoản</p><h2 id="account-details-title">{account?.display_name || account?.email || 'Chi tiết tài khoản'}</h2></div><button className="account-details-close" type="button" onClick={onClose} aria-label="Đóng">×</button></div>
+      {loading && <p className="account-details-state">Đang tải thông tin tài khoản…</p>}
+      {error && <p className="account-details-error" role="alert">{error}</p>}
+      {account && <><dl className="account-details-grid">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><div className="account-details-identities"><strong>Phương thức xác thực</strong><div>{(account.identities || []).length ? account.identities.map((identity) => <span className="provider-badge" key={`${identity.provider}-${identity.identity_id || 'default'}`}>{providerLabels[identity.provider] || identity.provider}</span>) : <span>Không có dữ liệu</span>}</div></div></>}
+      <div className="admin-modal-actions"><button className="button button-quiet" type="button" onClick={onClose}>Đóng</button></div>
+    </section>
+  </div>
+}
+
 export default function AdminAccountsPage() {
   const { isAdmin, profile } = useAuth()
   const toast = useToast()
@@ -209,6 +250,14 @@ export default function AdminAccountsPage() {
   const filtered = useMemo(() => { const needle = query.trim().toLowerCase(); return accounts.filter((account) => !needle || [account.email, account.full_name, account.display_name, providerLabels[account.provider]].some((value) => String(value || '').toLowerCase().includes(needle))) }, [accounts, query])
   const rename = async (account) => { const next = window.prompt('Tên hiển thị mới cho tài khoản ma:', account.full_name || ''); if (next === null || !next.trim()) return; setBusyId(account.id); try { await accountService.updateGhostDisplayName(account.id, next.trim()); toast.success('Đã cập nhật tên.'); await load() } catch (error) { toast.error(error?.message || 'Không thể cập nhật tên.') } finally { setBusyId('') } }
   const remove = async (account) => { if (!window.confirm(`Xóa tài khoản ma "${account.full_name || account.email}"? Hành động này không thể hoàn tác.`)) return; setBusyId(account.id); try { await accountService.deleteGhostAccount(account.id); toast.success('Đã xóa tài khoản ma.'); await load() } catch (error) { toast.error(error?.message || 'Không thể xóa tài khoản ma.') } finally { setBusyId('') } }
+  const showDetails = async (account) => {
+    setDetailsAccount({ id: account.id, display_name: account.display_name, email: account.email })
+    setDetailsLoading(true)
+    setDetailsError('')
+    try { setDetailsAccount(await accountService.getAccountDetails(account.id)) }
+    catch (error) { setDetailsError(error?.message || 'Không thể tải thông tin chi tiết tài khoản.') }
+    finally { setDetailsLoading(false) }
+  }
   const chooseBackground = (event) => { const file = event.target.files?.[0]; if (!file) return; if (!file.type.startsWith('image/')) { toast.error('Vui lòng chọn một tệp hình ảnh.'); return } setBackground(URL.createObjectURL(file)); toast.success('Đã cập nhật ảnh nền xem trước.') }
   if (!isAdmin) return <Navigate to={ROUTES.home} replace />
 
@@ -226,9 +275,10 @@ export default function AdminAccountsPage() {
           <div className="browser-panel settings-panel"><div><h2>Ảnh nền dashboard</h2><p>Tải ảnh lên để hiển thị phía sau giao diện quản trị. Ảnh chỉ được áp dụng trong phiên xem hiện tại.</p></div><label className="upload-background"><input type="file" accept="image/*" onChange={chooseBackground} /><span>{background ? 'Đổi ảnh nền' : 'Chọn ảnh nền'}</span></label><div className="settings-preview" style={background ? { backgroundImage: `linear-gradient(90deg, rgba(5,9,12,.5), rgba(5,9,12,.12)), url(${background})` } : undefined}><strong>{background ? 'Ảnh nền đã sẵn sàng' : 'Chưa có ảnh nền'}</strong><small>Ảnh sẽ được làm tối để nội dung luôn dễ đọc.</small></div></div>
         </> : <>
           <header className="browser-heading"><div><p className="browser-eyebrow">Verification workspace</p><h1>Quản lý tài khoản</h1><p>Theo dõi thành viên, tài khoản ma và quyền truy cập của 10A4-Quizz.</p></div><span className="browser-stat"><strong>{accounts.length}</strong><small>Tài khoản</small></span></header>
-          <section className="browser-panel"><div className="admin-toolbar"><input aria-label="Tìm tài khoản" placeholder="Tìm theo email hoặc tên…" value={query} onChange={(event) => setQuery(event.target.value)} /><button className="button button-quiet" type="button" onClick={() => void load()} disabled={loading}>Làm mới</button></div>{loading ? <div className="admin-loading">Đang tải danh sách…</div> : <div className="account-table-wrap"><table className="account-table"><thead><tr><th>Tài khoản</th><th>Provider</th><th>Vai trò</th><th>Trạng thái</th><th /></tr></thead><tbody>{filtered.map((account) => <tr key={account.id}><td><strong>{account.full_name || account.display_name || 'Chưa đặt tên'}</strong><span>{account.email}</span></td><td><span className={`provider-badge provider-${account.provider}`}>{providerLabels[account.provider] || account.provider}</span></td><td>{account.role === 'admin' ? 'Quản trị viên' : 'Thành viên'}</td><td>{account.confirmed ? 'Đã xác nhận' : 'Chưa xác nhận'}</td><td>{account.is_ghost && <div className="account-row-actions"><button className="button button-quiet" type="button" onClick={() => void rename(account)} disabled={busyId === account.id}>Sửa tên</button><button className="button button-danger" type="button" onClick={() => void remove(account)} disabled={busyId === account.id}>Xóa</button></div>}</td></tr>)}{!filtered.length && <tr><td colSpan="5" className="account-empty">Không có tài khoản phù hợp.</td></tr>}</tbody></table></div>}</section>
+          <section className="browser-panel"><div className="admin-toolbar"><input aria-label="Tìm tài khoản" placeholder="Tìm theo email hoặc tên…" value={query} onChange={(event) => setQuery(event.target.value)} /><button className="button button-quiet" type="button" onClick={() => void load()} disabled={loading}>Làm mới</button></div>{loading ? <div className="admin-loading">Đang tải danh sách…</div> : <div className="account-table-wrap"><table className="account-table"><thead><tr><th>Tài khoản</th><th>Provider</th><th>Vai trò</th><th>Trạng thái</th><th>Thông tin chi tiết</th><th /></tr></thead><tbody>{filtered.map((account) => <tr key={account.id}><td><strong>{account.full_name || account.display_name || 'Chưa đặt tên'}</strong><span>{account.email}</span></td><td><span className={`provider-badge provider-${account.provider}`}>{providerLabels[account.provider] || account.provider}</span></td><td>{account.role === 'admin' ? 'Quản trị viên' : 'Thành viên'}</td><td>{account.confirmed ? 'Đã xác nhận' : 'Chưa xác nhận'}</td><td><button className="button button-quiet account-details-button" type="button" onClick={() => void showDetails(account)}>Xem chi tiết</button></td><td>{account.is_ghost && <div className="account-row-actions"><button className="button button-quiet" type="button" onClick={() => void rename(account)} disabled={busyId === account.id}>Sửa tên</button><button className="button button-danger" type="button" onClick={() => void remove(account)} disabled={busyId === account.id}>Xóa</button></div>}</td></tr>)}{!filtered.length && <tr><td colSpan="6" className="account-empty">Không có tài khoản phù hợp.</td></tr>}</tbody></table></div>}</section>
         </>}
       </section>
     </main>
+    <AccountDetailsModal account={detailsAccount} loading={detailsLoading} error={detailsError} onClose={() => { setDetailsAccount(null); setDetailsError('') }} />
   </div>
 }
