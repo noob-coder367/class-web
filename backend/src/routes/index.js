@@ -6,6 +6,7 @@ import adminAccountRoutes from './adminAccount.routes.js'
 import adminGameModeImageRoutes from './adminGameModeImage.routes.js'
 import gameRoomRoutes from './gameRoom.routes.js'
 import adminContentRoutes from './adminContent.routes.js'
+import adminDashboardBackgroundRoutes from './adminDashboardBackground.routes.js'
 
 const router = Router()
 
@@ -15,6 +16,7 @@ router.use('/quizzes', quizRoutes)
 router.use('/ai', aiRoutes)
 router.use('/admin/accounts', adminAccountRoutes)
 router.use('/admin/game-mode-images', adminGameModeImageRoutes)
+router.use('/admin/dashboard-background', adminDashboardBackgroundRoutes)
 router.use('/admin', adminContentRoutes)
 router.use('/game-rooms', gameRoomRoutes)
 

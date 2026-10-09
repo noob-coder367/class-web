@@ -40,6 +40,7 @@
 .settings-panel { display: grid; gap: 24px; }
 .settings-panel h2 { margin: 0 0 8px; color: #f0f5f5; font-size: 16px; }
 .settings-panel p { max-width: 580px; margin: 0; color: #84999b; font-size: 12px; line-height: 1.7; }
+.settings-image-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .upload-background { width: fit-content; display: inline-flex; align-items: center; min-height: 42px; padding: 0 16px; border: 1px solid rgba(237,105,72,.48); border-radius: 9px; color: #ffb09c; background: rgba(237,105,72,.12); cursor: pointer; font-size: 12px; font-weight: 800; }
 .upload-background:hover { background: rgba(237,105,72,.2); }
 .upload-background input { position: absolute; width: 1px; height: 1px; opacity: 0; }
@@ -73,6 +74,8 @@
   .admin-toolbar .button { width: 100%; }
   .account-table { min-width: 640px; }
   .account-table th, .account-table td { padding: 12px 8px; }
+  .settings-image-actions { align-items: stretch; flex-direction: column; }
+  .settings-image-actions .upload-background, .settings-image-actions .button { width: 100%; }
 }
 
 /* Registered Game Mode image workspace */

@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext.jsx'
 import { ROUTES } from '../lib/routes.js'
 import { GAME_MODES } from '../lib/gameModes.js'
 import * as accountService from '../services/adminAccountService.js'
+import { deleteAdminDashboardBackground, getAdminDashboardBackground, uploadAdminDashboardBackground } from '../services/adminDashboardBackgroundService.js'
 import { deleteGameModeImage, listGameModeImages, saveGameModeContent, uploadGameModeImage } from '../services/gameModeImageService.js'
 import AdminRoomsWorkspace from '../components/admin/AdminRoomsWorkspace.jsx'
 import AdminQuestionsWorkspace from '../components/admin/AdminQuestionsWorkspace.jsx'
@@ -240,6 +241,9 @@ export default function AdminAccountsPage() {
   const toast = useToast()
   const [section, setSection] = useState('accounts')
   const [background, setBackground] = useState('')
+  const [backgroundLoading, setBackgroundLoading] = useState(true)
+  const [backgroundBusy, setBackgroundBusy] = useState(false)
+  const [backgroundError, setBackgroundError] = useState('')
   const [accounts, setAccounts] = useState([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -250,6 +254,15 @@ export default function AdminAccountsPage() {
 
   const load = async () => { setLoading(true); try { setAccounts(await accountService.listAccounts()) } catch (error) { toast.error(error?.message || 'Không thể tải danh sách tài khoản.') } finally { setLoading(false) } }
   useEffect(() => { void load() }, [])
+  useEffect(() => {
+    let active = true
+    setBackgroundLoading(true)
+    getAdminDashboardBackground()
+      .then((value) => { if (active) { setBackground(value?.image_url || ''); setBackgroundError('') } })
+      .catch((error) => { if (active) setBackgroundError(error?.message || 'Không thể tải ảnh nền dashboard.') })
+      .finally(() => { if (active) setBackgroundLoading(false) })
+    return () => { active = false }
+  }, [])
   const filtered = useMemo(() => { const needle = query.trim().toLowerCase(); return accounts.filter((account) => !needle || [account.email, account.full_name, account.display_name, providerLabels[account.provider]].some((value) => String(value || '').toLowerCase().includes(needle))) }, [accounts, query])
   const rename = async (account) => { const next = window.prompt('Tên hiển thị mới cho tài khoản ma:', account.full_name || ''); if (next === null || !next.trim()) return; setBusyId(account.id); try { await accountService.updateGhostDisplayName(account.id, next.trim()); toast.success('Đã cập nhật tên.'); await load() } catch (error) { toast.error(error?.message || 'Không thể cập nhật tên.') } finally { setBusyId('') } }
   const remove = async (account) => { if (!window.confirm(`Xóa tài khoản ma "${account.full_name || account.email}"? Hành động này không thể hoàn tác.`)) return; setBusyId(account.id); try { await accountService.deleteGhostAccount(account.id); toast.success('Đã xóa tài khoản ma.'); await load() } catch (error) { toast.error(error?.message || 'Không thể xóa tài khoản ma.') } finally { setBusyId('') } }
@@ -261,7 +274,34 @@ export default function AdminAccountsPage() {
     catch (error) { setDetailsError(error?.message || 'Không thể tải thông tin chi tiết tài khoản.') }
     finally { setDetailsLoading(false) }
   }
-  const chooseBackground = (event) => { const file = event.target.files?.[0]; if (!file) return; if (!file.type.startsWith('image/')) { toast.error('Vui lòng chọn một tệp hình ảnh.'); return } setBackground(URL.createObjectURL(file)); toast.success('Đã cập nhật ảnh nền xem trước.') }
+  const chooseBackground = async (event) => {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (!file) return
+    setBackgroundBusy(true)
+    setBackgroundError('')
+    try {
+      const saved = await uploadAdminDashboardBackground(file)
+      setBackground(saved?.image_url || '')
+      toast.success('Đã lưu ảnh nền dashboard trên máy chủ.')
+    } catch (error) {
+      setBackgroundError(error?.message || 'Không thể lưu ảnh nền dashboard.')
+      toast.error(error?.message || 'Không thể lưu ảnh nền dashboard.')
+    } finally { setBackgroundBusy(false) }
+  }
+  const removeBackground = async () => {
+    if (!background || !window.confirm('Xóa ảnh nền dashboard?')) return
+    setBackgroundBusy(true)
+    setBackgroundError('')
+    try {
+      await deleteAdminDashboardBackground()
+      setBackground('')
+      toast.success('Đã xóa ảnh nền khỏi Storage và cấu hình dashboard.')
+    } catch (error) {
+      setBackgroundError(error?.message || 'Không thể xóa ảnh nền dashboard hoàn toàn.')
+      toast.error(error?.message || 'Không thể xóa ảnh nền dashboard hoàn toàn.')
+    } finally { setBackgroundBusy(false) }
+  }
   if (!isAdmin) return <Navigate to={ROUTES.home} replace />
 
   return <div className={`browser-shell${background ? ' has-background' : ''}`} style={background ? { '--admin-background': `url(${background})` } : undefined}>
@@ -275,7 +315,7 @@ export default function AdminAccountsPage() {
       <section className="browser-content">
         {section === 'rooms' ? <AdminRoomsWorkspace toast={toast} /> : section === 'questions' ? <AdminQuestionsWorkspace toast={toast} /> : section === 'game-images' ? <GameImagesWorkspace toast={toast} /> : section === 'auth-image' ? <AuthBrowserImageWorkspace toast={toast} /> : section === 'settings' ? <>
           <header className="browser-heading"><div><p className="browser-eyebrow">Cấu hình giao diện</p><h1>Cài đặt chung</h1><p>Tùy chỉnh không gian quản trị theo phong cách của lớp.</p></div></header>
-          <div className="browser-panel settings-panel"><div><h2>Ảnh nền dashboard</h2><p>Tải ảnh lên để hiển thị phía sau giao diện quản trị. Ảnh chỉ được áp dụng trong phiên xem hiện tại.</p></div><label className="upload-background"><input type="file" accept="image/*" onChange={chooseBackground} /><span>{background ? 'Đổi ảnh nền' : 'Chọn ảnh nền'}</span></label><div className="settings-preview" style={background ? { backgroundImage: `linear-gradient(90deg, rgba(5,9,12,.5), rgba(5,9,12,.12)), url(${background})` } : undefined}><strong>{background ? 'Ảnh nền đã sẵn sàng' : 'Chưa có ảnh nền'}</strong><small>Ảnh sẽ được làm tối để nội dung luôn dễ đọc.</small></div></div>
+          <div className="browser-panel settings-panel"><div><h2>Ảnh nền dashboard</h2><p>Tải ảnh lên để hiển thị phía sau giao diện quản trị. Ảnh được lưu riêng tư trên máy chủ và tự tải lại khi đăng nhập trên thiết bị khác.</p></div><div className="settings-image-actions"><label className="upload-background"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={backgroundBusy || backgroundLoading} onChange={(event) => void chooseBackground(event)} /><span>{backgroundBusy ? 'Đang lưu…' : background ? 'Đổi ảnh nền' : 'Chọn ảnh nền'}</span></label>{background && <button className="button button-quiet game-image-remove" type="button" onClick={() => void removeBackground()} disabled={backgroundBusy || backgroundLoading}>Xóa ảnh nền</button>}</div>{backgroundError && <p className="game-image-error" role="alert">{backgroundError}</p>}<div className="settings-preview" style={background ? { backgroundImage: `linear-gradient(90deg, rgba(5,9,12,.5), rgba(5,9,12,.12)), url(${background})` } : undefined}><strong>{backgroundLoading ? 'Đang tải ảnh nền…' : background ? 'Ảnh nền đã sẵn sàng' : 'Chưa có ảnh nền'}</strong><small>Ảnh sẽ được làm tối để nội dung luôn dễ đọc.</small></div></div>
         </> : <>
           <header className="browser-heading"><div><p className="browser-eyebrow">Verification workspace</p><h1>Quản lý tài khoản</h1><p>Theo dõi thành viên, tài khoản ma và quyền truy cập của 10A4-Quizz.</p></div><span className="browser-stat"><strong>{accounts.length}</strong><small>Tài khoản</small></span></header>
           <section className="browser-panel"><div className="admin-toolbar"><input aria-label="Tìm tài khoản" placeholder="Tìm theo email hoặc tên…" value={query} onChange={(event) => setQuery(event.target.value)} /><button className="button button-quiet" type="button" onClick={() => void load()} disabled={loading}>Làm mới</button></div>{loading ? <div className="admin-loading">Đang tải danh sách…</div> : <div className="account-table-wrap"><table className="account-table"><thead><tr><th>Tài khoản</th><th>Provider</th><th>Vai trò</th><th>Trạng thái</th><th>Thông tin chi tiết</th><th /></tr></thead><tbody>{filtered.map((account) => <tr key={account.id}><td><strong>{account.full_name || account.display_name || 'Chưa đặt tên'}</strong><span>{account.email}</span></td><td><span className={`provider-badge provider-${account.provider}`}>{providerLabels[account.provider] || account.provider}</span></td><td>{account.role === 'admin' ? 'Quản trị viên' : 'Thành viên'}</td><td>{account.confirmed ? 'Đã xác nhận' : 'Chưa xác nhận'}</td><td><button className="button button-quiet account-details-button" type="button" onClick={() => void showDetails(account)}>Xem chi tiết</button></td><td>{account.is_ghost && <div className="account-row-actions"><button className="button button-quiet" type="button" onClick={() => void rename(account)} disabled={busyId === account.id}>Sửa tên</button><button className="button button-danger" type="button" onClick={() => void remove(account)} disabled={busyId === account.id}>Xóa</button></div>}</td></tr>)}{!filtered.length && <tr><td colSpan="6" className="account-empty">Không có tài khoản phù hợp.</td></tr>}</tbody></table></div>}</section>
