@@ -134,7 +134,7 @@ function GameImagesWorkspace({ toast }) {
                 {image?.image_url
                   ? <img src={image.image_url} alt="" aria-hidden="true" />
                   : <div className="game-image-placeholder"><ModeIcon size={32} aria-hidden="true" /><span>Chưa có ảnh</span></div>}
-                <div className="game-image-preview-copy"><strong>{draft.display_title}</strong><small>{draft.overlay_content || draft.display_note || mode.description}</small></div>
+                <div className="game-image-preview-copy"><strong>{draft.display_title}</strong>{(draft.overlay_content || mode.description) && <small>{draft.overlay_content || mode.description}</small>}</div>
               </div>
               <div className="game-image-details">
                 <span className={`game-image-status${image?.image_path ? '' : ' game-image-status-empty'}`}>{image?.image_path ? 'Đã có ảnh' : 'Chưa có ảnh'}</span>
@@ -142,13 +142,13 @@ function GameImagesWorkspace({ toast }) {
                   <label>Tên trò chơi
                     <input type="text" required minLength={1} maxLength={60} value={draft.display_title} onChange={(event) => updateDraft(mode.id, 'display_title', event.target.value)} />
                   </label>
-                  <label>Ghi chú
-                    <textarea rows={3} maxLength={300} value={draft.display_note} onChange={(event) => updateDraft(mode.id, 'display_note', event.target.value)} placeholder="Ví dụ: Chơi theo đội, trả lời câu hỏi để tiến về kho báu…" />
-                    <small>Tối đa 300 ký tự; ghi chú nhỏ hiển thị trên ảnh bìa.</small>
-                  </label>
                   <label>Nội dung hiển thị trên ảnh
                     <textarea rows={3} maxLength={300} value={draft.overlay_content} onChange={(event) => updateDraft(mode.id, 'overlay_content', event.target.value)} placeholder="Nhập nội dung nổi bật muốn đặt trên ảnh…" />
                     <small>Tối đa 300 ký tự; nội dung này được làm nổi bật trên ảnh.</small>
+                  </label>
+                  <label>Ghi chú
+                    <textarea rows={3} maxLength={300} value={draft.display_note} onChange={(event) => updateDraft(mode.id, 'display_note', event.target.value)} placeholder="Ví dụ: Chơi theo đội, trả lời câu hỏi để tiến về kho báu…" />
+                    <small>Tối đa 300 ký tự; ghi chú chỉ dùng trong ô quản lý này.</small>
                   </label>
                   <label className="game-image-color-field">Màu chữ
                     <span><input type="color" value={draft.text_color} onChange={(event) => updateDraft(mode.id, 'text_color', event.target.value.toUpperCase())} /><code>{draft.text_color}</code></span>
