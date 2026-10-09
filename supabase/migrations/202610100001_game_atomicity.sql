@@ -141,7 +141,7 @@ begin
   if p_user_id is null or p_room_id is null or p_game_id is null or p_team_id is null then
     raise exception 'Required movement identifiers are missing' using errcode = '22023';
   end if;
-  if p_steps is null or p_steps < 1 or p_steps > 50
+  if p_steps is null or p_steps < 1 or p_steps > 50 or p_steps > p_expected_remaining_moves
      or p_remaining_moves is null or p_remaining_moves < 0
      or p_expected_remaining_moves is null or p_expected_remaining_moves < 1
      or p_remaining_moves > p_expected_remaining_moves
