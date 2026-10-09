@@ -31,17 +31,44 @@ create or replace function public.create_game_room_atomic(
 returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_existing uuid;
   v_first_team uuid;
 begin
+  if p_room_id is null or p_game_id is null or p_host_id is null or p_quiz_id is null then
+    raise exception 'Required room identifiers are missing' using errcode = '22023';
+  end if;
+  if p_code is null or p_code !~ '^[A-Z0-9]{6}$' then
+    raise exception 'Invalid room code' using errcode = '22023';
+  end if;
+  if jsonb_typeof(coalesce(p_settings, '{}'::jsonb)) <> 'object' then
+    raise exception 'Room settings must be a JSON object' using errcode = '22023';
+  end if;
+  if p_team_count is null or p_team_count < 2 or p_team_count > 8 then
+    raise exception 'Team count must be between 2 and 8' using errcode = '22023';
+  end if;
+  if p_question_limit is null or p_question_limit < 1 then
+    raise exception 'Question limit must be positive' using errcode = '22023';
+  end if;
+
+  -- Serialize requests sharing the same idempotency key before checking or creating.
   if p_request_id is not null then
+    perform pg_advisory_xact_lock(hashtextextended(p_host_id::text || ':' || p_request_id::text || ':create_room', 0));
     select room_id into v_existing
     from public.game_action_claims
     where user_id = p_host_id and request_id = p_request_id and action = 'create_room';
-    if v_existing is not null then return v_existing; end if;
+    if v_existing is not null then
+      return v_existing;
+    end if;
+  end if;
+
+  if not exists (
+    select 1 from public.quizzes q
+    where q.id = p_quiz_id and q.owner_id = p_host_id
+  ) then
+    raise exception 'Quiz is not owned by host' using errcode = '42501';
   end if;
 
   insert into public.game_rooms (id, code, host_id, quiz_id, game_mode, status, settings)
@@ -78,6 +105,131 @@ $$;
 revoke all on function public.create_game_room_atomic(uuid, uuid, uuid, uuid, text, jsonb, integer, integer, uuid) from public, anon, authenticated;
 grant execute on function public.create_game_room_atomic(uuid, uuid, uuid, uuid, text, jsonb, integer, integer, uuid) to service_role;
 
+create or replace function public.submit_game_answer_atomic(
+  p_user_id uuid,
+  p_request_id uuid,
+  p_room_id uuid,
+  p_game_id uuid,
+  p_expected_question_index integer,
+  p_team_id uuid,
+  p_question_id uuid,
+  p_answer jsonb,
+  p_is_correct boolean,
+  p_response_time integer,
+  p_game_patch jsonb
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_game public.game_games%rowtype;
+  v_room public.game_rooms%rowtype;
+  v_player_team uuid;
+  v_current_team uuid;
+  v_single_device boolean;
+begin
+  if p_user_id is null or p_room_id is null or p_game_id is null or p_team_id is null or p_question_id is null then
+    raise exception 'Required answer identifiers are missing' using errcode = '22023';
+  end if;
+  if p_expected_question_index is null or p_expected_question_index < 0 then
+    raise exception 'Invalid question index' using errcode = '22023';
+  end if;
+  if p_is_correct is null or p_response_time is null or p_response_time < 0 or p_response_time > 120000 then
+    raise exception 'Invalid answer result or response time' using errcode = '22023';
+  end if;
+  if jsonb_typeof(coalesce(p_game_patch, '{}'::jsonb)) <> 'object' then
+    raise exception 'Game patch must be a JSON object' using errcode = '22023';
+  end if;
+
+  select * into v_game from public.game_games
+  where id = p_game_id and room_id = p_room_id
+  for update;
+  if not found then
+    raise exception 'Game not found' using errcode = 'P0002';
+  end if;
+
+  -- Claim inside the same transaction as the game writes. A failed write rolls the claim back.
+  if p_request_id is not null then
+    insert into public.game_action_claims (user_id, request_id, action, room_id, game_id)
+    values (p_user_id, p_request_id, 'answer', p_room_id, p_game_id)
+    on conflict (user_id, request_id, action) do nothing;
+    if not found then
+      return false;
+    end if;
+  end if;
+
+  if v_game.status <> 'playing' or v_game.phase <> 'question'
+     or v_game.question_index <> p_expected_question_index then
+    raise exception 'Game state changed; reload room' using errcode = '40001';
+  end if;
+
+  select host_id, settings into v_room.host_id, v_room.settings
+  from public.game_rooms where id = p_room_id;
+  if not found then
+    raise exception 'Room not found' using errcode = 'P0002';
+  end if;
+  v_single_device := coalesce((v_room.settings->>'single_device_mode')::boolean, false);
+
+  select team_id into v_player_team
+  from public.game_room_players
+  where room_id = p_room_id and user_id = p_user_id;
+  if not found then
+    raise exception 'Player is not in room' using errcode = '42501';
+  end if;
+
+  select id into v_current_team
+  from public.game_teams
+  where game_id = p_game_id
+  order by turn_order asc nulls last, created_at asc, id asc
+  offset v_game.current_turn limit 1;
+  if v_current_team is null or v_current_team <> p_team_id then
+    raise exception 'Team is not the current turn' using errcode = '40001';
+  end if;
+  if not (v_single_device and v_room.host_id = p_user_id) and v_player_team is distinct from v_current_team then
+    raise exception 'Player does not control the current team' using errcode = '42501';
+  end if;
+
+  insert into public.game_turns (
+    game_id, team_id, question_id, turn_number, answer, is_correct, movement, response_time
+  ) values (
+    p_game_id, p_team_id, p_question_id, p_expected_question_index, coalesce(p_answer, '{}'::jsonb),
+    p_is_correct, case when p_is_correct then null else 0 end, nullif(p_response_time, 0)
+  );
+
+  update public.game_games set
+    current_turn = case when p_game_patch ? 'current_turn' then (p_game_patch->>'current_turn')::integer else current_turn end,
+    question_index = case when p_game_patch ? 'question_index' then (p_game_patch->>'question_index')::integer else question_index end,
+    status = case when p_game_patch ? 'status' then p_game_patch->>'status' else status end,
+    phase = case when p_game_patch ? 'phase' then p_game_patch->>'phase' else phase end,
+    winner_team_id = case when p_game_patch ? 'winner_team_id' then nullif(p_game_patch->>'winner_team_id', '')::uuid else winner_team_id end,
+    remaining_moves = case when p_game_patch ? 'remaining_moves' then (p_game_patch->>'remaining_moves')::integer else remaining_moves end,
+    dice_result = case when p_game_patch ? 'dice_result' then nullif(p_game_patch->>'dice_result', '')::integer else dice_result end,
+    finished_at = case when p_game_patch ? 'finished_at' then nullif(p_game_patch->>'finished_at', '')::timestamptz else finished_at end
+  where id = p_game_id;
+
+  update public.game_teams set
+    correct_count = correct_count + case when p_is_correct then 1 else 0 end,
+    wrong_count = wrong_count + case when p_is_correct then 0 else 1 end,
+    total_response_time = coalesce(total_response_time, 0) + p_response_time
+  where id = p_team_id and game_id = p_game_id;
+
+  if not found then
+    raise exception 'Team not found' using errcode = 'P0002';
+  end if;
+
+  if (p_game_patch->>'status') = 'finished' then
+    update public.game_rooms set status = 'finished' where id = p_room_id;
+  end if;
+
+  return true;
+end;
+$$;
+
+revoke all on function public.submit_game_answer_atomic(uuid, uuid, uuid, uuid, integer, uuid, uuid, jsonb, boolean, integer, jsonb) from public, anon, authenticated;
+grant execute on function public.submit_game_answer_atomic(uuid, uuid, uuid, uuid, integer, uuid, uuid, jsonb, boolean, integer, jsonb) to service_role;
+
 create or replace function public.claim_game_action(
   p_user_id uuid,
   p_request_id uuid,
@@ -88,10 +240,17 @@ create or replace function public.claim_game_action(
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
+  if p_user_id is null then
+    raise exception 'User is required' using errcode = '22023';
+  end if;
+  if p_action not in ('answer', 'create_room', 'move', 'move_batch', 'dice_complete', 'switch_turn') then
+    raise exception 'Invalid action' using errcode = '22023';
+  end if;
   if p_request_id is null then return true; end if;
+
   insert into public.game_action_claims (user_id, request_id, action, room_id, game_id)
   values (p_user_id, p_request_id, p_action, p_room_id, p_game_id)
   on conflict (user_id, request_id, action) do nothing;
