@@ -350,7 +350,7 @@ export async function moveRoomBatch(code, userId, directions = []) {
     p_new_x: position.x,
     p_new_y: position.y,
     p_steps: steps,
-    p_remaining_moves: remaining,
+    p_remaining_moves: Number(gamePatch.remaining_moves ?? remaining),
     p_game_patch: gamePatch,
   })
   if (error) {
