@@ -253,18 +253,51 @@ export async function moveRoom(code, userId, direction) {
   if (!game.remaining_moves) fail('Đã hết lượt di chuyển.', 409, 'no_remaining_moves')
   const collision = canMove(game.maze_layout, { x: currentTeam.maze_x, y: currentTeam.maze_y }, direction)
   if (!collision.allowed) return getRoomForUser(code, userId, { collision: true, direction, remaining_moves: game.remaining_moves })
+
   const next = collision.position
   const nextMoves = game.remaining_moves - 1
-  await db(supabaseAdmin.from('game_teams').update({ maze_x: next.x, maze_y: next.y, position: currentTeam.position + 1, total_movement: (currentTeam.total_movement || 0) + 1 }).eq('id', currentTeam.id))
   const reachedExit = isExit(next, game.maze_layout)
-  const movedTeam = { ...currentTeam, maze_x: next.x, maze_y: next.y, correct_count: currentTeam.correct_count, total_response_time: currentTeam.total_response_time }
-  if (reachedExit) {
-    await finishOrAdvance(room, game, teams, currentTeam, currentTeam.id)
-  } else if (nextMoves <= 0) {
-    await finishOrAdvance(room, game, teams.map((team) => team.id === currentTeam.id ? movedTeam : team), movedTeam)
-  } else {
-    await db(supabaseAdmin.from('game_games').update({ remaining_moves: nextMoves }).eq('id', game.id))
+  const movedTeam = { ...currentTeam, maze_x: next.x, maze_y: next.y, position: currentTeam.position + 1, total_movement: (currentTeam.total_movement || 0) + 1 }
+  const nextTeams = teams.map((team) => (team.id === currentTeam.id ? movedTeam : team))
+  let gamePatch = { remaining_moves: nextMoves }
+
+  if (reachedExit || nextMoves <= 0) {
+    const nextQuestionIndex = game.question_index + 1
+    const isFinished = reachedExit || nextQuestionIndex >= game.total_questions
+    let winnerId = reachedExit ? currentTeam.id : null
+    if (isFinished && !winnerId) winnerId = rankTeamsAtFinish(nextTeams, game.maze_layout)[0]?.id || null
+    gamePatch = {
+      current_turn: nextTurnIndex(game.current_turn, teams.length),
+      question_index: nextQuestionIndex,
+      phase: isFinished ? GAME_PHASES.FINISHED : GAME_PHASES.QUESTION,
+      status: isFinished ? 'finished' : 'playing',
+      winner_team_id: isFinished ? winnerId : null,
+      remaining_moves: 0,
+      dice_result: null,
+      ...(isFinished ? { finished_at: new Date().toISOString() } : {}),
+    }
   }
+
+  const { data: moved, error } = await supabaseAdmin.rpc('apply_game_movement_atomic', {
+    p_user_id: userId,
+    p_room_id: room.id,
+    p_game_id: game.id,
+    p_team_id: currentTeam.id,
+    p_expected_turn: game.current_turn,
+    p_expected_x: currentTeam.maze_x,
+    p_expected_y: currentTeam.maze_y,
+    p_expected_remaining_moves: game.remaining_moves,
+    p_new_x: next.x,
+    p_new_y: next.y,
+    p_steps: 1,
+    p_remaining_moves: nextMoves,
+    p_game_patch: gamePatch,
+  })
+  if (error) {
+    if (error.code === '40001') fail('Trạng thái di chuyển vừa thay đổi. Hãy tải lại phòng.', 409, 'game_state_conflict')
+    throw mapError(error)
+  }
+  if (moved !== true) return getRoomForUser(code, userId)
   return getRoomForUser(code, userId, { collision: false, direction, remaining_moves: Math.max(0, nextMoves), moved: true })
 }
 
