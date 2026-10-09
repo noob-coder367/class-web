@@ -60,3 +60,45 @@
 .mode-card-cover-copy .mode-card-overlay-content{margin:8px 0;padding:9px 11px;border:1px solid color-mix(in srgb,var(--mode-card-text-color,#fff) 38%,transparent);border-radius:10px;background:rgba(7,10,18,.46);font-size:clamp(12px,1.6vw,18px);font-weight:900;line-height:1.4;text-shadow:0 1px 4px rgba(0,0,0,.65);-webkit-line-clamp:2}.mode-card-cover-copy .mode-card-note{font-size:11px}@media(max-width:760px){.mode-card-with-image>.mode-card-cover{margin:-20px -20px 18px;border-radius:21px 21px 0 0}.mode-card-cover-overlay{padding:14px 18px}.mode-card-cover-copy h2{font-size:21px}.mode-card-cover-copy p{font-size:11px}.mode-card-cover-copy .mode-card-overlay-content{margin:5px 0;padding:6px 8px}}@media(max-width:420px){.mode-card-cover-overlay{padding:11px 14px}.mode-card-cover-copy h2{font-size:18px}.mode-card-cover-icon{width:24px;height:24px}.mode-card-cover-copy .mode-card-overlay-content{font-size:11px;line-height:1.25}.mode-card-cover-copy p{font-size:10px;line-height:1.25}.mode-card-cover-copy .mode-card-note{font-size:10px}}
 
 @media(max-width:760px){.mode-card-with-image>.mode-card-cover,.mode-card-cover-landscape{width:calc(100% + 40px)}}
+
+
+/* Fix mobile layout for the single-device mode option */
+.room-form .form-section label.single-device-toggle {
+  display: grid !important;
+  grid-template-columns: 20px minmax(0, 1fr) !important;
+  grid-template-areas: "check title" "check description";
+  align-items: start;
+  column-gap: 12px;
+  row-gap: 6px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.room-form .single-device-toggle > input {
+  grid-area: check;
+  grid-row: auto;
+  align-self: start;
+  margin: 3px 0 0;
+}
+.room-form .single-device-toggle > span { display: none; }
+.room-form .single-device-toggle > strong {
+  grid-area: title;
+  min-width: 0;
+  overflow-wrap: break-word;
+  line-height: 1.45;
+}
+.room-form .single-device-toggle > small {
+  grid-area: description;
+  min-width: 0;
+  width: 100%;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-height: 1.5;
+}
+@media (max-width: 760px) {
+  .room-form .form-section label.single-device-toggle {
+    grid-template-columns: 20px minmax(0, 1fr) !important;
+    width: 100%;
+  }
+}
