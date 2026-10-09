@@ -43,7 +43,7 @@ begin
   if p_code is null or p_code !~ '^[A-Z0-9]{6}$' then
     raise exception 'Invalid room code' using errcode = '22023';
   end if;
-  if jsonb_typeof(coalesce(p_settings, '{}'::jsonb)) <> 'object' then
+  if p_settings is null or jsonb_typeof(p_settings) <> 'object' then
     raise exception 'Room settings must be a JSON object' using errcode = '22023';
   end if;
   if p_team_count is null or p_team_count < 2 or p_team_count > 8 then
