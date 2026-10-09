@@ -166,6 +166,9 @@ begin
 
   select * into v_room from public.game_rooms where id = p_room_id;
   if not found then raise exception 'Room not found' using errcode = 'P0002'; end if;
+  if v_room.status <> 'playing' then
+    raise exception 'Room is not active' using errcode = '40001';
+  end if;
   v_single_device := coalesce((v_room.settings->>'single_device_mode')::boolean, false);
 
   select team_id into v_player_team from public.game_room_players
@@ -382,6 +385,9 @@ begin
   from public.game_rooms where id = p_room_id;
   if not found then
     raise exception 'Room not found' using errcode = 'P0002';
+  end if;
+  if v_room.status <> 'playing' then
+    raise exception 'Room is not active' using errcode = '40001';
   end if;
   v_single_device := coalesce((v_room.settings->>'single_device_mode')::boolean, false);
   if not exists (
