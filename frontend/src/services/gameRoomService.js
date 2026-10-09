@@ -28,12 +28,12 @@ export const completeDiceRoll = async (code) => {
   const { room } = await apiClient.post(`/game-rooms/${code}/dice-complete`, {}, { auth: true, retry: false })
   return room
 }
-export const moveRoom = async (code, direction) => {
-  const { room } = await apiClient.post(`/game-rooms/${code}/move`, { direction }, { auth: true, retry: false })
+export const moveRoom = async (code, direction, idempotencyKey = null) => {
+  const { room } = await apiClient.post(`/game-rooms/${code}/move`, { direction }, { auth: true, retry: false, idempotencyKey })
   return room
 }
-export const moveRoomBatch = async (code, directions) => {
-  const { room } = await apiClient.post(`/game-rooms/${code}/move-batch`, { directions }, { auth: true, retry: false })
+export const moveRoomBatch = async (code, directions, idempotencyKey = null) => {
+  const { room } = await apiClient.post(`/game-rooms/${code}/move-batch`, { directions }, { auth: true, retry: false, idempotencyKey })
   return room
 }
 export const switchRoomTurn = async (code, teamId) => {

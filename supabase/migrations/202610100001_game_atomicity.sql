@@ -1,5 +1,4 @@
--- Game atomicity helpers. Additive and safe to apply after existing game migrations.
--- Do not run this file on production from the audit workspace.
+-- Game atomicity helpers. Additive; apply through the controlled release workflow after validation.
 
 create table if not exists public.game_action_claims (
   id uuid primary key default gen_random_uuid(),
@@ -16,6 +15,8 @@ create table if not exists public.game_action_claims (
 alter table public.game_action_claims enable row level security;
 revoke all on table public.game_action_claims from anon, authenticated;
 grant all on table public.game_action_claims to service_role;
+create index if not exists game_action_claims_room_id_idx on public.game_action_claims(room_id) where room_id is not null;
+create index if not exists game_action_claims_game_id_idx on public.game_action_claims(game_id) where game_id is not null;
 
 create or replace function public.create_game_room_atomic(
   p_room_id uuid,
@@ -108,6 +109,76 @@ $$;
 revoke all on function public.create_game_room_atomic(uuid, uuid, uuid, uuid, text, jsonb, integer, integer, uuid) from public, anon, authenticated;
 grant execute on function public.create_game_room_atomic(uuid, uuid, uuid, uuid, text, jsonb, integer, integer, uuid) to service_role;
 
+create or replace function public.join_game_room_atomic(
+  p_room_id uuid,
+  p_user_id uuid,
+  p_team_id uuid default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_room public.game_rooms%rowtype;
+  v_game_id uuid;
+  v_existing_team uuid;
+  v_selected_team uuid;
+  v_capacity integer;
+  v_occupancy integer;
+begin
+  if p_room_id is null or p_user_id is null then
+    raise exception 'Room and user identifiers are required' using errcode = '22023';
+  end if;
+
+  -- The same room lock is used by start_game_atomic, so a join cannot slip in after start.
+  select * into v_room from public.game_rooms where id = p_room_id for update;
+  if not found then raise exception 'Room not found' using errcode = 'P0002'; end if;
+  if v_room.status <> 'lobby' then
+    raise exception 'Room has already started' using errcode = '40001';
+  end if;
+  if coalesce((v_room.settings->>'single_device_mode')::boolean, false) and v_room.host_id <> p_user_id then
+    raise exception 'Single-device rooms cannot be joined by other users' using errcode = '42501';
+  end if;
+
+  select id into v_game_id from public.game_games where room_id = p_room_id;
+  if not found then raise exception 'Game not found' using errcode = 'P0002'; end if;
+  select team_id into v_existing_team from public.game_room_players
+  where room_id = p_room_id and user_id = p_user_id;
+  if found then return v_existing_team; end if;
+
+  v_capacity := coalesce((v_room.settings->>'max_players_per_team')::integer, 4);
+  if v_capacity < 1 or v_capacity > 12 then
+    raise exception 'Invalid team capacity in room settings' using errcode = '22023';
+  end if;
+
+  if p_team_id is not null then
+    select id into v_selected_team from public.game_teams where id = p_team_id and game_id = v_game_id;
+    if not found then raise exception 'Selected team does not belong to this room' using errcode = '22023'; end if;
+    select count(*)::integer into v_occupancy from public.game_room_players
+    where room_id = p_room_id and team_id = v_selected_team;
+    if v_occupancy >= v_capacity then return null; end if;
+  else
+    select t.id, count(p.id)::integer into v_selected_team, v_occupancy
+    from public.game_teams t
+    left join public.game_room_players p on p.room_id = p_room_id and p.team_id = t.id
+    where t.game_id = v_game_id
+    group by t.id
+    having count(p.id) < v_capacity
+    order by count(p.id), t.turn_order asc nulls last, t.created_at asc, t.id asc
+    limit 1;
+    if not found then return null; end if;
+  end if;
+
+  insert into public.game_room_players (room_id, user_id, team_id)
+  values (p_room_id, p_user_id, v_selected_team);
+  return v_selected_team;
+end;
+$$;
+
+revoke all on function public.join_game_room_atomic(uuid, uuid, uuid) from public, anon, authenticated;
+grant execute on function public.join_game_room_atomic(uuid, uuid, uuid) to service_role;
+
 create or replace function public.apply_game_movement_atomic(
   p_user_id uuid,
   p_room_id uuid,
@@ -121,7 +192,9 @@ create or replace function public.apply_game_movement_atomic(
   p_new_y integer,
   p_steps integer,
   p_remaining_moves integer,
-  p_game_patch jsonb
+  p_game_patch jsonb,
+  p_request_id uuid default null,
+  p_action text default 'move'
 )
 returns boolean
 language plpgsql
@@ -137,6 +210,8 @@ declare
   v_team_y integer;
   v_team_position integer;
   v_single_device boolean;
+  v_claim_room_id uuid;
+  v_claim_game_id uuid;
 begin
   if p_user_id is null or p_room_id is null or p_game_id is null or p_team_id is null then
     raise exception 'Required movement identifiers are missing' using errcode = '22023';
@@ -158,22 +233,50 @@ begin
   select * into v_game from public.game_games
   where id = p_game_id and room_id = p_room_id for update;
   if not found then raise exception 'Game not found' using errcode = 'P0002'; end if;
-  if v_game.status <> 'playing' or v_game.phase <> 'movement'
-     or v_game.current_turn <> p_expected_turn
-     or v_game.remaining_moves <> p_expected_remaining_moves then
-    raise exception 'Game state changed; reload room' using errcode = '40001';
-  end if;
 
   select * into v_room from public.game_rooms where id = p_room_id;
   if not found then raise exception 'Room not found' using errcode = 'P0002'; end if;
-  if v_room.status <> 'playing' then
-    raise exception 'Room is not active' using errcode = '40001';
-  end if;
   v_single_device := coalesce((v_room.settings->>'single_device_mode')::boolean, false);
 
   select team_id into v_player_team from public.game_room_players
   where room_id = p_room_id and user_id = p_user_id;
   if not found then raise exception 'Player is not in room' using errcode = '42501'; end if;
+
+  if p_request_id is not null then
+    if p_action not in ('move', 'move_batch') then
+      raise exception 'Invalid movement action' using errcode = '22023';
+    end if;
+    select room_id, game_id into v_claim_room_id, v_claim_game_id
+    from public.game_action_claims
+    where user_id = p_user_id and request_id = p_request_id and action = p_action;
+    if found then
+      if v_claim_room_id is distinct from p_room_id or v_claim_game_id is distinct from p_game_id then
+        raise exception 'Idempotency key already used for a different game action' using errcode = '22023';
+      end if;
+      return false;
+    end if;
+    insert into public.game_action_claims (user_id, request_id, action, room_id, game_id)
+    values (p_user_id, p_request_id, p_action, p_room_id, p_game_id)
+    on conflict (user_id, request_id, action) do nothing;
+    if not found then
+      select room_id, game_id into v_claim_room_id, v_claim_game_id
+      from public.game_action_claims
+      where user_id = p_user_id and request_id = p_request_id and action = p_action;
+      if v_claim_room_id is distinct from p_room_id or v_claim_game_id is distinct from p_game_id then
+        raise exception 'Idempotency key already used for a different game action' using errcode = '22023';
+      end if;
+      return false;
+    end if;
+  end if;
+
+  if v_game.status <> 'playing' or v_game.phase <> 'movement'
+     or v_game.current_turn <> p_expected_turn
+     or v_game.remaining_moves <> p_expected_remaining_moves then
+    raise exception 'Game state changed; reload room' using errcode = '40001';
+  end if;
+  if v_room.status <> 'playing' then
+    raise exception 'Room is not active' using errcode = '40001';
+  end if;
 
   select id into v_current_team from public.game_teams
   where game_id = p_game_id
@@ -218,8 +321,8 @@ begin
 end;
 $$;
 
-revoke all on function public.apply_game_movement_atomic(uuid, uuid, uuid, uuid, integer, integer, integer, integer, integer, integer, integer, integer, jsonb) from public, anon, authenticated;
-grant execute on function public.apply_game_movement_atomic(uuid, uuid, uuid, uuid, integer, integer, integer, integer, integer, integer, integer, integer, jsonb) to service_role;
+revoke all on function public.apply_game_movement_atomic(uuid, uuid, uuid, uuid, integer, integer, integer, integer, integer, integer, integer, integer, jsonb, uuid, text) from public, anon, authenticated;
+grant execute on function public.apply_game_movement_atomic(uuid, uuid, uuid, uuid, integer, integer, integer, integer, integer, integer, integer, integer, jsonb, uuid, text) to service_role;
 
 create or replace function public.start_game_atomic(
   p_user_id uuid,

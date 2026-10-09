@@ -105,13 +105,19 @@ export async function getRoomState(code, userId) { return getRoomForUser(code, u
 export async function joinRoom(code, userId, body = {}) {
   const room = await findRoom(code)
   if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
-  if (room.status !== 'lobby') fail('Phòng đã bắt đầu, không thể tham gia.', 409, 'room_started')
-  const existing = await db(supabaseAdmin.from('game_room_players').select('id').eq('room_id', room.id).eq('user_id', userId).maybeSingle())
-  if (existing) return getRoomForUser(room.code, userId)
-  const game = await db(supabaseAdmin.from('game_games').select('id').eq('room_id', room.id).single())
-  const teams = await db(supabaseAdmin.from('game_teams').select('id').eq('game_id', game.id))
-  const chosen = teams.find((team) => team.id === body.team_id)?.id || teams[0]?.id
-  await db(supabaseAdmin.from('game_room_players').insert({ room_id: room.id, user_id: userId, team_id: chosen }))
+  const requestedTeamId = body.team_id ? parseRequestId(body.team_id) : null
+  if (body.team_id && !requestedTeamId) fail('Đội được chọn không hợp lệ.', 400, 'invalid_team')
+  const { data: joinedTeamId, error } = await supabaseAdmin.rpc('join_game_room_atomic', {
+    p_room_id: room.id,
+    p_user_id: userId,
+    p_team_id: requestedTeamId,
+  })
+  if (error?.code === '40001') fail('Phòng đã bắt đầu, không thể tham gia.', 409, 'room_started')
+  if (error?.code === '22023') fail('Đội được chọn không hợp lệ.', 400, 'invalid_team')
+  if (error?.code === '42501') fail('Phòng một thiết bị chỉ dành cho người tạo phòng.', 403, 'single_device_only')
+  if (error?.code === 'P0002') fail('Mã phòng không tồn tại.', 404, 'room_not_found')
+  if (error) throw mapError(error)
+  if (!joinedTeamId) fail('Đội đã đủ người hoặc phòng đã đầy.', 409, 'team_full')
   return getRoomForUser(room.code, userId)
 }
 
@@ -153,12 +159,30 @@ async function getActiveGame(code) {
   return { room, game, teams }
 }
 
-async function assertTurn(room, game, teams, userId) {
-  const players = await db(supabaseAdmin.from('game_room_players').select('user_id, team_id').eq('room_id', room.id))
+export function assertUserTurn(room, game, teams, players, userId) {
+  const player = players.find((item) => item.user_id === userId)
+  if (!player) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
   const currentTeam = teams[game.current_turn]
   const isSingleDeviceHost = room.settings.single_device_mode === true && room.host_id === userId
   if (!currentTeam || (!isSingleDeviceHost && player.team_id !== currentTeam.id)) fail('Chưa đến lượt đội của bạn.', 409, 'not_your_turn')
   return currentTeam
+}
+
+async function assertTurn(room, game, teams, userId) {
+  const players = await db(supabaseAdmin.from('game_room_players').select('user_id, team_id').eq('room_id', room.id))
+  return assertUserTurn(room, game, teams, players, userId)
+}
+
+async function hasPriorMovementAction(code, room, userId, requestId, action) {
+  const player = await db(supabaseAdmin.from('game_room_players').select('user_id').eq('room_id', room.id).eq('user_id', userId).maybeSingle())
+  if (!player) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
+  const parsedRequestId = parseRequestId(requestId)
+  if (!parsedRequestId) return false
+  const claim = await db(supabaseAdmin.from('game_action_claims').select('room_id, game_id')
+    .eq('user_id', userId).eq('request_id', parsedRequestId).eq('action', action).maybeSingle())
+  if (!claim) return false
+  if (claim.room_id !== room.id) fail('Idempotency-Key đã được dùng cho thao tác khác.', 409, 'idempotency_key_reused')
+  return true
 }
 
 export async function answerRoom(code, userId, body = {}, requestId = null) {
@@ -185,11 +209,7 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
     db(supabaseAdmin.from('game_teams').select(TEAM_COLUMNS).eq('game_id', game.id).order('turn_order', { ascending: true })),
     db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(game.question_index + 1)),
   ])
-  const player = players.find((item) => item.user_id === userId)
-  if (!player) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
-  const currentTeam = teams[game.current_turn]
-  const isSingleDeviceHost = room.settings.single_device_mode === true && room.host_id === userId
-  if (!currentTeam || (!isSingleDeviceHost && player.team_id !== currentTeam.id)) fail('Chưa đến lượt đội của bạn.', 409, 'not_your_turn')
+  const currentTeam = assertUserTurn(room, game, teams, players, userId)
   const question = questions?.[game.question_index]
   if (!question) fail('Không còn câu hỏi hợp lệ.', 409, 'no_question')
   const isCorrect = evaluateAnswer(question, body.answer)
@@ -236,8 +256,9 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
   return { ...room, status: finished ? 'finished' : room.status, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams: nextTeams, game: { ...nextGame, maze: publicMazeState(nextGame), ranking }, question: nextQuestion, answer_feedback: { is_correct: isCorrect }, is_host: room.host_id === userId, current_user_team_id: player.team_id || null, movement_feedback: null }
 }
 
-export async function moveRoom(code, userId, direction) {
+export async function moveRoom(code, userId, direction, requestId = null) {
   const { room, game, teams } = await getActiveGame(code)
+  if (await hasPriorMovementAction(code, room, userId, requestId, 'move')) return getRoomForUser(code, userId)
   if (game.status !== 'playing' || game.phase !== GAME_PHASES.MOVEMENT) fail('Chưa đến phase di chuyển.', 409, 'game_not_movement')
   if (!DIRECTIONS[direction]) fail('Hướng di chuyển không hợp lệ.', 400, 'invalid_direction')
   const currentTeam = await assertTurn(room, game, teams, userId)
@@ -283,6 +304,8 @@ export async function moveRoom(code, userId, direction) {
     p_steps: 1,
     p_remaining_moves: Number(gamePatch.remaining_moves ?? nextMoves),
     p_game_patch: gamePatch,
+    p_request_id: parseRequestId(requestId),
+    p_action: 'move',
   })
   if (error) {
     if (error.code === '40001') fail('Trạng thái di chuyển vừa thay đổi. Hãy tải lại phòng.', 409, 'game_state_conflict')
@@ -292,10 +315,11 @@ export async function moveRoom(code, userId, direction) {
   return getRoomForUser(code, userId, { collision: false, direction, remaining_moves: Number(gamePatch.remaining_moves ?? nextMoves), moved: true })
 }
 
-export async function moveRoomBatch(code, userId, directions = []) {
+export async function moveRoomBatch(code, userId, directions = [], requestId = null) {
   // Bản nhanh: ít vòng truy vấn hơn (đọc song song, ghi song song, dựng phản hồi trong bộ nhớ).
   const room = await findRoom(code)
   if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
+  if (await hasPriorMovementAction(code, room, userId, requestId, 'move_batch')) return getRoomForUser(code, userId)
   const [game, players] = await Promise.all([
     db(supabaseAdmin.from('game_games').select(GAME_COLUMNS).eq('room_id', room.id).single()),
     db(supabaseAdmin.from('game_room_players').select('id, user_id, team_id, joined_at').eq('room_id', room.id).order('joined_at', { ascending: true })),
@@ -303,11 +327,7 @@ export async function moveRoomBatch(code, userId, directions = []) {
   const teams = await db(supabaseAdmin.from('game_teams').select(TEAM_COLUMNS).eq('game_id', game.id).order('turn_order', { ascending: true }))
   if (game.status !== 'playing' || game.phase !== GAME_PHASES.MOVEMENT) fail('Chưa đến phase di chuyển.', 409, 'game_not_movement')
   if (!Array.isArray(directions) || !directions.length || directions.length > 50 || !directions.every((d) => DIRECTIONS[d])) fail('Hướng di chuyển không hợp lệ.', 400, 'invalid_direction')
-  const player = players.find((item) => item.user_id === userId)
-  if (!player) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
-  const currentTeam = teams[game.current_turn]
-  const isSingleDeviceHost = room.settings.single_device_mode === true && room.host_id === userId
-  if (!currentTeam || (!isSingleDeviceHost && player.team_id !== currentTeam.id)) fail('Chưa đến lượt đội của bạn.', 409, 'not_your_turn')
+  const currentTeam = assertUserTurn(room, game, teams, players, userId)
   if (!game.remaining_moves) fail('Đã hết lượt di chuyển.', 409, 'no_remaining_moves')
 
   let position = { x: currentTeam.maze_x, y: currentTeam.maze_y }
@@ -354,6 +374,8 @@ export async function moveRoomBatch(code, userId, directions = []) {
     p_steps: steps,
     p_remaining_moves: Number(gamePatch.remaining_moves ?? remaining),
     p_game_patch: gamePatch,
+    p_request_id: parseRequestId(requestId),
+    p_action: 'move_batch',
   })
   if (error) {
     if (error.code === '40001') fail('Trạng thái di chuyển vừa thay đổi. Hãy tải lại phòng.', 409, 'game_state_conflict')

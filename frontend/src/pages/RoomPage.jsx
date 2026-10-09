@@ -116,7 +116,7 @@ export default function RoomPage() {
     try {
       while (outbox.current.length) {
         const batch = outbox.current.splice(0)
-        const serverRoom = await moveRoomBatch(code, batch)
+        const serverRoom = await moveRoomBatch(code, batch, crypto.randomUUID())
         pendingMoves.current -= batch.length
         if (pendingMoves.current === 0) applyRoom(serverRoom)
       }
