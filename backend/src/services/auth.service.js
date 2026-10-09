@@ -163,12 +163,21 @@ export async function registerUser({ displayName, email: rawEmail, password, gho
   return { email, ghost: false }
 }
 
-export async function loginUser({ email: rawEmail, password }) {
-  const email = normalizeEmail(rawEmail)
+export async function loginUser({ displayName: rawDisplayName, password }) {
+  const displayName = normalizeDisplayName(rawDisplayName)
   if (typeof password !== 'string' || !password) throw new AppError('Vui lòng nhập mật khẩu.')
+  const { data: profiles, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('id, email, full_name')
+    .ilike('full_name', displayName)
+    .limit(2)
+  if (profileError) throw new AppError('Không thể kiểm tra tên hiển thị lúc này.', 503)
+  if (!profiles?.length) throw new AppError('Tên hiển thị hoặc mật khẩu chưa chính xác.', 401)
+  if (profiles.length > 1) throw new AppError('Tên hiển thị này chưa duy nhất. Vui lòng liên hệ quản trị viên.', 409)
+  const email = normalizeEmail(profiles[0].email)
   const { data, error } = await supabaseAdmin.auth.signInWithPassword({ email, password })
   if (error?.code === 'email_not_confirmed' || /email not confirmed/i.test(error?.message || '')) throw new AppError('Email chưa được xác nhận. Hãy kiểm tra hộp thư của bạn.')
-  if (error || !data?.user || !data?.session) throw new AppError('Email hoặc mật khẩu chưa chính xác.', 401)
+  if (error || !data?.user || !data?.session) throw new AppError('Tên hiển thị hoặc mật khẩu chưa chính xác.', 401)
   const profile = await ensureProfileForUser(data.user)
   return { session: data.session, profile: toPublicProfile(profile, data.user) }
 }

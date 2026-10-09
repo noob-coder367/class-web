@@ -7,7 +7,7 @@ const router = Router()
 
 router.post('/register', authController.register)
 router.get('/ghost-preview', authController.previewGhost)
-router.post('/login', validateBody({ email: 'string', password: 'string' }), authController.login)
+router.post('/login', validateBody({ displayName: 'string', password: 'string' }), authController.login)
 router.get('/me', requireAuth, authController.me)
 
 export default router

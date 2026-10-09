@@ -71,6 +71,14 @@ export default function PetPage() {
     if (saving) return
     const savingUserId = userId
     const outfitToSave = { ...visibleDraft }
+    if (!savingUserId) {
+      setSaved(outfitToSave)
+      setLoadedUserId(null)
+      setEditing(false)
+      setLoadError('')
+      toast?.success?.('Đã áp dụng trang phục trong phiên này')
+      return
+    }
     try {
       setSaving(true)
       await saveOutfit(savingUserId, outfitToSave)

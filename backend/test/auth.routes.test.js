@@ -29,13 +29,13 @@ test('profile endpoint rejects requests without a Supabase session', async () =>
   assert.equal(response.status, 401)
 })
 
-test('login contract requires email and does not accept username-only payloads', async () => {
+test('login contract requires display name and does not accept email-only payloads', async () => {
   const { response, body } = await jsonRequest('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify({ username: 'legacy-user', password: 'correct-horse' }),
   })
   assert.equal(response.status, 400)
-  assert.match(body.message, /email/)
+  assert.match(body.message, /displayName/)
 })
 
 test('registration validates email/password input before calling Supabase', async () => {

@@ -16,6 +16,7 @@ const navItems = [
   { id: 'rooms', label: 'Quản lý phòng', icon: 'rooms' },
   { id: 'questions', label: 'Quản lý các câu hỏi', icon: 'questions' },
   { id: 'game-images', label: 'Quản lý các trò chơi', icon: 'images' },
+  { id: 'auth-image', label: 'Ảnh trình duyệt', icon: 'images' },
   { id: 'settings', label: 'Cài đặt chung', icon: 'settings' },
 ]
 
@@ -172,6 +173,27 @@ function GameImagesWorkspace({ toast }) {
   </>
 }
 
+
+function AuthBrowserImageWorkspace({ toast }) {
+  const [image, setImage] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const load = () => { setLoading(true); listGameModeImages(['auth-browser']).then((rows) => setImage(rows[0] || null)).catch((error) => toast.error(error?.message || 'Không thể tải ảnh.')).finally(() => setLoading(false)) }
+  useEffect(() => { load() }, [])
+  const upload = async (event) => {
+    const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''
+    if (!file) return
+    setBusy(true)
+    try { const next = await uploadGameModeImage('auth-browser', file); setImage(next); toast.success('Đã lưu ảnh trình duyệt.') }
+    catch (error) { toast.error(error?.message || 'Không thể tải ảnh lên.') }
+    finally { setBusy(false) }
+  }
+  return <>
+    <header className="browser-heading"><div><p className="browser-eyebrow">Giao diện xác thực</p><h1>Ảnh trình duyệt</h1><p>Quản lý ảnh hiển thị ở bên trái trang đăng nhập và đăng ký.</p></div></header>
+    <section className="browser-panel auth-browser-panel"><div className="auth-browser-preview">{image?.image_url ? <img src={image.image_url} alt="Ảnh trình duyệt đăng nhập và đăng ký" /> : <span>Chưa có ảnh</span>}</div><div><h2>Ảnh đăng nhập / đăng ký</h2><p className="admin-muted">Ảnh được lưu trong Supabase Storage, không chỉ nằm trong trình duyệt hiện tại.</p><label className="game-image-upload"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={busy || loading} onChange={(event) => void upload(event)} /><span>{busy ? 'Đang lưu…' : image?.image_path ? 'Đổi ảnh' : 'Tải ảnh lên'}</span></label><button className="button button-quiet" type="button" onClick={load} disabled={busy || loading}>Làm mới</button><p className="game-image-hint">JPG, PNG, WebP hoặc GIF · tối đa 5 MB · khuyến nghị ảnh dọc hoặc ngang tùy bố cục.</p></div></section>
+  </>
+}
+
 export default function AdminAccountsPage() {
   const { isAdmin, profile } = useAuth()
   const toast = useToast()
@@ -199,7 +221,7 @@ export default function AdminAccountsPage() {
         <div className="browser-sidebar-footer"><span className="browser-avatar">{(profile?.display_name || profile?.email || 'A').charAt(0).toUpperCase()}</span><div><strong>{profile?.display_name || 'Quản trị viên'}</strong><small>Administrator</small></div></div>
       </aside>
       <section className="browser-content">
-        {section === 'rooms' ? <AdminRoomsWorkspace toast={toast} /> : section === 'questions' ? <AdminQuestionsWorkspace toast={toast} /> : section === 'game-images' ? <GameImagesWorkspace toast={toast} /> : section === 'settings' ? <>
+        {section === 'rooms' ? <AdminRoomsWorkspace toast={toast} /> : section === 'questions' ? <AdminQuestionsWorkspace toast={toast} /> : section === 'game-images' ? <GameImagesWorkspace toast={toast} /> : section === 'auth-image' ? <AuthBrowserImageWorkspace toast={toast} /> : section === 'settings' ? <>
           <header className="browser-heading"><div><p className="browser-eyebrow">Cấu hình giao diện</p><h1>Cài đặt chung</h1><p>Tùy chỉnh không gian quản trị theo phong cách của lớp.</p></div></header>
           <div className="browser-panel settings-panel"><div><h2>Ảnh nền dashboard</h2><p>Tải ảnh lên để hiển thị phía sau giao diện quản trị. Ảnh chỉ được áp dụng trong phiên xem hiện tại.</p></div><label className="upload-background"><input type="file" accept="image/*" onChange={chooseBackground} /><span>{background ? 'Đổi ảnh nền' : 'Chọn ảnh nền'}</span></label><div className="settings-preview" style={background ? { backgroundImage: `linear-gradient(90deg, rgba(5,9,12,.5), rgba(5,9,12,.12)), url(${background})` } : undefined}><strong>{background ? 'Ảnh nền đã sẵn sàng' : 'Chưa có ảnh nền'}</strong><small>Ảnh sẽ được làm tối để nội dung luôn dễ đọc.</small></div></div>
         </> : <>

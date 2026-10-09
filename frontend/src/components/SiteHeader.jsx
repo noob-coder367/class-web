@@ -6,9 +6,8 @@ import { ROUTES } from '../lib/routes.js'
 export function Brand() {
   return (
     <Link className="brand" to={ROUTES.home} aria-label="10A4-Quizz, về trang chủ">
-      <span className="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M7 4.5h10a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5H7A2.5 2.5 0 0 1 4.5 17V7A2.5 2.5 0 0 1 7 4.5Z" stroke="currentColor" strokeWidth="1.8"/><path d="m8 12 2.5 2.5L16 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-      </span>
+      <span className="brand-mark" aria-hidden="true"><img src="/favicon.png" alt="" /></span>
+
       <span>10A4-Quizz</span>
     </Link>
   )

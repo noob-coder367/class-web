@@ -7,6 +7,7 @@ import PasswordField from '../components/PasswordField.jsx'
 import { Brand } from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
 import { validateEmail, validateNewPassword } from '../lib/validation.js'
+import { listGameModeImages } from '../services/gameModeImageService.js'
 
 function GoogleIcon() {
   return <svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z" /><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z" /><path fill="#FBBC05" d="M10.5 28.7a14.5 14.5 0 0 1 0-9.4l-7.9-6.1a24 24 0 0 0 0 21.6l7.9-6.1z" /><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z" /></svg>
@@ -27,6 +28,14 @@ export default function AuthPage({ mode = 'login' }) {
   const [errors, setErrors] = useState({})
   const [busy, setBusy] = useState('')
   const [notice, setNotice] = useState('')
+  const [authImage, setAuthImage] = useState('')
+  useEffect(() => {
+    let active = true
+    listGameModeImages(['auth-browser']).then((rows) => {
+      if (active) setAuthImage(rows[0]?.image_url || '')
+    }).catch(() => {})
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     const onPageShow = (event) => { if (event.persisted) setBusy('') }
@@ -55,7 +64,9 @@ export default function AuthPage({ mode = 'login' }) {
 
   const validate = () => {
     if (ghostMode) return form.secretCode ? {} : { secretCode: 'Vui lòng nhập mã thành viên.' }
-    const next = { email: validateEmail(form.email) }
+    const next = isRegister
+      ? { email: validateEmail(form.email) }
+      : { displayName: form.displayName.trim().length < 2 ? 'Vui lòng nhập tên hiển thị.' : '' }
     if (isRegister) {
       if (form.displayName.trim().length < 2) next.displayName = 'Tên hiển thị cần có ít nhất 2 ký tự.'
       next.password = validateNewPassword(form.password)
@@ -84,7 +95,7 @@ export default function AuthPage({ mode = 'login' }) {
           toast.success('Đăng ký thành công')
         }
       } else {
-        await authService.login({ email: form.email.trim(), password: form.password })
+        await authService.login({ displayName: form.displayName.trim(), password: form.password })
         await reloadProfile(); toast.success('Đăng nhập thành công'); navigate(ROUTES.home, { replace: true })
       }
     } catch (cause) { toast.error(cause?.message || (isRegister ? 'Đăng ký không thành công.' : 'Email hoặc mật khẩu chưa chính xác.')) } finally { setBusy('') }
@@ -98,14 +109,14 @@ export default function AuthPage({ mode = 'login' }) {
 
   return (
     <div className="login-page">
-      <div className="login-visual" aria-hidden="true"><div className="login-plus-grid" /><div className="login-photo-slot" /><div className="login-visual-copy"><p className="login-visual-title">Học nhanh hơn.<br /><span>Chơi vui hơn.</span></p><p>Tạo, chơi và thử thách cùng bạn bè trên một nền tảng quiz gọn nhẹ.</p></div></div>
-      <main className="login-panel"><div className="login-brand"><Brand /></div><section className="login-card" aria-labelledby="auth-title">
+      <div className="login-visual" aria-hidden="true"><div className="login-plus-grid" /><div className="login-photo-slot" style={authImage ? { backgroundImage: `url(${authImage})` } : undefined} /><div className="login-visual-copy"><p className="login-visual-title">Học nhanh hơn.<br /><span>Chơi vui hơn.</span></p><p>Tạo, chơi và thử thách cùng bạn bè trên một nền tảng quiz gọn nhẹ.</p></div></div>
+      <main className="login-panel"><Link className="login-home-link" to={ROUTES.home}>Trở về màn hình chính</Link><div className="login-brand"><Brand /></div><section className="login-card" aria-labelledby="auth-title">
         <nav className="login-tabs" aria-label="Chọn đăng nhập hoặc đăng ký"><Link to={ROUTES.login} className={isRegister ? '' : 'is-active'}>Đăng nhập</Link><Link to={ROUTES.register} className={isRegister ? 'is-active' : ''}>Đăng ký</Link></nav>
         <h1 id="auth-title">{isRegister ? (ghostMode ? 'Tài khoản ma' : 'Tạo tài khoản') : 'Đăng nhập'}</h1>
-        <p className="login-sub">{ghostMode ? 'Tài khoản dùng thử cho thành viên 10A4-Quizz.' : isRegister ? 'Điền thông tin bên dưới để bắt đầu.' : 'Vui lòng nhập email và mật khẩu để đăng nhập.'}</p>
+        <p className="login-sub">{ghostMode ? 'Tài khoản dùng thử cho thành viên 10A4-Quizz.' : isRegister ? 'Điền thông tin bên dưới để bắt đầu.' : 'Vui lòng nhập tên hiển thị và mật khẩu để đăng nhập.'}</p>
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           {isRegister && !ghostMode && <div className="form-field"><label htmlFor="displayName">Tên hiển thị</label><input id="displayName" value={form.displayName} onChange={setField('displayName')} autoComplete="nickname" maxLength={60} disabled={Boolean(busy)} aria-invalid={Boolean(errors.displayName)} />{errors.displayName && <p className="field-error">{errors.displayName}</p>}</div>}
-          {!ghostMode && <div className="form-field"><label htmlFor="email">Email</label><input id="email" type="email" value={form.email} onChange={setField('email')} autoComplete="email" disabled={Boolean(busy)} aria-invalid={Boolean(errors.email)} />{errors.email && <p className="field-error">{errors.email}</p>}</div>}
+          {!ghostMode && (isRegister ? <div className="form-field"><label htmlFor="email">Email</label><input id="email" type="email" value={form.email} onChange={setField('email')} autoComplete="email" disabled={Boolean(busy)} aria-invalid={Boolean(errors.email)} />{errors.email && <p className="field-error">{errors.email}</p>}</div> : <div className="form-field"><label htmlFor="displayName">Tên hiển thị</label><input id="displayName" value={form.displayName} onChange={setField('displayName')} autoComplete="username" maxLength={60} disabled={Boolean(busy)} aria-invalid={Boolean(errors.displayName)} />{errors.displayName && <p className="field-error">{errors.displayName}</p>}</div>)}
           {!ghostMode && <PasswordField label="Mật khẩu" value={form.password} onChange={setField('password')} error={errors.password} autoComplete={isRegister ? 'new-password' : 'current-password'} disabled={Boolean(busy)} />}
           {isRegister && !ghostMode && <PasswordField label="Xác nhận mật khẩu" value={form.confirmPassword} onChange={setField('confirmPassword')} error={errors.confirmPassword} autoComplete="new-password" disabled={Boolean(busy)} />}
           {isRegister && ghostMode && <div className="form-field"><label htmlFor="secretCode">Mã thành viên 10A4</label><input id="secretCode" type="password" value={form.secretCode} onChange={setField('secretCode')} disabled={Boolean(busy)} aria-invalid={Boolean(errors.secretCode)} />{errors.secretCode && <p className="field-error">{errors.secretCode}</p>}<p className="login-hint">Còn {ghostRemaining ?? '—'} lượt hôm nay. Tài khoản ma sẽ yêu cầu đặt tên hiển thị sau khi tạo.</p></div>}

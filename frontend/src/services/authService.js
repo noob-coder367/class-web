@@ -14,9 +14,9 @@ export async function previewGhostAccount() {
   return apiClient.get('/auth/ghost-preview')
 }
 
-export async function login({ email, password }) {
+export async function login({ displayName, password }) {
   clearOAuthPending()
-  const result = await apiClient.post('/auth/login', { email, password })
+  const result = await apiClient.post('/auth/login', { displayName, password })
   if (result.session) await applySession(result.session)
   return result
 }
