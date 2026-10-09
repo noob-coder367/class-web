@@ -244,6 +244,9 @@ export default function AdminAccountsPage() {
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState('')
+  const [detailsAccount, setDetailsAccount] = useState(null)
+  const [detailsLoading, setDetailsLoading] = useState(false)
+  const [detailsError, setDetailsError] = useState('')
 
   const load = async () => { setLoading(true); try { setAccounts(await accountService.listAccounts()) } catch (error) { toast.error(error?.message || 'Không thể tải danh sách tài khoản.') } finally { setLoading(false) } }
   useEffect(() => { void load() }, [])
