@@ -228,10 +228,12 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
   if (game.status !== 'playing' || game.phase !== GAME_PHASES.QUESTION) fail('Game chưa ở trạng thái nhận câu trả lời.', 409, 'game_not_question')
   const [teams, questions] = await Promise.all([
     db(supabaseAdmin.from('game_teams').select(TEAM_COLUMNS).eq('game_id', game.id).order('turn_order', { ascending: true })),
-    db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).range(game.question_index, game.question_index)),
+    // Prefetch current + next question before the atomic write, so we don't make an extra database round trip after the answer is committed.
+    db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).range(game.question_index, game.question_index + 1)),
   ])
   const currentTeam = assertUserTurn(room, game, teams, players, userId)
   const question = questions?.[0]
+  const prefetchedNextQuestion = questions?.[1] || null
   if (!question) fail('Không còn câu hỏi hợp lệ.', 409, 'no_question')
   const isCorrect = evaluateAnswer(question, body.answer)
   const responseTime = normalizeResponseTime(body.response_time_ms)
@@ -286,8 +288,7 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
     throw mapError(commitError)
   }
   if (committed !== true) return getRoomForUser(code, userId)
-  const fetched = needsFetch ? await db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).range(nextIndex, nextIndex)) : null
-  const nextQuestion = needsQuestion ? toPublicQuestion((needsFetch ? fetched?.[0] : question) || null) : null
+  const nextQuestion = needsQuestion ? toPublicQuestion((needsFetch ? prefetchedNextQuestion : question) || null) : null
   const finished = nextGame.status === 'finished'
   const ranking = !finished ? [] : room.game_mode === 'quiz_party'
     ? rankQuizPartyTeams(nextTeams).map((team, index) => ({ team_id: team.id, rank: index + 1, score: team.correct_count || 0, correct_count: team.correct_count || 0, wrong_count: team.wrong_count || 0 }))
