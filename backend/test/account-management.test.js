@@ -1,10 +1,18 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { toPublicProfile, ghostEmailFor, registerUser } from '../src/services/auth.service.js'
+import { toPublicProfile, ghostEmailFor, registerUser, safeSupabaseErrorDetails } from '../src/services/auth.service.js'
 import { requireAdmin } from '../src/middlewares/admin.middleware.js'
 
 test('ghost email numbering remains deterministic and separate from normal accounts', () => {
   assert.equal(ghostEmailFor(7), 'taikhoanma-7@ghost.com')
+})
+
+test('Supabase error logging chỉ giữ code và status, không làm lộ message', () => {
+  assert.deepEqual(
+    safeSupabaseErrorDetails({ code: 'email_exists', status: 422, message: 'secret@example.com already registered' }),
+    { code: 'email_exists', status: 422 },
+  )
+  assert.deepEqual(safeSupabaseErrorDetails(null), { code: 'unknown', status: null })
 })
 
 test('new Google profile is marked as requiring display name', () => {

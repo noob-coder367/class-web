@@ -23,6 +23,13 @@ export function ghostEmailFor(index) {
   return `taikhoanma-${index}@${GHOST_EMAIL_DOMAIN}`
 }
 
+export function safeSupabaseErrorDetails(error) {
+  return {
+    code: error?.code || 'unknown',
+    status: error?.status ?? error?.statusCode ?? null,
+  }
+}
+
 export function normalizeDisplayName(value) {
   const displayName = String(value || '').trim().replace(/\s+/g, ' ')
   if (displayName.length < 2 || displayName.length > 60) throw new AppError('Tên hiển thị cần từ 2 đến 60 ký tự.')
@@ -130,6 +137,8 @@ async function sendSignupConfirmation(email) {
 }
 
 export async function previewGhostAccount() {
+  const { error: cleanupError } = await supabaseAdmin.rpc('ghost_cleanup_orphaned_reservations')
+  if (cleanupError) throw new AppError('Tính năng tài khoản ma chưa được khởi tạo.', 503)
   const { data, error } = await supabaseAdmin.from('ghost_account_reservations').select('local_day, status').eq('local_day', new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())).in('status', ['reserved', 'created'])
   if (error) throw new AppError('Tính năng tài khoản ma chưa được khởi tạo.', 503)
   const remainingToday = Math.max(0, GHOST_DAILY_LIMIT - (data || []).length)
@@ -159,16 +168,25 @@ async function registerGhostUser({ secretCode }) {
     const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
       email, password, email_confirm: true, user_metadata: { is_ghost: true },
     })
-    if (error || !created?.user) throw new AppError('Không thể tạo tài khoản ma lúc này.', 503)
+    if (error || !created?.user) {
+      console.error('[auth:ghost] createUser failed', safeSupabaseErrorDetails(error))
+      throw new AppError('Không thể tạo tài khoản ma lúc này.', 503)
+    }
     userId = created.user.id
     const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
       id: userId, username: `account-${userId.replaceAll('-', '').slice(0, 24)}`, email, full_name: null, is_member: true,
     }, { onConflict: 'id' })
     if (profileError) throw new AppError('Không thể khởi tạo hồ sơ tài khoản ma.', 503)
-    const { data: finalized, error: finalizeError } = await supabaseAdmin.rpc('ghost_finalize_account', { p_reservation_id: reservation.id, p_user_id: userId })
-    if (finalizeError || !finalized) throw new AppError('Không thể hoàn tất tài khoản ma.', 503)
     const { data: signedIn, error: signInError } = await supabaseAdmin.auth.signInWithPassword({ email, password })
-    if (signInError || !signedIn?.session) throw new AppError('Không thể đăng nhập tài khoản ma.', 503)
+    if (signInError || !signedIn?.session) {
+      console.error('[auth:ghost] signInWithPassword failed', safeSupabaseErrorDetails(signInError))
+      throw new AppError('Không thể đăng nhập tài khoản ma.', 503)
+    }
+    const { data: finalized, error: finalizeError } = await supabaseAdmin.rpc('ghost_finalize_account', { p_reservation_id: reservation.id, p_user_id: userId })
+    if (finalizeError || !finalized) {
+      if (finalizeError) console.error('[auth:ghost] finalize reservation failed', safeSupabaseErrorDetails(finalizeError))
+      throw new AppError('Không thể hoàn tất tài khoản ma.', 503)
+    }
     const profile = await findProfileById(userId)
     return { email, ghost: true, session: signedIn.session, profile: toPublicProfile(profile, signedIn.user) }
   } catch (error) {
