@@ -178,15 +178,16 @@ async function registerGhostUser({ secretCode }) {
       id: userId, username: `account-${userId.replaceAll('-', '').slice(0, 24)}`, email, full_name: null, is_member: true,
     }, { onConflict: 'id' })
     if (profileError) throw new AppError('Không thể khởi tạo hồ sơ tài khoản ma.', 503)
-    const { data: signedIn, error: signInError } = await supabaseAdmin.auth.signInWithPassword({ email, password })
-    if (signInError || !signedIn?.session) {
-      console.error('[auth:ghost] signInWithPassword failed', safeSupabaseErrorDetails(signInError))
-      throw new AppError('Không thể đăng nhập tài khoản ma.', 503)
-    }
+    // Match the previously working flow: finalize the reservation before issuing a session.
     const { data: finalized, error: finalizeError } = await supabaseAdmin.rpc('ghost_finalize_account', { p_reservation_id: reservation.id, p_user_id: userId })
     if (finalizeError || !finalized) {
       if (finalizeError) console.error('[auth:ghost] finalize reservation failed', safeSupabaseErrorDetails(finalizeError))
       throw new AppError('Không thể hoàn tất tài khoản ma.', 503)
+    }
+    const { data: signedIn, error: signInError } = await supabaseAdmin.auth.signInWithPassword({ email, password })
+    if (signInError || !signedIn?.session) {
+      console.error('[auth:ghost] signInWithPassword failed', safeSupabaseErrorDetails(signInError))
+      throw new AppError('Không thể đăng nhập tài khoản ma.', 503)
     }
     const profile = await findProfileById(userId)
     return { email, ghost: true, session: signedIn.session, profile: toPublicProfile(profile, signedIn.user) }
