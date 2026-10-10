@@ -28,6 +28,8 @@ export function safeSupabaseErrorDetails(error) {
   return {
     code: error?.code || 'unknown',
     status: error?.status ?? error?.statusCode ?? null,
+    name: error?.name || null,
+    causeCode: error?.cause?.code || null,
   }
 }
 
