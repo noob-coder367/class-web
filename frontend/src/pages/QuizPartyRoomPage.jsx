@@ -140,12 +140,11 @@ export default function QuizPartyRoomPage() {
   const transitionLock = useRef(false)
 
   const setDrafts = useCallback((updater) => {
-    setDraftsState((previous) => {
-      const next = typeof updater === 'function' ? updater(previous) : updater
-      if (code && next.length) writeSession(code, next)
-      return next
-    })
-  }, [code])
+    setDraftsState(updater)
+  }, [])
+  useEffect(() => {
+    if (code && drafts.length) writeSession(code, drafts)
+  }, [code, drafts])
 
   const refresh = useCallback(async (quiet = false) => {
     try {
