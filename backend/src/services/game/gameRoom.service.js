@@ -50,7 +50,9 @@ export async function createRoom(userId, body = {}, requestId = null) {
   const maxPlayers = Math.min(12, Math.max(1, Number(body.max_players_per_team) || 4))
   const boardLength = [10, 20, 30, 40, 50].includes(Number(body.board_length)) ? Number(body.board_length) : 20
   const questionLimit = Math.min(quiz.questions.length, Math.max(1, Number(body.question_limit) || quiz.questions.length))
-  const gameMode = body.game_mode === 'quiz_party' ? 'quiz_party' : 'treasure_race'
+  const requestedMode = String(body.game_mode || 'treasure-race')
+  if (!['quiz_party', 'treasure-race', 'treasure_race'].includes(requestedMode)) fail('Game mode không hợp lệ.')
+  const gameMode = requestedMode === 'quiz_party' ? 'quiz_party' : 'treasure_race'
   const settings = { title: String(body.title || (gameMode === 'quiz_party' ? 'Quiz Party' : 'Phòng đua kho báu')).trim().slice(0, 80), game_mode: gameMode, team_count: teamCount, max_players_per_team: maxPlayers, board_length: boardLength, question_limit: questionLimit, timer_enabled: body.timer_enabled !== false, single_device_mode: body.single_device_mode === true, question_time_seconds: 30 }
   const parsedRequestId = parseRequestId(requestId)
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -95,8 +97,8 @@ async function getRoomForUser(code, userId, feedback = null, { allowPreview = tr
   let question = null
   if (game?.status === 'playing' && teams.length && game.question_index < game.total_questions) {
     const questionIndex = Math.min(room.settings.question_limit - 1, game.question_index)
-    const questions = await db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(questionIndex + 1))
-    question = toPublicQuestion(questions?.[questionIndex])
+    const questions = await db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).range(questionIndex, questionIndex))
+    question = toPublicQuestion(questions?.[0])
   }
   const ranked = game?.status !== 'finished' ? [] : room.game_mode === 'quiz_party'
     ? rankQuizPartyTeams(teams).map((team, index) => ({ team_id: team.id, rank: index + 1, score: team.correct_count || 0, correct_count: team.correct_count || 0, wrong_count: team.wrong_count || 0 }))
@@ -226,10 +228,10 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
   if (game.status !== 'playing' || game.phase !== GAME_PHASES.QUESTION) fail('Game chưa ở trạng thái nhận câu trả lời.', 409, 'game_not_question')
   const [teams, questions] = await Promise.all([
     db(supabaseAdmin.from('game_teams').select(TEAM_COLUMNS).eq('game_id', game.id).order('turn_order', { ascending: true })),
-    db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(game.question_index + 1)),
+    db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).range(game.question_index, game.question_index)),
   ])
   const currentTeam = assertUserTurn(room, game, teams, players, userId)
-  const question = questions?.[game.question_index]
+  const question = questions?.[0]
   if (!question) fail('Không còn câu hỏi hợp lệ.', 409, 'no_question')
   const isCorrect = evaluateAnswer(question, body.answer)
   const responseTime = normalizeResponseTime(body.response_time_ms)
@@ -284,8 +286,8 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
     throw mapError(commitError)
   }
   if (committed !== true) return getRoomForUser(code, userId)
-  const fetched = needsFetch ? await db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(nextIndex + 1)) : null
-  const nextQuestion = needsQuestion ? toPublicQuestion((needsFetch ? fetched?.[nextIndex] : question) || null) : null
+  const fetched = needsFetch ? await db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).range(nextIndex, nextIndex)) : null
+  const nextQuestion = needsQuestion ? toPublicQuestion((needsFetch ? fetched?.[0] : question) || null) : null
   const finished = nextGame.status === 'finished'
   const ranking = !finished ? [] : room.game_mode === 'quiz_party'
     ? rankQuizPartyTeams(nextTeams).map((team, index) => ({ team_id: team.id, rank: index + 1, score: team.correct_count || 0, correct_count: team.correct_count || 0, wrong_count: team.wrong_count || 0 }))
