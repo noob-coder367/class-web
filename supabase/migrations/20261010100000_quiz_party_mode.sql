@@ -33,9 +33,16 @@ begin
     raise exception 'Unsupported game mode' using errcode = '22023';
   end if;
 
-  -- A reused idempotency key may return an existing room. Do not silently
-  -- convert it to another game mode.
-  if p_request_id is not null then
+  -- Take the same lock as the legacy RPC before checking the key. Otherwise
+  -- two calls can both observe no claim, then serialize only inside the legacy
+  -- RPC and let the later call change the already-created room's mode.
+  if p_request_id is not null and p_host_id is not null then
+    perform pg_advisory_xact_lock(
+      hashtextextended(p_host_id::text || ':' || p_request_id::text || ':create_room', 0)
+    );
+
+    -- A reused idempotency key may return an existing room. Do not silently
+    -- convert it to another game mode.
     select r.game_mode into v_existing_mode
     from public.game_action_claims c
     join public.game_rooms r on r.id = c.room_id
