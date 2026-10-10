@@ -96,7 +96,7 @@
 .qp-answer-tile:disabled{cursor:wait;opacity:.8}
 .qp-answer-letter{display:grid;place-items:center;flex:none;width:31px;height:31px;border:1px solid #ffffff25;border-radius:10px;color:#ffe49b;background:#ffffff0b;font-size:12px;font-weight:1000}
 .qp-answer-label{min-width:0;font-size:14px;font-weight:800;line-height:1.45;overflow-wrap:anywhere;transition:filter .2s,opacity .2s}
-.qp-answer-label.is-hidden{filter:blur(7px);user-select:none}
+.qp-answer-label.is-hidden{opacity:.03;filter:blur(10px);user-select:none}
 .minigame-whack-a-choice .qp-answer-tile{border-radius:9px;border-bottom-width:4px}
 .minigame-memory-tiles .qp-answer-tile{min-height:84px;justify-content:center;flex-direction:column;gap:6px;background:linear-gradient(145deg,#302469,#151833)}
 .minigame-memory-tiles .qp-answer-letter{width:38px;height:38px;font-size:17px}
@@ -110,7 +110,14 @@
 .qp-essay-form input{min-height:50px}
 .qp-essay-form button{display:flex;align-items:center;justify-content:center;gap:9px;min-height:48px;border:0;border-radius:12px;color:#201530;background:#ffe09a;font-weight:1000;cursor:pointer}
 .qp-essay-form button:disabled{opacity:.5;cursor:not-allowed}
-.qp-question-note{margin:12px 0 0;color:#858daf;font-size:10px;text-align:center}
+
+.qp-answer-tile.is-correct-choice{border-color:#72ffb3!important;color:#d1ffe3!important;background:linear-gradient(135deg,#14653d,#093621)!important;box-shadow:0 0 0 2px #72ffb344,0 0 35px #32ff9b55!important;animation:qp-correct-hit .28s cubic-bezier(.2,1.3,.3,1) both}
+.qp-answer-tile.is-correct-choice .qp-answer-letter{border-color:#72ffb3;color:#06321d;background:#a9ffcd}
+.qp-answer-tile.is-wrong-choice{border-color:#ff718c!important;color:#ffe5e9!important;background:linear-gradient(135deg,#84263c,#3c1227)!important;box-shadow:0 0 0 2px #ff718c36,0 0 30px #ff375866!important;animation:qp-wrong-hit .28s ease both}
+.qp-answer-tile.is-wrong-choice .qp-answer-letter{border-color:#ff9aaa;color:#4a0718;background:#ffc3ce}
+@keyframes qp-correct-hit{0%{transform:scale(.96)}65%{transform:scale(1.045)}100%{transform:scale(1)}}
+@keyframes qp-wrong-hit{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+
 .qp-boss{display:flex;align-items:center;justify-content:center;gap:13px;margin:0 auto 14px;color:#fff}
 .qp-boss-face{font-size:54px;filter:drop-shadow(0 8px 10px #0005);animation:qp-boss-float 1.7s ease-in-out infinite}
 .qp-boss>div{display:grid;gap:7px;min-width:160px}
