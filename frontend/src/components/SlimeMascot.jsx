@@ -20,8 +20,8 @@ export default function SlimeMascot({ isRegister }) {
           <filter id="slime-glow"><feGaussianBlur stdDeviation="5" /></filter>
         </defs>
         <ellipse cx="90" cy="140" rx="58" ry="7" fill="#4bcff2" opacity=".22" filter="url(#slime-glow)" />
-        <path d="M26 126c-2-30 9-66 37-78 13-6 20-14 25-28 3-8 12-9 15-1 3 8 12 17 24 21 31 10 45 37 42 70-3 25-21 36-67 36-47 0-73-5-76-20Z" fill="url(#slime-body)" stroke="#168edb" strokeOpacity=".45" strokeWidth="2" />
-        <path d="M46 70c8-22 25-27 43-31 11-3 19-10 25-21-2 15-10 25-23 31-19 8-31 21-38 38-4 10-10 4-7-17Z" fill="url(#slime-shine)" opacity=".82" />
+        <path d="M25 126c-2-39 17-78 65-82 48-4 69 32 65 82-3 24-25 34-65 34-41 0-62-10-65-34Z" fill="url(#slime-body)" stroke="#168edb" strokeOpacity=".45" strokeWidth="2" />
+        <path d="M43 70c10-22 28-29 47-30 17-1 27-8 34-20-3 17-14 28-30 33-21 7-36 20-43 39-4 10-11 2-8-22Z" fill="url(#slime-shine)" opacity=".82" />
         <ellipse cx="61" cy="55" rx="11" ry="5" fill="#fff" opacity=".78" transform="rotate(-35 61 55)" />
         <ellipse cx="126" cy="81" rx="7" ry="14" fill="#fff" opacity=".5" transform="rotate(-35 126 81)" />
         <ellipse cx="62" cy="101" rx="15" ry="21" fill="url(#slime-eye)" stroke="#2063bd" strokeOpacity=".5" />
