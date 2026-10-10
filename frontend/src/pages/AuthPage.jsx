@@ -110,6 +110,7 @@ export default function AuthPage({ mode = 'login' }) {
 
   return (
     <div className="login-page">
+      {busy === 'email' && <div className="auth-loading" role="status" aria-live="polite"><div className="water-loader" aria-hidden="true"><span /><span /><span /></div><p>Đang xác nhận...</p></div>}
       <div className="login-visual" aria-hidden="true"><div className="login-plus-grid" /><div className="login-photo-slot" style={authImage ? { backgroundImage: `url(${authImage})` } : undefined} /><div className="login-visual-copy"><p className="login-visual-title">Học nhanh hơn.<br /><span>Chơi vui hơn.</span></p><p>Tạo, chơi và thử thách cùng bạn bè trên một nền tảng quiz gọn nhẹ.</p></div></div>
       <main className="login-panel"><Link className="login-home-link" to={ROUTES.home}>Trở về màn hình chính</Link><div className="login-brand"><Brand /></div><section className="login-card" aria-labelledby="auth-title">
         <div className={`auth-selector ${isRegister ? 'is-register' : 'is-login'}`}>

@@ -24,6 +24,16 @@
 
 /* ===== Trang đăng nhập / đăng ký ===== */
 .login-page { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); background: #fff; }
+.auth-loading { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; align-content: center; gap: 18px; background: rgba(236, 251, 255, .76); backdrop-filter: blur(8px); color: #168edb; }
+.auth-loading p { margin: 0; font-size: 14px; font-weight: 800; letter-spacing: .04em; }
+.water-loader { position: relative; width: 108px; height: 108px; animation: water-orbit 1.45s cubic-bezier(.55, .05, .45, .95) infinite; }
+.water-loader::before, .water-loader::after, .water-loader span { position: absolute; display: block; border: 7px solid transparent; border-top-color: #168edb; border-right-color: #55ddf3; border-radius: 50%; content: ''; }
+.water-loader::before { inset: 9px; transform: rotate(25deg) scaleX(.86); opacity: .95; }
+.water-loader::after { inset: 22px; transform: rotate(190deg) scaleX(.82); border-width: 5px; border-top-color: #aaf7ff; border-right-color: #2db7ed; opacity: .9; }
+.water-loader span { inset: 36px; border-width: 4px; transform: rotate(80deg) scaleX(.78); border-top-color: #fff; border-right-color: #60e6fa; opacity: .85; }
+.water-loader span:nth-child(2) { inset: 16px; transform: rotate(300deg) scaleX(.9); border-width: 3px; opacity: .45; }
+.water-loader span:nth-child(3) { inset: 29px; transform: rotate(70deg) scaleX(.72); border-width: 3px; opacity: .6; }
+@keyframes water-orbit { 0% { transform: translateY(45px) scale(.55) rotate(0); opacity: 0; } 24% { transform: translateY(-26px) scale(.9) rotate(110deg); opacity: 1; } 52% { transform: translateY(0) scale(1) rotate(220deg); } 100% { transform: translateY(0) scale(1) rotate(360deg); } }
 .login-visual { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 24px; padding: 48px; background: #f6f5ff; }
 .login-plus-grid { position: absolute; right: -10px; bottom: 90px; width: 230px; height: 280px; opacity: .55; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='46' height='46'%3E%3Cpath d='M23 14v18M14 23h18' stroke='%237968ec' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"); }
 .login-photo-slot { position: relative; flex: 1; min-height: 240px; border: 2px dashed #cfc9fb; border-radius: 28px; background: rgba(255, 255, 255, .55) center / cover no-repeat; }
@@ -49,7 +59,7 @@
 @keyframes slime-travel-register { from { left: 25%; transform: translateX(-50%) translateY(20px) scale(1.08, .86); } 42% { transform: translateX(-50%) translateY(-48px) scale(.93, 1.07); } 68% { transform: translateX(-50%) translateY(-26px) scale(1.03, .97); } to { left: 75%; transform: translateX(-50%) translateY(0) scale(1); } }
 @keyframes slime-hop { 0%, 100% { transform: translateX(-50%) translateY(0) scale(1); } 18% { transform: translateX(-50%) translateY(1px) scale(1.04, .95); } 38% { transform: translateX(-50%) translateY(-15px) scale(.96, 1.05); } 56% { transform: translateX(-50%) translateY(-4px) scale(1.02, .98); } 72% { transform: translateX(-50%) translateY(-8px) scale(.98, 1.02); } }
 @keyframes slime-shadow { 0%, 100% { transform: scale(1); opacity: .8; } 18% { transform: scale(.94); opacity: .7; } 38% { transform: scale(.66); opacity: .3; } 56% { transform: scale(.9); opacity: .65; } 72% { transform: scale(.78); opacity: .45; } }
-@media (prefers-reduced-motion: reduce) { .slime-mascot, .slime-mascot::after { animation: none; } .login-tabs::before, .login-tabs a { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .slime-mascot, .slime-mascot::after, .water-loader { animation: none; } .login-tabs::before, .login-tabs a { transition: none; } }
 .login-card h1 { margin: 0 0 6px; color: var(--primary); font-family: Manrope, sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -.04em; }
 .login-sub { margin: 0 0 24px; color: #7b8499; font-size: 14px; }
 .login-form { display: grid; gap: 16px; }
