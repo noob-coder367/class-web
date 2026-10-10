@@ -42,8 +42,8 @@ export function AuthProvider({ children }) {
       if (!mounted) return
       setSession(currentSession)
       setSessionSnapshot(currentSession)
-      setAuthReady(true)
       if (currentSession?.user) await loadProfile(currentSession)
+      if (mounted) setAuthReady(true)
     }
     void initialize()
 
@@ -53,9 +53,13 @@ export function AuthProvider({ children }) {
       setSessionSnapshot(nextSession)
       if (nextSession?.user) {
         if (event === 'SIGNED_IN' && authService.consumeOAuthPending()) toast.success('Đăng nhập bằng Google thành công')
-        if (event !== 'TOKEN_REFRESHED') void loadProfile(nextSession)
+        if (event !== 'TOKEN_REFRESHED') {
+          setAuthReady(false)
+          void loadProfile(nextSession).finally(() => { if (mounted) setAuthReady(true) })
+        }
       } else {
         setProfile(null)
+        setAuthReady(true)
       }
     })
 

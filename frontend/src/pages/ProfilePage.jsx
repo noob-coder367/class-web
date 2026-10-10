@@ -31,7 +31,7 @@ function displayValue(profile, key) {
 }
 
 export default function ProfilePage() {
-  const { session, profile: authProfile, reloadProfile } = useAuth()
+  const { session, profile: authProfile, authReady, reloadProfile } = useAuth()
   const toast = useToast()
   const user = session?.user
   const [state, setState] = useState({ status: 'loading', profile: null, identity: null })
@@ -43,6 +43,7 @@ export default function ProfilePage() {
   const [passwordErrors, setPasswordErrors] = useState({})
   const [changing, setChanging] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const [errorMessage, setErrorMessage] = useState('Không thể tải hồ sơ. Vui lòng thử lại.')
 
   useEffect(() => {
     if (authProfile?.needs_display_name && state.status === 'ready') {
@@ -51,16 +52,30 @@ export default function ProfilePage() {
   }, [authProfile?.needs_display_name, state.status])
 
   useEffect(() => {
-    if (!user?.id) return undefined
+    if (!authReady || !user?.id) return undefined
     let active = true
-    Promise.all([fetchOwnProfile(user.id), fetchAuthIdentity()])
-      .then(([profile, identity]) => active && setState({ status: 'ready', profile, identity }))
-      .catch(() => active && setState({ status: 'error', profile: null, identity: null }))
+    const load = async () => {
+      try {
+        // /auth/me chạy trước để backend có thể provision profile còn thiếu một cách idempotent.
+        await reloadProfile()
+        const [profile, identity] = await Promise.all([fetchOwnProfile(user.id), fetchAuthIdentity()])
+        if (!active) return
+        if (identity.userId !== user.id) throw new Error('Phiên đăng nhập đã thay đổi.')
+        setState({ status: 'ready', profile, identity })
+      } catch (error) {
+        if (!active) return
+        console.warn('[profile-page] Không tải được hồ sơ:', { kind: error?.kind || 'unknown', code: error?.code || '' })
+        setErrorMessage(error?.message || 'Không thể tải hồ sơ. Vui lòng thử lại.')
+        setState({ status: 'error', profile: null, identity: null })
+      }
+    }
+    void load()
     return () => { active = false }
-  }, [user?.id, reloadKey])
+  }, [authReady, user?.id, reloadKey, reloadProfile])
 
   const retry = () => {
     setState({ status: 'loading', profile: null, identity: null })
+    setErrorMessage('Không thể tải hồ sơ. Vui lòng thử lại.')
     setReloadKey((current) => current + 1)
   }
 
@@ -73,7 +88,7 @@ export default function ProfilePage() {
             ? <div className="route-loading" aria-label="Đang tải hồ sơ"><span /></div>
             : (
               <div className="profile-card" role="alert">
-                <p>Không thể tải hồ sơ. Vui lòng thử lại.</p>
+                <p>{errorMessage}</p>
                 <button className="button button-primary" type="button" onClick={retry}>Thử lại</button>
               </div>
             )}
