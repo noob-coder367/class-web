@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { supabaseAdmin } from '../config/supabaseClient.js'
+import { supabaseAdmin, supabaseAuth } from '../config/supabaseClient.js'
 import { env } from '../config/env.js'
 import { normalizeRole } from '../lib/roles.js'
 
@@ -11,6 +11,7 @@ export class AppError extends Error {
 }
 
 const PROFILE_COLUMNS = 'id, username, email, is_member, role, full_name, gender, province, school, phone, facebook_url, created_at, updated_at'
+const PROFILE_COLUMNS_FALLBACK = 'id, username, email, is_member, role, full_name, created_at, updated_at'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const GHOST_EMAIL_DOMAIN = 'ghost.com'
 export const GHOST_DAILY_LIMIT = 2
@@ -28,12 +29,6 @@ export function safeSupabaseErrorDetails(error) {
     code: error?.code || 'unknown',
     status: error?.status ?? error?.statusCode ?? null,
   }
-}
-
-function dbFailureMessage(fallback, error) {
-  const code = error?.code || 'unknown'
-  const detail = String(error?.message || '').replace(/\s+/g, ' ').slice(0, 180)
-  return `${fallback} [${code}] ${detail}`
 }
 
 export function normalizeDisplayName(value) {
@@ -110,10 +105,24 @@ export function toPublicProfile(profile, user = null) {
   }
 }
 
+function isMissingColumnError(error) {
+  const code = String(error?.code || '')
+  return code === '42703' || code === 'PGRST204' || /column .* does not exist/i.test(String(error?.message || ''))
+}
+
 async function findProfileById(userId) {
-  const { data, error } = await supabaseAdmin.from('profiles').select(PROFILE_COLUMNS).eq('id', userId).maybeSingle()
-  if (error) throw new AppError(dbFailureMessage('Không thể tải thông tin tài khoản.', error), 503)
-  return data
+  const first = await supabaseAdmin.from('profiles').select(PROFILE_COLUMNS).eq('id', userId).maybeSingle()
+  if (!first.error) return first.data
+  if (!isMissingColumnError(first.error)) {
+    console.error('[auth] profile read failed', safeSupabaseErrorDetails(first.error))
+    throw new AppError('Không thể tải thông tin tài khoản.', 503)
+  }
+  const second = await supabaseAdmin.from('profiles').select(PROFILE_COLUMNS_FALLBACK).eq('id', userId).maybeSingle()
+  if (second.error) {
+    console.error('[auth] profile read failed', safeSupabaseErrorDetails(second.error))
+    throw new AppError('Không thể tải thông tin tài khoản.', 503)
+  }
+  return second.data
 }
 
 async function ensureProfileForUser(user) {
@@ -145,7 +154,7 @@ async function sendSignupConfirmation(email) {
 export async function previewGhostAccount() {
   const localDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
   const { data, error } = await supabaseAdmin.from('ghost_account_reservations').select('local_day, status, user_id, expires_at').eq('local_day', localDay).in('status', ['reserved', 'created'])
-  if (error) throw new AppError(dbFailureMessage('Tính năng tài khoản ma chưa được khởi tạo.', error), 503)
+  if (error) throw new AppError('Tính năng tài khoản ma chưa được khởi tạo.', 503)
   const now = Date.now()
   const activeReservations = (data || []).filter((reservation) => reservation.status === 'created' ? Boolean(reservation.user_id) : new Date(reservation.expires_at).getTime() > now)
   const remainingToday = Math.max(0, GHOST_DAILY_LIMIT - activeReservations.length)
@@ -184,18 +193,17 @@ async function registerGhostUser({ secretCode }) {
       id: userId, username: `account-${userId.replaceAll('-', '').slice(0, 24)}`, email, full_name: null, is_member: true,
     }, { onConflict: 'id' })
     if (profileError) throw new AppError('Không thể khởi tạo hồ sơ tài khoản ma.', 503)
-    // Match the previously working flow: finalize the reservation before issuing a session.
     const { data: finalized, error: finalizeError } = await supabaseAdmin.rpc('ghost_finalize_account', { p_reservation_id: reservation.id, p_user_id: userId })
     if (finalizeError || !finalized) {
       if (finalizeError) console.error('[auth:ghost] finalize reservation failed', safeSupabaseErrorDetails(finalizeError))
       throw new AppError('Không thể hoàn tất tài khoản ma.', 503)
     }
-    const { data: signedIn, error: signInError } = await supabaseAdmin.auth.signInWithPassword({ email, password })
+    const profile = await findProfileById(userId)
+    const { data: signedIn, error: signInError } = await supabaseAuth.auth.signInWithPassword({ email, password })
     if (signInError || !signedIn?.session) {
       console.error('[auth:ghost] signInWithPassword failed', safeSupabaseErrorDetails(signInError))
       throw new AppError('Không thể đăng nhập tài khoản ma.', 503)
     }
-    const profile = await findProfileById(userId)
     return { email, ghost: true, session: signedIn.session, profile: toPublicProfile(profile, signedIn.user) }
   } catch (error) {
     if (userId) {
@@ -241,11 +249,11 @@ export async function loginUser({ displayName: rawDisplayName, password }) {
     .select('id, email, full_name')
     .ilike('full_name', displayName)
     .limit(2)
-  if (profileError) throw new AppError(dbFailureMessage('Không thể kiểm tra tên hiển thị lúc này.', profileError), 503)
+  if (profileError) throw new AppError('Không thể kiểm tra tên hiển thị lúc này.', 503)
   if (!profiles?.length) throw new AppError('Tên hiển thị hoặc mật khẩu chưa chính xác.', 401)
   if (profiles.length > 1) throw new AppError('Tên hiển thị này chưa duy nhất. Vui lòng liên hệ quản trị viên.', 409)
   const email = normalizeEmail(profiles[0].email)
-  const { data, error } = await supabaseAdmin.auth.signInWithPassword({ email, password })
+  const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password })
   if (error?.code === 'email_not_confirmed' || /email not confirmed/i.test(error?.message || '')) throw new AppError('Email chưa được xác nhận. Hãy kiểm tra hộp thư của bạn.')
   if (error || !data?.user || !data?.session) throw new AppError('Tên hiển thị hoặc mật khẩu chưa chính xác.', 401)
   const profile = await ensureProfileForUser(data.user)
