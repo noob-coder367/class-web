@@ -30,6 +30,12 @@ export function safeSupabaseErrorDetails(error) {
   }
 }
 
+function dbFailureMessage(fallback, error) {
+  const code = error?.code || 'unknown'
+  const detail = String(error?.message || '').replace(/\s+/g, ' ').slice(0, 180)
+  return `${fallback} [${code}] ${detail}`
+}
+
 export function normalizeDisplayName(value) {
   const displayName = String(value || '').trim().replace(/\s+/g, ' ')
   if (displayName.length < 2 || displayName.length > 60) throw new AppError('Tên hiển thị cần từ 2 đến 60 ký tự.')
@@ -106,7 +112,7 @@ export function toPublicProfile(profile, user = null) {
 
 async function findProfileById(userId) {
   const { data, error } = await supabaseAdmin.from('profiles').select(PROFILE_COLUMNS).eq('id', userId).maybeSingle()
-  if (error) throw new AppError('Không thể tải thông tin tài khoản.', 503)
+  if (error) throw new AppError(dbFailureMessage('Không thể tải thông tin tài khoản.', error), 503)
   return data
 }
 
@@ -139,7 +145,7 @@ async function sendSignupConfirmation(email) {
 export async function previewGhostAccount() {
   const localDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
   const { data, error } = await supabaseAdmin.from('ghost_account_reservations').select('local_day, status, user_id, expires_at').eq('local_day', localDay).in('status', ['reserved', 'created'])
-  if (error) throw new AppError('Tính năng tài khoản ma chưa được khởi tạo.', 503)
+  if (error) throw new AppError(dbFailureMessage('Tính năng tài khoản ma chưa được khởi tạo.', error), 503)
   const now = Date.now()
   const activeReservations = (data || []).filter((reservation) => reservation.status === 'created' ? Boolean(reservation.user_id) : new Date(reservation.expires_at).getTime() > now)
   const remainingToday = Math.max(0, GHOST_DAILY_LIMIT - activeReservations.length)
@@ -235,7 +241,7 @@ export async function loginUser({ displayName: rawDisplayName, password }) {
     .select('id, email, full_name')
     .ilike('full_name', displayName)
     .limit(2)
-  if (profileError) throw new AppError('Không thể kiểm tra tên hiển thị lúc này.', 503)
+  if (profileError) throw new AppError(dbFailureMessage('Không thể kiểm tra tên hiển thị lúc này.', profileError), 503)
   if (!profiles?.length) throw new AppError('Tên hiển thị hoặc mật khẩu chưa chính xác.', 401)
   if (profiles.length > 1) throw new AppError('Tên hiển thị này chưa duy nhất. Vui lòng liên hệ quản trị viên.', 409)
   const email = normalizeEmail(profiles[0].email)
