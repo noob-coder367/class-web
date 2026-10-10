@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Clock3, Crown, PartyPopper, Play, RotateCw, ShieldCheck, Shirt, Sparkles, Trophy, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Clock3, Crown, PartyPopper, Play, RotateCw, ShieldCheck, Shirt, Sparkles, Trophy, X } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
 import PetMascot, { PET_CATEGORIES } from '../components/pet/PetMascot.jsx'
 import { getRoom, joinRoom, startRoom, submitAnswer } from '../services/gameRoomService.js'
@@ -106,7 +106,7 @@ function QuizQuestion({ question, minigame, disabled, onAnswer, memoryVisible, t
     return <form className="qp-essay-form" onSubmit={(event) => { event.preventDefault(); onPick(essay.trim()) }}>
       <label htmlFor="qp-essay-answer">Câu trả lời của đội</label>
       <input id="qp-essay-answer" value={essay} onChange={(event) => setEssay(event.target.value)} placeholder="Nhập câu trả lời…" disabled={disabled} />
-      <button type="submit" disabled={disabled || !essay.trim()}>Gửi đáp án <ArrowLeft size={16} /></button>
+      <button type="submit" disabled={disabled || !essay.trim()}>Gửi đáp án <ArrowRight size={16} /></button>
     </form>
   }
   const answers = question.type === 'multiple_choice'
