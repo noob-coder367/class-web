@@ -2,6 +2,8 @@ import { randomInt, randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../../config/supabaseClient.js'
 import { HttpError } from '../../lib/httpError.js'
 import { evaluateAnswer, nextTurnIndex, orderTeamsByDice, generateMaze, canMove, isExit, rankTeamsAtFinish, shortestPathDistance, GAME_PHASES, DIRECTIONS } from './treasureRace.engine.js'
+import { createMinigameSchedule, rankQuizPartyTeams, scoreQuizPartyAnswer } from './quizParty.engine.js'
+import { isQuizPartyMigrationUnavailable } from '../../lib/quizPartyMigration.js'
 
 const ROOM_COLUMNS = 'id, code, host_id, quiz_id, game_mode, status, settings, created_at, updated_at'
 const QUESTION_COLUMNS = 'id, order_index, type, content, options, correct_option, correct_boolean, explanation'
@@ -49,12 +51,15 @@ export async function createRoom(userId, body = {}, requestId = null) {
   const maxPlayers = Math.min(12, Math.max(1, Number(body.max_players_per_team) || 4))
   const boardLength = [10, 20, 30, 40, 50].includes(Number(body.board_length)) ? Number(body.board_length) : 20
   const questionLimit = Math.min(quiz.questions.length, Math.max(1, Number(body.question_limit) || quiz.questions.length))
-  const settings = { title: String(body.title || 'Phòng đua kho báu').trim().slice(0, 80), team_count: teamCount, max_players_per_team: maxPlayers, board_length: boardLength, question_limit: questionLimit, timer_enabled: body.timer_enabled !== false, single_device_mode: body.single_device_mode === true, question_time_seconds: 30 }
+  const requestedMode = String(body.game_mode || 'treasure-race')
+  if (!['quiz_party', 'treasure-race', 'treasure_race'].includes(requestedMode)) fail('Game mode không hợp lệ.')
+  const gameMode = requestedMode === 'quiz_party' ? 'quiz_party' : 'treasure_race'
+  const settings = { title: String(body.title || (gameMode === 'quiz_party' ? 'Quiz Party' : 'Phòng đua kho báu')).trim().slice(0, 80), game_mode: gameMode, team_count: teamCount, max_players_per_team: maxPlayers, board_length: boardLength, question_limit: questionLimit, timer_enabled: body.timer_enabled !== false, single_device_mode: body.single_device_mode === true, question_time_seconds: 30 }
   const parsedRequestId = parseRequestId(requestId)
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const roomId = randomUUID()
     const gameId = randomUUID()
-    const { data: createdRoomId, error } = await supabaseAdmin.rpc('create_game_room_atomic', {
+    const rpcArgs = {
       p_room_id: roomId,
       p_game_id: gameId,
       p_host_id: userId,
@@ -64,8 +69,16 @@ export async function createRoom(userId, body = {}, requestId = null) {
       p_team_count: teamCount,
       p_question_limit: questionLimit,
       p_request_id: parsedRequestId,
-    })
+    }
+    // Treasure Race keeps calling its already-deployed RPC. Quiz Party alone
+    // uses the new wrapper after its additive migration has been applied.
+    const rpcName = gameMode === 'quiz_party' ? 'create_game_room_atomic_v2' : 'create_game_room_atomic'
+    if (gameMode === 'quiz_party') rpcArgs.p_game_mode = gameMode
+    const { data: createdRoomId, error } = await supabaseAdmin.rpc(rpcName, rpcArgs)
     if (!error) return getRoomForUserById(createdRoomId || roomId, userId)
+    if (isQuizPartyMigrationUnavailable(error, gameMode)) {
+      throw new HttpError('Chưa thể tạo phòng Quiz Party: chưa tìm thấy RPC create_game_room_atomic_v2. Kiểm tra migration supabase/migrations/20261010100000_quiz_party_mode.sql và làm mới schema cache Supabase trước khi thử lại.', 503, 'quiz_party_migration_required')
+    }
     if (error.code !== '23505') throw mapError(error)
   }
   fail('Không tạo được mã phòng, vui lòng thử lại.', 503, 'room_unavailable')
@@ -84,18 +97,24 @@ async function getRoomForUserById(roomId, userId, feedback = null) {
 async function getRoomForUser(code, userId, feedback = null, { allowPreview = true } = {}) {
   const room = await findRoom(code)
   if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
-  const players = await db(supabaseAdmin.from('game_room_players').select('id, user_id, team_id, joined_at').eq('room_id', room.id).order('joined_at', { ascending: true }))
+  const [players, game] = await Promise.all([
+    db(supabaseAdmin.from('game_room_players').select('id, user_id, team_id, joined_at').eq('room_id', room.id).order('joined_at', { ascending: true })),
+    db(supabaseAdmin.from('game_games').select(GAME_COLUMNS).eq('room_id', room.id).maybeSingle()),
+  ])
   const isMember = players.some((player) => player.user_id === userId)
   if (!isMember && (!allowPreview || room.status !== 'lobby')) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
-  const game = await db(supabaseAdmin.from('game_games').select(GAME_COLUMNS).eq('room_id', room.id).maybeSingle())
-  const teams = game ? await db(supabaseAdmin.from('game_teams').select(TEAM_COLUMNS).eq('game_id', game.id).order('turn_order', { ascending: true, nullsFirst: false })) : []
-  let question = null
-  if (game?.status === 'playing' && teams.length && game.question_index < game.total_questions) {
-    const questionIndex = Math.min(room.settings.question_limit - 1, game.question_index)
-    const questions = await db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(questionIndex + 1))
-    question = toPublicQuestion(questions?.[questionIndex])
-  }
-  const ranked = game?.status === 'finished' && game.maze_layout ? rankTeamsAtFinish(teams, game.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(game.maze_layout, { x: team.maze_x, y: team.maze_y }) })) : []
+  const questionIndex = game ? Math.min(room.settings.question_limit - 1, game.question_index) : -1
+  const shouldFetchQuestion = game?.status === 'playing' && game.question_index < game.total_questions
+  const [teams, questions] = await Promise.all([
+    game ? db(supabaseAdmin.from('game_teams').select(TEAM_COLUMNS).eq('game_id', game.id).order('turn_order', { ascending: true, nullsFirst: false })) : Promise.resolve([]),
+    shouldFetchQuestion ? db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).range(questionIndex, questionIndex)) : Promise.resolve([]),
+  ])
+  const question = toPublicQuestion(questions?.[0])
+  const ranked = game?.status !== 'finished' ? [] : room.game_mode === 'quiz_party'
+    ? rankQuizPartyTeams(teams).map((team, index) => ({ team_id: team.id, rank: index + 1, score: team.correct_count || 0, correct_count: team.correct_count || 0, wrong_count: team.wrong_count || 0 }))
+    : game.maze_layout
+      ? rankTeamsAtFinish(teams, game.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(game.maze_layout, { x: team.maze_x, y: team.maze_y }) }))
+      : []
   if (!isMember) return { ...room, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams: teams.map(({ id, name, token }) => ({ id, name, token })), game: null, question: null, is_host: false, current_user_team_id: null, movement_feedback: null }
   return { ...room, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams, game: game ? { ...game, maze: publicMazeState(game), ranking: ranked } : null, question, is_host: room.host_id === userId, current_user_team_id: players.find((p) => p.user_id === userId)?.team_id || null, movement_feedback: feedback }
 }
@@ -132,19 +151,31 @@ export async function startRoom(code, userId) {
   const activeTeamIds = new Set(players.map((p) => p.team_id).filter(Boolean))
   if (!room.settings.single_device_mode && activeTeamIds.size < 2) fail('Cần ít nhất 2 đội có người chơi để bắt đầu.')
   const ordered = orderTeamsByDice(teams.map((team) => ({ teamId: team.id, value: randomInt(1, 7) })))
-  const maze = generateMaze(randomInt(1, 0xFFFFFFFF), 9, 9, teams.length)
-  const teamLayout = ordered.map((item, index) => {
-    const originalIndex = teams.findIndex((team) => team.id === item.teamId)
-    const spawn = maze.spawns[originalIndex % maze.spawns.length] || maze.spawns[0]
-    return { team_id: item.teamId, turn_order: index, maze_x: spawn[0], maze_y: spawn[1] }
-  })
+  const seed = randomInt(1, 0xFFFFFFFF)
+  let teamLayout
+  let gameLayout
+  if (room.game_mode === 'quiz_party') {
+    // Mini-game and turn order are selected by the server before the first question.
+    // The schedule is stored in the existing JSON state column; no costume/name data is persisted.
+    const roundCount = Number(room.settings.question_limit) || 1
+    gameLayout = { mode: 'quiz_party', version: 1, minigame_schedule: createMinigameSchedule(roundCount, (size) => randomInt(size)) }
+    teamLayout = ordered.map((item, index) => ({ team_id: item.teamId, turn_order: index, maze_x: 0, maze_y: 0 }))
+  } else {
+    const maze = generateMaze(seed, 9, 9, teams.length)
+    gameLayout = maze
+    teamLayout = ordered.map((item, index) => {
+      const originalIndex = teams.findIndex((team) => team.id === item.teamId)
+      const spawn = maze.spawns[originalIndex % maze.spawns.length] || maze.spawns[0]
+      return { team_id: item.teamId, turn_order: index, maze_x: spawn[0], maze_y: spawn[1] }
+    })
+  }
   const { data: started, error } = await supabaseAdmin.rpc('start_game_atomic', {
     p_user_id: userId,
     p_room_id: room.id,
     p_game_id: game.id,
     p_team_layout: teamLayout,
-    p_maze_seed: maze.seed,
-    p_maze_layout: maze,
+    p_maze_seed: seed,
+    p_maze_layout: gameLayout,
   })
   if (error) throw mapError(error)
   if (started !== true) return getRoomForUser(code, userId)
@@ -199,7 +230,11 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
   // A retry after a successful answer may arrive after the game has already advanced.
   // Return the current state for an already-committed key before validating the new phase.
   const parsedRequestId = parseRequestId(requestId)
-  if (parsedRequestId) {
+  // Quiz Party answers in the normal question phase rely on the atomic RPC's
+  // idempotency claim, avoiding a sequential preflight query on every tap.
+  // Keep the old preflight behavior for Treasure Race and terminal/non-question
+  // retries, where the request must return the final/current room state.
+  if (parsedRequestId && (room.game_mode !== 'quiz_party' || game.status !== 'playing' || game.phase !== GAME_PHASES.QUESTION)) {
     const priorClaim = await db(supabaseAdmin.from('game_action_claims').select('id')
       .eq('user_id', userId).eq('request_id', parsedRequestId).eq('action', 'answer').maybeSingle())
     if (priorClaim) return getRoomForUser(code, userId)
@@ -207,21 +242,31 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
   if (game.status !== 'playing' || game.phase !== GAME_PHASES.QUESTION) fail('Game chưa ở trạng thái nhận câu trả lời.', 409, 'game_not_question')
   const [teams, questions] = await Promise.all([
     db(supabaseAdmin.from('game_teams').select(TEAM_COLUMNS).eq('game_id', game.id).order('turn_order', { ascending: true })),
-    db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(game.question_index + 1)),
+    // Prefetch current + next question before the atomic write, so we don't make an extra database round trip after the answer is committed.
+    db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).range(game.question_index, game.question_index + 1)),
   ])
   const currentTeam = assertUserTurn(room, game, teams, players, userId)
-  const question = questions?.[game.question_index]
+  const question = questions?.[0]
+  const prefetchedNextQuestion = questions?.[1] || null
   if (!question) fail('Không còn câu hỏi hợp lệ.', 409, 'no_question')
   const isCorrect = evaluateAnswer(question, body.answer)
   const responseTime = normalizeResponseTime(body.response_time_ms)
-  const updatedTeam = { ...currentTeam, correct_count: currentTeam.correct_count + (isCorrect ? 1 : 0), wrong_count: currentTeam.wrong_count + (isCorrect ? 0 : 1), total_response_time: (currentTeam.total_response_time || 0) + responseTime }
-  const nextTeams = teams.map((team) => (team.id === currentTeam.id ? updatedTeam : team))
-
+  let nextTeams
   let gamePatch
-  if (isCorrect) {
+  if (room.game_mode === 'quiz_party') {
+    const progress = scoreQuizPartyAnswer({ game, teams, isCorrect, responseTime })
+    if (!progress) fail('Không xác định được đội đang đến lượt.', 409, 'invalid_current_turn')
+    nextTeams = progress.nextTeams
+    gamePatch = progress.gamePatch
+  } else {
+    const updatedTeam = { ...currentTeam, correct_count: currentTeam.correct_count + (isCorrect ? 1 : 0), wrong_count: currentTeam.wrong_count + (isCorrect ? 0 : 1), total_response_time: (currentTeam.total_response_time || 0) + responseTime }
+    nextTeams = teams.map((team) => (team.id === currentTeam.id ? updatedTeam : team))
+  }
+
+  if (room.game_mode !== 'quiz_party' && isCorrect) {
     const diceResult = randomInt(1, 7)
     gamePatch = { phase: GAME_PHASES.DICE_ROLL, dice_result: diceResult, remaining_moves: diceResult }
-  } else {
+  } else if (room.game_mode !== 'quiz_party') {
     const nextQuestionIndex = game.question_index + 1
     const isFinished = nextQuestionIndex >= game.total_questions
     const winnerId = isFinished ? rankTeamsAtFinish(nextTeams, game.maze_layout)[0]?.id || null : null
@@ -249,10 +294,13 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
     throw mapError(commitError)
   }
   if (committed !== true) return getRoomForUser(code, userId)
-  const fetched = needsFetch ? await db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).limit(nextIndex + 1)) : null
-  const nextQuestion = needsQuestion ? toPublicQuestion((needsFetch ? fetched?.[nextIndex] : question) || null) : null
+  const nextQuestion = needsQuestion ? toPublicQuestion((needsFetch ? prefetchedNextQuestion : question) || null) : null
   const finished = nextGame.status === 'finished'
-  const ranking = finished && nextGame.maze_layout ? rankTeamsAtFinish(nextTeams, nextGame.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(nextGame.maze_layout, { x: team.maze_x, y: team.maze_y }) })) : []
+  const ranking = !finished ? [] : room.game_mode === 'quiz_party'
+    ? rankQuizPartyTeams(nextTeams).map((team, index) => ({ team_id: team.id, rank: index + 1, score: team.correct_count || 0, correct_count: team.correct_count || 0, wrong_count: team.wrong_count || 0 }))
+    : nextGame.maze_layout
+      ? rankTeamsAtFinish(nextTeams, nextGame.maze_layout).map((team) => ({ team_id: team.id, distance: shortestPathDistance(nextGame.maze_layout, { x: team.maze_x, y: team.maze_y }) }))
+      : []
   return { ...room, status: finished ? 'finished' : room.status, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams: nextTeams, game: { ...nextGame, maze: publicMazeState(nextGame), ranking }, question: nextQuestion, answer_feedback: { is_correct: isCorrect }, is_host: room.host_id === userId, current_user_team_id: player.team_id || null, movement_feedback: null }
 }
 

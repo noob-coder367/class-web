@@ -25,9 +25,25 @@ export function ghostEmailFor(index) {
 }
 
 export function safeSupabaseErrorDetails(error) {
+  const message = String(error?.message || error || '').toLowerCase()
+  const category = !error
+    ? 'none'
+    : /fetch failed|network|timeout|econn|socket|dns|und_err/.test(message)
+      ? 'network'
+      : /invalid api key|invalid jwt|unauthorized/.test(message)
+        ? 'auth'
+        : /schema cache|pgrst205|does not exist/.test(message)
+          ? 'schema'
+          : /permission denied|42501/.test(message)
+            ? 'permission'
+            : 'other'
   return {
     code: error?.code || 'unknown',
     status: error?.status ?? error?.statusCode ?? null,
+    name: error?.name || null,
+    causeCode: error?.cause?.code || null,
+    errorType: error === null ? 'null' : typeof error,
+    category,
   }
 }
 
@@ -154,7 +170,10 @@ async function sendSignupConfirmation(email) {
 export async function previewGhostAccount() {
   const localDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
   const { data, error } = await supabaseAdmin.from('ghost_account_reservations').select('local_day, status, user_id, expires_at').eq('local_day', localDay).in('status', ['reserved', 'created'])
-  if (error) throw new AppError('Tính năng tài khoản ma chưa được khởi tạo.', 503)
+  if (error) {
+    console.error('[auth:ghost-preview] reservation read failed', safeSupabaseErrorDetails(error))
+    throw new AppError('Tính năng tài khoản ma chưa được khởi tạo.', 503)
+  }
   const now = Date.now()
   const activeReservations = (data || []).filter((reservation) => reservation.status === 'created' ? Boolean(reservation.user_id) : new Date(reservation.expires_at).getTime() > now)
   const remainingToday = Math.max(0, GHOST_DAILY_LIMIT - activeReservations.length)

@@ -7,12 +7,13 @@ test('ghost email numbering remains deterministic and separate from normal accou
   assert.equal(ghostEmailFor(7), 'taikhoanma-7@ghost.com')
 })
 
-test('Supabase error logging chỉ giữ code và status, không làm lộ message', () => {
+test('Supabase error logging giữ metadata an toàn nhưng không làm lộ message', () => {
   assert.deepEqual(
-    safeSupabaseErrorDetails({ code: 'email_exists', status: 422, message: 'secret@example.com already registered' }),
-    { code: 'email_exists', status: 422 },
+    safeSupabaseErrorDetails({ code: 'email_exists', status: 422, name: 'FetchError', cause: { code: 'ECONNRESET' }, message: 'secret@example.com already registered' }),
+    { code: 'email_exists', status: 422, name: 'FetchError', causeCode: 'ECONNRESET', errorType: 'object', category: 'other' },
   )
-  assert.deepEqual(safeSupabaseErrorDetails(null), { code: 'unknown', status: null })
+  assert.deepEqual(safeSupabaseErrorDetails(null), { code: 'unknown', status: null, name: null, causeCode: null, errorType: 'null', category: 'none' })
+  assert.deepEqual(safeSupabaseErrorDetails(new TypeError('fetch failed')), { code: 'unknown', status: null, name: 'TypeError', causeCode: null, errorType: 'object', category: 'network' })
 })
 
 test('new Google profile is marked as requiring display name', () => {

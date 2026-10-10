@@ -23,7 +23,8 @@ function JoinRoomModal({ onClose, description }) {
     setState({ loading: true, error: '' })
     try {
       const room = await joinRoom(normalizedCode)
-      navigate(`${ROUTES.room}/${room.code || normalizedCode}`)
+      const roomPath = room.game_mode === 'quiz_party' ? ROUTES.quizParty : ROUTES.room
+      navigate(`${roomPath}/${room.code || normalizedCode}`)
     } catch (error) {
       setState({ loading: false, error: error.message || 'Không thể vào phòng. Hãy kiểm tra lại passcode.' })
     }

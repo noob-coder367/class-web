@@ -1,4 +1,4 @@
-import { Trophy } from 'lucide-react'
+import { PartyPopper, Trophy } from 'lucide-react'
 import { ROUTES } from './routes.js'
 
 /**
@@ -17,6 +17,19 @@ export const GAME_MODES = Object.freeze([
     joinAction: 'passcode',
     joinLabel: 'Vào phòng bằng passcode',
     joinDescription: 'Nhập mã phòng 6 ký tự do host chia sẻ để tham gia Đua tới kho báu.',
+  }),
+  Object.freeze({
+    id: 'quiz-party',
+    title: 'Quiz Party — Đại chiến mini-game',
+    description: 'Trả lời quiz qua các thử thách ngắn được hệ thống chọn ngẫu nhiên: đập đáp án, đảo an toàn, đấu trùm và nhiều hơn nữa.',
+    status: 'Mới',
+    icon: PartyPopper,
+    previewLabel: 'PARTY!',
+    createPath: ROUTES.createRoom,
+    createLabel: 'Tạo phòng Quiz Party',
+    joinAction: 'passcode',
+    joinLabel: 'Vào phòng bằng passcode',
+    joinDescription: 'Nhập mã phòng 6 ký tự để tham gia Quiz Party.',
   }),
 ])
 

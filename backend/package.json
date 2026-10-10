@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "test": "SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_SERVICE_ROLE_KEY=test-only-not-a-secret node --test test/**/*.test.js"
+    "test": "SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_SERVICE_ROLE_KEY=test-only-not-a-secret node --test test/**/*.test.js",
+    "test:quiz-party-create-idempotency:integration": "node --test test/quiz-party-create-idempotency.integration.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.113.0",
@@ -21,5 +22,8 @@
   "overrides": {
     "qs": "6.16.0",
     "proxy-addr": "2.0.8"
+  },
+  "devDependencies": {
+    "pg": "^8.23.1"
   }
 }
