@@ -5,7 +5,7 @@ import SiteHeader from '../components/SiteHeader.jsx'
 import PetMascot, { PET_CATEGORIES } from '../components/pet/PetMascot.jsx'
 import { getRoom, joinRoom, startRoom, submitAnswer } from '../services/gameRoomService.js'
 import { ROUTES } from '../lib/routes.js'
-import { QUIZ_PARTY_MINIGAMES } from '../../../backend/src/services/game/quizParty.engine.js'
+import { QUIZ_PARTY_MINIGAMES } from '../lib/quizPartyMinigames.js'
 import '../quiz-party.css'
 
 const EMPTY_OUTFIT = Object.freeze({ hat: null, acc: null, shirt: null })
@@ -326,7 +326,7 @@ export default function QuizPartyRoomPage() {
           <section className="qp-finale">
             <span className="qp-finale-trophy"><Trophy size={48} /></span><span className="qp-kicker">HẾT GIỜ CHƠI</span><h1>Chiến thắng thuộc về <span>{displayTeams.find((team) => team.id === winningTeam?.id)?.name || winningTeam?.name || displayTeams[0]?.name || 'đội chiến thắng'}</span>!</h1><p>Điểm và thứ hạng được xác nhận từ máy chủ.</p>
             <div className="qp-leaderboard">{(ranking.length ? ranking : [...room.teams].sort((a, b) => (b.correct_count || 0) - (a.correct_count || 0))).map((row, index) => { const team = room.teams.find((item) => item.id === (row.team_id || row.id)); const display = displayTeams.find((item) => item.id === team?.id); return <div className={index === 0 ? 'qp-rank-row winner' : 'qp-rank-row'} key={team?.id || index}><strong className="qp-rank-number">{index + 1}</strong><PetMascot outfit={display?.outfit || EMPTY_OUTFIT} size={64} label={display?.name || team?.name} /><span><b>{display?.name || team?.name || 'Đội'}</b><small>{team?.correct_count || row.correct_count || 0} câu đúng · {team?.wrong_count || row.wrong_count || 0} câu sai</small></span><strong className="qp-score">{row.score ?? team?.correct_count ?? 0} điểm</strong></div> })}</div>
-            <div className="qp-finale-actions"><button className="qp-primary-button" type="button" onClick={() => window.location.reload()}><RotateCw size={17} /> Chơi lại từ phòng này</button><Link className="qp-secondary-button" to={ROUTES.play}>Về chọn game</Link></div>
+            <div className="qp-finale-actions"><Link className="qp-primary-button" to={ROUTES.createRoom}><RotateCw size={17} /> Tạo phòng Quiz Party mới</Link><Link className="qp-secondary-button" to={ROUTES.play}>Về chọn game</Link></div>
           </section>
         )}
       </main>
