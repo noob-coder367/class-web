@@ -58,7 +58,7 @@ export default function ProfilePage() {
       try {
         // /auth/me chạy trước để backend có thể provision profile còn thiếu một cách idempotent.
         await reloadProfile()
-        const [profile, identity] = await Promise.all([fetchOwnProfile(user.id), fetchAuthIdentity()])
+        const [profile, identity] = await Promise.all([fetchOwnProfile(), fetchAuthIdentity()])
         if (!active) return
         if (identity.userId !== user.id) throw new Error('Phiên đăng nhập đã thay đổi.')
         setState({ status: 'ready', profile, identity })

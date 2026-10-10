@@ -46,3 +46,19 @@ export async function login(req, res, next) {
 export function me(req, res) {
   res.json({ profile: authService.toPublicProfile(req.profile, req.user) })
 }
+
+export function meProfile(req, res) {
+  res.json({
+    profile: authService.toOwnProfile(req.profile, req.user),
+    identity: authService.identityForUser(req.user),
+  })
+}
+
+export async function updateMeProfile(req, res, next) {
+  try {
+    const profile = await authService.updateOwnProfile(req.user.id, req.body || {})
+    res.json({ profile: authService.toOwnProfile(profile, req.user) })
+  } catch (error) {
+    next(error)
+  }
+}

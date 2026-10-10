@@ -9,5 +9,7 @@ router.post('/register', authController.register)
 router.get('/ghost-preview', authController.previewGhost)
 router.post('/login', validateBody({ displayName: 'string', password: 'string' }), authController.login)
 router.get('/me', requireAuth, authController.me)
+router.get('/me/profile', requireAuth, authController.meProfile)
+router.patch('/me/profile', requireAuth, authController.updateMeProfile)
 
 export default router

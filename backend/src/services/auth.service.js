@@ -10,7 +10,7 @@ export class AppError extends Error {
   }
 }
 
-const PROFILE_COLUMNS = 'id, username, email, is_member, role, full_name, created_at, updated_at'
+const PROFILE_COLUMNS = 'id, username, email, is_member, role, full_name, gender, province, school, phone, facebook_url, created_at, updated_at'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const GHOST_EMAIL_DOMAIN = 'ghost.com'
 export const GHOST_DAILY_LIMIT = 2
@@ -33,6 +33,50 @@ function normalizeEmail(value) {
   const email = String(value || '').trim().toLowerCase()
   if (!EMAIL_RE.test(email)) throw new AppError('Vui lòng nhập địa chỉ email hợp lệ.')
   return email
+}
+
+export function toOwnProfile(profile, user = null) {
+  if (!profile) return null
+  return {
+    id: profile.id,
+    email: profile.email || user?.email || '',
+    username: profile.username || '',
+    role: normalizeRole(profile.role),
+    full_name: profile.full_name || null,
+    gender: profile.gender || null,
+    province: profile.province || null,
+    school: profile.school || null,
+    phone: profile.phone || null,
+    facebook_url: profile.facebook_url || null,
+    created_at: profile.created_at,
+    updated_at: profile.updated_at,
+  }
+}
+
+export function identityForUser(user) {
+  const providers = (user?.identities || []).map((identity) => identity.provider)
+  const fallback = providers.length ? providers : user?.app_metadata?.providers || []
+  return { providers: fallback, hasPassword: fallback.includes('email') }
+}
+
+export async function updateOwnProfile(userId, values) {
+  const text = (value) => String(value || '').trim() || null
+  const payload = {
+    full_name: text(values?.full_name),
+    gender: text(values?.gender),
+    province: text(values?.province),
+    school: text(values?.school),
+    phone: text(String(values?.phone || '').replace(/\s+/g, '')),
+    facebook_url: text(values?.facebook_url),
+  }
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .update(payload)
+    .eq('id', userId)
+    .select(PROFILE_COLUMNS)
+    .single()
+  if (error) throw new AppError('Không thể lưu hồ sơ. Vui lòng kiểm tra thông tin và thử lại.', 400)
+  return data
 }
 
 export function toPublicProfile(profile, user = null) {
