@@ -26,8 +26,9 @@ function writeSession(code, drafts) {
   } catch { /* Private browsing can disable storage; in-memory play still works. */ }
 }
 function makeDrafts(teams, stored = []) {
+  const savedDrafts = Array.isArray(stored) ? stored : []
   return teams.map((team, index) => {
-    const previous = stored.find((item) => item.id === team.id)
+    const previous = savedDrafts.find((item) => item.id === team.id)
     return {
       id: team.id,
       name: String(previous?.name || team.name || `Đội ${index + 1}`).slice(0, 28),
@@ -264,7 +265,8 @@ export default function QuizPartyRoomPage() {
   if (!room) return <div className="game-shell quiz-party-shell"><SiteHeader /><main className="container game-main"><p className="qp-error">{error || 'Không tìm thấy phòng.'}</p><Link className="qp-secondary-button" to={ROUTES.play}><ArrowLeft size={16} /> Quay lại chọn game</Link></main></div>
 
   const host = room.is_host === true
-  const answerLocked = answerPending || Boolean(result)
+  const canAnswer = singleDevice || room.current_user_team_id === activeTeam?.id
+  const answerLocked = answerPending || Boolean(result) || !canAnswer
   const winningTeam = room.teams.find((team) => team.id === room.game?.winner_team_id)
   const stageTheme = `quiz-party-shell theme-${activeMinigame.accent}`
 
@@ -309,7 +311,7 @@ export default function QuizPartyRoomPage() {
               {activeMinigame.id === 'boss-battle' && <div className="qp-boss"><span className="qp-boss-face">👾</span><div><strong>QUIZ BOSS</strong><span className="qp-boss-health"><i style={{ width: `${bossHealth}%` }} /></span></div></div>}
               {activeMinigame.id === 'obby-dash' && <div className="qp-obby-path"><span>START</span><i style={{ width: `${Math.min(92, 12 + (activeTeam?.correct_count || 0) * 8)}%` }} /><span>FINISH</span></div>}
               {activeMinigame.id === 'color-rush' && <div className="qp-color-gates" aria-hidden="true"><i /><i /><i /><i /></div>}
-              <div className="qp-current-team"><span className="qp-turn-spark" /><PetMascot outfit={displayTeams.find((team) => team.id === activeTeam?.id)?.outfit || EMPTY_OUTFIT} size={76} label={activeTeam?.name || 'Đội hiện tại'} /><div><small>ĐẾN LƯỢT</small><strong>{displayTeams.find((team) => team.id === activeTeam?.id)?.name || activeTeam?.name || 'Đội hiện tại'}</strong><span>Chọn đáp án trên sân!</span></div></div>
+              <div className="qp-current-team"><span className="qp-turn-spark" /><PetMascot outfit={displayTeams.find((team) => team.id === activeTeam?.id)?.outfit || EMPTY_OUTFIT} size={76} label={activeTeam?.name || 'Đội hiện tại'} /><div><small>ĐẾN LƯỢT</small><strong>{displayTeams.find((team) => team.id === activeTeam?.id)?.name || activeTeam?.name || 'Đội hiện tại'}</strong><span>{canAnswer ? 'Chọn đáp án trên sân!' : 'Đang chờ đến lượt đội của bạn'}</span></div></div>
               <article className="qp-question-panel">
                 <div className="qp-question-label"><Sparkles size={15} /> CÂU HỎI THỬ THÁCH <span>#{activeTurn}</span></div>
                 <h2>{room.question?.content || 'Chuẩn bị cho vòng tiếp theo…'}</h2>
