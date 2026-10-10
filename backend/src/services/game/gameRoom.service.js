@@ -2,7 +2,7 @@ import { randomInt, randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../../config/supabaseClient.js'
 import { HttpError } from '../../lib/httpError.js'
 import { evaluateAnswer, nextTurnIndex, orderTeamsByDice, generateMaze, canMove, isExit, rankTeamsAtFinish, shortestPathDistance, GAME_PHASES, DIRECTIONS } from './treasureRace.engine.js'
-import { createMinigameSchedule, rankQuizPartyTeams } from './quizParty.engine.js'
+import { createMinigameSchedule, rankQuizPartyTeams, scoreQuizPartyAnswer } from './quizParty.engine.js'
 
 const ROOM_COLUMNS = 'id, code, host_id, quiz_id, game_mode, status, settings, created_at, updated_at'
 const QUESTION_COLUMNS = 'id, order_index, type, content, options, correct_option, correct_boolean, explanation'
@@ -93,17 +93,19 @@ async function getRoomForUserById(roomId, userId, feedback = null) {
 async function getRoomForUser(code, userId, feedback = null, { allowPreview = true } = {}) {
   const room = await findRoom(code)
   if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
-  const players = await db(supabaseAdmin.from('game_room_players').select('id, user_id, team_id, joined_at').eq('room_id', room.id).order('joined_at', { ascending: true }))
+  const [players, game] = await Promise.all([
+    db(supabaseAdmin.from('game_room_players').select('id, user_id, team_id, joined_at').eq('room_id', room.id).order('joined_at', { ascending: true })),
+    db(supabaseAdmin.from('game_games').select(GAME_COLUMNS).eq('room_id', room.id).maybeSingle()),
+  ])
   const isMember = players.some((player) => player.user_id === userId)
   if (!isMember && (!allowPreview || room.status !== 'lobby')) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
-  const game = await db(supabaseAdmin.from('game_games').select(GAME_COLUMNS).eq('room_id', room.id).maybeSingle())
-  const teams = game ? await db(supabaseAdmin.from('game_teams').select(TEAM_COLUMNS).eq('game_id', game.id).order('turn_order', { ascending: true, nullsFirst: false })) : []
-  let question = null
-  if (game?.status === 'playing' && teams.length && game.question_index < game.total_questions) {
-    const questionIndex = Math.min(room.settings.question_limit - 1, game.question_index)
-    const questions = await db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).range(questionIndex, questionIndex))
-    question = toPublicQuestion(questions?.[0])
-  }
+  const questionIndex = game ? Math.min(room.settings.question_limit - 1, game.question_index) : -1
+  const shouldFetchQuestion = game?.status === 'playing' && game.question_index < game.total_questions
+  const [teams, questions] = await Promise.all([
+    game ? db(supabaseAdmin.from('game_teams').select(TEAM_COLUMNS).eq('game_id', game.id).order('turn_order', { ascending: true, nullsFirst: false })) : Promise.resolve([]),
+    shouldFetchQuestion ? db(supabaseAdmin.from('questions').select(PUBLIC_QUESTION_COLUMNS).eq('quiz_id', room.quiz_id).order('order_index', { ascending: true }).range(questionIndex, questionIndex)) : Promise.resolve([]),
+  ])
+  const question = toPublicQuestion(questions?.[0])
   const ranked = game?.status !== 'finished' ? [] : room.game_mode === 'quiz_party'
     ? rankQuizPartyTeams(teams).map((team, index) => ({ team_id: team.id, rank: index + 1, score: team.correct_count || 0, correct_count: team.correct_count || 0, wrong_count: team.wrong_count || 0 }))
     : game.maze_layout
@@ -245,30 +247,22 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
   if (!question) fail('Không còn câu hỏi hợp lệ.', 409, 'no_question')
   const isCorrect = evaluateAnswer(question, body.answer)
   const responseTime = normalizeResponseTime(body.response_time_ms)
-  const updatedTeam = { ...currentTeam, correct_count: currentTeam.correct_count + (isCorrect ? 1 : 0), wrong_count: currentTeam.wrong_count + (isCorrect ? 0 : 1), total_response_time: (currentTeam.total_response_time || 0) + responseTime }
-  const nextTeams = teams.map((team) => (team.id === currentTeam.id ? updatedTeam : team))
-
+  let nextTeams
   let gamePatch
   if (room.game_mode === 'quiz_party') {
-    // Every submitted answer advances the party round. Correctness affects score,
-    // while the random mini-game is already chosen in the server-side schedule.
-    const nextQuestionIndex = game.question_index + 1
-    const isFinished = nextQuestionIndex >= game.total_questions
-    const winnerId = isFinished ? rankQuizPartyTeams(nextTeams)[0]?.id || null : null
-    gamePatch = {
-      current_turn: nextTurnIndex(game.current_turn, teams.length),
-      question_index: nextQuestionIndex,
-      phase: isFinished ? GAME_PHASES.FINISHED : GAME_PHASES.QUESTION,
-      status: isFinished ? 'finished' : 'playing',
-      winner_team_id: winnerId,
-      remaining_moves: 0,
-      dice_result: null,
-      ...(isFinished ? { finished_at: new Date().toISOString() } : {}),
-    }
-  } else if (isCorrect) {
+    const progress = scoreQuizPartyAnswer({ game, teams, isCorrect, responseTime })
+    if (!progress) fail('Không xác định được đội đang đến lượt.', 409, 'invalid_current_turn')
+    nextTeams = progress.nextTeams
+    gamePatch = progress.gamePatch
+  } else {
+    const updatedTeam = { ...currentTeam, correct_count: currentTeam.correct_count + (isCorrect ? 1 : 0), wrong_count: currentTeam.wrong_count + (isCorrect ? 0 : 1), total_response_time: (currentTeam.total_response_time || 0) + responseTime }
+    nextTeams = teams.map((team) => (team.id === currentTeam.id ? updatedTeam : team))
+  }
+
+  if (room.game_mode !== 'quiz_party' && isCorrect) {
     const diceResult = randomInt(1, 7)
     gamePatch = { phase: GAME_PHASES.DICE_ROLL, dice_result: diceResult, remaining_moves: diceResult }
-  } else {
+  } else if (room.game_mode !== 'quiz_party') {
     const nextQuestionIndex = game.question_index + 1
     const isFinished = nextQuestionIndex >= game.total_questions
     const winnerId = isFinished ? rankTeamsAtFinish(nextTeams, game.maze_layout)[0]?.id || null : null

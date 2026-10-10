@@ -1,3 +1,5 @@
+import { GAME_PHASES, nextTurnIndex } from './treasureRace.engine.js'
+
 export const QUIZ_PARTY_MINIGAMES = Object.freeze([
   Object.freeze({ id: 'whack-a-choice', title: 'Đập đáp án', instruction: 'Chọn thật nhanh ô chứa đáp án đúng.', accent: 'pink' }),
   Object.freeze({ id: 'memory-tiles', title: 'Ô trí nhớ', instruction: 'Ghi nhớ đáp án rồi chọn đúng ô sau khi các ô bị úp lại.', accent: 'violet' }),
@@ -37,4 +39,32 @@ export function activeMinigameId(state, questionIndex) {
     ? state.minigame_schedule
     : []
   return schedule[questionIndex] || QUIZ_PARTY_MINIGAMES[0].id
+}
+
+/** Apply one server-verified answer to the aggregate party score and turn state. */
+export function scoreQuizPartyAnswer({ game, teams, isCorrect, responseTime, finishedAt = new Date().toISOString() }) {
+  const teamIndex = Number(game?.current_turn)
+  const currentTeam = teams?.[teamIndex]
+  if (!currentTeam) return null
+
+  const updatedTeam = {
+    ...currentTeam,
+    correct_count: (Number(currentTeam.correct_count) || 0) + (isCorrect ? 1 : 0),
+    wrong_count: (Number(currentTeam.wrong_count) || 0) + (isCorrect ? 0 : 1),
+    total_response_time: (Number(currentTeam.total_response_time) || 0) + (Number(responseTime) || 0),
+  }
+  const nextTeams = teams.map((team, index) => index === teamIndex ? updatedTeam : team)
+  const nextQuestionIndex = (Number(game.question_index) || 0) + 1
+  const isFinished = nextQuestionIndex >= Number(game.total_questions || 0)
+  const gamePatch = {
+    current_turn: nextTurnIndex(teamIndex, teams.length),
+    question_index: nextQuestionIndex,
+    phase: isFinished ? GAME_PHASES.FINISHED : GAME_PHASES.QUESTION,
+    status: isFinished ? 'finished' : 'playing',
+    winner_team_id: isFinished ? rankQuizPartyTeams(nextTeams)[0]?.id || null : null,
+    remaining_moves: 0,
+    dice_result: null,
+    ...(isFinished ? { finished_at: finishedAt } : {}),
+  }
+  return { currentTeam, updatedTeam, nextTeams, gamePatch, isFinished }
 }

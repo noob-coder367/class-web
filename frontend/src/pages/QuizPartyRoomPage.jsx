@@ -6,6 +6,8 @@ import PetMascot, { PET_CATEGORIES } from '../components/pet/PetMascot.jsx'
 import { getRoom, joinRoom, startRoom, submitAnswer } from '../services/gameRoomService.js'
 import { ROUTES } from '../lib/routes.js'
 import { QUIZ_PARTY_MINIGAMES } from '../lib/quizPartyMinigames.js'
+import { makeTeamDrafts, readTeamDrafts, updateTeamDraft, writeTeamDrafts } from '../lib/quizPartySession.js'
+import { getQuizPartyAnswerRequest } from '../lib/quizPartyRequests.js'
 import '../quiz-party.css'
 
 const EMPTY_OUTFIT = Object.freeze({ hat: null, acc: null, shirt: null })
@@ -13,29 +15,6 @@ const CATEGORY_ICONS = { hat: Crown, acc: Sparkles, shirt: Shirt }
 const TOKEN_COLORS = ['blue', 'green', 'purple', 'orange', 'pink', 'cyan', 'red', 'gold']
 const TEAM_COLOR_HEX = { blue: '#76a9ff', green: '#62e6ab', purple: '#bd9cff', orange: '#ffb86e', pink: '#ff91be', cyan: '#72e5f3', red: '#ff7c88', gold: '#ffd56d' }
 
-function storageKey(code) { return `quiz-party-session:${String(code || '').toUpperCase()}` }
-function readSession(code) {
-  try {
-    const raw = sessionStorage.getItem(storageKey(code))
-    return raw ? JSON.parse(raw) : null
-  } catch { return null }
-}
-function writeSession(code, drafts) {
-  try {
-    sessionStorage.setItem(storageKey(code), JSON.stringify(drafts.map(({ id, name, outfit }) => ({ id, name, outfit }))))
-  } catch { /* Private browsing can disable storage; in-memory play still works. */ }
-}
-function makeDrafts(teams, stored = []) {
-  const savedDrafts = Array.isArray(stored) ? stored : []
-  return teams.map((team, index) => {
-    const previous = savedDrafts.find((item) => item.id === team.id)
-    return {
-      id: team.id,
-      name: String(previous?.name || team.name || `Đội ${index + 1}`).slice(0, 28),
-      outfit: { ...EMPTY_OUTFIT, ...(previous?.outfit || {}) },
-    }
-  })
-}
 function shuffleSafeSeededNames(teams, drafts) {
   return teams.map((team) => {
     const draft = drafts.find((item) => item.id === team.id)
@@ -48,7 +27,7 @@ function TeamSetup({ room, drafts, setDrafts, onStart, starting, error }) {
   const [category, setCategory] = useState('hat')
   const current = drafts.find((team) => team.id === selectedId) || drafts[0]
   const categoryData = PET_CATEGORIES.find((item) => item.key === category)
-  const update = (teamId, patch) => setDrafts((currentDrafts) => currentDrafts.map((team) => team.id === teamId ? { ...team, ...patch } : team))
+  const update = (teamId, patch) => setDrafts((currentDrafts) => updateTeamDraft(currentDrafts, teamId, patch))
   const outfit = current?.outfit || EMPTY_OUTFIT
   return (
     <section className="qp-setup-layout">
@@ -98,7 +77,7 @@ function TeamSetup({ room, drafts, setDrafts, onStart, starting, error }) {
   )
 }
 
-function QuizQuestion({ question, minigame, disabled, onAnswer, memoryVisible, teamColor, answerResult }) {
+function QuizQuestion({ question, minigame, disabled, onAnswer, memoryVisible, teamColor, answerResult, selectedAnswer }) {
   const [essay, setEssay] = useState('')
   useEffect(() => setEssay(''), [question?.id])
   if (!question) return <div className="qp-question-loading">Đang chuẩn bị câu hỏi tiếp theo…</div>
@@ -116,12 +95,52 @@ function QuizQuestion({ question, minigame, disabled, onAnswer, memoryVisible, t
   return (
     <div className={`qp-answer-grid minigame-${minigame.id}`} style={{ '--team-color': teamColor }}>
       {answers.map((option, index) => (
-        <button type="button" key={`${question.id}-${option.answer}`} className={"qp-answer-tile tile-" + (index % 4) + (answerResult && String(answerResult.answer) === option.answer ? (answerResult.correct ? " is-correct-choice" : " is-wrong-choice") : "")} disabled={disabled} onClick={() => onPick(option.answer)}>
-          <span className="qp-answer-letter">{option.letter}</span>
+        <button type="button" key={`${question.id}-${option.answer}`} aria-pressed={String(selectedAnswer) === option.answer} aria-label={minigame.id === 'memory-tiles' && !memoryVisible ? `Ô ${option.letter}` : `${option.letter}. ${option.label}`} className={`qp-answer-tile tile-${index % 4}${String(selectedAnswer) === option.answer && disabled && !answerResult ? ' is-pending-choice' : ''}${answerResult && String(answerResult.answer) === option.answer && answerResult.correct === true ? ' is-correct-choice' : ''}${answerResult && String(answerResult.answer) === option.answer && answerResult.correct === false ? ' is-wrong-choice' : ''}`} disabled={disabled} onClick={() => onPick(option.answer)}>
+          <span className="qp-answer-letter">{minigame.id === 'memory-tiles' && !memoryVisible ? `Ô ${option.letter}` : option.letter}</span>
           <span className={minigame.id === 'memory-tiles' && !memoryVisible ? 'qp-answer-label is-hidden' : 'qp-answer-label'}>{option.label}</span>
           {minigame.id === 'safe-island' && <span className="qp-island-ripple" />}
         </button>
       ))}
+    </div>
+  )
+}
+
+function MiniGameScene({ minigame, activeTeam, totalTurns, memoryVisible, bossHealth, result }) {
+  if (minigame.id === 'whack-a-choice') return (
+    <div className="qp-mini-scene qp-whack-scene" aria-label="Sân arcade đập đáp án">
+      <span className="qp-scene-tag">ARCADE MODE</span><span className="qp-whack-target" aria-hidden="true">✦</span>
+      <strong>CHẠM MỤC TIÊU!</strong><small>Mỗi ô đáp án là một mục tiêu</small>
+    </div>
+  )
+  if (minigame.id === 'memory-tiles') return (
+    <div className={`qp-mini-scene qp-memory-scene${memoryVisible ? ' is-revealing' : ' is-hidden'}`} role="status" aria-live="polite">
+      <span className="qp-scene-tag">TRÍ NHỚ</span><strong>{memoryVisible ? 'Ghi nhớ vị trí trong 2,4 giây' : 'Lật ô có đáp án bạn vừa ghi nhớ'}</strong>
+      <span className="qp-memory-meter"><i className={memoryVisible ? 'running' : ''} /></span>
+    </div>
+  )
+  if (minigame.id === 'safe-island') return (
+    <div className="qp-mini-scene qp-island-scene" aria-label="Các đáp án là đảo giữa mặt nước">
+      <span className="qp-scene-tag">VÙNG AN TOÀN</span><span className="qp-island-shape island-left" /><span className="qp-island-shape island-right" />
+      <span className="qp-water-line water-one" /><span className="qp-water-line water-two" /><strong>CHỌN ĐẢO AN TOÀN</strong>
+    </div>
+  )
+  if (minigame.id === 'boss-battle') return (
+    <div className={`qp-mini-scene qp-boss-scene${result?.correct === true ? ' boss-hit' : ''}${result?.correct === false ? ' boss-counter' : ''}`} aria-label="Đấu trùm với thanh máu dựa trên câu trả lời đúng">
+      <span className="qp-boss-face" aria-hidden="true">{result?.correct === true ? '😵' : result?.correct === false ? '👹' : '👾'}</span>
+      <div className="qp-boss-status"><span className="qp-scene-tag">TRÙM CUỐI · HP CHUNG</span><strong>QUIZ BOSS</strong><span className="qp-boss-health" role="meter" aria-label="Máu trùm" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(bossHealth)}><i style={{ width: `${bossHealth}%` }} /></span><small>{Math.round(bossHealth)}% máu còn lại · đúng đáp án mới gây sát thương</small></div>
+    </div>
+  )
+  if (minigame.id === 'color-rush') return (
+    <div className="qp-mini-scene qp-race-scene" aria-label="Đường đua cổng màu">
+      <span className="qp-scene-tag">COLOR RUSH</span><div className="qp-race-lane"><i className="gate gate-coral">A</i><i className="gate gate-sun">B</i><i className="gate gate-mint">C</i><i className="gate gate-sky">D</i><span className="qp-race-runner" aria-hidden="true">🏃</span></div>
+      <strong>CHỌN CỔNG THEO NỘI DUNG ĐÁP ÁN</strong><small>Mỗi cổng có ký hiệu — không chỉ dựa vào màu</small>
+    </div>
+  )
+  const progress = Math.min(88, (Number(activeTeam?.correct_count) || 0) / Math.max(1, totalTurns) * 100)
+  return (
+    <div className="qp-mini-scene qp-obby-scene" aria-label="Đường chạy vượt chướng ngại">
+      <span className="qp-scene-tag">OBBY DASH</span><div className="qp-obby-track"><span className="qp-obby-start">START</span><i className="qp-obby-platform platform-one" /><i className="qp-obby-platform platform-two" /><b className="qp-obby-obstacle obstacle-one">▲</b><b className="qp-obby-obstacle obstacle-two">▥</b><span className="qp-obby-runner" style={{ left: `${progress}%` }} aria-label={`Tiến trình ${Math.round(progress)} phần trăm`}><PetMascot size={45} label={activeTeam?.name || 'Linh vật đang chạy'} /></span><span className="qp-obby-finish">FINISH</span></div>
+      <strong>ĐÚNG ĐỂ NHẢY QUA CHƯỚNG NGẠI</strong><small>Tiến trình lấy từ số câu đúng của đội</small>
     </div>
   )
 }
@@ -132,7 +151,9 @@ export default function QuizPartyRoomPage() {
   const [drafts, setDraftsState] = useState([])
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState(false)
+  const startingRef = useRef(false)
   const [answerPending, setAnswerPending] = useState(false)
+  const [selectedAnswer, setSelectedAnswer] = useState(null)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
   const [memoryVisible, setMemoryVisible] = useState(true)
@@ -140,48 +161,81 @@ export default function QuizPartyRoomPage() {
   const transitionTimer = useRef(null)
   const requestRef = useRef(null)
   const transitionLock = useRef(false)
+  const roomRef = useRef(null)
+  const answerKeyRef = useRef(null)
+  const routeCodeRef = useRef(code)
+  routeCodeRef.current = code
+
+  const setRoomSnapshot = useCallback((next) => {
+    if (!next || String(next.code).toUpperCase() !== String(routeCodeRef.current).toUpperCase()) return false
+    const current = roomRef.current
+    if (current && String(current.code).toUpperCase() === String(next.code).toUpperCase()) {
+      const currentIndex = Number(current.game?.question_index ?? -1)
+      const nextIndex = Number(next.game?.question_index ?? -1)
+      if (currentIndex > nextIndex || (current.status === 'finished' && next.status !== 'finished')) return false
+    }
+    roomRef.current = next
+    setRoom(next)
+    return true
+  }, [code])
 
   const setDrafts = useCallback((updater) => {
     setDraftsState(updater)
   }, [])
   useEffect(() => {
-    if (code && drafts.length) writeSession(code, drafts)
+    if (code && drafts.length) writeTeamDrafts(code, drafts)
   }, [code, drafts])
 
   const refresh = useCallback(async (quiet = false) => {
+    const startedDuringAnswer = transitionLock.current
     try {
       const next = await getRoom(code)
-      setRoom(next)
+      if (startedDuringAnswer || transitionLock.current) return null
+      setRoomSnapshot(next)
       setError('')
       return next
     } catch (e) {
       if (!quiet) setError(e.message || 'Không tải được phòng chơi.')
       return null
     } finally {
-      setLoading(false)
+      if (String(routeCodeRef.current).toUpperCase() === String(code).toUpperCase()) setLoading(false)
     }
-  }, [code])
+  }, [code, setRoomSnapshot])
 
   useEffect(() => {
     let active = true
+    roomRef.current = null
+    answerKeyRef.current = null
+    requestRef.current = null
+    transitionLock.current = false
+    if (transitionTimer.current) clearTimeout(transitionTimer.current)
+    setRoom(null)
+    setDraftsState([])
+    setAnswerPending(false)
+    setSelectedAnswer(null)
+    setResult(null)
+    setError('')
+    setLoading(true)
     getRoom(code).then((next) => {
       if (!active) return
-      setRoom(next)
-      setDraftsState(makeDrafts(next.teams || [], readSession(code) || []))
+      setRoomSnapshot(next)
+      setDraftsState(makeTeamDrafts(next.teams || [], readTeamDrafts(code) || []))
       setError('')
     }).catch((e) => { if (active) setError(e.message || 'Không tải được phòng chơi.') })
       .finally(() => { if (active) setLoading(false) })
     return () => {
       active = false
       if (transitionTimer.current) clearTimeout(transitionTimer.current)
+      transitionLock.current = false
+      requestRef.current = null
     }
-  }, [code])
+  }, [code, setRoomSnapshot])
 
   const singleDevice = room?.settings?.single_device_mode === true
   useEffect(() => {
     if (!room || singleDevice || room.status === 'finished') return undefined
     const timer = setInterval(() => {
-      if (!transitionLock.current && !answerPending) void refresh(true)
+      if (document.visibilityState === 'visible' && !transitionLock.current && !answerPending) void refresh(true)
     }, 2500)
     return () => clearInterval(timer)
   }, [room?.code, room?.status, singleDevice, answerPending, refresh])
@@ -202,9 +256,8 @@ export default function QuizPartyRoomPage() {
   const totalTurns = room?.game?.total_questions || 0
   const teamColor = TEAM_COLOR_HEX[activeTeam?.token] || '#8f7bff'
   const totalCorrect = (room?.teams || []).reduce((total, team) => total + (Number(team.correct_count) || 0), 0)
-  const totalWrong = (room?.teams || []).reduce((total, team) => total + (Number(team.wrong_count) || 0), 0)
-  const bossHealth = Math.max(8, Math.min(100, 100 - totalCorrect * 8 + totalWrong * 3))
-  const draftList = drafts.length ? drafts : makeDrafts(room?.teams || [])
+  const bossHealth = Math.max(0, Math.min(100, 100 - totalCorrect * 100 / Math.max(1, totalTurns)))
+  const draftList = drafts.length ? drafts : makeTeamDrafts(room?.teams || [])
 
   useEffect(() => {
     if (activeMinigame.id !== 'memory-tiles' || !room || room.status !== 'playing' || result) return undefined
@@ -213,51 +266,93 @@ export default function QuizPartyRoomPage() {
     return () => clearTimeout(id)
   }, [activeMinigame.id, room?.game?.question_index, room?.status, result])
 
+  useEffect(() => {
+    questionStartedAt.current = Date.now()
+  }, [room?.question?.id])
+
   const begin = async () => {
-    if (starting) return
+    if (startingRef.current) return
+    startingRef.current = true
     setStarting(true)
     setError('')
-    writeSession(code, draftList)
+    writeTeamDrafts(code, draftList)
     try {
       const next = await startRoom(code)
-      setRoom(next)
+      setRoomSnapshot(next)
       questionStartedAt.current = Date.now()
     } catch (e) {
       setError(e.message || 'Không thể bắt đầu Quiz Party.')
-    } finally { setStarting(false) }
+    } finally { startingRef.current = false; setStarting(false) }
   }
 
   const submit = async (answer) => {
     if (!room?.question || answerPending || transitionLock.current || isFinished) return
+    const questionId = room.question.id
+    const request = getQuizPartyAnswerRequest(answerKeyRef.current, questionId)
+    answerKeyRef.current = request
+    const { requestId } = request
     setAnswerPending(true)
+    setSelectedAnswer(answer)
     setError('')
     transitionLock.current = true
-    const requestId = crypto.randomUUID()
     requestRef.current = requestId
     const elapsed = Math.max(0, Math.min(120000, Date.now() - questionStartedAt.current))
     try {
       const next = await submitAnswer(code, { answer, response_time_ms: elapsed }, requestId)
       if (requestRef.current !== requestId) return
-      const correct = next.answer_feedback?.is_correct === true
-      setResult({ correct, answer, nextRoom: next })
+      const advanced = Number(next.game?.question_index) > Number(room.game?.question_index) || next.status === 'finished'
+      const hasServerFeedback = typeof next.answer_feedback?.is_correct === 'boolean'
+      if (!advanced && !hasServerFeedback) {
+        setRoomSnapshot(next)
+        transitionLock.current = false
+        setAnswerPending(false)
+        setSelectedAnswer(null)
+        setError('Chưa xác nhận được lượt vừa gửi. Hãy thử lại; yêu cầu sẽ dùng cùng mã chống gửi lặp.')
+        return
+      }
+      const correct = hasServerFeedback ? next.answer_feedback.is_correct : null
+      setResult({ correct, answer, nextRoom: next, recovered: !hasServerFeedback })
       // Hold the color flash briefly, darken the complete stage, then reveal the next round.
       transitionTimer.current = setTimeout(() => {
-        setRoom(next)
+        setRoomSnapshot(next)
         setResult(null)
         setAnswerPending(false)
+        setSelectedAnswer(null)
         transitionLock.current = false
+        answerKeyRef.current = null
         questionStartedAt.current = Date.now()
         setMemoryVisible(true)
       }, 900)
     } catch (e) {
+      try {
+        const fresh = await getRoom(code)
+        if (requestRef.current !== requestId) return
+        const wasAccepted = Number(fresh.game?.question_index) > Number(room.game?.question_index) || fresh.status === 'finished'
+        if (wasAccepted) {
+          setError('')
+          setResult({ correct: null, answer, nextRoom: fresh, recovered: true })
+          transitionTimer.current = setTimeout(() => {
+            setRoomSnapshot(fresh)
+            setResult(null)
+            setAnswerPending(false)
+            setSelectedAnswer(null)
+            transitionLock.current = false
+            answerKeyRef.current = null
+            questionStartedAt.current = Date.now()
+          }, 900)
+          return
+        }
+        setRoomSnapshot(fresh)
+      } catch { /* Keep the exact idempotency key so a retry cannot score twice. */ }
       transitionLock.current = false
       setAnswerPending(false)
+      setSelectedAnswer(null)
       setError(e.message || 'Không gửi được đáp án. Vui lòng thử lại.')
     }
   }
 
   const join = async () => {
-    try { const next = await joinRoom(code); setRoom(next); setError('') }
+    try { const next = await joinRoom(code); setRoomSnapshot(next); setError('') }
     catch (e) { setError(e.message || 'Không thể tham gia phòng.') }
   }
 
@@ -308,16 +403,14 @@ export default function QuizPartyRoomPage() {
             </div>
             <div className="qp-stage" style={{ '--team-color': teamColor }}>
               <div className="qp-stage-decor decor-one" /><div className="qp-stage-decor decor-two" /><div className="qp-stage-decor decor-three" />
-              {activeMinigame.id === 'boss-battle' && <div className="qp-boss"><span className="qp-boss-face">👾</span><div><strong>QUIZ BOSS</strong><span className="qp-boss-health"><i style={{ width: `${bossHealth}%` }} /></span></div></div>}
-              {activeMinigame.id === 'obby-dash' && <div className="qp-obby-path"><span>START</span><i style={{ width: `${Math.min(92, 12 + (activeTeam?.correct_count || 0) * 8)}%` }} /><span>FINISH</span></div>}
-              {activeMinigame.id === 'color-rush' && <div className="qp-color-gates" aria-hidden="true"><i /><i /><i /><i /></div>}
+              <MiniGameScene minigame={activeMinigame} activeTeam={activeTeam} totalTurns={totalTurns} memoryVisible={memoryVisible} bossHealth={bossHealth} result={result} />
               <div className="qp-current-team"><span className="qp-turn-spark" /><PetMascot outfit={displayTeams.find((team) => team.id === activeTeam?.id)?.outfit || EMPTY_OUTFIT} size={76} label={activeTeam?.name || 'Đội hiện tại'} /><div><small>ĐẾN LƯỢT</small><strong>{displayTeams.find((team) => team.id === activeTeam?.id)?.name || activeTeam?.name || 'Đội hiện tại'}</strong><span>{canAnswer ? 'Chọn đáp án trên sân!' : 'Đang chờ đến lượt đội của bạn'}</span></div></div>
               <article className="qp-question-panel">
                 <div className="qp-question-label"><Sparkles size={15} /> CÂU HỎI THỬ THÁCH <span>#{activeTurn}</span></div>
                 <h2>{room.question?.content || 'Chuẩn bị cho vòng tiếp theo…'}</h2>
-                <QuizQuestion question={room.question} minigame={activeMinigame} disabled={answerLocked} onAnswer={submit} memoryVisible={memoryVisible} teamColor={teamColor} answerResult={result} />
+                <QuizQuestion question={room.question} minigame={activeMinigame} disabled={answerLocked} onAnswer={submit} memoryVisible={memoryVisible} teamColor={teamColor} answerResult={result} selectedAnswer={selectedAnswer} />
               </article>
-              {result && <div className={result.correct ? 'qp-result-flash correct' : 'qp-result-flash wrong'} role="status"><span>{result.correct ? <Check size={30} strokeWidth={4} /> : <X size={30} strokeWidth={4} />}</span><strong>{result.correct ? 'CHÍNH XÁC!' : 'CHƯA ĐÚNG!'}</strong><small>{result.correct ? '+1 điểm cho đội' : 'Lượt tiếp theo đang đến…'}</small></div>}
+              {result && <div className={result.correct === null ? 'qp-result-flash synced' : result.correct ? 'qp-result-flash correct' : 'qp-result-flash wrong'} role="status"><span>{result.correct === null ? <RotateCw size={28} /> : result.correct ? <Check size={30} strokeWidth={4} /> : <X size={30} strokeWidth={4} />}</span><strong>{result.correct === null ? 'ĐÃ ĐỒNG BỘ LƯỢT' : result.correct ? 'CHÍNH XÁC!' : 'CHƯA ĐÚNG!'}</strong><small>{result.correct === null ? 'Máy chủ đã chuyển vòng; không đoán trước kết quả.' : result.correct ? '+1 điểm cho đội' : 'Lượt tiếp theo đang đến…'}</small></div>}
               {result && <div className="qp-dark-cut" aria-hidden="true" />}
               {answerPending && !result && <div className="qp-pending"><span /> Đang xác nhận đáp án…</div>}
             </div>
@@ -327,8 +420,8 @@ export default function QuizPartyRoomPage() {
 
         {isFinished && (
           <section className="qp-finale">
-            <span className="qp-finale-trophy"><Trophy size={48} /></span><span className="qp-kicker">HẾT GIỜ CHƠI</span><h1>Chiến thắng thuộc về <span>{displayTeams.find((team) => team.id === winningTeam?.id)?.name || winningTeam?.name || displayTeams[0]?.name || 'đội chiến thắng'}</span>!</h1><p>Điểm và thứ hạng được xác nhận từ máy chủ.</p>
-            <div className="qp-leaderboard">{(ranking.length ? ranking : [...room.teams].sort((a, b) => (b.correct_count || 0) - (a.correct_count || 0))).map((row, index) => { const team = room.teams.find((item) => item.id === (row.team_id || row.id)); const display = displayTeams.find((item) => item.id === team?.id); return <div className={index === 0 ? 'qp-rank-row winner' : 'qp-rank-row'} key={team?.id || index}><strong className="qp-rank-number">{index + 1}</strong><PetMascot outfit={display?.outfit || EMPTY_OUTFIT} size={64} label={display?.name || team?.name} /><span><b>{display?.name || team?.name || 'Đội'}</b><small>{team?.correct_count || row.correct_count || 0} câu đúng · {team?.wrong_count || row.wrong_count || 0} câu sai</small></span><strong className="qp-score">{row.score ?? team?.correct_count ?? 0} điểm</strong></div> })}</div>
+            <span className="qp-finale-trophy"><Trophy size={48} /></span><span className="qp-kicker">HẾT GIỜ CHƠI</span><h1>{winningTeam ? <>Chiến thắng thuộc về <span>{displayTeams.find((team) => team.id === winningTeam.id)?.name || winningTeam.name}</span>!</> : <>Hoàn thành <span>Quiz Party</span>!</>}</h1><p>Điểm và thứ hạng được xác nhận từ máy chủ.</p>
+            <div className="qp-leaderboard">{ranking.length ? ranking.map((row, index) => { const team = room.teams.find((item) => item.id === (row.team_id || row.id)); const display = displayTeams.find((item) => item.id === team?.id); return <div className={index === 0 ? 'qp-rank-row winner' : 'qp-rank-row'} key={team?.id || index}><strong className="qp-rank-number">{row.rank || index + 1}</strong><PetMascot outfit={display?.outfit || EMPTY_OUTFIT} size={64} label={display?.name || team?.name} /><span><b>{display?.name || team?.name || 'Đội'}</b><small>{row.correct_count ?? team?.correct_count ?? 0} câu đúng · {row.wrong_count ?? team?.wrong_count ?? 0} câu sai</small></span><strong className="qp-score">{row.score ?? row.correct_count ?? 0} điểm</strong></div> }) : <p className="qp-result-wait">Đang chờ bảng xếp hạng được đồng bộ từ máy chủ…</p>}</div>
             <div className="qp-finale-actions"><Link className="qp-primary-button" to={ROUTES.createRoom}><RotateCw size={17} /> Tạo phòng Quiz Party mới</Link><Link className="qp-secondary-button" to={ROUTES.play}>Về chọn game</Link></div>
           </section>
         )}

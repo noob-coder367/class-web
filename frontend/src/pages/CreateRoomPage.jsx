@@ -25,12 +25,12 @@ export default function CreateRoomPage() {
       <article className="mode-card mode-card-active">
         <div className="mode-icon"><Trophy size={38} aria-hidden="true" /></div><h2>Đua tới kho báu</h2><p>Chia đội, trả lời câu hỏi, tự tung xúc xắc và điều khiển linh vật tìm đường trong mê cung 3D.</p>
         <div className="mode-preview"><span>START</span><i /><i /><i /><b><Trophy size={26} aria-hidden="true" /></b></div>
-        <button className="game-button primary" type="button" onClick={() => { setSelectedGameMode('treasure-race'); setForm((current) => ({ ...current, title: 'Phòng đua kho báu' })); setModeSelected(true) }}>Chọn game mode <ChevronRight className="ico" size={14} aria-hidden="true" /></button>
+        <button className="game-button primary" type="button" onClick={() => { if (selectedGameMode !== 'treasure-race') createRequestKey.current = null; setSelectedGameMode('treasure-race'); setForm((current) => ({ ...current, title: 'Phòng đua kho báu' })); setModeSelected(true) }}>Chọn game mode <ChevronRight className="ico" size={14} aria-hidden="true" /></button>
       </article>
       <article className="mode-card mode-card-active">
         <div className="mode-icon"><PartyPopper size={38} aria-hidden="true" /></div><h2>Quiz Party</h2><p>Đại chiến mini-game: hệ thống tự chọn thử thách mỗi vòng, đội trả lời ngay trên sân chơi và điểm được tính tự động.</p>
         <div className="mode-preview quiz-party-preview"><span>PARTY!</span><i /><i /><i /><b><PartyPopper size={26} aria-hidden="true" /></b></div>
-        <button className="game-button primary" type="button" onClick={() => { setSelectedGameMode('quiz_party'); setForm((current) => ({ ...current, title: 'Quiz Party' })); setModeSelected(true) }}>Chọn Quiz Party <ChevronRight className="ico" size={14} aria-hidden="true" /></button>
+        <button className="game-button primary" type="button" onClick={() => { if (selectedGameMode !== 'quiz_party') createRequestKey.current = null; setSelectedGameMode('quiz_party'); setForm((current) => ({ ...current, title: 'Quiz Party' })); setModeSelected(true) }}>Chọn Quiz Party <ChevronRight className="ico" size={14} aria-hidden="true" /></button>
       </article>
     </section> : <form className="room-form game-panel" onSubmit={submit}>
       <div className="form-section"><h2>Thông tin phòng</h2><label>Tên phòng<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength="80" required /></label><label>Bộ câu hỏi<select value={selectedQuiz} onChange={(e) => setSelectedQuiz(e.target.value)} required><option value="">Chọn quiz</option>{quizzes.map((quiz) => <option key={quiz.id} value={quiz.id}>{quiz.title}</option>)}</select>{currentQuiz && <small>{currentQuiz.title} · quiz của bạn</small>}</label>{!status.loading && !quizzes.length && <div className="empty-state">Chưa có quiz phù hợp. <Link to={ROUTES.createQuiz}>+ Tạo quiz</Link></div>}</div>
