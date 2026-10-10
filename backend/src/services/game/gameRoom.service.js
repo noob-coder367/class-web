@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../../config/supabaseClient.js'
 import { HttpError } from '../../lib/httpError.js'
 import { evaluateAnswer, nextTurnIndex, orderTeamsByDice, generateMaze, canMove, isExit, rankTeamsAtFinish, shortestPathDistance, GAME_PHASES, DIRECTIONS } from './treasureRace.engine.js'
 import { createMinigameSchedule, rankQuizPartyTeams, scoreQuizPartyAnswer } from './quizParty.engine.js'
+import { isQuizPartyMigrationUnavailable } from '../../lib/quizPartyMigration.js'
 
 const ROOM_COLUMNS = 'id, code, host_id, quiz_id, game_mode, status, settings, created_at, updated_at'
 const QUESTION_COLUMNS = 'id, order_index, type, content, options, correct_option, correct_boolean, explanation'
@@ -75,6 +76,9 @@ export async function createRoom(userId, body = {}, requestId = null) {
     if (gameMode === 'quiz_party') rpcArgs.p_game_mode = gameMode
     const { data: createdRoomId, error } = await supabaseAdmin.rpc(rpcName, rpcArgs)
     if (!error) return getRoomForUserById(createdRoomId || roomId, userId)
+    if (isQuizPartyMigrationUnavailable(error, gameMode)) {
+      throw new HttpError('Chưa thể tạo phòng Quiz Party: chưa tìm thấy RPC create_game_room_atomic_v2. Kiểm tra migration supabase/migrations/20261010100000_quiz_party_mode.sql và làm mới schema cache Supabase trước khi thử lại.', 503, 'quiz_party_migration_required')
+    }
     if (error.code !== '23505') throw mapError(error)
   }
   fail('Không tạo được mã phòng, vui lòng thử lại.', 503, 'room_unavailable')
