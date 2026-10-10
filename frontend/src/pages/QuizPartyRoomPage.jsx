@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, Clock3, Crown, PartyPopper, Play, RotateCw, ShieldCheck, Shirt, Sparkles, Trophy, X } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
@@ -9,6 +9,9 @@ import { QUIZ_PARTY_MINIGAMES } from '../lib/quizPartyMinigames.js'
 import { makeTeamDrafts, readTeamDrafts, updateTeamDraft, writeTeamDrafts } from '../lib/quizPartySession.js'
 import { getQuizPartyAnswerRequest } from '../lib/quizPartyRequests.js'
 import '../quiz-party.css'
+
+const QuizPartyPlatformer = lazy(() => import('../components/game/QuizPartyPlatformer.jsx'))
+const PlatformerLobbyStage = lazy(() => import('../components/game/QuizPartyPlatformer.jsx').then((module) => ({ default: module.PlatformerLobbyStage })))
 
 const EMPTY_OUTFIT = Object.freeze({ hat: null, acc: null, shirt: null })
 const CATEGORY_ICONS = { hat: Crown, acc: Sparkles, shirt: Shirt }
@@ -22,7 +25,7 @@ function shuffleSafeSeededNames(teams, drafts) {
   })
 }
 
-function TeamSetup({ room, drafts, setDrafts, onStart, starting, error }) {
+function TeamSetup({ room, drafts, setDrafts, onStart, starting, error, quality }) {
   const [selectedId, setSelectedId] = useState(room.teams[0]?.id || '')
   const [category, setCategory] = useState('hat')
   const current = drafts.find((team) => team.id === selectedId) || drafts[0]
@@ -36,6 +39,7 @@ function TeamSetup({ room, drafts, setDrafts, onStart, starting, error }) {
         <h1>Chọn linh vật, <span>vào cuộc chơi!</span></h1>
         <p>Mỗi đội có một linh vật riêng. Đặt tên và phối đồ trước khi bắt đầu.</p>
       </header>
+      <Suspense fallback={<div className="qp-lobby-3d qp-3d-loading">Đang tải sảnh 3D…</div>}><PlatformerLobbyStage teams={room.teams.map((team) => ({ ...team, ...drafts.find((draft) => draft.id === team.id) }))} quality={quality} /></Suspense>
       <div className="qp-team-roster" style={{ '--qp-team-count': room.teams.length }}>
         {drafts.map((team, index) => (
           <article className={team.id === current?.id ? 'qp-roster-card selected' : 'qp-roster-card'} key={team.id} style={{ '--team-color': TEAM_COLOR_HEX[room.teams.find((row) => row.id === team.id)?.token] || TEAM_COLOR_HEX[TOKEN_COLORS[index % TOKEN_COLORS.length]] }}>
@@ -105,51 +109,12 @@ function QuizQuestion({ question, minigame, disabled, onAnswer, memoryVisible, t
   )
 }
 
-function MiniGameScene({ minigame, activeTeam, totalTurns, memoryVisible, bossHealth, result }) {
-  if (minigame.id === 'whack-a-choice') return (
-    <div className="qp-mini-scene qp-whack-scene" aria-label="Sân arcade đập đáp án">
-      <span className="qp-scene-tag">ARCADE MODE</span><span className="qp-whack-target" aria-hidden="true">✦</span>
-      <strong>CHẠM MỤC TIÊU!</strong><small>Mỗi ô đáp án là một mục tiêu</small>
-    </div>
-  )
-  if (minigame.id === 'memory-tiles') return (
-    <div className={`qp-mini-scene qp-memory-scene${memoryVisible ? ' is-revealing' : ' is-hidden'}`} role="status" aria-live="polite">
-      <span className="qp-scene-tag">TRÍ NHỚ</span><strong>{memoryVisible ? 'Ghi nhớ vị trí trong 2,4 giây' : 'Lật ô có đáp án bạn vừa ghi nhớ'}</strong>
-      <span className="qp-memory-meter"><i className={memoryVisible ? 'running' : ''} /></span>
-    </div>
-  )
-  if (minigame.id === 'safe-island') return (
-    <div className="qp-mini-scene qp-island-scene" aria-label="Các đáp án là đảo giữa mặt nước">
-      <span className="qp-scene-tag">VÙNG AN TOÀN</span><span className="qp-island-shape island-left" /><span className="qp-island-shape island-right" />
-      <span className="qp-water-line water-one" /><span className="qp-water-line water-two" /><strong>CHỌN ĐẢO AN TOÀN</strong>
-    </div>
-  )
-  if (minigame.id === 'boss-battle') return (
-    <div className={`qp-mini-scene qp-boss-scene${result?.correct === true ? ' boss-hit' : ''}${result?.correct === false ? ' boss-counter' : ''}`} aria-label="Đấu trùm với thanh máu dựa trên câu trả lời đúng">
-      <span className="qp-boss-face" aria-hidden="true">{result?.correct === true ? '😵' : result?.correct === false ? '👹' : '👾'}</span>
-      <div className="qp-boss-status"><span className="qp-scene-tag">TRÙM CUỐI · HP CHUNG</span><strong>QUIZ BOSS</strong><span className="qp-boss-health" role="meter" aria-label="Máu trùm" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(bossHealth)}><i style={{ width: `${bossHealth}%` }} /></span><small>{Math.round(bossHealth)}% máu còn lại · đúng đáp án mới gây sát thương</small></div>
-    </div>
-  )
-  if (minigame.id === 'color-rush') return (
-    <div className="qp-mini-scene qp-race-scene" aria-label="Đường đua cổng màu">
-      <span className="qp-scene-tag">COLOR RUSH</span><div className="qp-race-lane"><i className="gate gate-coral">A</i><i className="gate gate-sun">B</i><i className="gate gate-mint">C</i><i className="gate gate-sky">D</i><span className="qp-race-runner" aria-hidden="true">🏃</span></div>
-      <strong>CHỌN CỔNG THEO NỘI DUNG ĐÁP ÁN</strong><small>Mỗi cổng có ký hiệu — không chỉ dựa vào màu</small>
-    </div>
-  )
-  const progress = Math.min(88, (Number(activeTeam?.correct_count) || 0) / Math.max(1, totalTurns) * 100)
-  return (
-    <div className="qp-mini-scene qp-obby-scene" aria-label="Đường chạy vượt chướng ngại">
-      <span className="qp-scene-tag">OBBY DASH</span><div className="qp-obby-track"><span className="qp-obby-start">START</span><i className="qp-obby-platform platform-one" /><i className="qp-obby-platform platform-two" /><b className="qp-obby-obstacle obstacle-one">▲</b><b className="qp-obby-obstacle obstacle-two">▥</b><span className="qp-obby-runner" style={{ left: `${progress}%` }} aria-label={`Tiến trình ${Math.round(progress)} phần trăm`}><PetMascot size={45} label={activeTeam?.name || 'Linh vật đang chạy'} /></span><span className="qp-obby-finish">FINISH</span></div>
-      <strong>ĐÚNG ĐỂ NHẢY QUA CHƯỚNG NGẠI</strong><small>Tiến trình lấy từ số câu đúng của đội</small>
-    </div>
-  )
-}
-
 export default function QuizPartyRoomPage() {
   const { code } = useParams()
   const [room, setRoom] = useState(null)
   const [drafts, setDraftsState] = useState([])
   const [loading, setLoading] = useState(true)
+  const [quality] = useState(() => (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || (navigator.hardwareConcurrency || 4) <= 2 ? 'low' : 'high'))
   const [starting, setStarting] = useState(false)
   const startingRef = useRef(false)
   const [answerPending, setAnswerPending] = useState(false)
@@ -255,8 +220,6 @@ export default function QuizPartyRoomPage() {
   const activeTurn = (room?.game?.question_index || 0) + 1
   const totalTurns = room?.game?.total_questions || 0
   const teamColor = TEAM_COLOR_HEX[activeTeam?.token] || '#8f7bff'
-  const totalCorrect = (room?.teams || []).reduce((total, team) => total + (Number(team.correct_count) || 0), 0)
-  const bossHealth = Math.max(0, Math.min(100, 100 - totalCorrect * 100 / Math.max(1, totalTurns)))
   const draftList = drafts.length ? drafts : makeTeamDrafts(room?.teams || [])
 
   useEffect(() => {
@@ -376,13 +339,14 @@ export default function QuizPartyRoomPage() {
         </header>
 
         {isLobby && singleDevice && host && (
-          <TeamSetup room={room} drafts={draftList} setDrafts={setDrafts} onStart={begin} starting={starting} error={error} />
+          <TeamSetup room={room} drafts={draftList} setDrafts={setDrafts} onStart={begin} starting={starting} error={error} quality={quality} />
         )}
 
         {isLobby && !(singleDevice && host) && (
           <section className="qp-lobby">
             <span className="qp-kicker"><PartyPopper size={15} /> SÂN CHƠI SẮP BẮT ĐẦU</span><h1>{room.settings?.title || 'Quiz Party'}</h1>
-            <p>Hệ thống sẽ tự chọn mini-game từng vòng. Đội hiện tại trả lời ngay trên sân chơi.</p>
+            <p>Khám phá đảo mây bằng một vòng platformer 3D; câu hỏi và điểm vẫn theo lượt chơi hiện tại.</p>
+            <Suspense fallback={<div className="qp-lobby-3d qp-3d-loading">Đang tải sảnh 3D…</div>}><PlatformerLobbyStage teams={displayTeams} quality={quality} /></Suspense>
             <div className="qp-team-roster">
               {displayTeams.map((team, index) => <article className="qp-roster-card" key={team.id}><PetMascot outfit={team.outfit} size={110} /><strong>{team.name || `Đội ${index + 1}`}</strong><span className="qp-edit-hint">{room.players?.some((p) => p.team_id === team.id) ? 'Đã có người chơi' : 'Đang chờ người chơi'}</span></article>)}
             </div>
@@ -395,16 +359,15 @@ export default function QuizPartyRoomPage() {
         {room.status === 'playing' && !isFinished && (
           <section className={result ? 'qp-arena is-transitioning' : 'qp-arena'}>
             <header className="qp-round-top">
-              <div><span className="qp-kicker">VÒNG {activeTurn} / {totalTurns}</span><h1>{activeMinigame.title}</h1><p>{activeMinigame.instruction}</p></div>
+              <div><span className="qp-kicker">VÒNG {activeTurn} / {totalTurns} · PLATFORMER 3D</span><h1>{activeMinigame.title}</h1><p>Chạy, nhảy qua các đảo và trả lời câu hỏi thử thách để tiếp tục cuộc chơi.</p></div>
               <div className="qp-round-counter"><Clock3 size={16} /><strong>{activeTurn}<small>/{totalTurns}</small></strong></div>
             </header>
             <div className="qp-team-strip" aria-label="Các đội">
               {displayTeams.map((team, index) => <div key={team.id} className={team.id === activeTeam?.id ? 'qp-team-chip active' : 'qp-team-chip'} style={{ '--team-color': TEAM_COLOR_HEX[team.token] || TOKEN_COLORS[index] }}><PetMascot outfit={team.outfit} size={44} label={team.name} /><span>{team.name || `Đội ${index + 1}`}</span><b>{team.correct_count || 0}</b></div>)}
             </div>
             <div className="qp-stage" style={{ '--team-color': teamColor }}>
-              <div className="qp-stage-decor decor-one" /><div className="qp-stage-decor decor-two" /><div className="qp-stage-decor decor-three" />
-              <MiniGameScene minigame={activeMinigame} activeTeam={activeTeam} totalTurns={totalTurns} memoryVisible={memoryVisible} bossHealth={bossHealth} result={result} />
-              <div className="qp-current-team"><span className="qp-turn-spark" /><PetMascot outfit={displayTeams.find((team) => team.id === activeTeam?.id)?.outfit || EMPTY_OUTFIT} size={76} label={activeTeam?.name || 'Đội hiện tại'} /><div><small>ĐẾN LƯỢT</small><strong>{displayTeams.find((team) => team.id === activeTeam?.id)?.name || activeTeam?.name || 'Đội hiện tại'}</strong><span>{canAnswer ? 'Chọn đáp án trên sân!' : 'Đang chờ đến lượt đội của bạn'}</span></div></div>
+              <Suspense fallback={<div className="qp-platformer qp-3d-loading">Đang tải thế giới đảo mây 3D…</div>}><QuizPartyPlatformer activeTeam={activeTeam} canControl={canAnswer} quality={quality} answerFeedback={result?.correct ?? null} questionIndex={activeTurn - 1} totalQuestions={totalTurns} /></Suspense>
+              <div className="qp-current-team"><span className="qp-turn-spark" /><PetMascot outfit={displayTeams.find((team) => team.id === activeTeam?.id)?.outfit || EMPTY_OUTFIT} size={76} label={activeTeam?.name || 'Đội hiện tại'} /><div><small>ĐẾN LƯỢT</small><strong>{displayTeams.find((team) => team.id === activeTeam?.id)?.name || activeTeam?.name || 'Đội hiện tại'}</strong><span>{canAnswer ? 'Điều khiển linh vật và trả lời câu hỏi bên dưới' : 'Đang chờ đến lượt đội của bạn'}</span></div></div>
               <article className="qp-question-panel">
                 <div className="qp-question-label"><Sparkles size={15} /> CÂU HỎI THỬ THÁCH <span>#{activeTurn}</span></div>
                 <h2>{room.question?.content || 'Chuẩn bị cho vòng tiếp theo…'}</h2>
@@ -421,6 +384,7 @@ export default function QuizPartyRoomPage() {
         {isFinished && (
           <section className="qp-finale">
             <span className="qp-finale-trophy"><Trophy size={48} /></span><span className="qp-kicker">HẾT GIỜ CHƠI</span><h1>{winningTeam ? <>Chiến thắng thuộc về <span>{displayTeams.find((team) => team.id === winningTeam.id)?.name || winningTeam.name}</span>!</> : <>Hoàn thành <span>Quiz Party</span>!</>}</h1><p>Điểm và thứ hạng được xác nhận từ máy chủ.</p>
+            <Suspense fallback={<div className="qp-platformer qp-3d-loading">Đang dựng bục chiến thắng…</div>}><QuizPartyPlatformer activeTeam={winningTeam} canControl={false} quality={quality} finished winnerName={displayTeams.find((team) => team.id === winningTeam?.id)?.name || winningTeam?.name || ''} questionIndex={totalTurns} totalQuestions={totalTurns} /></Suspense>
             <div className="qp-leaderboard">{ranking.length ? ranking.map((row, index) => { const team = room.teams.find((item) => item.id === (row.team_id || row.id)); const display = displayTeams.find((item) => item.id === team?.id); return <div className={index === 0 ? 'qp-rank-row winner' : 'qp-rank-row'} key={team?.id || index}><strong className="qp-rank-number">{row.rank || index + 1}</strong><PetMascot outfit={display?.outfit || EMPTY_OUTFIT} size={64} label={display?.name || team?.name} /><span><b>{display?.name || team?.name || 'Đội'}</b><small>{row.correct_count ?? team?.correct_count ?? 0} câu đúng · {row.wrong_count ?? team?.wrong_count ?? 0} câu sai</small></span><strong className="qp-score">{row.score ?? row.correct_count ?? 0} điểm</strong></div> }) : <p className="qp-result-wait">Đang chờ bảng xếp hạng được đồng bộ từ máy chủ…</p>}</div>
             <div className="qp-finale-actions"><Link className="qp-primary-button" to={ROUTES.createRoom}><RotateCw size={17} /> Tạo phòng Quiz Party mới</Link><Link className="qp-secondary-button" to={ROUTES.play}>Về chọn game</Link></div>
           </section>
