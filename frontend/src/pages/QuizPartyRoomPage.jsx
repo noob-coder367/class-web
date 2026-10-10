@@ -135,6 +135,7 @@ export default function QuizPartyRoomPage() {
   const [answerPending, setAnswerPending] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
+  const [memoryVisible, setMemoryVisible] = useState(true)
   const questionStartedAt = useRef(Date.now())
   const transitionTimer = useRef(null)
   const requestRef = useRef(null)
@@ -178,7 +179,7 @@ export default function QuizPartyRoomPage() {
 
   const singleDevice = room?.settings?.single_device_mode === true
   useEffect(() => {
-    if (!room || singleDevice || room.status !== 'playing') return undefined
+    if (!room || singleDevice || room.status === 'finished') return undefined
     const timer = setInterval(() => {
       if (!transitionLock.current && !answerPending) void refresh(true)
     }, 2500)
@@ -211,7 +212,6 @@ export default function QuizPartyRoomPage() {
     setMemoryVisible(true)
     return () => clearTimeout(id)
   }, [activeMinigame.id, room?.game?.question_index, room?.status, result])
-  const [memoryVisible, setMemoryVisible] = useState(true)
 
   const begin = async () => {
     if (starting) return
