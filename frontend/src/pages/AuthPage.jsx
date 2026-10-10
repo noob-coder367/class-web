@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import * as authService from '../services/authService.js'
 import PasswordField from '../components/PasswordField.jsx'
+import SlimeMascot from '../components/SlimeMascot.jsx'
 import { Brand } from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
 import { validateEmail, validateNewPassword } from '../lib/validation.js'
@@ -111,7 +112,10 @@ export default function AuthPage({ mode = 'login' }) {
     <div className="login-page">
       <div className="login-visual" aria-hidden="true"><div className="login-plus-grid" /><div className="login-photo-slot" style={authImage ? { backgroundImage: `url(${authImage})` } : undefined} /><div className="login-visual-copy"><p className="login-visual-title">Học nhanh hơn.<br /><span>Chơi vui hơn.</span></p><p>Tạo, chơi và thử thách cùng bạn bè trên một nền tảng quiz gọn nhẹ.</p></div></div>
       <main className="login-panel"><Link className="login-home-link" to={ROUTES.home}>Trở về màn hình chính</Link><div className="login-brand"><Brand /></div><section className="login-card" aria-labelledby="auth-title">
-        <nav className="login-tabs" aria-label="Chọn đăng nhập hoặc đăng ký"><Link to={ROUTES.login} className={isRegister ? '' : 'is-active'}>Đăng nhập</Link><Link to={ROUTES.register} className={isRegister ? 'is-active' : ''}>Đăng ký</Link></nav>
+        <div className={`auth-selector ${isRegister ? 'is-register' : 'is-login'}`}>
+          <SlimeMascot isRegister={isRegister} />
+          <nav className="login-tabs" aria-label="Chọn đăng nhập hoặc đăng ký"><Link to={ROUTES.login} className={isRegister ? '' : 'is-active'}>Đăng nhập</Link><Link to={ROUTES.register} className={isRegister ? 'is-active' : ''}>Đăng ký</Link></nav>
+        </div>
         <h1 id="auth-title">{isRegister ? (ghostMode ? 'Tài khoản ma' : 'Tạo tài khoản') : 'Đăng nhập'}</h1>
         <p className="login-sub">{ghostMode ? 'Tài khoản dùng thử cho thành viên 10A4-Quizz.' : isRegister ? 'Điền thông tin bên dưới để bắt đầu.' : 'Vui lòng nhập tên hiển thị và mật khẩu để đăng nhập.'}</p>
         <form className="login-form" onSubmit={handleSubmit} noValidate>
