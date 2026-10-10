@@ -58,7 +58,7 @@ export async function createRoom(userId, body = {}, requestId = null) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const roomId = randomUUID()
     const gameId = randomUUID()
-    const { data: createdRoomId, error } = await supabaseAdmin.rpc('create_game_room_atomic_v2', {
+    const rpcArgs = {
       p_room_id: roomId,
       p_game_id: gameId,
       p_host_id: userId,
@@ -67,9 +67,13 @@ export async function createRoom(userId, body = {}, requestId = null) {
       p_settings: settings,
       p_team_count: teamCount,
       p_question_limit: questionLimit,
-      p_game_mode: gameMode,
       p_request_id: parsedRequestId,
-    })
+    }
+    // Treasure Race keeps calling its already-deployed RPC. Quiz Party alone
+    // uses the new wrapper after its additive migration has been applied.
+    const rpcName = gameMode === 'quiz_party' ? 'create_game_room_atomic_v2' : 'create_game_room_atomic'
+    if (gameMode === 'quiz_party') rpcArgs.p_game_mode = gameMode
+    const { data: createdRoomId, error } = await supabaseAdmin.rpc(rpcName, rpcArgs)
     if (!error) return getRoomForUserById(createdRoomId || roomId, userId)
     if (error.code !== '23505') throw mapError(error)
   }
