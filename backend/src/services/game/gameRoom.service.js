@@ -220,7 +220,11 @@ export async function answerRoom(code, userId, body = {}, requestId = null) {
   // A retry after a successful answer may arrive after the game has already advanced.
   // Return the current state for an already-committed key before validating the new phase.
   const parsedRequestId = parseRequestId(requestId)
-  if (parsedRequestId) {
+  // Quiz Party answers in the normal question phase rely on the atomic RPC's
+  // idempotency claim, avoiding a sequential preflight query on every tap.
+  // Keep the old preflight behavior for Treasure Race and terminal/non-question
+  // retries, where the request must return the final/current room state.
+  if (parsedRequestId && (room.game_mode !== 'quiz_party' || game.status !== 'playing' || game.phase !== GAME_PHASES.QUESTION)) {
     const priorClaim = await db(supabaseAdmin.from('game_action_claims').select('id')
       .eq('user_id', userId).eq('request_id', parsedRequestId).eq('action', 'answer').maybeSingle())
     if (priorClaim) return getRoomForUser(code, userId)
