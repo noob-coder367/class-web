@@ -137,11 +137,11 @@ async function sendSignupConfirmation(email) {
 }
 
 export async function previewGhostAccount() {
-  const { error: cleanupError } = await supabaseAdmin.rpc('ghost_cleanup_orphaned_reservations')
-  if (cleanupError) console.error('[auth:ghost] cleanup preview failed', safeSupabaseErrorDetails(cleanupError))
-  const { data, error } = await supabaseAdmin.from('ghost_account_reservations').select('local_day, status, user_id').eq('local_day', new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())).in('status', ['reserved', 'created'])
+  const localDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
+  const { data, error } = await supabaseAdmin.from('ghost_account_reservations').select('local_day, status, user_id, expires_at').eq('local_day', localDay).in('status', ['reserved', 'created'])
   if (error) throw new AppError('Tính năng tài khoản ma chưa được khởi tạo.', 503)
-  const activeReservations = (data || []).filter((reservation) => reservation.status === 'reserved' || reservation.user_id)
+  const now = Date.now()
+  const activeReservations = (data || []).filter((reservation) => reservation.status === 'created' ? Boolean(reservation.user_id) : new Date(reservation.expires_at).getTime() > now)
   const remainingToday = Math.max(0, GHOST_DAILY_LIMIT - activeReservations.length)
   return { remainingToday, limit: GHOST_DAILY_LIMIT }
 }
