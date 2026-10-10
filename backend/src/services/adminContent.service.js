@@ -1,9 +1,9 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
+import { GAME_MODE_IDS } from './game/gameModes.js'
 const ROOM_COLUMNS = 'id, code, host_id, quiz_id, game_mode, status, settings, created_at, updated_at'
 const QUIZ_COLUMNS = 'id, title, description, owner_id, status, created_at, updated_at'
 const QUESTION_COLUMNS = 'id, quiz_id, order_index, type, content, options, correct_option, correct_boolean, reference_answer, explanation, created_at, updated_at'
-const MODES = new Set(['treasure_race'])
 const STATUSES = new Set(['lobby', 'ordering', 'playing', 'finished', 'cancelled'])
 const fail = (message, status = 400) => { throw new AppError(message, status) }
 function db(result, message = 'Không thể tải dữ liệu quản trị.') { return result.then(({ data, error }) => { if (error) { console.error('[admin-content] database error', error.code || error.message); throw new AppError(message, 503) } return data }) }
@@ -29,7 +29,7 @@ export async function listRooms() {
 export async function updateRoom(id, input = {}) {
   const patch = {}
   if (input.code !== undefined) { const code = String(input.code).trim().toUpperCase(); if (!/^[A-Z0-9]{6}$/.test(code)) fail('Passcode phải gồm đúng 6 ký tự chữ/số.'); patch.code = code }
-  if (input.game_mode !== undefined) { if (!MODES.has(input.game_mode)) fail('Game mode không hợp lệ.'); patch.game_mode = input.game_mode }
+  if (input.game_mode !== undefined) { if (!GAME_MODE_IDS.has(input.game_mode)) fail('Game mode không hợp lệ.'); patch.game_mode = input.game_mode }
   if (input.status !== undefined) { if (!STATUSES.has(input.status)) fail('Trạng thái phòng không hợp lệ.'); patch.status = input.status }
   if (input.quiz_id !== undefined) { if (!input.quiz_id) fail('Quiz liên kết không hợp lệ.'); patch.quiz_id = input.quiz_id }
   if (input.settings !== undefined) { if (!input.settings || typeof input.settings !== 'object' || Array.isArray(input.settings)) fail('Settings không hợp lệ.'); patch.settings = input.settings }

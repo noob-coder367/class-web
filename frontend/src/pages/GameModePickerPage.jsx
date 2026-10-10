@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import SiteHeader from '../components/SiteHeader.jsx'
-import { ROUTES } from '../lib/routes.js'
-import { GAME_MODES } from '../lib/gameModes.js'
+import { GAME_MODES, roomPathForApiMode } from '../lib/gameModes.js'
 import { listGameModeImages } from '../services/gameModeImageService.js'
 import { joinRoom } from '../services/gameRoomService.js'
 import '../game.css'
@@ -23,7 +22,7 @@ function JoinRoomModal({ onClose, description }) {
     setState({ loading: true, error: '' })
     try {
       const room = await joinRoom(normalizedCode)
-      const roomPath = room.game_mode === 'quiz_party' ? ROUTES.quizParty : ROUTES.room
+      const roomPath = roomPathForApiMode(room.game_mode)
       navigate(`${roomPath}/${room.code || normalizedCode}`)
     } catch (error) {
       setState({ loading: false, error: error.message || 'Không thể vào phòng. Hãy kiểm tra lại passcode.' })
@@ -117,9 +116,7 @@ export default function GameModePickerPage() {
     const title = images[mode.id]?.display_title || mode.title
     setJoinMode({
       ...mode,
-      joinDescription: mode.id === 'treasure-race'
-        ? `Nhập mã phòng 6 ký tự do host chia sẻ để tham gia ${title}.`
-        : mode.joinDescription || `Nhập passcode để tham gia ${title}.`,
+      joinDescription: mode.joinDescription || `Nhập passcode để tham gia ${title}.`,
     })
   }
 
