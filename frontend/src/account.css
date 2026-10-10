@@ -35,7 +35,7 @@
 .login-brand { position: absolute; top: 28px; left: 32px; z-index: 2; }
 .login-card { width: min(100%, 400px); }
 .auth-selector { position: relative; padding-top: 68px; }
-.slime-mascot { position: absolute; z-index: 1; top: 0; left: 25%; width: 84px; height: 69px; pointer-events: none; transform: translateX(-50%); animation: slime-travel-login .82s cubic-bezier(.22, .72, .28, 1) both, slime-hop 3.2s cubic-bezier(.45, .05, .55, .95) .82s infinite; }
+.slime-mascot { position: absolute; z-index: 1; top: 0; left: 25%; width: 84px; height: 66px; pointer-events: none; transform: translateX(-50%); animation: slime-travel-login .82s cubic-bezier(.22, .72, .28, 1) both, slime-hop 3.2s cubic-bezier(.45, .05, .55, .95) .82s infinite; }
 .slime-mascot.is-register { left: 75%; animation-name: slime-travel-register, slime-hop; }
 .slime-mascot::after { position: absolute; right: 13px; bottom: -2px; left: 13px; height: 7px; border-radius: 50%; background: rgba(35, 144, 210, .2); content: ''; animation: slime-shadow 3.2s cubic-bezier(.45, .05, .55, .95) infinite; }
 .slime-mascot svg { display: block; width: 100%; height: 100%; overflow: visible; }
@@ -122,4 +122,4 @@
 .auth-browser-preview { min-height: 260px; display: grid; place-items: center; overflow: hidden; border: 1px dashed rgba(143,181,181,.28); border-radius: 14px; color: #829497; background: rgba(5,12,14,.4); }
 .auth-browser-preview img { width: 100%; height: 100%; min-height: 260px; object-fit: cover; }
 @media(max-width:650px){ .login-home-link { top: 20px; right: 20px; } .auth-browser-panel { grid-template-columns: 1fr; } }
-@media (max-width: 420px) { .auth-selector { padding-top: 66px; } .slime-mascot { width: 82px; height: 69px; } .login-panel { padding-right: 16px; padding-left: 16px; } }
+@media (max-width: 420px) { .auth-selector { padding-top: 64px; } .slime-mascot { width: 78px; height: 61px; } .login-panel { padding-right: 16px; padding-left: 16px; } }
