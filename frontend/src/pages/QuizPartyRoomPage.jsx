@@ -97,7 +97,7 @@ function TeamSetup({ room, drafts, setDrafts, onStart, starting, error }) {
   )
 }
 
-function QuizQuestion({ question, minigame, disabled, onAnswer, memoryVisible, teamColor }) {
+function QuizQuestion({ question, minigame, disabled, onAnswer, memoryVisible, teamColor, answerResult }) {
   const [essay, setEssay] = useState('')
   useEffect(() => setEssay(''), [question?.id])
   if (!question) return <div className="qp-question-loading">Đang chuẩn bị câu hỏi tiếp theo…</div>
@@ -115,7 +115,7 @@ function QuizQuestion({ question, minigame, disabled, onAnswer, memoryVisible, t
   return (
     <div className={`qp-answer-grid minigame-${minigame.id}`} style={{ '--team-color': teamColor }}>
       {answers.map((option, index) => (
-        <button type="button" key={`${question.id}-${option.answer}`} className={`qp-answer-tile tile-${index % 4}`} disabled={disabled} onClick={() => onPick(option.answer)}>
+        <button type="button" key={`${question.id}-${option.answer}`} className={"qp-answer-tile tile-" + (index % 4) + (answerResult && String(answerResult.answer) === option.answer ? (answerResult.correct ? " is-correct-choice" : " is-wrong-choice") : "")} disabled={disabled} onClick={() => onPick(option.answer)}>
           <span className="qp-answer-letter">{option.letter}</span>
           <span className={minigame.id === 'memory-tiles' && !memoryVisible ? 'qp-answer-label is-hidden' : 'qp-answer-label'}>{option.label}</span>
           {minigame.id === 'safe-island' && <span className="qp-island-ripple" />}
@@ -199,6 +199,9 @@ export default function QuizPartyRoomPage() {
   const activeTurn = (room?.game?.question_index || 0) + 1
   const totalTurns = room?.game?.total_questions || 0
   const teamColor = TEAM_COLOR_HEX[activeTeam?.token] || '#8f7bff'
+  const totalCorrect = (room?.teams || []).reduce((total, team) => total + (Number(team.correct_count) || 0), 0)
+  const totalWrong = (room?.teams || []).reduce((total, team) => total + (Number(team.wrong_count) || 0), 0)
+  const bossHealth = Math.max(8, Math.min(100, 100 - totalCorrect * 8 + totalWrong * 3))
   const draftList = drafts.length ? drafts : makeDrafts(room?.teams || [])
 
   useEffect(() => {
@@ -303,15 +306,14 @@ export default function QuizPartyRoomPage() {
             </div>
             <div className="qp-stage" style={{ '--team-color': teamColor }}>
               <div className="qp-stage-decor decor-one" /><div className="qp-stage-decor decor-two" /><div className="qp-stage-decor decor-three" />
-              {activeMinigame.id === 'boss-battle' && <div className="qp-boss"><span className="qp-boss-face">👾</span><div><strong>QUIZ BOSS</strong><span className="qp-boss-health"><i style={{ width: `${Math.max(8, 100 - (activeTeam?.wrong_count || 0) * 12)}%` }} /></span></div></div>}
+              {activeMinigame.id === 'boss-battle' && <div className="qp-boss"><span className="qp-boss-face">👾</span><div><strong>QUIZ BOSS</strong><span className="qp-boss-health"><i style={{ width: `${bossHealth}%` }} /></span></div></div>}
               {activeMinigame.id === 'obby-dash' && <div className="qp-obby-path"><span>START</span><i style={{ width: `${Math.min(92, 12 + (activeTeam?.correct_count || 0) * 8)}%` }} /><span>FINISH</span></div>}
               {activeMinigame.id === 'color-rush' && <div className="qp-color-gates" aria-hidden="true"><i /><i /><i /><i /></div>}
               <div className="qp-current-team"><span className="qp-turn-spark" /><PetMascot outfit={displayTeams.find((team) => team.id === activeTeam?.id)?.outfit || EMPTY_OUTFIT} size={76} label={activeTeam?.name || 'Đội hiện tại'} /><div><small>ĐẾN LƯỢT</small><strong>{displayTeams.find((team) => team.id === activeTeam?.id)?.name || activeTeam?.name || 'Đội hiện tại'}</strong><span>Chọn đáp án trên sân!</span></div></div>
               <article className="qp-question-panel">
                 <div className="qp-question-label"><Sparkles size={15} /> CÂU HỎI THỬ THÁCH <span>#{activeTurn}</span></div>
                 <h2>{room.question?.content || 'Chuẩn bị cho vòng tiếp theo…'}</h2>
-                <QuizQuestion question={room.question} minigame={activeMinigame} disabled={answerLocked} onAnswer={submit} memoryVisible={memoryVisible} teamColor={teamColor} />
-                {room.question?.explanation && <p className="qp-question-note">Đáp án sẽ được giải thích sau khi hoàn tất vòng chơi.</p>}
+                <QuizQuestion question={room.question} minigame={activeMinigame} disabled={answerLocked} onAnswer={submit} memoryVisible={memoryVisible} teamColor={teamColor} answerResult={result} />
               </article>
               {result && <div className={result.correct ? 'qp-result-flash correct' : 'qp-result-flash wrong'} role="status"><span>{result.correct ? <Check size={30} strokeWidth={4} /> : <X size={30} strokeWidth={4} />}</span><strong>{result.correct ? 'CHÍNH XÁC!' : 'CHƯA ĐÚNG!'}</strong><small>{result.correct ? '+1 điểm cho đội' : 'Lượt tiếp theo đang đến…'}</small></div>}
               {result && <div className="qp-dark-cut" aria-hidden="true" />}
