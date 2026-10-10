@@ -16,6 +16,7 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'))
 const AdminAccountsPage = lazy(() => import('./pages/AdminAccountsPage.jsx'))
 const CreateRoomPage = lazy(() => import('./pages/CreateRoomPage.jsx'))
 const RoomPage = lazy(() => import('./pages/RoomPage.jsx'))
+const QuizPartyRoomPage = lazy(() => import('./pages/QuizPartyRoomPage.jsx'))
 const GameModePickerPage = lazy(() => import('./pages/GameModePickerPage.jsx'))
 const PetPage = lazy(() => import('./pages/PetPage.jsx'))
 
@@ -57,6 +58,7 @@ function AppRoutes() {
       <Route path={ROUTES.createQuiz} element={<ProtectedRoute><CreateQuizPage /></ProtectedRoute>} />
       <Route path={`${ROUTES.createQuiz}/:quizId`} element={<ProtectedRoute><CreateQuizPage /></ProtectedRoute>} />
       <Route path={`${ROUTES.room}/:code`} element={<ProtectedRoute><RoomPage /></ProtectedRoute>} />
+      <Route path={`${ROUTES.quizParty}/:code`} element={<ProtectedRoute><QuizPartyRoomPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
       </Routes>
     </Suspense>
