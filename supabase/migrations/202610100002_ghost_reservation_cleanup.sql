@@ -6,6 +6,7 @@ returns integer
 language plpgsql
 security definer
 set search_path = public
+set row_security = off
 as $$
 declare
   v_released integer;
@@ -34,6 +35,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = public
+set row_security = off
 as $$
 declare
   v_day date := (now() at time zone 'Asia/Ho_Chi_Minh')::date;
@@ -56,11 +58,27 @@ begin
 end;
 $$;
 
+create or replace function public.ghost_finalize_account(p_reservation_id uuid, p_user_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  update public.ghost_account_reservations
+    set status = 'created', user_id = p_user_id, finalized_at = now(), expires_at = now()
+    where id = p_reservation_id and status = 'reserved';
+  return found;
+end;
+$$;
+
 create or replace function public.ghost_release_reservation(p_reservation_id uuid)
 returns boolean
 language plpgsql
 security definer
 set search_path = public
+set row_security = off
 as $$
 begin
   update public.ghost_account_reservations
@@ -73,7 +91,9 @@ $$;
 
 revoke all on function public.ghost_cleanup_orphaned_reservations() from public, anon, authenticated;
 revoke all on function public.ghost_reserve_account() from public, anon, authenticated;
+revoke all on function public.ghost_finalize_account(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.ghost_release_reservation(uuid) from public, anon, authenticated;
 grant execute on function public.ghost_cleanup_orphaned_reservations() to service_role;
 grant execute on function public.ghost_reserve_account() to service_role;
+grant execute on function public.ghost_finalize_account(uuid, uuid) to service_role;
 grant execute on function public.ghost_release_reservation(uuid) to service_role;
