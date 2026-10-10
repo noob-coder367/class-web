@@ -25,11 +25,25 @@ export function ghostEmailFor(index) {
 }
 
 export function safeSupabaseErrorDetails(error) {
+  const message = String(error?.message || error || '').toLowerCase()
+  const category = !error
+    ? 'none'
+    : /fetch failed|network|timeout|econn|socket|dns|und_err/.test(message)
+      ? 'network'
+      : /invalid api key|invalid jwt|unauthorized/.test(message)
+        ? 'auth'
+        : /schema cache|pgrst205|does not exist/.test(message)
+          ? 'schema'
+          : /permission denied|42501/.test(message)
+            ? 'permission'
+            : 'other'
   return {
     code: error?.code || 'unknown',
     status: error?.status ?? error?.statusCode ?? null,
     name: error?.name || null,
     causeCode: error?.cause?.code || null,
+    errorType: error === null ? 'null' : typeof error,
+    category,
   }
 }
 
