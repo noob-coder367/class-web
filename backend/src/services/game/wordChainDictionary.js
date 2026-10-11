@@ -42,9 +42,10 @@ export function topicPhrases(topic) {
  * adjacent pairs from the source text; expanded mode permits pairs formed from
  * the source text's vocabulary only. This remains a transparent syllable heuristic. */
 export function extractTextPhrases(text, validationMode = 'strict') {
+  const mode = validationMode === 'free' ? 'strict' : validationMode
   const tokens = normalizePhrase(text).split(' ').filter(Boolean)
   const phrases = new Set()
-  if (validationMode === 'strict') {
+  if (mode === 'strict') {
     for (let start = 0; start + 1 < tokens.length; start += 1) phrases.add(tokens.slice(start, start + 2).join(' '))
   } else {
     const vocabulary = [...new Set(tokens)]
