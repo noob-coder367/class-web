@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Clock3, Cog, Flame, Gauge, HelpCircle, Ro
 import { ROUTES } from '../lib/routes.js'
 import { listRoomQuizzes } from '../services/gameRoomService.js'
 import { fetchQuiz } from '../services/quizService.js'
+import { hasLegalMove, isComplete, makeBoard, PALETTE, shuffle } from '../lib/boltSort.js'
 import '../bolt-sort-game.css'
 
 const LEVELS = [
@@ -12,15 +13,6 @@ const LEVELS = [
   { id: 3, name: 'Chuyên gia', color: '#ff796e', capacity: 6, colors: 5, rods: 7, moves: 36, rounds: 10, icon: Gauge, tip: 'Các chồng dài, hãy tận dụng đinh trống.' },
   { id: 4, name: 'Siêu cấp', color: '#8bbdff', capacity: 8, colors: 6, rods: 8, moves: 48, rounds: 12, icon: Flame, tip: 'Tối đa 8 bu lông mỗi đinh. Mỗi nước đi đều quan trọng.' },
 ]
-const PALETTE = ['#39df53', '#ffc13c', '#ff5d68', '#32baf5', '#b86bff', '#ff8c52', '#f58dc9', '#a6d936']
-const shuffle = (items) => [...items].sort(() => Math.random() - 0.5)
-function makeBoard(level) {
-  const colors = PALETTE.slice(0, level.colors)
-  const pieces = shuffle(colors.flatMap((color) => Array(level.capacity).fill(color)))
-  const stacks = Array.from({ length: level.rods }, (_, i) => i < colors.length ? pieces.slice(i * level.capacity, (i + 1) * level.capacity).map((color) => ({ color, revealed: false, id: Math.random().toString(36).slice(2) })) : [])
-  return stacks
-}
-function isComplete(stack, capacity) { return stack.length === capacity && stack.every((bolt) => bolt.color === stack[0]?.color) }
 function Bolt({ bolt, selected }) {
   return <div data-bolt-id={bolt.id} className={`bolt ${bolt.revealed ? 'bolt-revealed' : 'bolt-hidden'} ${selected ? 'bolt-selected' : ''}`} style={{ '--bolt-color': bolt.revealed ? bolt.color : '#d9e1d7' }}>
     <span className="bolt-top">{bolt.revealed ? <i /> : '?'}</span>
@@ -33,13 +25,14 @@ function TeamBoard({ team, active, level, onRod, selected, shakingRod, moves, co
     {active && !answered && <div className="bolt-question-panel"><div className="question-kicker"><HelpCircle size={15}/> LƯỢT CỦA ĐỘI {team.id} · CÂU {questionIndex + 1}</div><h3>{question.content}</h3><div className="bolt-answer-grid">{question.type === 'essay' ? <form className="bolt-essay-answer" onSubmit={(event) => { event.preventDefault(); const input = event.currentTarget.elements.namedItem('essay-answer'); if (input?.value.trim()) answerQuestion(input.value.trim()) }}><input name="essay-answer" placeholder="Nhập câu trả lời..." autoComplete="off"/><button type="submit">Trả lời</button></form> : question.options.map((choice) => <button type="button" key={choice} onClick={() => answerQuestion(choice)}>{choice}</button>)}</div></div>}
     {active && answered && <div className={`bolt-turn-banner ${questionResult?.correct ? 'is-correct' : 'is-wrong'}`}><span>{questionResult?.correct ? '✓ Chính xác!' : '↻ Chưa đúng!'}</span><strong>{questionResult?.message}</strong><small><Clock3 size={13}/> {timer}s để di chuyển bu lông</small></div>}
     {!active && <div className="bolt-wait-banner">Đang chờ lượt đối thủ <span>•••</span></div>}
-    <div className="bolt-board" style={{ '--capacity': level.capacity }}>
+    <div className="bolt-board" data-team-id={team.id} style={{ '--capacity': level.capacity }}>
       {team.stacks.map((stack, index) => <button type="button" data-rod-index={index} className={`bolt-rod ${selected === index ? 'rod-selected' : ''} ${shakingRod === index ? 'rod-shaking' : ''} ${isComplete(stack, level.capacity) ? 'rod-complete' : ''} ${stack.length === 0 ? 'rod-empty' : ''}`} key={index} onClick={() => onRod(index)} aria-label={`Đinh ${index + 1}, ${stack.length} bu lông`}>
         <span className="rod-number">{String(index + 1).padStart(2, '0')}</span><span className="rod-shaft" />
         <span className="rod-bolts">{stack.map((bolt) => <Bolt key={bolt.id} bolt={bolt} selected={selected === index && stack[stack.length - 1]?.id === bolt.id}/>)}</span><span className="rod-base" />
         {isComplete(stack, level.capacity) && <span className="rod-check"><Check size={13}/></span>}
       </button>)}
     </div>
+    {active && answered && timer > 0 && !team.rescueUsed && !hasLegalMove(team.stacks, level.capacity) && <button type="button" className="bolt-rescue-button" onClick={() => onRod(-1)} aria-label="Mở thêm một đinh cứu hộ"><Wrench size={14}/> Mở đinh cứu hộ</button>}
     <footer className="bolt-team-foot"><span className="moves-left">LƯỢT DI CHUYỂN <b>{moves}</b></span><button onClick={onUndo} disabled={!canUndo || !active || !answered}><Undo2 size={15}/> Hoàn tác <small>−1 điểm</small></button><button onClick={onPass} disabled={!active || !answered}>Kết thúc lượt <ArrowRight size={15}/></button></footer>
   </section>
 }
@@ -80,7 +73,7 @@ export default function BoltSortGamePage() {
       if (!audioRef.current) audioRef.current = new AudioContextClass()
       const ctx = audioRef.current
       if (ctx.state === 'suspended') ctx.resume()
-      const notes = kind === 'correct' ? [660, 880] : kind === 'wrong' ? [190, 145] : kind === 'complete' ? [523, 659, 784, 1046] : kind === 'undo' ? [430, 330] : kind === 'select' ? [480] : [360, 520]
+      const notes = kind === 'reveal' ? [740, 990, 1240] : kind === 'correct' ? [660, 880] : kind === 'wrong' ? [190, 145] : kind === 'complete' ? [523, 659, 784, 1046] : kind === 'undo' ? [430, 330] : kind === 'select' ? [480] : [360, 520]
       notes.forEach((frequency, index) => {
         const oscillator = ctx.createOscillator()
         const gain = ctx.createGain()
@@ -124,13 +117,13 @@ export default function BoltSortGamePage() {
     } catch (error) { setQuizError(error.message || 'Không tải được câu hỏi từ kho.'); setQuizLoading(false); return }
     setQuestions(shuffle(quizQuestions))
     setLevel(chosenLevel)
-    setTeams([1, 2].map((id) => ({ id, name: teamNames[id - 1].trim() || `Đội ${id}`, color: id === 1 ? '#42e878' : '#ff756f', stacks: makeBoard(chosenLevel) })))
+    setTeams([1, 2].map((id) => ({ id, name: teamNames[id - 1].trim() || `Đội ${id}`, color: id === 1 ? '#42e878' : '#ff756f', stacks: makeBoard(chosenLevel), rescueUsed: false })))
     setTurn(0); setMoves(0); setSelected(null); setTimer(60); setAnswered(false); setQuestionResult(null); setQuestionIndex(0); setHistory([]); setScores([0, 0]); setFinished(false); setToast(''); setScreen('game'); setQuizLoading(false)
   }
   const nextTurn = () => {
     if (finished) return
     if (questionIndex + 1 >= level.rounds) { setFinished(true); setScreen('result'); return }
-    setQuestionIndex((index) => index + 1); setTurn((value) => 1 - value); setMoves(0); setSelected(null); setTimer(60); setAnswered(false); setQuestionResult(null); setToast('')
+    setHistory([]); setQuestionIndex((index) => index + 1); setTurn((value) => 1 - value); setMoves(0); setSelected(null); setTimer(60); setAnswered(false); setQuestionResult(null); setToast('')
   }
   const answerQuestion = (choice) => {
     if (answered) return
@@ -151,9 +144,27 @@ export default function BoltSortGamePage() {
     playSfx('wrong')
   }
   const moveRod = (index) => {
+    if (index === -1) {
+      if (!activeTeam || !answered || timer <= 0 || finished || activeTeam.rescueUsed || hasLegalMove(activeTeam.stacks, level.capacity)) return
+      setTeams((old) => old.map((team, teamIndex) => teamIndex === turn ? { ...team, stacks: [...team.stacks, []], rescueUsed: true } : team))
+      setToast('Đinh cứu hộ đã mở — bạn có thêm một ô trống!')
+      playSfx('reveal')
+      return
+    }
     if (!activeTeam || !answered || moves <= 0 || timer <= 0 || finished) return
     if (selected === null) {
       if (!activeTeam.stacks[index].length || isComplete(activeTeam.stacks[index], level.capacity)) { setToast('Hãy chọn một đinh có bu lông chưa hoàn thành.'); playSfx('wrong'); return }
+      const topBolt = activeTeam.stacks[index][activeTeam.stacks[index].length - 1]
+      if (!topBolt.revealed) {
+        const nextStacks = activeTeam.stacks.map((stack, rodIndex) => rodIndex === index
+          ? stack.map((bolt, boltIndex) => boltIndex === stack.length - 1 ? { ...bolt, revealed: true } : bolt)
+          : stack)
+        setTeams((old) => old.map((team, teamIndex) => teamIndex === turn ? { ...team, stacks: nextStacks } : team))
+        setSelected(index)
+        setToast('Bu-lông bí ẩn đã lật mặt — bạn có thể di chuyển ngay!')
+        playSfx('reveal')
+        return
+      }
       setSelected(index); playSfx('select'); return
     }
     if (selected === index) { setSelected(null); return }
@@ -161,8 +172,9 @@ export default function BoltSortGamePage() {
     if (!bolt) { setSelected(null); return }
     if (to.length >= level.capacity) { rejectRodMove(index, 'Đinh đích đã đầy! Bu lông bật trở về đinh cũ.'); return }
     if (to.length && to[to.length - 1].color !== bolt.color) { rejectRodMove(index, 'Sai màu! Đinh rung lên và bu lông trở về vị trí cũ.'); return }
-    const sourceElement = document.querySelector(`[data-bolt-id="${bolt.id}"]`)
-    const targetRod = document.querySelector(`[data-rod-index="${index}"]`)
+    const teamBoard = document.querySelector(`.bolt-board[data-team-id="${activeTeam.id}"]`)
+    const sourceElement = teamBoard?.querySelector(`[data-bolt-id="${bolt.id}"]`)
+    const targetRod = teamBoard?.querySelector(`[data-rod-index="${index}"]`)
     if (sourceElement && targetRod) {
       const fromRect = sourceElement.getBoundingClientRect()
       const targetRect = targetRod.getBoundingClientRect()
@@ -175,15 +187,21 @@ export default function BoltSortGamePage() {
     }
     playSfx('move')
     const nextStacks = activeTeam.stacks.map((stack, i) => i === selected ? stack.slice(0, -1) : i === index ? [...stack, { ...bolt, revealed: true }] : stack)
+    const rodJustCompleted = isComplete(nextStacks[index], level.capacity)
+    if (rodJustCompleted) nextStacks[index] = nextStacks[index].map((piece) => ({ ...piece, revealed: true }))
+    const boardSolved = nextStacks.every((stack) => stack.length === 0 || isComplete(stack, level.capacity))
+    const noLegalMoves = !boardSolved && !hasLegalMove(nextStacks, level.capacity)
     setHistory((old) => [...old, { turn, stacks: activeTeam.stacks, moves }])
     setTeams((old) => old.map((team, i) => i === turn ? { ...team, stacks: nextStacks } : team))
-    setMoves((value) => value - 1); setSelected(null); setShakingRod(null); const rodJustCompleted = isComplete(nextStacks[index], level.capacity); setToast(rodJustCompleted ? 'Tuyệt vời! Một đinh đã đủ màu và đủ số lượng!' : ''); if (rodJustCompleted) playSfx('complete')
-    if (nextStacks.every((stack) => stack.length === 0 || isComplete(stack, level.capacity))) { setFinished(true); setScreen('result') }
+    setMoves((value) => value - 1); setSelected(null); setShakingRod(null); setToast(rodJustCompleted ? 'Tuyệt vời! Một đinh đã đủ màu và đủ số lượng!' : noLegalMoves ? 'Hết nước đi hợp lệ — mở đinh cứu hộ hoặc hoàn tác để thử cách khác.' : ''); if (rodJustCompleted) playSfx('complete')
+    if (boardSolved) { setFinished(true); setScreen('result') }
   }
   const undo = () => {
     const last = history[history.length - 1]
     if (!last || last.turn !== turn || moves >= level.moves) return
-    setTeams((old) => old.map((team, i) => i === turn ? { ...team, stacks: last.stacks } : team))
+    const extraRescueRods = activeTeam.rescueUsed ? Math.max(0, activeTeam.stacks.length - last.stacks.length) : 0
+    const restoredStacks = [...last.stacks, ...Array.from({ length: extraRescueRods }, () => [])]
+    setTeams((old) => old.map((team, i) => i === turn ? { ...team, stacks: restoredStacks } : team))
     setHistory((old) => old.slice(0, -1)); playSfx('undo'); setMoves((value) => value + 1); setScores((old) => old.map((score, i) => i === turn ? Math.max(0, score - 1) : score)); setSelected(null); setToast('Đã hoàn tác: +1 lượt di chuyển, −1 điểm.')
   }
   const resetGame = () => { setScreen('setup'); setTeams([]); setFinished(false) }
@@ -196,6 +214,6 @@ export default function BoltSortGamePage() {
     {screen === 'levels' && <section className="bolt-level-screen"><div className="bolt-screen-title"><span className="bolt-eyebrow">CHỌN THỬ THÁCH</span><h1>Chọn cấp độ của bạn</h1><p>Cấp càng cao, đinh càng dài và cần chiến thuật tốt hơn.</p></div><div className="bolt-level-grid">{LEVELS.map((item) => <button key={item.id} className={`bolt-level-card ${level.id === item.id ? 'level-picked' : ''}`} style={{ '--level-color': item.color }} onClick={() => setLevel(item)}><span className="level-face"><item.icon size={25} strokeWidth={2.5} aria-hidden="true" /></span><span className="level-number">CẤP ĐỘ 0{item.id}</span><h2>{item.name}</h2><div className="level-stack-preview">{Array.from({ length: Math.min(item.capacity, 5) }, (_, i) => <i key={i} style={{ background: PALETTE[(i + item.id) % PALETTE.length] }}/>)}</div><p>{item.tip}</p><div className="level-meta"><span>{item.capacity} bu lông/đinh</span><span>{item.moves} lượt tối đa</span></div><span className="level-radio">{level.id === item.id && <Check size={14}/>}</span></button>)}</div><div className="bolt-level-actions"><button className="bolt-secondary-button" onClick={() => setScreen('setup')}><ArrowLeft size={16}/> Quay lại</button><button className="bolt-primary-button" onClick={() => void beginGame(level)} disabled={quizLoading || !selectedQuizId}>Bắt đầu trận đấu <Sparkles size={17}/></button></div></section>}
     {screen === 'game' && teams.length === 2 && <><div className="bolt-matchbar"><div><span className="live-dot"/> TRẬN ĐẤU ĐANG DIỄN RA</div><div className="match-round">VÒNG {Math.min(questionIndex + 1, level.rounds)} / {level.rounds}</div><div className="match-rule">Đinh hoàn thành: đủ {level.capacity} bu lông cùng màu</div></div><div className="bolt-split-board">{teams.map((team, index) => <TeamBoard key={team.id} team={team} active={turn === index} level={level} onRod={moveRod} selected={turn === index ? selected : null} shakingRod={turn === index ? shakingRod : null} moves={turn === index ? moves : '—'} completed={completedCounts[index]} onUndo={undo} canUndo={history.some((item) => item.turn === index)} onPass={nextTurn} timer={timer} score={scores[index]} question={currentQuestion} answered={answered} answerQuestion={answerQuestion} questionResult={questionResult} questionIndex={questionIndex}/>)}</div><div className="bolt-game-toast" aria-live="polite">{toast || (answered ? 'Chọn đinh có bu lông trên cùng → chọn đinh đích.' : 'Trả lời câu hỏi để mở lượt di chuyển.')}</div></>}
     {screen === 'result' && <section className="bolt-result-screen"><div className="result-confetti">✦　✧　✦　✧　✦</div><div className="result-trophy"><Trophy size={43}/></div><span className="bolt-eyebrow">KẾT THÚC TRẬN ĐẤU</span><h1>{resultWinner ? 'Chiến thắng!' : 'Trận đấu hòa!'}</h1><p>{resultWinner ? `${resultWinner} đã chinh phục thử thách!` : 'Hai đội có số đinh hoàn thành bằng nhau. Đỉnh quá!'}</p><div className="bolt-result-scores">{teams.map((team, index) => <div key={team.id} className={resultWinner === team.name ? 'result-winner' : ''}><span className="result-team-dot" style={{ background: team.color }}/><small>{team.name}</small><strong>{completedCounts[index]}</strong><span>đinh hoàn thành</span><em>{scores[index]} điểm</em></div>)}</div><div className="bolt-result-actions"><button className="bolt-secondary-button" onClick={resetGame}><RotateCcw size={16}/> Chơi lại</button><button className="bolt-primary-button" onClick={() => navigate(ROUTES.play)}>Về chọn trò chơi <ArrowRight size={17}/></button></div></section>}
-    {screen === 'game' && <button className="bolt-help-fab" title="Luật chơi" onClick={() => setToast('Chỉ chuyển bu lông trên cùng. Đinh đích phải rỗng hoặc có bu lông cùng màu. Hoàn tác trả 1 lượt và trừ 1 điểm.')}><HelpCircle size={18}/></button>}
+    {screen === 'game' && <button className="bolt-help-fab" title="Luật chơi" onClick={() => setToast('Chọn bu-lông dấu hỏi để lật miễn phí. Chỉ chuyển bu-lông trên cùng; đinh đích phải rỗng hoặc cùng màu. Nếu bí, mở đinh cứu hộ hoặc hoàn tác.')}><HelpCircle size={18}/></button>}
   </main>
 }
