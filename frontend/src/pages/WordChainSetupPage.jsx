@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, BookOpen, CircleHelp, Link2, Monitor, Users } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
-import { allocateWordChainTurns, buildWordChainSource, MAX_WORD_CHAIN_TEXT, WORD_CHAIN_TOPICS } from '../lib/wordChain.js'
+import { allocateWordChainTurns, buildWordChainSource, chooseLocalStartingPhrase, MAX_WORD_CHAIN_TEXT, WORD_CHAIN_TOPICS } from '../lib/wordChain.js'
 import { createWordChainRoom, joinWordChainRoom } from '../services/wordChainService.js'
 import '../word-chain.css'
 
@@ -37,7 +37,7 @@ export default function WordChainSetupPage() {
       const room = {
         id: crypto.randomUUID(), code: null, title: form.title.trim(), source_mode: form.source_mode,
         topic: form.source_mode === 'text' ? null : form.topic, validation_mode: form.validation_mode,
-        status: 'playing', total_turns: Number(form.total_turns), turns_used: 0, current_turn: 0,
+        status: 'playing', total_turns: Number(form.total_turns), turns_used: 0, current_turn: 0, starting_phrase: chooseLocalStartingPhrase(source.phrases),
         teams: form.teams.map((name, index) => ({ id: `local-team-${index}`, name: name.trim(), turn_order: index, turn_quota: turnQuotas[index], turns_used: 0, players: 1 })),
         history: [], allowed_phrases: source.phrases, is_host: true, local: true,
       }
