@@ -213,7 +213,7 @@ begin
   if not found or v_current_team.turns_used >= v_current_team.turn_quota then raise exception 'Current team has no turns' using errcode = '40001'; end if;
   if p_action = 'answer' then
     if p_phrase is null or char_length(p_phrase) not between 1 and 80 or not (p_phrase = any(v_room.allowed_phrases)) then
-      raise exception 'Phrase is not in this game's source' using errcode = '22023';
+      raise exception 'Phrase is not in this game''s source' using errcode = '22023';
     end if;
     select phrase into v_last_phrase from public.word_chain_turns where room_id = p_room_id and action = 'answer' order by turn_number desc limit 1;
     if v_last_phrase is not null then
