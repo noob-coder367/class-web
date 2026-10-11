@@ -8,7 +8,7 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const makeCode = () => Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('')
 const fail = (message, status = 400, code = 'validation_error') => { throw new HttpError(message, status, code) }
 const payloadHash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
-const ROOM_COLUMNS = 'id, code, host_id, title, status, source_mode, topic, validation_mode, total_turns, current_team_id, allowed_phrases, created_at'
+const ROOM_COLUMNS = 'id, code, host_id, title, status, source_mode, topic, validation_mode, total_turns, current_team_id, starting_phrase, allowed_phrases, created_at'
 
 function mapDbError(error) {
   if (error?.code === '22023' && error?.message?.toLowerCase().includes('idempotency key payload changed')) {
