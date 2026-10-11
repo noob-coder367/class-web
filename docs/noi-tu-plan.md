@@ -10,7 +10,7 @@
 ## Kiến trúc
 
 - Nối Từ có service/engine, route API, tables và RPC riêng; mọi biến đổi trong trận online khóa bản ghi trận, xác thực đội/lượt, kiểm tra chuỗi từ/trùng/lượt và ghi history trong cùng transaction. Phòng online theo cơ chế auth hiện có, polling trạng thái để tái sử dụng cách đồng bộ của repo.
-- Chế độ một máy chạy bằng reducer/state client riêng, lưu bản nháp trạng thái vào localStorage; không tạo phòng online, không đăng nhập từng đội và không dùng cấu hình Quiz Party.
+- Chế độ một máy chạy bằng state client riêng, lưu trạng thái trận trong `sessionStorage` của cùng tab để khôi phục khi refresh; không tạo phòng online, không đăng nhập từng đội và không dùng cấu hình Quiz Party.
 - Adapter từ vựng dùng danh sách seed do dự án tự biên soạn có danh mục nguồn/phạm vi rõ; adapter thay nguồn được. Văn bản tự dán trích xuất n-gram heuristic cho strict mode; expanded mode kết hợp nguồn wordlist có cấp phép. Chuẩn hóa NFKC, dấu câu/khoảng trắng và token cuối/đầu ở backend.
 - UI thêm entry vào picker, trang thiết lập riêng và màn hình trận responsively; giữ những route và component game hiện tại. Không gọi Gemini theo mỗi lượt; không cần biến môi trường AI mới.
 - Migration là bổ sung và RLS deny trực tiếp, RPC chỉ service_role; không chạy migration lên database từ task này.
