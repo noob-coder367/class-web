@@ -21,8 +21,8 @@ export const joinRoom = async (code, payload = {}) => {
   const { room } = await apiClient.post(`/game-rooms/${code}/join`, payload, { auth: true, retry: false })
   return room
 }
-export const startRoom = async (code) => {
-  const { room } = await apiClient.post(`/game-rooms/${code}/start`, {}, { auth: true, retry: false })
+export const startRoom = async (code, payload = {}) => {
+  const { room } = await apiClient.post(`/game-rooms/${code}/start`, payload, { auth: true, retry: false })
   return room
 }
 export const submitAnswer = async (code, payload, idempotencyKey = null) => {

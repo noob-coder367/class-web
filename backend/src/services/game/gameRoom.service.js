@@ -156,13 +156,19 @@ export async function joinRoom(code, userId, body = {}) {
   return getRoomForUser(room.code, userId)
 }
 
-export async function startRoom(code, userId) {
+export async function startRoom(code, userId, body = {}) {
   const room = await findRoom(code)
   if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
   if (room.host_id !== userId) fail('Chỉ host mới có thể bắt đầu game.', 403, 'host_required')
   if (room.status !== 'lobby') return getRoomForUser(code, userId)
   const game = await db(supabaseAdmin.from('game_games').select('id').eq('room_id', room.id).single())
   const teams = await db(supabaseAdmin.from('game_teams').select('id, created_at').eq('game_id', game.id).order('created_at', { ascending: true }))
+  if (room.settings.single_device_mode === true && body.team_names !== undefined) {
+    if (!Array.isArray(body.team_names) || body.team_names.length !== teams.length) fail('Danh sách tên đội không hợp lệ.', 400, 'invalid_team_names')
+    const names = body.team_names.map((name) => String(name || '').trim())
+    if (names.some((name) => name.length < 1 || name.length > 32) || new Set(names.map((name) => name.toLocaleLowerCase('vi'))).size !== names.length) fail('Tên đội phải dài 1–32 ký tự và không được trùng nhau.', 400, 'invalid_team_names')
+    for (const [index, team] of teams.entries()) await db(supabaseAdmin.from('game_teams').update({ name: names[index] }).eq('id', team.id).eq('game_id', game.id))
+  }
   const players = await db(supabaseAdmin.from('game_room_players').select('team_id').eq('room_id', room.id))
   const activeTeamIds = new Set(players.map((p) => p.team_id).filter(Boolean))
   if (!room.settings.single_device_mode && activeTeamIds.size < 2) fail('Cần ít nhất 2 đội có người chơi để bắt đầu.')
