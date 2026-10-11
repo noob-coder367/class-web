@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Check, Expand, Link2, RotateCcw, SkipForward, Trophy } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
-import { advanceLocalWordChain, chooseLocalStartingPhrase, loadWordChainDictionary, normalizeWordChainPhrase } from '../lib/wordChain.js'
+import { advanceLocalWordChain, chooseLocalStartingPhrase, loadWordChainDictionary, normalizeWordChainPhrase, restoreLocalRoom } from '../lib/wordChain.js'
 import { getWordChainRoom, skipWordChainTurn, startWordChainRoom, submitWordChainAnswer } from '../services/wordChainService.js'
 import '../word-chain.css'
 
@@ -30,7 +30,8 @@ export default function WordChainRoomPage() {
     if (local) {
       const saved = sessionStorage.getItem(LOCAL_KEY)
       if (!saved) { setError('Không tìm thấy trận đang lưu trên thiết bị này.'); return }
-      try { setRoom(JSON.parse(saved)) } catch { setError('Không thể khôi phục trận đã lưu.'); }
+      // Chỉ khôi phục khi chưa có trận trong bộ nhớ. Nếu ghi đè, lượt vừa nối sẽ bị hoàn tác về trạng thái đã lưu trước đó.
+      try { const restored = JSON.parse(saved); setRoom((current) => restoreLocalRoom(current, restored)) } catch { setError('Không thể khôi phục trận đã lưu.'); }
       return
     }
     if ((pendingAction.current || busy) && !force) return

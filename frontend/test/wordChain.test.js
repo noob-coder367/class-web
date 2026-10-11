@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { advanceLocalWordChain, allocateWordChainTurns, normalizeWordChainPhrase, setWordChainDictionary, validateLocalWordChainAnswer } from '../src/lib/wordChain.js'
+import { advanceLocalWordChain, allocateWordChainTurns, normalizeWordChainPhrase, restoreLocalRoom, setWordChainDictionary, validateLocalWordChainAnswer } from '../src/lib/wordChain.js'
 
 // Dùng đúng file từ điển thật của dự án (trình duyệt tải bằng ?raw, test đọc trực tiếp).
 setWordChainDictionary(new Set(readFileSync(new URL('../../shared/vi-dictionary.txt', import.meta.url), 'utf8').split('\n').filter(Boolean)))
@@ -36,4 +36,12 @@ test('local answers must be real dictionary words in every mode, including free 
 
 test('local validation fails closed when the dictionary has not loaded yet', () => {
   assert.throws(() => validateLocalWordChainAnswer(localRoom(), 'học sinh', null), /từ điển/i)
+})
+
+test('restoring a saved local room never rolls back a turn that was just accepted', () => {
+  const saved = localRoom({ starting_phrase: 'học sinh' })
+  const advanced = advanceLocalWordChain(saved, 'answer', 'sinh học')
+  assert.equal(advanced.current_turn, 1)
+  assert.equal(restoreLocalRoom(advanced, saved), advanced)
+  assert.equal(restoreLocalRoom(null, saved), saved)
 })

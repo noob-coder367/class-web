@@ -88,3 +88,6 @@ export function advanceLocalWordChain(room, action, answer = '', dictionary = ac
   }
   return { ...room, teams, turns_used: turnsUsed, history: [...room.history, turn], current_turn: nextIndex < 0 ? null : nextIndex, status: nextIndex < 0 ? 'finished' : 'playing' }
 }
+
+/** Khôi phục trận 1 máy từ sessionStorage: không bao giờ ghi đè trạng thái đang chạy bằng bản lưu cũ hơn. */
+export function restoreLocalRoom(current, saved) { return current || saved }
