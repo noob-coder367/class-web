@@ -9,11 +9,11 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mi
 function parseNamesFromLines(lines) {
   const found = []
   for (const raw of lines) {
-    const line = String(raw || '').replace(/\\s+/g, ' ').trim()
-    if (!line || /^STT\\b/i.test(line) || /^DANH SÁCH/i.test(line)) continue
-    const match = line.match(/^\\s*(\\d{1,3})\\s+(?:10[A-Z0-9]+)\\s+(.+?)\\s+(\\d{1,2}\\/\\d{1,2}\\/\\d{4})\\b/i)
+    const line = String(raw || '').replace(/\s+/g, ' ').trim()
+    if (!line || /^STT\b/i.test(line) || /^DANH SÁCH/i.test(line)) continue
+    const match = line.match(/^\s*(\d{1,3})\s+(?:10[A-Z0-9]+)\s+(.+?)\s+(\d{1,2}\/\d{1,2}\/\d{4})\b/i)
     if (!match) continue
-    const name = match[2].replace(/^\\s*\\d+\\s*[-.)]?\\s*/, '').replace(/\\s+/g, ' ').trim()
+    const name = match[2].replace(/^\s*\d+\s*[-.)]?\s*/, '').replace(/\s+/g, ' ').trim()
     if (name && !found.some((item) => item.stt === Number(match[1]))) found.push({ stt: Number(match[1]), name })
   }
   return found.sort((a, b) => a.stt - b.stt)
