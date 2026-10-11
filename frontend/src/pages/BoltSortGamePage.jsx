@@ -34,7 +34,7 @@ function TeamBoard({ team, active, level, onRod, selected, moves, completed, onU
     {active && answered && <div className={`bolt-turn-banner ${questionResult?.correct ? 'is-correct' : 'is-wrong'}`}><span>{questionResult?.correct ? '✓ Chính xác!' : '↻ Chưa đúng!'}</span><strong>{questionResult?.message}</strong><small><Clock3 size={13}/> {timer}s để di chuyển bu lông</small></div>}
     {!active && <div className="bolt-wait-banner">Đang chờ lượt đối thủ <span>•••</span></div>}
     <div className="bolt-board" style={{ '--capacity': level.capacity }}>
-      {team.stacks.map((stack, index) => <button type="button" data-rod-index={index} className={`bolt-rod ${selected === index ? 'rod-selected' : ''} ${isComplete(stack, level.capacity) ? 'rod-complete' : ''} ${stack.length === 0 ? 'rod-empty' : ''}`} key={index} onClick={() => onRod(index)} aria-label={`Đinh ${index + 1}, ${stack.length} bu lông`}>
+      {team.stacks.map((stack, index) => <button type="button" data-rod-index={index} className={`bolt-rod ${selected === index ? 'rod-selected' : ''} ${shakingRod === index ? 'rod-shaking' : ''} ${isComplete(stack, level.capacity) ? 'rod-complete' : ''} ${stack.length === 0 ? 'rod-empty' : ''}`} key={index} onClick={() => onRod(index)} aria-label={`Đinh ${index + 1}, ${stack.length} bu lông`}>
         <span className="rod-number">{String(index + 1).padStart(2, '0')}</span><span className="rod-shaft" />
         <span className="rod-bolts">{stack.map((bolt) => <Bolt key={bolt.id} bolt={bolt} selected={selected === index && stack[stack.length - 1]?.id === bolt.id}/>)}</span><span className="rod-base" />
         {isComplete(stack, level.capacity) && <span className="rod-check"><Check size={13}/></span>}
@@ -67,8 +67,10 @@ export default function BoltSortGamePage() {
   const [toast, setToast] = useState('')
   const [soundOn, setSoundOn] = useState(true)
   const [flyingBolt, setFlyingBolt] = useState(null)
+  const [shakingRod, setShakingRod] = useState(null)
   const audioRef = useRef(null)
   const flightTimerRef = useRef(null)
+  const shakeTimerRef = useRef(null)
   const tickRef = useRef(null)
   const playSfx = (kind = 'move') => {
     if (!soundOn) return
@@ -93,7 +95,7 @@ export default function BoltSortGamePage() {
       })
     } catch { /* Âm thanh không khả dụng thì game vẫn chơi bình thường. */ }
   }
-  useEffect(() => () => { window.clearTimeout(flightTimerRef.current); if (audioRef.current) audioRef.current.close().catch(() => {}) }, [])
+  useEffect(() => () => { window.clearTimeout(flightTimerRef.current); window.clearTimeout(shakeTimerRef.current); if (audioRef.current) audioRef.current.close().catch(() => {}) }, [])
   const activeTeam = teams[turn]
   useEffect(() => { let alive = true; listRoomQuizzes().then((items) => { if (!alive) return; setQuizzes(items); setSelectedQuizId(items[0]?.id || ''); setQuizLoading(false) }).catch((error) => { if (!alive) return; setQuizError(error.message || 'Không tải được kho câu hỏi. Hãy đăng nhập và thử lại.'); setQuizLoading(false) }); return () => { alive = false } }, [])
   const completedCounts = useMemo(() => teams.map((team) => team?.stacks?.filter((stack) => isComplete(stack, level.capacity)).length || 0), [teams, level])
@@ -140,6 +142,14 @@ export default function BoltSortGamePage() {
     if (correct) setScores((old) => old.map((score, index) => index === turn ? score + 2 : score))
     else setToast('Không sao! Dùng lượt ngẫu nhiên để xoay chuyển tình thế.')
   }
+  const rejectRodMove = (index, message) => {
+    setShakingRod(index)
+    window.clearTimeout(shakeTimerRef.current)
+    shakeTimerRef.current = window.setTimeout(() => setShakingRod(null), 460)
+    setSelected(null)
+    setToast(message)
+    playSfx('wrong')
+  }
   const moveRod = (index) => {
     if (!activeTeam || !answered || moves <= 0 || timer <= 0 || finished) return
     if (selected === null) {
@@ -149,8 +159,8 @@ export default function BoltSortGamePage() {
     if (selected === index) { setSelected(null); return }
     const from = activeTeam.stacks[selected], to = activeTeam.stacks[index], bolt = from[from.length - 1]
     if (!bolt) { setSelected(null); return }
-    if (to.length >= level.capacity) { setToast('Đinh này đã đầy!'); playSfx('wrong'); return }
-    if (to.length && to[to.length - 1].color !== bolt.color) { setToast('Chỉ được đặt lên đinh rỗng hoặc bu lông cùng màu.'); playSfx('wrong'); return }
+    if (to.length >= level.capacity) { rejectRodMove(index, 'Đinh đích đã đầy! Bu lông bật trở về đinh cũ.'); return }
+    if (to.length && to[to.length - 1].color !== bolt.color) { rejectRodMove(index, 'Sai màu! Đinh rung lên và bu lông trở về vị trí cũ.'); return }
     const sourceElement = document.querySelector(`[data-bolt-id="${bolt.id}"]`)
     const targetRod = document.querySelector(`[data-rod-index="${index}"]`)
     if (sourceElement && targetRod) {
@@ -167,7 +177,7 @@ export default function BoltSortGamePage() {
     const nextStacks = activeTeam.stacks.map((stack, i) => i === selected ? stack.slice(0, -1) : i === index ? [...stack, { ...bolt, revealed: true }] : stack)
     setHistory((old) => [...old, { turn, stacks: activeTeam.stacks, moves }])
     setTeams((old) => old.map((team, i) => i === turn ? { ...team, stacks: nextStacks } : team))
-    setMoves((value) => value - 1); setSelected(null); const rodJustCompleted = isComplete(nextStacks[index], level.capacity); setToast(rodJustCompleted ? 'Tuyệt vời! Một đinh đã đủ màu và đủ số lượng!' : ''); if (rodJustCompleted) playSfx('complete')
+    setMoves((value) => value - 1); setSelected(null); setShakingRod(null); const rodJustCompleted = isComplete(nextStacks[index], level.capacity); setToast(rodJustCompleted ? 'Tuyệt vời! Một đinh đã đủ màu và đủ số lượng!' : ''); if (rodJustCompleted) playSfx('complete')
     if (nextStacks.every((stack) => stack.length === 0 || isComplete(stack, level.capacity))) { setFinished(true); setScreen('result') }
   }
   const undo = () => {
