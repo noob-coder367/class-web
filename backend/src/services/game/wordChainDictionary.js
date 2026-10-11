@@ -38,15 +38,17 @@ export function topicPhrases(topic) {
   return { phrases: [...new Set(matching.map(normalizePhrase).filter(Boolean))], version: DICTIONARY_VERSION }
 }
 
-/** A transparent heuristic: produce contiguous one-to-four-syllable n-grams.
- * This is not a Vietnamese morphological parser. */
-export function extractTextPhrases(text) {
+/** Vietnamese word-chain phrases are two syllables. Strict mode permits only
+ * adjacent pairs from the source text; expanded mode permits pairs formed from
+ * the source text's vocabulary only. This remains a transparent syllable heuristic. */
+export function extractTextPhrases(text, validationMode = 'strict') {
   const tokens = normalizePhrase(text).split(' ').filter(Boolean)
   const phrases = new Set()
-  for (let start = 0; start < tokens.length; start += 1) {
-    for (let length = 1; length <= 4 && start + length <= tokens.length; length += 1) {
-      phrases.add(tokens.slice(start, start + length).join(' '))
-    }
+  if (validationMode === 'strict') {
+    for (let start = 0; start + 1 < tokens.length; start += 1) phrases.add(tokens.slice(start, start + 2).join(' '))
+  } else {
+    const vocabulary = [...new Set(tokens)]
+    for (const first of vocabulary) for (const second of vocabulary) phrases.add(first + ' ' + second)
   }
   return phrases
 }
@@ -57,13 +59,7 @@ export function buildPhraseSet({ sourceMode, topic, text, validationMode }) {
     for (const phrase of topicPhrases(topic).phrases) base.add(phrase)
   }
   if (sourceMode === 'text' || sourceMode === 'combined') {
-    for (const phrase of extractTextPhrases(text)) base.add(phrase)
-  }
-  if ((sourceMode === 'text' || sourceMode === 'combined') && validationMode === 'expanded') {
-    // Expanded mode adds the curated open seed, while strict mode stays bounded to text n-grams.
-    for (const phrases of Object.values(seed.topics)) {
-      for (const phrase of phrases) base.add(normalizePhrase(phrase))
-    }
+    for (const phrase of extractTextPhrases(text, validationMode)) base.add(phrase)
   }
   return { phrases: [...base].filter(Boolean), version: DICTIONARY_VERSION }
 }
