@@ -6,7 +6,8 @@ import { listGameModeImages } from '../services/gameModeImageService.js'
 import { joinRoom } from '../services/gameRoomService.js'
 import '../game.css'
 import '../bolt-sort-game.css'
-import { ArrowRight, ChevronRight, Lock, Play, Plus, Wrench } from 'lucide-react'
+import '../word-chain.css'
+import { ArrowRight, ChevronRight, Link2, Lock, Play, Plus, Wrench } from 'lucide-react'
 import { ROUTES } from '../lib/routes.js'
 
 function JoinRoomModal({ onClose, description }) {
@@ -144,6 +145,14 @@ export default function GameModePickerPage() {
             </div>
             <div className="mode-preview bolt-mode-preview"><span>PUZZLE!</span><i/><i/><i/><b><Wrench size={25}/></b></div>
             <div className="mode-actions"><Link className="game-button primary" to={ROUTES.boltSort}><Play className="ico" size={16}/> Chơi ngay</Link><span className="bolt-mode-caption">4 cấp độ · chơi toàn màn hình</span></div>
+          </article>
+          <article className="mode-card mode-card-active word-chain-mode-card">
+            <div className="mode-card-cover mode-card-cover-landscape">
+              <div className="word-chain-mode-art"><span>HỌC SINH</span><i>→</i><b>SINH HỌC</b><small>NỐI TỪ</small></div>
+              <div className="mode-card-cover-overlay"><div className="mode-card-topline"><span className="live-pill">MỚI · 2–8 ĐỘI</span><span className="mode-arrow"><ArrowRight size={22}/></span></div><div className="mode-card-cover-copy"><Link2 className="mode-card-cover-icon" size={31}/><h2>Nối Từ</h2><p>Nối cụm từ theo từ cuối, chơi một máy hoặc tạo phòng đấu cùng bạn bè.</p></div></div>
+            </div>
+            <div className="mode-preview word-chain-mode-preview"><span>CHAIN!</span><i/><i/><i/><b><Link2 size={25}/></b></div>
+            <div className="mode-actions"><Link className="game-button primary" to={ROUTES.wordChain}><Play className="ico" size={16}/> Thiết lập &amp; chơi</Link><span className="bolt-mode-caption">Chủ đề · văn bản · phòng online</span></div>
           </article>
           <article className="mode-card mode-card-locked">
             <div className="mode-icon"><Lock size={38} aria-hidden="true" /></div>
