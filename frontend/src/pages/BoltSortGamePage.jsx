@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Check, Clock3, HelpCircle, RotateCcw, Sparkles, Trophy, Undo2, Volume2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Clock3, HelpCircle, RotateCcw, Sparkles, Trophy, Undo2, Volume2 } from 'lucide-react'
 import { ROUTES } from '../lib/routes.js'
 import '../bolt-sort-game.css'
 
