@@ -42,7 +42,7 @@ export function chooseLocalStartingPhrase(phrases = []) {
 
 export function buildWordChainSource({ sourceMode, topic = '', text = '', validationMode = 'strict' }) {
   if (!['topic', 'text', 'combined'].includes(sourceMode)) throw new Error('Hãy chọn nguồn nội dung hợp lệ.')
-  if (!['strict', 'expanded'].includes(validationMode)) throw new Error('Cách kiểm tra nội dung không hợp lệ.')
+  if (!['strict', 'expanded', 'free'].includes(validationMode)) throw new Error('Cách kiểm tra nội dung không hợp lệ.')
   if (String(topic).length > 80) throw new Error('Chủ đề không được dài quá 80 ký tự.')
   if (String(text).length > MAX_WORD_CHAIN_TEXT) throw new Error('Văn bản không được dài quá 20.000 ký tự.')
   const phrases = new Set()
@@ -69,7 +69,7 @@ export function validateLocalWordChainAnswer(room, answer) {
   const previousFinal = normalizeWordChainPhrase(lastPhrase || room.starting_phrase).split(' ').at(-1) || ''
   if (previousFinal && words[0] !== previousFinal) throw new Error(`Cụm từ phải bắt đầu bằng “${previousFinal}”.`)
   if (normalizeWordChainPhrase(room.starting_phrase) === phrase || room.history.some((turn) => turn.action === 'answer' && turn.phrase === phrase)) throw new Error('Cụm từ này đã được dùng trong trận.')
-  if (!room.allowed_phrases.includes(phrase)) throw new Error('Cụm từ chưa nằm trong nguồn nội dung của trận.')
+  if (room.validation_mode !== 'free' && !room.allowed_phrases.includes(phrase)) throw new Error('Cụm từ chưa nằm trong nguồn nội dung của trận.')
   return phrase
 }
 
