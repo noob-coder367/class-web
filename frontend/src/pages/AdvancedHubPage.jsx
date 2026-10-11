@@ -1,42 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as pdfjsLib from 'pdfjs-dist'
+import { parseClassRosterNames } from '../lib/classRosterPdf.js'
 import { getUtilityRoster, saveUtilityRoster } from '../services/classRosterService.js'
 import './AdvancedHubPage.css'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
 
-function parseNamesFromLines(lines) {
-  const found = []
-  const seen = new Set()
-  const add = (stt, rawName) => {
-    const name = String(rawName || '').replace(/^\\s*\\d+\\s*[-.)]?\\s*/, '').replace(/\\s+/g, ' ').replace(/[|;,:\\s-]+$/, '').trim()
-    const number = Number(stt)
-    if (!Number.isInteger(number) || number < 1 || !name || /^họ tên$/i.test(name) || /^họ và tên$/i.test(name)) return
-    const key = number + ':' + name.toLocaleLowerCase('vi')
-    if (seen.has(key) || found.some((item) => item.stt === number)) return
-    seen.add(key)
-    found.push({ stt: number, name })
-  }
-  for (const raw of lines) {
-    const line = String(raw || '').replace(/[\\t|]+/g, ' ').replace(/\\s+/g, ' ').trim()
-    if (!line || /^STT\\b/i.test(line) || /^DANH SÁCH/i.test(line)) continue
-    // Standard legacy format: STT, class, full name, date of birth.
-    const dateMatch = line.match(/^\\s*(\\d{1,3})\\s+(?:10[A-Z0-9]+)\\s+(.+?)\\s+(\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4})\\b/i)
-    if (dateMatch) { add(dateMatch[1], dateMatch[2]); continue }
-    // PDF text extraction can split table columns differently or omit the date.
-    const classMatch = line.match(/^\\s*(\\d{1,3})\\s+(?:10[A-Z0-9]+)\\s+(.+)$/i)
-    if (classMatch) {
-      const name = classMatch[2].replace(/\\s+\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}.*$/, '').trim()
-      if (name) add(classMatch[1], name)
-      continue
-    }
-    // Some PDFs export the columns as "STT Name ..." without the class column.
-    const simpleMatch = line.match(/^\\s*(\\d{1,3})[.)]?\\s+([\\p{L}][\\p{L}\\s.'’-]{2,}?)(?:\\s+\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4})?\\s*$/u)
-    if (simpleMatch && !/^(tổng|số lượng|lớp|ngày sinh|họ tên)\\b/i.test(simpleMatch[2])) add(simpleMatch[1], simpleMatch[2])
-  }
-  return found.sort((a, b) => a.stt - b.stt)
-}
 async function readPdfNames(file) {
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise
   const rows = []
@@ -53,11 +23,11 @@ async function readPdfNames(file) {
     }
     ;[...byY.entries()].sort((a, b) => b[0] - a[0]).forEach(([, row]) => rows.push(row.sort((a, b) => a.x - b.x).map((item) => item.text).join(' ')))
   }
-  let names = parseNamesFromLines(rows)
+  let names = parseClassRosterNames(rows)
   // Second pass: join adjacent extracted rows when the PDF splits each table row vertically.
   if (!names.length) {
-    const compact = rows.map((row) => String(row || '').replace(/\\s+/g, ' ').trim()).filter(Boolean)
-    names = parseNamesFromLines(compact.map((row, index) => index + 1 < compact.length ? row + ' ' + compact[index + 1] : row))
+    const compact = rows.map((row) => String(row || '').replace(/\s+/g, ' ').trim()).filter(Boolean)
+    names = parseClassRosterNames(compact.map((row, index) => index + 1 < compact.length ? row + ' ' + compact[index + 1] : row))
   }
   if (!names.length) throw new Error('PDF đã mở được nhưng không tìm thấy tên học sinh. Hãy kiểm tra PDF có lớp, STT và chữ có thể bôi đen/copy được (không phải ảnh scan).')
   if (names.length > 100) names = names.slice(0, 100)
@@ -74,6 +44,7 @@ export default function AdvancedHubPage({ view = 'roster' }) {
   const [status, setStatus] = useState('loading')
   const [message, setMessage] = useState('Đang tải danh sách lớp đã lưu…')
   const [busy, setBusy] = useState(false)
+  const [dragging, setDragging] = useState(false)
   useEffect(() => {
     let live = true
     getUtilityRoster().then((data) => {
@@ -98,6 +69,30 @@ export default function AdvancedHubPage({ view = 'roster' }) {
     } catch (error) { setStatus('error'); setMessage(error.message || 'Không đọc hoặc lưu được PDF.') }
     finally { setBusy(false); if (inputRef.current) inputRef.current.value = '' }
   }
+  const handleDragOver = (event) => {
+    event.preventDefault()
+    if (busy) {
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'none'
+      return
+    }
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+    setDragging(true)
+  }
+  const handleDragLeave = (event) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) setDragging(false)
+  }
+  const handleDrop = (event) => {
+    event.preventDefault()
+    setDragging(false)
+    if (busy) return
+    const file = event.dataTransfer?.files?.[0]
+    if (!file) {
+      setStatus('error')
+      setMessage('Không nhận được file. Hãy thử lại hoặc bấm Chọn PDF.')
+      return
+    }
+    void loadPdf(file)
+  }
   return <div className="advanced-hub">
     <aside className="advanced-sidebar">
       <Link to="/" className="advanced-brand"><span className="advanced-brand-mark">10A4</span><span><strong>Khu nâng cao</strong><small>QUẢN TRỊ LỚP</small></span></Link>
@@ -108,7 +103,24 @@ export default function AdvancedHubPage({ view = 'roster' }) {
     </aside>
     {view === 'money' ? <div className="advanced-money-content"><div className="advanced-mobile-heading">KHU NÂNG CAO · TIỀN LỚP</div><MoneyPageProxy /></div> : <main className="advanced-main">
       <header className="advanced-page-header"><div><span className="advanced-eyebrow">DỮ LIỆU LỚP HỌC</span><h1>Danh sách lớp</h1><p>Tải PDF danh sách học sinh. Hệ thống đọc tên theo mẫu cũ và lưu để Tiền lớp sử dụng.</p></div><div className="advanced-count"><strong>{roster.names?.length || 0}</strong><span>học sinh</span></div></header>
-      <section className="roster-upload-card"><div className="roster-upload-icon"><Icon name="roster" /></div><div className="roster-upload-copy"><h2>Nguồn danh sách từ PDF</h2><p>{message}</p>{roster.fileName ? <div className="roster-file-meta"><span>PDF đã lưu</span><strong>{roster.fileName}</strong>{roster.updatedAt ? <small>{new Date(roster.updatedAt).toLocaleString('vi-VN')}</small> : null}</div> : null}</div><input ref={inputRef} type="file" accept="application/pdf,.pdf" hidden onChange={(event) => loadPdf(event.target.files?.[0])} /><button type="button" className="roster-upload-button" disabled={busy} onClick={() => inputRef.current?.click()}>{busy ? 'Đang xử lý…' : roster.names?.length ? 'Thay PDF' : 'Chọn PDF'}</button></section>
+      <section
+        className={`roster-upload-card${dragging ? ' roster-upload-card--dragging' : ''}${busy ? ' roster-upload-card--busy' : ''}`}
+        aria-label="Khu vực tải PDF. Kéo thả file PDF vào đây hoặc dùng nút chọn tệp."
+        onDragEnter={handleDragOver}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <div className="roster-upload-icon"><Icon name="roster" /></div>
+        <div className="roster-upload-copy">
+          <h2>Nguồn danh sách từ PDF</h2>
+          <p>{message}</p>
+          <small className="roster-upload-hint">{dragging ? 'Thả PDF để bắt đầu tải lên.' : 'Kéo thả PDF vào thẻ này hoặc bấm nút bên phải · tối đa 30 MB.'}</small>
+          {roster.fileName ? <div className="roster-file-meta"><span>PDF đã lưu</span><strong>{roster.fileName}</strong>{roster.updatedAt ? <small>{new Date(roster.updatedAt).toLocaleString('vi-VN')}</small> : null}</div> : null}
+        </div>
+        <input ref={inputRef} type="file" accept="application/pdf,.pdf" hidden onChange={(event) => loadPdf(event.target.files?.[0])} />
+        <button type="button" className="roster-upload-button" disabled={busy} onClick={() => inputRef.current?.click()}>{busy ? 'Đang xử lý…' : roster.names?.length ? 'Thay PDF' : 'Chọn PDF'}</button>
+      </section>
       <div className={'roster-feedback roster-feedback--' + status}>{status === 'ready' ? '✓ ' : status === 'error' ? '⚠ ' : ''}{message}</div>
       <section className="roster-table-card"><div className="roster-table-head"><div><h2>Học sinh đã trích xuất</h2><p>Danh sách được lưu trên Supabase, không mất khi tải lại trang.</p></div><span>{roster.names?.length || 0} dòng</span></div>{roster.names?.length ? <div className="roster-table-scroll"><table><thead><tr><th>STT</th><th>Họ và tên</th></tr></thead><tbody>{roster.names.map((student, index) => <tr key={student.stt + '-' + student.name}><td>{student.stt || index + 1}</td><td>{student.name}</td></tr>)}</tbody></table></div> : <div className="roster-empty"><Icon name="roster" /><strong>Chưa có dữ liệu</strong><span>Tải PDF danh sách lớp để hệ thống trích xuất học sinh.</span></div>}</section>
     </main>}
