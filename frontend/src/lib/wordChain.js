@@ -18,13 +18,26 @@ export function allocateWordChainTurns(teamCount, totalTurns) {
   return Array.from({ length: teamCount }, (_, index) => base + (index < totalTurns % teamCount ? 1 : 0))
 }
 
-export function extractWordChainPhrases(text) {
+export function extractWordChainPhrases(text, validationMode = 'strict') {
   const tokens = normalizeWordChainPhrase(text).split(' ').filter(Boolean)
   const result = new Set()
-  for (let start = 0; start < tokens.length; start += 1) {
-    for (let size = 1; size <= 4 && start + size <= tokens.length; size += 1) result.add(tokens.slice(start, start + size).join(' '))
+  if (validationMode === 'strict') {
+    for (let start = 0; start + 1 < tokens.length; start += 1) result.add(tokens.slice(start, start + 2).join(' '))
+  } else {
+    const vocabulary = [...new Set(tokens)]
+    for (const first of vocabulary) for (const second of vocabulary) result.add(first + ' ' + second)
   }
   return result
+}
+
+export function chooseLocalStartingPhrase(phrases = []) {
+  const normalized = [...new Set(phrases.map(normalizeWordChainPhrase).filter(Boolean))]
+  const candidates = normalized.filter((phrase) => {
+    const last = phrase.split(' ').at(-1)
+    return phrase.split(' ').length >= 2 && normalized.some((next) => next !== phrase && next.split(' ')[0] === last)
+  })
+  if (!candidates.length) throw new Error('Nguồn chưa có cụm từ khởi đầu và nước nối hợp lệ. Hãy thêm văn bản hoặc đổi nguồn.')
+  return candidates[Math.floor(Math.random() * candidates.length)]
 }
 
 export function buildWordChainSource({ sourceMode, topic = '', text = '', validationMode = 'strict' }) {
@@ -40,12 +53,11 @@ export function buildWordChainSource({ sourceMode, topic = '', text = '', valida
   }
   if (sourceMode !== 'topic') {
     if (!String(text).trim()) throw new Error('Hãy dán văn bản để tạo nguồn từ.')
-    extractWordChainPhrases(text).forEach((phrase) => phrases.add(phrase))
-    if (validationMode === 'expanded') Object.values(seed.topics).flat().forEach((phrase) => phrases.add(normalizeWordChainPhrase(phrase)))
+    extractWordChainPhrases(text, validationMode).forEach((phrase) => phrases.add(phrase))
   }
   if (phrases.size < 2) throw new Error('Nguồn nội dung quá ngắn hoặc chưa tạo đủ lựa chọn. Hãy thêm văn bản hoặc chọn chủ đề khác.')
   if (phrases.size > 10_000) throw new Error('Nguồn tạo quá nhiều cụm từ. Hãy rút ngắn văn bản dưới 20.000 ký tự.')
-  return { phrases: [...phrases], extractedCount: sourceMode === 'topic' ? phrases.size : extractWordChainPhrases(text).size }
+  return { phrases: [...phrases], extractedCount: sourceMode === 'topic' ? phrases.size : extractWordChainPhrases(text, validationMode).size }
 }
 
 export function validateLocalWordChainAnswer(room, answer) {
@@ -54,9 +66,9 @@ export function validateLocalWordChainAnswer(room, answer) {
   if (phrase.length > 80) throw new Error('Đáp án không được dài quá 80 ký tự.')
   const words = phrase.split(' ')
   const lastPhrase = [...room.history].reverse().find((turn) => turn.action === 'answer')?.phrase || ''
-  const previousFinal = normalizeWordChainPhrase(lastPhrase).split(' ').at(-1) || ''
+  const previousFinal = normalizeWordChainPhrase(lastPhrase || room.starting_phrase).split(' ').at(-1) || ''
   if (previousFinal && words[0] !== previousFinal) throw new Error(`Cụm từ phải bắt đầu bằng “${previousFinal}”.`)
-  if (room.history.some((turn) => turn.action === 'answer' && turn.phrase === phrase)) throw new Error('Cụm từ này đã được dùng trong trận.')
+  if (normalizeWordChainPhrase(room.starting_phrase) === phrase || room.history.some((turn) => turn.action === 'answer' && turn.phrase === phrase)) throw new Error('Cụm từ này đã được dùng trong trận.')
   if (!room.allowed_phrases.includes(phrase)) throw new Error('Cụm từ chưa nằm trong nguồn nội dung của trận.')
   return phrase
 }
