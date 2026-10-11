@@ -5,6 +5,7 @@ import { GAME_MODES, roomPathForApiMode } from '../lib/gameModes.js'
 import { listGameModeImages } from '../services/gameModeImageService.js'
 import { joinRoom } from '../services/gameRoomService.js'
 import '../game.css'
+import '../bolt-sort-game.css'
 import { ArrowRight, ChevronRight, Lock, Play, Plus, Wrench } from 'lucide-react'
 import { ROUTES } from '../lib/routes.js'
 
