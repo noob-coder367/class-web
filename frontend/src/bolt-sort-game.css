@@ -561,3 +561,73 @@
     min-height: 480px;
   }
 }
+
+
+/* Isometric 3D pass: give the playfield real depth instead of flat UI cards. */
+.bolt-game-fullscreen .bolt-board {
+  perspective: 1100px;
+  perspective-origin: 50% 65%;
+  transform-style: preserve-3d;
+  background:
+    radial-gradient(ellipse at 50% 78%, #9b8bff18, transparent 68%),
+    linear-gradient(145deg, #ffffff04, #07091422);
+}
+.bolt-game-fullscreen .bolt-rod {
+  transform-style: preserve-3d;
+  background: linear-gradient(110deg, #ffffff0b 0%, #ffffff02 42%, #00000012 100%);
+  box-shadow: inset 1px 0 #ffffff07, inset -1px 0 #00000012;
+}
+.bolt-game-fullscreen .rod-shaft {
+  width: 10px;
+  border: 1px solid #f1f6ff38;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 5px, #5965779c 5px 6px),
+    linear-gradient(90deg, #4d5869 0%, #9ba9ba 18%, #f4f7ff 40%, #cbd5e3 58%, #727f91 82%, #424c5c 100%);
+  box-shadow: inset 1px 0 2px #ffffffbb, inset -2px 0 3px #263043a8, 2px 3px 4px #05071375;
+}
+.bolt-game-fullscreen .rod-base {
+  position: relative;
+  transform: rotateX(52deg) translateZ(7px) scaleX(1.05);
+  transform-origin: center 35%;
+  height: 25px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffffff 0%, #dce5f2 28%, #8d9bb2 72%, #596078 100%);
+  border: 1px solid #f7f7ffb8;
+  box-shadow: 0 7px 0 #4a4564, inset 0 3px 3px #fff, inset 0 -4px 5px #555b77, 0 13px 15px #07061180;
+}
+.bolt-game-fullscreen .bolt {
+  filter: drop-shadow(0 5px 2px #06071355) drop-shadow(0 9px 7px #05061140);
+  transform-style: preserve-3d;
+}
+.bolt-game-fullscreen .bolt-nut {
+  filter: drop-shadow(0 2px 1px #ffffff10);
+}
+.bolt-game-fullscreen .nut-side {
+  stroke-width: 1.2px;
+  filter: brightness(.82);
+}
+.bolt-game-fullscreen .nut-bevel {
+  fill: none;
+  stroke: #ffffff75;
+  stroke-width: 1.3px;
+  stroke-linejoin: round;
+}
+.bolt-game-fullscreen .nut-hole-rim {
+  fill: #1b2230;
+  stroke: #ffffff72;
+  stroke-width: 1.2px;
+}
+.bolt-game-fullscreen .bolt-revealed .nut-top {
+  filter: drop-shadow(0 2px 0 color-mix(in srgb, var(--bolt-color) 48%, #101323));
+}
+.bolt-game-fullscreen .rod-complete .rod-base {
+  background: linear-gradient(180deg, #f5fff9 0%, #b5e7cc 35%, #5a9b82 78%, #354f55 100%);
+}
+@media (max-width: 600px) {
+  .bolt-game-fullscreen .bolt-board {
+    perspective: 850px;
+    perspective-origin: 50% 68%;
+  }
+  .bolt-game-fullscreen .rod-shaft { width: 9px; }
+  .bolt-game-fullscreen .rod-base { height: 23px; }
+}
