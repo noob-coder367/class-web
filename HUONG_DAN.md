@@ -1,20 +1,21 @@
-# Giao diện game kiểu Roblox + đồng bộ Quản lý trò chơi
+# Giao diện game kiểu Roblox + phòng đang mở
 
-## Cách áp dụng
-1. Giải nén zip vào thư mục gốc repo `class-web` (ghi đè các file trùng đường dẫn).
-2. Chạy migration mới trên Supabase: `supabase/migrations/202610110001_game_mode_details.sql`
-   (thêm cột `detail_description`, `gallery_paths` và tạo sẵn 4 dòng game trong bảng `game_mode_images`).
-3. Deploy lại backend + frontend.
+Catalog (trang chọn game, trang chi tiết, Admin) đọc từ `GAME_CATALOG` trong `frontend/src/lib/gameModes.js`.
+`GAME_MODES` chỉ giữ game dạng phòng, nên trang Tạo phòng và backend không bị ảnh hưởng.
 
-## Nguyên nhân 2 game không đồng bộ
-"Đại chiến Bu Lông" và "Nối Từ" được viết cứng trong `GameModePickerPage.jsx`, không nằm trong
-`GAME_MODES` nên Admin không có ô quản lý. Giờ mọi trang đọc từ `GAME_CATALOG` (`lib/gameModes.js`).
-`GAME_MODES` giữ nguyên chỉ cho game dạng phòng, nên backend và trang Tạo phòng không bị ảnh hưởng.
+Migration mô tả + thư viện ảnh đã có sẵn: `supabase/migrations/202610110003_game_mode_details.sql`.
+Không thêm file `202610110001_game_mode_details.sql` nữa — timestamp đó đã dùng cho roster PDF, và constraint sẽ bị tạo trùng.
 
-## File thay đổi
-Mới: migration, `JoinRoomModal.jsx`, `GameDetailPage.jsx`, `AdminGamesWorkspace.jsx`, `game-catalog.css`
-Sửa: `routes.js`, `gameModes.js`, `gameModeImageService.js`, `GameModePickerPage.jsx`, `CreateRoomPage.jsx`,
-`AdminAccountsPage.jsx`, `App.jsx`, `gameModes.test.js`, backend `gameModeImage.service/controller/routes`
+## Phòng đang mở
+Trang chi tiết của Đua tới kho báu, Quiz Party và Nối Từ dùng `OpenRoomsPanel`:
+- host, số người / sức chứa, số đội, mã phòng, thời điểm tạo
+- phòng đầy thì nút thành "Đã đầy"
+- host bấm "Vào lại phòng" (không join lại)
+- nút Làm mới; tự làm mới khi quay lại tab, cách nhau ít nhất 20 giây (không poll liên tục)
+- Đại chiến Bu Lông chơi trực tiếp nên không có mục này
 
-## Thêm game mới sau này
-Thêm 1 mục vào `GAME_CATALOG` (id = game_key) — danh sách người chơi và Admin tự có.
+API mới: `GET /api/game-rooms/open/:gameKey` (cần đăng nhập).
+Endpoint cũ `GET /api/game-rooms/open?game_mode=` vẫn giữ.
+
+## Thêm game mới
+Thêm 1 mục vào `GAME_CATALOG` (`id` = `game_key`). Game phòng tạo qua `roomGame()` đã bật `openRooms`.

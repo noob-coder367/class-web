@@ -5,6 +5,8 @@ const router = Router()
 router.get('/open', controller.open)
 router.use(requireAuth)
 router.post('/', controller.create)
+// Phòng đang mở (sảnh) của một game. Đặt trước '/:code'.
+router.get('/open/:gameKey', controller.listOpen)
 router.get('/:code', controller.get)
 router.post('/:code/join', controller.join)
 router.post('/:code/start', controller.start)
