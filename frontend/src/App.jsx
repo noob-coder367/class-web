@@ -66,6 +66,7 @@ function AppRoutes() {
       <Route path={ROUTES.classMoney} element={<AdminRoute><AdvancedHubPage view="money" /></AdminRoute>} />
       <Route path={ROUTES.advanced} element={<AdminRoute><AdvancedHubPage view="roster" /></AdminRoute>} />
       <Route path={ROUTES.classRoster} element={<AdminRoute><AdvancedHubPage view="roster" /></AdminRoute>} />
+      <Route path={ROUTES.classRosterLegacy} element={<AdminRoute><AdvancedHubPage view="roster" /></AdminRoute>} />
       <Route path={ROUTES.play} element={<GameModePickerPage />} />
       <Route path={ROUTES.pet} element={<PetPage />} />
       <Route path={ROUTES.boltSort} element={<BoltSortGamePage />} />
