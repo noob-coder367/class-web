@@ -13,20 +13,6 @@ const LEVELS = [
   { id: 4, name: 'Siêu cấp', color: '#8bbdff', capacity: 8, colors: 6, rods: 8, moves: 48, rounds: 12, face: 'งಠ益ಠง', tip: 'Tối đa 8 bu lông mỗi đinh. Mỗi nước đi đều quan trọng.' },
 ]
 const PALETTE = ['#39df53', '#ffc13c', '#ff5d68', '#32baf5', '#b86bff', '#ff8c52', '#f58dc9', '#a6d936']
-const DEFAULT_QUESTIONS = [
-  ['12 + 8 = ?', '20', ['18', '20', '22', '24']],
-  ['Từ nào là danh từ?', 'học sinh', ['nhanh', 'học sinh', 'đẹp', 'chạy']],
-  ['3 × 7 = ?', '21', ['18', '21', '24', '27']],
-  ['Thủ đô Việt Nam là?', 'Hà Nội', ['Huế', 'Đà Nẵng', 'Hà Nội', 'TP.HCM']],
-  ['100 − 36 = ?', '64', ['54', '64', '74', '66']],
-  ['Một tuần có bao nhiêu ngày?', '7', ['5', '6', '7', '8']],
-  ['Từ trái nghĩa với “cao” là?', 'thấp', ['dài', 'thấp', 'rộng', 'nhẹ']],
-  ['9 + 6 = ?', '15', ['14', '15', '16', '17']],
-  ['Hành tinh chúng ta đang sống?', 'Trái Đất', ['Sao Hỏa', 'Trái Đất', 'Sao Kim', 'Sao Mộc']],
-  ['5 × 5 = ?', '25', ['20', '15', '25', '30']],
-  ['Nước đóng băng ở khoảng bao nhiêu °C?', '0°C', ['10°C', '0°C', '100°C', '-10°C']],
-  ['Từ nào viết đúng?', 'sạch sẽ', ['sạch sẻ', 'sạch xẽ', 'sạch sẽ', 'sạch sễ']],
-]
 const shuffle = (items) => [...items].sort(() => Math.random() - 0.5)
 function makeBoard(level) {
   const colors = PALETTE.slice(0, level.colors)
