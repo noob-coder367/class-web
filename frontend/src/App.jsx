@@ -20,7 +20,6 @@ const QuizPartyRoomPage = lazy(() => import('./pages/QuizPartyRoomPage.jsx'))
 const GameModePickerPage = lazy(() => import('./pages/GameModePickerPage.jsx'))
 const PetPage = lazy(() => import('./pages/PetPage.jsx'))
 const BoltSortGamePage = lazy(() => import('./pages/BoltSortGamePage.jsx'))
-const ClassMoneyPage = lazy(() => import('./pages/ClassMoneyPage.jsx'))
 const AdvancedHubPage = lazy(() => import('./pages/AdvancedHubPage.jsx'))
 
 function RouteLoading() {
