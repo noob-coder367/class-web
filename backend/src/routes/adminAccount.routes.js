@@ -7,6 +7,7 @@ const router = Router()
 router.use(requireAuth, requireAdmin)
 router.get('/', controller.list)
 router.get('/:id/details', controller.details)
+router.patch('/:id', controller.update)
 router.patch('/:id/display-name', controller.renameGhost)
-router.delete('/:id', controller.removeGhost)
+router.delete('/:id', controller.remove)
 export default router

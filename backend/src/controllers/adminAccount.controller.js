@@ -7,6 +7,11 @@ export async function list(req, res, next) {
 export async function details(req, res, next) {
   try { res.json({ account: await accountService.getAccountDetails(req.params.id) }) } catch (error) { next(error) }
 }
+
+export async function update(req, res, next) {
+  try { res.json({ message: 'Đã cập nhật hồ sơ tài khoản.', account: await accountService.updateAccount(req.params.id, req.body || {}) }) } catch (error) { next(error) }
+}
+
 export async function renameGhost(req, res, next) {
   try {
     const profile = await accountService.updateGhostDisplayName(req.params.id, req.body?.displayName)
@@ -14,9 +19,9 @@ export async function renameGhost(req, res, next) {
   } catch (error) { next(error) }
 }
 
-export async function removeGhost(req, res, next) {
+export async function remove(req, res, next) {
   try {
-    await accountService.deleteGhostAccount(req.params.id, req.profile.id)
-    res.json({ message: 'Đã xóa tài khoản ma.' })
+    await accountService.deleteAccount(req.params.id, req.profile.id)
+    res.json({ message: 'Đã xóa tài khoản.' })
   } catch (error) { next(error) }
 }

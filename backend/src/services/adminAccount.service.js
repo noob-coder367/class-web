@@ -102,14 +102,48 @@ export async function updateGhostDisplayName(targetId, rawName) {
   return data
 }
 
-export async function deleteGhostAccount(targetId, requesterId) {
+const editableProfileFields = new Set(['full_name', 'gender', 'province', 'school', 'phone', 'facebook_url'])
+const genderValues = new Set(['male', 'female', 'other'])
+
+export async function updateAccount(targetId, values) {
+  const entries = Object.entries(values || {})
+  if (!entries.length) throw new AppError('Chọn ít nhất một mục hồ sơ để cập nhật.', 400)
+  if (entries.some(([key]) => !editableProfileFields.has(key))) throw new AppError('Có mục hồ sơ không được phép chỉnh sửa.', 400)
+
+  const updates = Object.fromEntries(entries.map(([key, value]) => [key, String(value ?? '').trim() || null]))
+  if ('full_name' in updates && (!updates.full_name || updates.full_name.length < 2 || updates.full_name.length > 60)) throw new AppError('Họ và tên cần từ 2 đến 60 ký tự.', 400)
+  if (updates.gender && !genderValues.has(updates.gender)) throw new AppError('Giới tính không hợp lệ.', 400)
+  if (updates.province?.length > 80) throw new AppError('Tỉnh / thành tối đa 80 ký tự.', 400)
+  if (updates.school?.length > 120) throw new AppError('Trường học tối đa 120 ký tự.', 400)
+  if (updates.phone) {
+    updates.phone = updates.phone.replace(/\s+/g, '')
+    if (!/^(0|\+84)\d{9}$/.test(updates.phone)) throw new AppError('Số điện thoại chưa hợp lệ (vd: 0912345678).', 400)
+  }
+  if (updates.facebook_url) {
+    try {
+      const url = new URL(updates.facebook_url)
+      if (!['http:', 'https:'].includes(url.protocol) || updates.facebook_url.length > 300) throw new Error('invalid URL')
+    } catch {
+      throw new AppError('Link Facebook cần bắt đầu bằng http:// hoặc https:// và tối đa 300 ký tự.', 400)
+    }
+  }
+
+  const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(targetId)
+  if (userError || !userData?.user) throw new AppError('Không tìm thấy tài khoản.', 404)
+  const { data, error } = await supabaseAdmin.from('profiles')
+    .upsert({ id: targetId, email: userData.user.email || '', ...updates }, { onConflict: 'id' })
+    .select('id, email, username, role, full_name, is_member, gender, province, school, phone, facebook_url, created_at, updated_at')
+    .single()
+  if (error) throw new AppError('Không thể cập nhật hồ sơ tài khoản.', 503)
+  return { ...data, display_name: data.full_name || userData.user.user_metadata?.display_name || userData.user.email?.split('@')[0] || '' }
+}
+
+export async function deleteAccount(targetId, requesterId) {
   if (targetId === requesterId) throw new AppError('Không thể tự xóa tài khoản đang dùng.', 400)
-  const { data: profile, error } = await supabaseAdmin.from('profiles').select('id, email').eq('id', targetId).maybeSingle()
-  if (error) throw new AppError('Không thể đọc tài khoản.', 503)
-  if (!profile) throw new AppError('Không tìm thấy tài khoản.', 404)
-  const { data: userData } = await supabaseAdmin.auth.admin.getUserById(targetId)
-  if (!isGhostUser(userData?.user, profile)) throw new AppError('Chỉ được xóa tài khoản ma.', 400)
+  const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(targetId)
+  if (userError || !userData?.user) throw new AppError('Không tìm thấy tài khoản.', 404)
   const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(targetId)
-  if (deleteError) throw new AppError('Không thể xóa tài khoản ma.', 503)
-  await supabaseAdmin.from('profiles').delete().eq('id', targetId)
+  if (deleteError) throw new AppError('Không thể xóa tài khoản.', 503)
+  const { error: profileDeleteError } = await supabaseAdmin.from('profiles').delete().eq('id', targetId)
+  if (profileDeleteError) throw new AppError('Tài khoản đã bị xóa nhưng không thể dọn hồ sơ.', 503)
 }
