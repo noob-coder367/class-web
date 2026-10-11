@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabaseClient.js'
 import { AppError } from './auth.service.js'
 import { GAME_MODE_IDS } from './game/gameModes.js'
+import { expireStaleRooms } from './game/roomLifecycle.service.js'
 const ROOM_COLUMNS = 'id, code, host_id, quiz_id, game_mode, status, settings, created_at, updated_at'
 const QUIZ_COLUMNS = 'id, title, description, owner_id, status, created_at, updated_at'
 const QUESTION_COLUMNS = 'id, quiz_id, order_index, type, content, options, correct_option, correct_boolean, reference_answer, explanation, created_at, updated_at'
@@ -13,6 +14,8 @@ async function profilesByIds(ids) {
   return new Map((rows || []).map((row) => [row.id, row]))
 }
 export async function listRooms() {
+  // Đóng phòng bỏ dở trước khi liệt kê (force: nút "Làm mới" luôn đối soát lại), để khớp với trang game.
+  await expireStaleRooms({ force: true })
   const rooms = await db(supabaseAdmin.from('game_rooms').select(ROOM_COLUMNS).order('created_at', { ascending: false }).limit(1000))
   const roomRows = rooms || []
   const quizIds = [...new Set(roomRows.map((r) => r.quiz_id).filter(Boolean))]

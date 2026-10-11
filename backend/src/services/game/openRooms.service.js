@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../../config/supabaseClient.js'
 import { HttpError } from '../../lib/httpError.js'
+import { expireStaleRooms } from './roomLifecycle.service.js'
 
 // Phòng ở sảnh (lobby) quá lâu thường là phòng bỏ quên, nên chỉ liệt kê phòng tạo trong khoảng này.
 export const OPEN_ROOM_WINDOW_MS = 6 * 60 * 60 * 1000
@@ -108,7 +109,11 @@ async function listWordChainRooms(userId) {
 
 export async function listOpenRooms(gameKey, userId) {
   if (gameKey === WORD_CHAIN_KEY) return listWordChainRooms(userId)
-  if (GAME_ROOM_MODES[gameKey]) return listGameRooms(gameKey, userId)
+  if (GAME_ROOM_MODES[gameKey]) {
+    // Đóng phòng bỏ dở trước khi liệt kê để admin và trang game luôn khớp trạng thái.
+    await expireStaleRooms()
+    return listGameRooms(gameKey, userId)
+  }
   // Game chơi trực tiếp (vd. bolt-sort) không có phòng.
   if (gameKey === 'bolt-sort') return []
   throw new HttpError('Mã trò chơi không hợp lệ.', 400, 'invalid_game_key')
