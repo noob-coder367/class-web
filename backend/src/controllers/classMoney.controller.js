@@ -10,6 +10,13 @@ function noStore(res) {
   res.set('Pragma', 'no-cache')
 }
 
+export async function utilityRoster(req, res, next) {
+  try { noStore(res); res.json({ roster: await classSpaceService.getUtilityRoster() }) } catch (err) { next(err) }
+}
+export async function saveUtilityRoster(req, res, next) {
+  try { noStore(res); res.json({ message: 'Đã lưu danh sách PDF.', roster: await classSpaceService.updateUtilityRoster(req.body || {}, req.profile) }) } catch (err) { next(err) }
+}
+
 export async function overview(req, res, next) {
   try { noStore(res); res.json(await classMoneyService.getOverview(req.query?.bookId)) } catch (err) { next(err) }
 }
