@@ -25,3 +25,13 @@
 .bolt-flight .bolt-body{min-height:0}
 @media(prefers-reduced-motion:reduce){.bolt-flight{transition-duration:1ms}.bolt-flight-travelling{transform:translate(var(--flight-x),var(--flight-y)) rotate(0deg) scale(1)}.bolt,.bolt-mode-art>span,.hero-spark,.result-confetti{animation:none!important}}
 @media(max-width:600px){.bolt-sound-toggle{padding:7px 8px}.bolt-sound-toggle span{display:none}.bolt-top-controls{gap:6px}}
+
+/* Chọn bộ câu hỏi từ kho lớp học */
+.bolt-quiz-select{width:100%;min-height:46px;margin-top:8px;padding:12px 14px;border:1px solid #ffffff24;border-radius:12px;background:#101b2b;color:#f5f7fb;font:700 14px 'Nunito',sans-serif;outline:none}
+.bolt-quiz-select:focus{border-color:#55e88a;box-shadow:0 0 0 3px #55e88a20}
+.bolt-quiz-select option{background:#101b2b;color:#f5f7fb}
+.bolt-quiz-error{margin:9px 0;color:#ff8989;font-size:12px;font-weight:800}
+.bolt-essay-answer{display:flex;gap:8px;grid-column:1/-1}
+.bolt-essay-answer input{min-width:0;flex:1;border:1px solid #ffffff22;border-radius:10px;background:#101b2b;color:#fff;padding:11px 12px;font:700 13px 'Nunito',sans-serif}
+.bolt-essay-answer button{border:0;border-radius:10px;background:#55e88a;color:#10251a;padding:10px 15px;font:900 12px 'Nunito',sans-serif;cursor:pointer}
+.bolt-essay-answer button:hover{filter:brightness(1.08)}
