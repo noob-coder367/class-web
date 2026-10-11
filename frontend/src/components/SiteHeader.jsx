@@ -106,8 +106,10 @@ export default function SiteHeader() {
         <Brand />
         <nav className="nav-actions" aria-label="Điều hướng tài khoản">
           {!authReady ? null : isLoggedIn ? (
-            {isAdmin && <Link className="button button-quiet" to={ROUTES.classMoney}>Nâng cao</Link>}
-            <AccountMenu />
+            <>
+              {isAdmin && <Link className="button button-quiet" to={ROUTES.classMoney}>Nâng cao</Link>}
+              <AccountMenu />
+            </>
           ) : (
             <>
               <Link className="button button-quiet" to={ROUTES.login}>Đăng nhập</Link>
