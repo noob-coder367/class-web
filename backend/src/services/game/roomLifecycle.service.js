@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../../config/supabaseClient.js'
 
 // Phòng bị bỏ dở (đóng tab, mất mạng, host thoát) không bao giờ được chuyển sang "finished",
-nên trang admin vẫn thấy "Đang chơi" còn trang game thì không liệt kê. Service này đóng các phòng đó
+// nên trang admin vẫn thấy "Đang chơi" còn trang game thì không liệt kê. Service này đóng các phòng đó
 // (status -> 'cancelled') để cả hai nơi dùng chung một nguồn sự thật.
 
 // Phòng ở sảnh quá lâu: khớp với OPEN_ROOM_WINDOW_MS ở openRooms.service.js.
