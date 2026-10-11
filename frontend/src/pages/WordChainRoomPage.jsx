@@ -136,8 +136,11 @@ export default function WordChainRoomPage() {
   const start = () => run(() => startWordChainRoom(code))
   const replayLocal = () => {
     if (!room?.local) return
-    setError(''); setNotice(''); setAnswer('')
-    setRoom({ ...room, status: 'playing', turns_used: 0, current_turn: 0, history: [], teams: room.teams.map((team) => ({ ...team, turns_used: 0 })) })
+    try {
+      const starting_phrase = chooseLocalStartingPhrase(room.allowed_phrases)
+      setError(''); setNotice(''); setAnswer('')
+      setRoom({ ...room, status: 'playing', starting_phrase, turns_used: 0, current_turn: 0, history: [], teams: room.teams.map((team) => ({ ...team, turns_used: 0 })) })
+    } catch (cause) { setError(cause.message || 'Không tìm được từ khởi đầu hợp lệ.') }
   }
 
   if (!room) return <div className="game-shell word-chain-shell"><SiteHeader/><main className="container game-main"><div className="game-panel">{error || 'Đang tải trận Nối Từ…'} <button type="button" onClick={refresh}>Thử đồng bộ lại</button> <Link to={ROUTES.wordChain}>Quay lại thiết lập</Link></div></main></div>
@@ -151,7 +154,7 @@ export default function WordChainRoomPage() {
         <section className="wc-stage" aria-live="polite">
           {finished ? <div className="wc-finished"><span className="wc-trophy"><Trophy size={36}/></span><p className="game-overline">HẾT LƯỢT</p><h2>Trận đấu hoàn thành</h2><p>Đã dùng {used} / {room.total_turns} lượt · còn {remaining} lượt. Kết quả được tổng hợp từ trạng thái trận; không tự công bố đội thắng.</p><div className="wc-final-stats">{teamStats.map((team,index)=><div className="wc-final-stat" key={team.id}><span className={`wc-team-dot dot-${index%8}`}/><strong>{team.name}</strong><small>{team.answers} đáp án hợp lệ · {team.skips} bỏ lượt · còn {team.remaining}/{team.turn_quota}</small></div>)}</div>{room.local ? <button className="game-button primary" type="button" onClick={replayLocal}><RotateCcw size={16}/> Chơi lại</button> : <Link className="game-button primary" to={ROUTES.wordChain}><RotateCcw size={16}/> Thiết lập trận khác</Link>}</div> : <>
             <div className="wc-active-team" key={currentTeam?.id || 'sync'}><span className="wc-active-label">ĐANG ĐẾN LƯỢT</span><strong>{currentTeam?.name || 'Đang đồng bộ đội'}</strong><span>{currentTeam ? `${currentTeam.turns_used} / ${currentTeam.turn_quota} lượt đã dùng` : 'Đồng bộ trạng thái phòng…'}</span></div>
-            <div className="wc-chain-board"><span className="wc-chain-label">CỤM TỪ CUỐI CÙNG</span><strong>{lastAccepted || 'Mở đầu trận'}</strong><div className="wc-next-prompt">{lastWord ? <>Đội tiếp theo nối bằng <b>{lastWord}</b></> : 'Nhập cụm từ đầu tiên để bắt đầu chuỗi'}</div></div>
+            <div className="wc-chain-board"><span className="wc-chain-label">{room.history?.some((turn) => turn.action === 'answer') ? 'CỤM TỪ CUỐI CÙNG' : 'TỪ KHỞI ĐẦU'}</span><strong>{lastAccepted || 'Mở đầu trận'}</strong><div className="wc-next-prompt">{lastWord ? <>Đội tiếp theo nối bằng <b>{lastWord}</b></> : 'Hệ thống chưa chọn được từ khởi đầu'}</div></div>
             <form className="wc-answer-form" onSubmit={submit}><label htmlFor="wc-answer">Đáp án của {currentTeam?.name || 'đội đang chơi'}</label><div className="wc-input-row"><input id="wc-answer" ref={inputRef} value={answer} onChange={(event)=>setAnswer(event.target.value)} maxLength={80} placeholder={lastWord ? `Bắt đầu bằng “${lastWord}”…` : 'Nhập từ hoặc cụm từ…'} disabled={!myTurn || busy || finished} autoComplete="off"/><button className="game-button primary" type="submit" disabled={!myTurn || busy || !answer.trim()}>{busy?'Đang kiểm tra…':<><Check size={17}/> Hoàn thành</>}</button></div></form>
             {!myTurn && <p className="wc-waiting-note">Đang chờ {currentTeam?.name || 'đội hiện tại'} gửi lượt.</p>}
             <div className="wc-action-row"><button type="button" className="wc-skip-button" onClick={skip} disabled={!myTurn || busy || finished}><SkipForward size={16}/> Bỏ lượt <span>(−1 lượt)</span></button><span className="wc-remaining">Còn <strong>{remaining}</strong> lượt trong trận</span></div>
