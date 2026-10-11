@@ -21,7 +21,7 @@ export function allocateWordChainTurns(teamCount, totalTurns) {
 export function extractWordChainPhrases(text, validationMode = 'strict') {
   const tokens = normalizeWordChainPhrase(text).split(' ').filter(Boolean)
   const result = new Set()
-  if (validationMode === 'strict') {
+  if (validationMode === 'strict' || validationMode === 'free') {
     for (let start = 0; start + 1 < tokens.length; start += 1) result.add(tokens.slice(start, start + 2).join(' '))
   } else {
     const vocabulary = [...new Set(tokens)]
