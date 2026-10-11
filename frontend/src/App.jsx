@@ -20,6 +20,7 @@ const QuizPartyRoomPage = lazy(() => import('./pages/QuizPartyRoomPage.jsx'))
 const GameModePickerPage = lazy(() => import('./pages/GameModePickerPage.jsx'))
 const PetPage = lazy(() => import('./pages/PetPage.jsx'))
 const BoltSortGamePage = lazy(() => import('./pages/BoltSortGamePage.jsx'))
+const ClassMoneyPage = lazy(() => import('./pages/ClassMoneyPage.jsx'))
 
 function RouteLoading() {
   return <main className="route-loading" aria-label="Đang tải phiên đăng nhập"><span /></main>
@@ -30,6 +31,14 @@ function AuthRoute({ mode }) {
   if (!authReady) return <RouteLoading />
   if (isLoggedIn) return <Navigate to={ROUTES.home} replace />
   return <AuthPage key={mode} mode={mode} />
+}
+
+function AdminRoute({ children }) {
+  const { authReady, isLoggedIn, isAdmin } = useAuth()
+  if (!authReady) return <RouteLoading />
+  if (!isLoggedIn) return <Navigate to={ROUTES.login} replace />
+  if (!isAdmin) return <Navigate to={ROUTES.home} replace />
+  return children
 }
 
 function ProtectedRoute({ children }) {
@@ -53,6 +62,7 @@ function AppRoutes() {
       <Route path={ROUTES.register} element={<AuthRoute mode="register" />} />
       <Route path={ROUTES.profile} element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path={ROUTES.adminAccounts} element={<ProtectedRoute><AdminAccountsPage /></ProtectedRoute>} />
+      <Route path={ROUTES.classMoney} element={<AdminRoute><ClassMoneyPage /></AdminRoute>} />
       <Route path={ROUTES.play} element={<GameModePickerPage />} />
       <Route path={ROUTES.pet} element={<PetPage />} />
       <Route path={ROUTES.boltSort} element={<BoltSortGamePage />} />
