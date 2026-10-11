@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Check, Expand, Link2, RotateCcw, SkipForward, Trophy } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
-import { advanceLocalWordChain, normalizeWordChainPhrase } from '../lib/wordChain.js'
+import { advanceLocalWordChain, chooseLocalStartingPhrase, normalizeWordChainPhrase } from '../lib/wordChain.js'
 import { getWordChainRoom, skipWordChainTurn, startWordChainRoom, submitWordChainAnswer } from '../services/wordChainService.js'
 import '../word-chain.css'
 
@@ -70,7 +70,7 @@ export default function WordChainRoomPage() {
     return { ...team, answers: turns.filter((entry) => entry.action === 'answer').length, skips: turns.filter((entry) => entry.action === 'skip').length, remaining: Math.max(0, team.turn_quota - team.turns_used) }
   }), [room?.history, teams])
   const currentTeam = room?.local ? teams[room.current_turn] : teams.find((team) => team.is_current)
-  const lastAccepted = useMemo(() => [...(room?.history || [])].reverse().find((turn) => turn.action === 'answer')?.phrase || '', [room?.history])
+  const lastAccepted = useMemo(() => [...(room?.history || [])].reverse().find((turn) => turn.action === 'answer')?.phrase || room?.starting_phrase || '', [room?.history, room?.starting_phrase])
   const lastWord = normalizeWordChainPhrase(lastAccepted).split(' ').at(-1) || ''
   const isLobby = room?.status === 'lobby'
   const finished = room?.status === 'finished'
