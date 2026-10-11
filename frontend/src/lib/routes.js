@@ -12,6 +12,7 @@ export const ROUTES = Object.freeze({
   createQuiz: '/tao-quiz',
   gameMode: '/tao-phong/game-mode',
   play: '/choi',
+  gameDetail: '/tro-choi',
   wordChain: '/noi-tu',
   wordChainPlay: '/noi-tu/choi',
   wordChainRoom: '/noi-tu/phong',

@@ -19,6 +19,7 @@ const CreateRoomPage = lazy(() => import('./pages/CreateRoomPage.jsx'))
 const RoomPage = lazy(() => import('./pages/RoomPage.jsx'))
 const QuizPartyRoomPage = lazy(() => import('./pages/QuizPartyRoomPage.jsx'))
 const GameModePickerPage = lazy(() => import('./pages/GameModePickerPage.jsx'))
+const GameDetailPage = lazy(() => import('./pages/GameDetailPage.jsx'))
 const WordChainSetupPage = lazy(() => import('./pages/WordChainSetupPage.jsx'))
 const WordChainRoomPage = lazy(() => import('./pages/WordChainRoomPage.jsx'))
 const PetPage = lazy(() => import('./pages/PetPage.jsx'))
@@ -70,6 +71,7 @@ function AppRoutes() {
       <Route path={ROUTES.classRoster} element={<AdminRoute><AdvancedHubPage view="roster" /></AdminRoute>} />
       <Route path={ROUTES.classRosterLegacy} element={<AdminRoute><AdvancedHubPage view="roster" /></AdminRoute>} />
       <Route path={ROUTES.play} element={<GameModePickerPage />} />
+      <Route path={`${ROUTES.gameDetail}/:gameId`} element={<GameDetailPage />} />
       <Route path={ROUTES.wordChain} element={<WordChainSetupPage />} />
       <Route path={ROUTES.wordChainPlay} element={<WordChainRoomPage />} />
       <Route path={`${ROUTES.wordChainRoom}/:code`} element={<ProtectedRoute><WordChainRoomPage /></ProtectedRoute>} />

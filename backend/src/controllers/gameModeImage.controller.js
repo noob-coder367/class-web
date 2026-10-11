@@ -26,3 +26,21 @@ export async function remove(req, res, next) {
     next(error)
   }
 }
+
+export async function uploadGallery(req, res, next) {
+  try {
+    const image = await gameModeImageService.uploadGameModeGalleryImage(req.params.gameKey, req.body, req.headers['content-type'])
+    res.json({ image })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function removeGallery(req, res, next) {
+  try {
+    const image = await gameModeImageService.deleteGameModeGalleryImage(req.params.gameKey, req.query.path)
+    res.json({ image })
+  } catch (error) {
+    next(error)
+  }
+}

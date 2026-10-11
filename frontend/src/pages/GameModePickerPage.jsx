@@ -1,168 +1,96 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { ChevronRight, Lock, Play, Search, Users } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
-import { GAME_MODES, roomPathForApiMode } from '../lib/gameModes.js'
+import { GAME_CATALOG, gameDetailPath } from '../lib/gameModes.js'
 import { listGameModeImages } from '../services/gameModeImageService.js'
-import { joinRoom } from '../services/gameRoomService.js'
 import '../game.css'
-import '../bolt-sort-game.css'
-import '../word-chain.css'
-import { ArrowRight, ChevronRight, Link2, Lock, Play, Plus, Wrench } from 'lucide-react'
-import { ROUTES } from '../lib/routes.js'
+import '../game-catalog.css'
 
-function JoinRoomModal({ onClose, description }) {
-  const navigate = useNavigate()
-  const [code, setCode] = useState('')
-  const [state, setState] = useState({ loading: false, error: '' })
+const FILTERS = Object.freeze([
+  { id: 'all', label: 'Tất cả' },
+  { id: 'room', label: 'Phòng online' },
+  { id: 'solo', label: 'Chơi ngay' },
+])
 
-  const submit = async (event) => {
-    event.preventDefault()
-    const normalizedCode = code.trim().toUpperCase()
-    if (!/^[A-Z0-9]{6}$/.test(normalizedCode)) {
-      setState({ loading: false, error: 'Passcode phải gồm 6 ký tự.' })
-      return
-    }
-    setState({ loading: true, error: '' })
-    try {
-      const room = await joinRoom(normalizedCode)
-      const roomPath = roomPathForApiMode(room.game_mode)
-      navigate(`${roomPath}/${room.code || normalizedCode}`)
-    } catch (error) {
-      setState({ loading: false, error: error.message || 'Không thể vào phòng. Hãy kiểm tra lại passcode.' })
-    }
-  }
-
+function GameTile({ game, content }) {
+  const Icon = game.icon
+  const title = content?.display_title || game.title
+  const overlay = content?.overlay_content || ''
   return (
-    <div className="join-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <section className="join-modal" role="dialog" aria-modal="true" aria-labelledby="join-room-title">
-        <button className="join-modal-close" type="button" aria-label="Đóng" onClick={onClose}>×</button>
-        <p className="game-overline">Vào phòng chơi</p>
-        <h2 id="join-room-title">Nhập passcode</h2>
-        <p className="join-modal-description">{description}</p>
-        <form onSubmit={submit}>
-          <label className="join-code-label" htmlFor="join-room-code">Passcode phòng</label>
-          <input
-            id="join-room-code"
-            className="join-code-input"
-            value={code}
-            onChange={(event) => { setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)); setState({ loading: false, error: '' }) }}
-            placeholder="ABC123"
-            autoComplete="off"
-            autoCapitalize="characters"
-            maxLength={6}
-            autoFocus
-          />
-          {state.error && <p className="join-error" role="alert">{state.error}</p>}
-          <div className="join-modal-actions">
-            <button className="game-button quiet" type="button" onClick={onClose}>Đóng</button>
-            <button className="game-button primary" type="submit" disabled={state.loading || code.length !== 6}>{state.loading ? 'Đang vào phòng...' : 'Xác nhận / Vào phòng'}</button>
-          </div>
-        </form>
-      </section>
-    </div>
-  )
-}
-
-function ModeCard({ mode, content, onJoin }) {
-  const ModeIcon = mode.icon
-  const title = content?.display_title || mode.title
-  const image = content?.image_url
-  const textColor = content?.text_color || '#FFFFFF'
-  const overlayContent = content?.overlay_content || ''
-
-  return (
-    <article className="mode-card mode-card-active mode-card-with-image">
-      <div className="mode-card-cover mode-card-cover-landscape" style={{ '--mode-card-text-color': textColor }}>
-        {image
-          ? <img src={image} alt="" aria-hidden="true" loading="lazy" />
-          : <div className="mode-card-cover-placeholder"><ModeIcon size={38} aria-hidden="true" /><span>Ảnh trò chơi</span></div>}
-        <div className="mode-card-cover-overlay">
-          <div className="mode-card-topline"><span className="live-pill">{mode.status}</span><span className="mode-arrow" aria-hidden="true"><ArrowRight size={22} /></span></div>
-          <div className="mode-card-cover-copy">
-            <ModeIcon className="mode-card-cover-icon" size={31} aria-hidden="true" />
-            <h2>{title}</h2>
-            {overlayContent ? <p className="mode-card-overlay-content">{overlayContent}</p> : <p>{mode.description}</p>}
-          </div>
+    <Link className="gc-tile" to={gameDetailPath(game.id)} aria-label={`Xem chi tiết ${title}`}>
+      <div className="gc-thumb" style={{ '--gc-text': content?.text_color || '#FFFFFF' }}>
+        {content?.image_url
+          ? <img src={content.image_url} alt="" aria-hidden="true" loading="lazy" />
+          : <div className="gc-thumb-empty"><Icon size={44} aria-hidden="true" /></div>}
+        <span className="gc-badge">{game.status}</span>
+        <div className="gc-thumb-hover" aria-hidden="true">
+          <span className="gc-thumb-play"><Play size={20} /></span>
+          {overlay && <p>{overlay}</p>}
         </div>
       </div>
-      <div className="mode-preview"><span>{mode.previewLabel || 'PLAY'}</span><i /><i /><i /><b><ModeIcon size={26} aria-hidden="true" /></b></div>
-      <div className="mode-actions">
-        {mode.joinAction === 'passcode' && mode.joinLabel && (
-          <button className="game-button primary" type="button" onClick={() => onJoin(mode)}><Play className="ico" size={16} aria-hidden="true" /> {mode.joinLabel}</button>
-        )}
-        {mode.joinPath && mode.joinLabel && (
-          <Link className="game-button primary" to={mode.joinPath}><Play className="ico" size={16} aria-hidden="true" /> {mode.joinLabel}</Link>
-        )}
-        {mode.createPath && mode.createLabel !== null && (
-          <Link className="game-button quiet" to={mode.createPath}><Plus className="ico" size={16} aria-hidden="true" /> {mode.createLabel || 'Tạo phòng mới'}</Link>
-        )}
-      </div>
-    </article>
+      <h2 className="gc-tile-title">{title}</h2>
+      <p className="gc-tile-meta"><Users size={14} aria-hidden="true" /> {game.teamsLabel} <span aria-hidden="true">·</span> {game.kindLabel}</p>
+    </Link>
   )
 }
 
 export default function GameModePickerPage() {
-  const [joinMode, setJoinMode] = useState(null)
   const [images, setImages] = useState({})
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState('all')
 
   useEffect(() => {
     let active = true
-    listGameModeImages(GAME_MODES.map((mode) => mode.id))
-      .then((rows) => {
-        if (active) setImages(Object.fromEntries(rows.map((row) => [row.game_key, row])))
-      })
+    listGameModeImages(GAME_CATALOG.map((game) => game.id))
+      .then((rows) => { if (active) setImages(Object.fromEntries(rows.map((row) => [row.game_key, row]))) })
       .catch((error) => console.warn('[GameModePicker] Could not load game content:', error?.message || error))
     return () => { active = false }
   }, [])
 
-  const openJoin = (mode) => {
-    const title = images[mode.id]?.display_title || mode.title
-    setJoinMode({
-      ...mode,
-      joinDescription: mode.joinDescription || `Nhập passcode để tham gia ${title}.`,
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return GAME_CATALOG.filter((game) => {
+      if (filter !== 'all' && game.kind !== filter) return false
+      if (!needle) return true
+      const title = images[game.id]?.display_title || game.title
+      return `${title} ${game.description}`.toLowerCase().includes(needle)
     })
-  }
+  }, [filter, images, query])
 
   return (
-    <div className="game-shell">
+    <div className="game-shell gc-page">
       <SiteHeader />
       <main className="container game-main">
         <div className="game-breadcrumb">Play <ChevronRight className="ico" size={14} aria-hidden="true" /> Chọn Game Mode</div>
-        <header className="game-heading">
-          <p className="game-overline">Play</p>
-          <h1>Chọn Game Mode</h1>
-          <p>Chọn cách bạn muốn chơi cùng bộ câu hỏi của mình.</p>
+        <header className="gc-heading">
+          <div>
+            <p className="game-overline">Play</p>
+            <h1>Chọn trò chơi</h1>
+            <p>Bấm vào một trò chơi để xem ảnh, thông tin chi tiết và cách vào chơi.</p>
+          </div>
+          <label className="gc-search">
+            <Search size={16} aria-hidden="true" />
+            <input type="search" placeholder="Tìm trò chơi…" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Tìm trò chơi" />
+          </label>
         </header>
-        <section className="mode-grid" aria-label="Danh sách game mode">
-          {GAME_MODES.map((mode) => <ModeCard key={mode.id} mode={mode} content={images[mode.id]} onJoin={openJoin} />)}
-          <article className="mode-card mode-card-active bolt-mode-card">
-            <div className="mode-card-cover mode-card-cover-landscape">
-              <div className="bolt-mode-art"><div>🔩</div><span>✦</span><i>?</i></div>
-              <div className="mode-card-cover-overlay">
-                <div className="mode-card-topline"><span className="live-pill">MỚI · 2 ĐỘI</span><span className="mode-arrow"><ArrowRight size={22}/></span></div>
-                <div className="mode-card-cover-copy"><Wrench className="mode-card-cover-icon" size={31}/><h2>Đại chiến Bu Lông</h2><p>Giải đố sắp xếp bu lông nhiều màu, trả lời câu hỏi và thi đấu song song trên một màn hình.</p></div>
-              </div>
+        <div className="gc-filters" role="tablist" aria-label="Lọc trò chơi">
+          {FILTERS.map((item) => (
+            <button key={item.id} type="button" role="tab" aria-selected={filter === item.id} className={`gc-chip${filter === item.id ? ' active' : ''}`} onClick={() => setFilter(item.id)}>{item.label}</button>
+          ))}
+        </div>
+        <section className="gc-grid" aria-label="Danh sách trò chơi">
+          {visible.map((game) => <GameTile key={game.id} game={game} content={images[game.id]} />)}
+          {filter === 'all' && !query.trim() && (
+            <div className="gc-tile gc-tile-locked" aria-disabled="true">
+              <div className="gc-thumb gc-thumb-locked"><Lock size={34} aria-hidden="true" /><span>Sắp ra mắt</span></div>
+              <h2 className="gc-tile-title">Game mode mới</h2>
+              <p className="gc-tile-meta">Đang được chuẩn bị</p>
             </div>
-            <div className="mode-preview bolt-mode-preview"><span>PUZZLE!</span><i/><i/><i/><b><Wrench size={25}/></b></div>
-            <div className="mode-actions"><Link className="game-button primary" to={ROUTES.boltSort}><Play className="ico" size={16}/> Chơi ngay</Link><span className="bolt-mode-caption">4 cấp độ · chơi toàn màn hình</span></div>
-          </article>
-          <article className="mode-card mode-card-active word-chain-mode-card">
-            <div className="mode-card-cover mode-card-cover-landscape">
-              <div className="word-chain-mode-art"><span>HỌC SINH</span><i>→</i><b>SINH HỌC</b><small>NỐI TỪ</small></div>
-              <div className="mode-card-cover-overlay"><div className="mode-card-topline"><span className="live-pill">MỚI · 2–8 ĐỘI</span><span className="mode-arrow"><ArrowRight size={22}/></span></div><div className="mode-card-cover-copy"><Link2 className="mode-card-cover-icon" size={31}/><h2>Nối Từ</h2><p>Nối cụm từ theo từ cuối, chơi một máy hoặc tạo phòng đấu cùng bạn bè.</p></div></div>
-            </div>
-            <div className="mode-preview word-chain-mode-preview"><span>CHAIN!</span><i/><i/><i/><b><Link2 size={25}/></b></div>
-            <div className="mode-actions"><Link className="game-button primary" to={ROUTES.wordChain}><Play className="ico" size={16}/> Thiết lập &amp; chơi</Link><span className="bolt-mode-caption">Chủ đề · văn bản · phòng online</span></div>
-          </article>
-          <article className="mode-card mode-card-locked">
-            <div className="mode-icon"><Lock size={38} aria-hidden="true" /></div>
-            <h2>Game mode mới</h2>
-            <p>Các trải nghiệm chơi mới đang được chuẩn bị để bạn khám phá.</p>
-            <span className="coming-pill">Sắp ra mắt</span>
-          </article>
+          )}
         </section>
+        {!visible.length && <p className="gc-empty">Không tìm thấy trò chơi phù hợp.</p>}
       </main>
-      {joinMode && <JoinRoomModal onClose={() => setJoinMode(null)} description={joinMode.joinDescription || `Nhập passcode để tham gia ${joinMode.title}.`} />}
     </div>
   )
 }

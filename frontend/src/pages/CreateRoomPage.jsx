@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
 import { GAME_MODES, gameModeById } from '../lib/gameModes.js'
@@ -9,11 +9,13 @@ import { ArrowRight, ChevronRight } from 'lucide-react'
 
 export default function CreateRoomPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const presetMode = gameModeById(searchParams.get('mode'))
   const [quizzes, setQuizzes] = useState([])
   const [selectedQuiz, setSelectedQuiz] = useState('')
-  const [modeSelected, setModeSelected] = useState(false)
-  const [selectedGameMode, setSelectedGameMode] = useState(GAME_MODES[0].id)
-  const [form, setForm] = useState({ title: 'Phòng đua kho báu', team_count: 2, max_players_per_team: 4, board_length: 20, question_limit: '', timer_enabled: true, single_device_mode: false })
+  const [modeSelected, setModeSelected] = useState(Boolean(presetMode))
+  const [selectedGameMode, setSelectedGameMode] = useState((presetMode || GAME_MODES[0]).id)
+  const [form, setForm] = useState({ title: (presetMode || GAME_MODES[0]).defaultRoomTitle, team_count: 2, max_players_per_team: 4, board_length: 20, question_limit: '', timer_enabled: true, single_device_mode: false })
   const [status, setStatus] = useState({ loading: true, error: '' })
   const createRequestKey = useRef(null)
   useEffect(() => { listRoomQuizzes().then((items) => { setQuizzes(items); setSelectedQuiz(items[0]?.id || ''); setStatus({ loading: false, error: '' }) }).catch((error) => setStatus({ loading: false, error: error.message })) }, [])

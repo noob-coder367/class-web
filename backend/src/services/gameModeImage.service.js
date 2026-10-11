@@ -4,6 +4,8 @@ import { HttpError } from '../lib/httpError.js'
 
 export const GAME_IMAGE_BUCKET = 'game-images'
 export const GAME_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+export const GAME_GALLERY_MAX_IMAGES = 8
+export const GAME_DETAIL_MAX_LENGTH = 2000
 
 const IMAGE_FORMATS = Object.freeze({
   'image/jpeg': { extension: 'jpg', matches: (buffer) => buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff },
@@ -12,7 +14,7 @@ const IMAGE_FORMATS = Object.freeze({
   'image/gif': { extension: 'gif', matches: (buffer) => buffer.length >= 6 && /^GIF8[79]a$/.test(buffer.toString('ascii', 0, 6)) },
 })
 const GAME_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-const IMAGE_ROW_FIELDS = 'game_key, image_path, display_title, display_note, overlay_content, text_color, updated_at'
+const IMAGE_ROW_FIELDS = 'game_key, image_path, display_title, display_note, overlay_content, detail_description, gallery_paths, text_color, updated_at'
 
 function validateGameKey(gameKey) {
   if (typeof gameKey !== 'string' || gameKey.length > 64 || !GAME_KEY_PATTERN.test(gameKey)) {
@@ -52,11 +54,22 @@ async function removeStoragePath(path) {
   return error || null
 }
 
+function storageUrl(path) {
+  return supabaseAdmin.storage.from(GAME_IMAGE_BUCKET).getPublicUrl(path).data.publicUrl
+}
+
+function galleryPathsOf(row) {
+  return Array.isArray(row?.gallery_paths) ? row.gallery_paths : []
+}
+
 function publicImage(row) {
-  const imageUrl = row.image_path
-    ? supabaseAdmin.storage.from(GAME_IMAGE_BUCKET).getPublicUrl(row.image_path).data.publicUrl
-    : null
-  return { ...row, image_url: imageUrl }
+  const galleryPaths = galleryPathsOf(row)
+  return {
+    ...row,
+    gallery_paths: galleryPaths,
+    image_url: row.image_path ? storageUrl(row.image_path) : null,
+    gallery: galleryPaths.map((path) => ({ path, url: storageUrl(path) })),
+  }
 }
 
 export async function uploadGameModeImage(gameKey, buffer, contentType) {
@@ -111,6 +124,8 @@ export async function saveGameModeContent(gameKey, input) {
   const displayNote = typeof input.display_note === 'string' ? input.display_note.trim() : ''
   const overlayContent = typeof input.overlay_content === 'string' ? input.overlay_content.trim() : ''
   const textColor = typeof input.text_color === 'string' ? input.text_color.trim().toUpperCase() : ''
+  const hasDetail = input.detail_description !== undefined
+  const detailDescription = typeof input.detail_description === 'string' ? input.detail_description.trim() : ''
 
   if (displayTitle.length < 1 || displayTitle.length > 60) {
     throw new HttpError('Tên trò chơi cần từ 1 đến 60 ký tự.', 400, 'invalid_game_title')
@@ -121,21 +136,28 @@ export async function saveGameModeContent(gameKey, input) {
   if (overlayContent.length > 300) {
     throw new HttpError('Nội dung trên ảnh không được dài quá 300 ký tự.', 400, 'invalid_overlay_content')
   }
+  if (hasDetail && detailDescription.length > GAME_DETAIL_MAX_LENGTH) {
+    throw new HttpError(`Mô tả chi tiết không được dài quá ${GAME_DETAIL_MAX_LENGTH} ký tự.`, 400, 'invalid_detail_description')
+  }
   if (!/^#[0-9A-F]{6}$/.test(textColor)) {
     throw new HttpError('Màu chữ phải là mã HEX dạng #RRGGBB.', 400, 'invalid_text_color')
   }
 
   const existing = await getExistingImage(gameKey)
+  const row = {
+    game_key: gameKey,
+    image_path: existing?.image_path || null,
+    display_title: displayTitle,
+    display_note: displayNote || null,
+    overlay_content: overlayContent || null,
+    text_color: textColor,
+  }
+  // Chỉ ghi mô tả chi tiết khi client gửi lên; gallery_paths không bao giờ bị đụng tới ở đây.
+  if (hasDetail) row.detail_description = detailDescription || null
+
   const { data, error } = await supabaseAdmin
     .from('game_mode_images')
-    .upsert({
-      game_key: gameKey,
-      image_path: existing?.image_path || null,
-      display_title: displayTitle,
-      display_note: displayNote || null,
-      overlay_content: overlayContent || null,
-      text_color: textColor,
-    }, { onConflict: 'game_key' })
+    .upsert(row, { onConflict: 'game_key' })
     .select(IMAGE_ROW_FIELDS)
     .single()
 
@@ -157,4 +179,61 @@ export async function deleteGameModeImage(gameKey) {
   const cleanupError = await removeStoragePath(existing.image_path)
   if (cleanupError) console.warn('[game-image] Could not remove deleted image:', cleanupError.message || cleanupError)
   return { deleted: true }
+}
+
+export async function uploadGameModeGalleryImage(gameKey, buffer, contentType) {
+  validateGameKey(gameKey)
+  const format = validateImage(buffer, contentType)
+  const existing = await getExistingImage(gameKey)
+  const currentPaths = galleryPathsOf(existing)
+  if (currentPaths.length >= GAME_GALLERY_MAX_IMAGES) {
+    throw new HttpError(`Mỗi trò chơi chỉ có tối đa ${GAME_GALLERY_MAX_IMAGES} ảnh giới thiệu.`, 400, 'game_gallery_limit')
+  }
+  const imagePath = `${gameKey}/gallery/${randomUUID()}.${format.extension}`
+
+  const { error: storageError } = await supabaseAdmin.storage
+    .from(GAME_IMAGE_BUCKET)
+    .upload(imagePath, buffer, { contentType: format.contentType, cacheControl: '3600', upsert: false })
+  if (storageError) {
+    console.error('[game-image] Gallery upload failed:', storageError.message || storageError)
+    throw new HttpError('Không thể tải ảnh lên Storage. Vui lòng thử lại.', 503, 'game_image_storage_error')
+  }
+
+  const { data, error: databaseError } = await supabaseAdmin
+    .from('game_mode_images')
+    .upsert({ game_key: gameKey, gallery_paths: [...currentPaths, imagePath] }, { onConflict: 'game_key' })
+    .select(IMAGE_ROW_FIELDS)
+    .single()
+
+  if (databaseError || !data) {
+    await removeStoragePath(imagePath)
+    console.error('[game-image] Gallery metadata save failed:', databaseError?.message || databaseError)
+    throw new HttpError('Ảnh đã tải lên nhưng không thể lưu thông tin. Vui lòng thử lại.', 503, 'game_image_database_error')
+  }
+  return publicImage(data)
+}
+
+export async function deleteGameModeGalleryImage(gameKey, path) {
+  validateGameKey(gameKey)
+  const prefix = `${gameKey}/gallery/`
+  if (typeof path !== 'string' || !path.startsWith(prefix) || path.includes('..') || path.length > 200) {
+    throw new HttpError('Đường dẫn ảnh giới thiệu không hợp lệ.', 400, 'invalid_gallery_path')
+  }
+  const existing = await getExistingImage(gameKey)
+  const currentPaths = galleryPathsOf(existing)
+  if (!currentPaths.includes(path)) {
+    throw new HttpError('Không tìm thấy ảnh giới thiệu này.', 404, 'game_gallery_not_found')
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('game_mode_images')
+    .update({ gallery_paths: currentPaths.filter((item) => item !== path) })
+    .eq('game_key', gameKey)
+    .select(IMAGE_ROW_FIELDS)
+    .single()
+  if (error || !data) throw new HttpError('Không thể xóa ảnh giới thiệu.', 503, 'game_image_database_error')
+
+  const cleanupError = await removeStoragePath(path)
+  if (cleanupError) console.warn('[game-image] Could not remove gallery image:', cleanupError.message || cleanupError)
+  return publicImage(data)
 }
