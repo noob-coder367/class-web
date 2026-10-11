@@ -561,3 +561,35 @@
     min-height: 480px;
   }
 }
+
+
+/* Subtle metallic gloss and grounded shadows from the PR #34 visual pass.
+   Keep PR #35's Three.js layout, sizing, positioning, and gameplay unchanged. */
+.bolt-game-fullscreen .bolt {
+  filter: drop-shadow(0 5px 2px #06071355) drop-shadow(0 9px 7px #05061140);
+  transform-style: preserve-3d;
+}
+.bolt-game-fullscreen .bolt-nut {
+  filter: drop-shadow(0 2px 1px #ffffff10);
+}
+.bolt-game-fullscreen .nut-side {
+  stroke-width: 1.2px;
+  filter: brightness(.82);
+}
+.bolt-game-fullscreen .nut-bevel {
+  fill: none;
+  stroke: #ffffff75;
+  stroke-width: 1.3px;
+  stroke-linejoin: round;
+}
+.bolt-game-fullscreen .nut-hole-rim {
+  fill: #1b2230;
+  stroke: #ffffff72;
+  stroke-width: 1.2px;
+}
+.bolt-game-fullscreen .bolt-revealed .nut-top {
+  filter: drop-shadow(0 2px 0 color-mix(in srgb, var(--bolt-color) 48%, #101323));
+}
+.bolt-game-fullscreen .rod-shaft {
+  box-shadow: inset 1px 0 2px #ffffffbb, inset -2px 0 3px #263043a8, 2px 3px 4px #05071375;
+}
