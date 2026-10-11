@@ -34,6 +34,13 @@ export function makePhraseSet({ sourceMode, topic = '', text = '', validationMod
   return { ...built, phrases, extractedCount: sourceMode === 'topic' ? phrases.length : extractTextPhrases(text).size }
 }
 
+export function chooseStartingPhrase(phrases = []) {
+  const normalized = [...new Set(phrases.map(normalizePhrase).filter(Boolean))]
+  const candidates = normalized.filter((phrase) => phrase.split(' ').length >= 2 && normalized.some((next) => next !== phrase && next.split(' ')[0] === phrase.split(' ').at(-1)))
+  if (!candidates.length) throw new RangeError('Nguồn chưa có cụm từ khởi đầu và nước nối hợp lệ. Hãy thêm văn bản hoặc đổi nguồn.')
+  return candidates[Math.floor(Math.random() * candidates.length)]
+}
+
 export function validateAnswer({ answer, lastPhrase = '', allowedPhrases, usedPhrases = [] }) {
   const phrase = normalizePhrase(answer)
   if (!phrase) throw new WordChainRuleError('Hãy nhập một từ hoặc cụm từ có chữ cái.', 'empty_answer')
