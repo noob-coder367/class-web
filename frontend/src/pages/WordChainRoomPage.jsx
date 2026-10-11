@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Check, Expand, Link2, RotateCcw, SkipForward, Trophy } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
-import { advanceLocalWordChain, chooseLocalStartingPhrase, normalizeWordChainPhrase } from '../lib/wordChain.js'
+import { advanceLocalWordChain, chooseLocalStartingPhrase, loadWordChainDictionary, normalizeWordChainPhrase } from '../lib/wordChain.js'
 import { getWordChainRoom, skipWordChainTurn, startWordChainRoom, submitWordChainAnswer } from '../services/wordChainService.js'
 import '../word-chain.css'
 
@@ -56,6 +56,8 @@ export default function WordChainRoomPage() {
     return () => window.clearInterval(timer)
   }, [local, refresh])
   useEffect(() => { if (room?.local) sessionStorage.setItem(LOCAL_KEY, JSON.stringify(room)) }, [room])
+  // Trận 1 máy kiểm tra từ có nghĩa ngay trên trình duyệt nên cần nạp từ điển (kể cả khi tải lại trang).
+  useEffect(() => { if (room?.local) loadWordChainDictionary().catch(() => setError('Không tải được từ điển tiếng Việt. Hãy kiểm tra kết nối rồi tải lại trang.')) }, [room?.local])
   useEffect(() => {
     const onFullscreen = () => setFallbackFullscreen(false)
     const onKey = (event) => { if (event.key === 'Escape') setFallbackFullscreen(false) }
@@ -95,6 +97,7 @@ export default function WordChainRoomPage() {
       const key = submitRequest.current || requestKey()
       submitRequest.current = key
       if (!local && !pendingAction.current) { refreshSequence.current += 1; pendingAction.current = { action: 'answer', baseTurns: room.turns_used } }
+      if (local) await loadWordChainDictionary()
       const next = local
         ? advanceLocalWordChain(room, 'answer', answer)
         : await submitWordChainAnswer(code, answer, key)

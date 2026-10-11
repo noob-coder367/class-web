@@ -40,27 +40,22 @@ export function chooseLocalStartingPhrase(phrases = []) {
   return candidates[Math.floor(Math.random() * candidates.length)]
 }
 
-export function buildWordChainSource({ sourceMode, topic = '', text = '', validationMode = 'strict' }) {
-  if (!['topic', 'text', 'combined'].includes(sourceMode)) throw new Error('Hãy chọn nguồn nội dung hợp lệ.')
-  if (!['strict', 'expanded', 'free'].includes(validationMode)) throw new Error('Cách kiểm tra nội dung không hợp lệ.')
-  if (String(topic).length > 80) throw new Error('Chủ đề không được dài quá 80 ký tự.')
-  if (String(text).length > MAX_WORD_CHAIN_TEXT) throw new Error('Văn bản không được dài quá 20.000 ký tự.')
-  const phrases = new Set()
-  if (sourceMode !== 'text') {
-    const theme = seed.topics[normalizeWordChainPhrase(topic)]
-    if (!theme) throw new Error('Chủ đề này chưa có bộ từ gợi ý. Hãy chọn một chủ đề trong danh sách.')
-    theme.forEach((phrase) => phrases.add(normalizeWordChainPhrase(phrase)))
-  }
-  if (sourceMode !== 'topic') {
-    if (!String(text).trim()) throw new Error('Hãy dán văn bản để tạo nguồn từ.')
-    extractWordChainPhrases(text, validationMode).forEach((phrase) => phrases.add(phrase))
-  }
-  if (phrases.size < 2) throw new Error('Nguồn nội dung quá ngắn hoặc chưa tạo đủ lựa chọn. Hãy thêm văn bản hoặc chọn chủ đề khác.')
-  if (phrases.size > 10_000) throw new Error('Nguồn tạo quá nhiều cụm từ. Hãy rút ngắn văn bản dưới 20.000 ký tự.')
-  return { phrases: [...phrases], extractedCount: sourceMode === 'topic' ? phrases.size : extractWordChainPhrases(text, validationMode).size }
+let activeDictionary = null
+let dictionaryPromise = null
+
+/** Cho phép test/nơi khác nạp sẵn từ điển (Set các cụm từ đã chuẩn hóa). */
+export function setWordChainDictionary(dictionary) { activeDictionary = dictionary instanceof Set ? dictionary : null }
+
+/** Tải từ điển tiếng Việt khi cần (tách chunk riêng, chỉ tải khi chơi chế độ 1 máy). */
+export function loadWordChainDictionary() {
+  if (activeDictionary) return Promise.resolve(activeDictionary)
+  dictionaryPromise ||= import('../../../shared/vi-dictionary.txt?raw')
+    .then((module) => { activeDictionary = new Set(module.default.split('\n').map((line) => line.trim()).filter(Boolean)); return activeDictionary })
+    .catch((error) => { dictionaryPromise = null; throw error })
+  return dictionaryPromise
 }
 
-export function validateLocalWordChainAnswer(room, answer) {
+export function validateLocalWordChainAnswer(room, answer, dictionary = activeDictionary) {
   const phrase = normalizeWordChainPhrase(answer)
   if (!phrase) throw new Error('Hãy nhập một từ hoặc cụm từ có chữ cái.')
   if (phrase.length > 80) throw new Error('Đáp án không được dài quá 80 ký tự.')
@@ -69,16 +64,18 @@ export function validateLocalWordChainAnswer(room, answer) {
   const previousFinal = normalizeWordChainPhrase(lastPhrase || room.starting_phrase).split(' ').at(-1) || ''
   if (previousFinal && words[0] !== previousFinal) throw new Error(`Cụm từ phải bắt đầu bằng “${previousFinal}”.`)
   if (normalizeWordChainPhrase(room.starting_phrase) === phrase || room.history.some((turn) => turn.action === 'answer' && turn.phrase === phrase)) throw new Error('Cụm từ này đã được dùng trong trận.')
+  if (!dictionary) throw new Error('Từ điển tiếng Việt đang tải. Hãy thử lại sau giây lát.')
+  if (words.length < 2 || !dictionary.has(phrase)) throw new Error(`“${phrase}” không phải từ có nghĩa trong từ điển tiếng Việt (cần từ 2–4 tiếng).`)
   if (room.validation_mode !== 'free' && !room.allowed_phrases.includes(phrase)) throw new Error('Cụm từ chưa nằm trong nguồn nội dung của trận.')
   return phrase
 }
 
-export function advanceLocalWordChain(room, action, answer = '') {
+export function advanceLocalWordChain(room, action, answer = '', dictionary = activeDictionary) {
   if (room.status !== 'playing') throw new Error('Trận đã kết thúc.')
   const teamIndex = room.current_turn
   const team = room.teams[teamIndex]
   if (!team || team.turns_used >= team.turn_quota) throw new Error('Đội hiện tại đã hết lượt.')
-  const phrase = action === 'answer' ? validateLocalWordChainAnswer(room, answer) : null
+  const phrase = action === 'answer' ? validateLocalWordChainAnswer(room, answer, dictionary) : null
   const turn = { id: crypto.randomUUID(), turn_number: room.turns_used + 1, team_id: team.id, action, phrase, created_at: new Date().toISOString() }
   const teams = room.teams.map((entry, index) => index === teamIndex ? { ...entry, turns_used: entry.turns_used + 1 } : entry)
   const turnsUsed = room.turns_used + 1

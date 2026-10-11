@@ -3,21 +3,27 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, BookOpen, CircleHelp, Link2, Monitor, Users } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
-import { allocateWordChainTurns, buildWordChainSource, chooseLocalStartingPhrase, MAX_WORD_CHAIN_TEXT, WORD_CHAIN_TOPICS } from '../lib/wordChain.js'
-import { createWordChainRoom, joinWordChainRoom } from '../services/wordChainService.js'
+import { allocateWordChainTurns, loadWordChainDictionary, MAX_WORD_CHAIN_TEXT, WORD_CHAIN_TOPICS } from '../lib/wordChain.js'
+import { createWordChainRoom, joinWordChainRoom, resolveWordChainSource } from '../services/wordChainService.js'
 import '../word-chain.css'
 
 const makeTeamNames = (count) => Array.from({ length: count }, (_, index) => `Đội ${index + 1}`)
 
 export default function WordChainSetupPage() {
   const navigate = useNavigate()
-  const [form, setForm] = useState({ title: 'Trận Nối Từ', source_mode: 'topic', topic: WORD_CHAIN_TOPICS[1] || WORD_CHAIN_TOPICS[0], text: '', validation_mode: 'strict', play_mode: 'local', team_count: 2, total_turns: 20, teams: makeTeamNames(2) })
+  const [form, setForm] = useState({ title: 'Trận Nối Từ', source_mode: 'topic', topic: '', text: '', validation_mode: 'strict', play_mode: 'local', team_count: 2, total_turns: 20, teams: makeTeamNames(2) })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [roomCode, setRoomCode] = useState('')
   const createKey = useRef(null)
   const quotas = useMemo(() => { try { return allocateWordChainTurns(Number(form.team_count), Number(form.total_turns)) } catch { return [] } }, [form.team_count, form.total_turns])
-  const sourceInfo = useMemo(() => { try { return buildWordChainSource({ sourceMode: form.source_mode, topic: form.topic, text: form.text, validationMode: form.validation_mode }) } catch { return null } }, [form.source_mode, form.topic, form.text, form.validation_mode])
+  // Nguồn thật được backend phân tích khi bấm bắt đầu (AI hiểu chủ đề + lọc từ điển); ở đây chỉ kiểm tra đã nhập đủ chưa.
+  const sourceInfo = useMemo(() => {
+    const freeTopicOnly = form.validation_mode === 'free' && form.source_mode === 'topic'
+    if (form.source_mode !== 'text' && !freeTopicOnly && !form.topic.trim()) return null
+    if (form.source_mode !== 'topic' && !form.text.trim()) return null
+    return { ready: true }
+  }, [form.source_mode, form.topic, form.text, form.validation_mode])
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }))
   const changeTeamCount = (value) => {
@@ -25,25 +31,29 @@ export default function WordChainSetupPage() {
     setForm((current) => ({ ...current, team_count: count, teams: Array.from({ length: count }, (_, index) => current.teams[index] || `Đội ${index + 1}`) }))
   }
 
-  const startLocal = (event) => {
+  const startLocal = async (event) => {
     event.preventDefault()
-    setError('')
+    setBusy(true); setError('')
     try {
       if (!form.title.trim() || form.title.trim().length > 80) throw new Error('Tên trận cần có từ 1 đến 80 ký tự.')
       if (form.teams.some((name) => !name.trim()) || new Set(form.teams.map((name) => name.trim().toLocaleLowerCase('vi-VN'))).size !== form.teams.length) throw new Error('Tên đội không được để trống và cần khác nhau.')
-      const source = buildWordChainSource({ sourceMode: form.source_mode, topic: form.topic, text: form.text, validationMode: form.validation_mode })
-      if (form.source_mode !== 'topic' && source.extractedCount < 2) throw new Error('Văn bản quá ngắn, chưa trích xuất được đủ cụm từ.')
       const turnQuotas = allocateWordChainTurns(Number(form.team_count), Number(form.total_turns))
+      // Backend: AI phân tích chủ đề, lọc theo từ điển và chọn cặp từ khởi đầu có nghĩa. Tải từ điển song song để kiểm tra đáp án.
+      const [source] = await Promise.all([
+        resolveWordChainSource({ source_mode: form.source_mode, topic: form.topic, text: form.text, validation_mode: form.validation_mode }),
+        loadWordChainDictionary(),
+      ])
       const room = {
         id: crypto.randomUUID(), code: null, title: form.title.trim(), source_mode: form.source_mode,
-        topic: form.source_mode === 'text' ? null : form.topic, validation_mode: form.validation_mode,
-        status: 'playing', total_turns: Number(form.total_turns), turns_used: 0, current_turn: 0, starting_phrase: chooseLocalStartingPhrase(source.phrases),
+        topic: form.source_mode === 'text' ? null : form.topic.trim() || null, validation_mode: form.validation_mode,
+        status: 'playing', total_turns: Number(form.total_turns), turns_used: 0, current_turn: 0, starting_phrase: source.starting_phrase,
         teams: form.teams.map((name, index) => ({ id: `local-team-${index}`, name: name.trim(), turn_order: index, turn_quota: turnQuotas[index], turns_used: 0, players: 1 })),
         history: [], allowed_phrases: source.phrases, is_host: true, local: true,
       }
       sessionStorage.setItem('noi-tu:local-room', JSON.stringify(room))
       navigate(ROUTES.wordChainPlay)
     } catch (cause) { setError(cause.message || 'Không thể bắt đầu trận.') }
+    finally { setBusy(false) }
   }
 
   const createOnline = async (event) => {
@@ -76,12 +86,11 @@ export default function WordChainSetupPage() {
         <div className="wc-source-tabs" role="group" aria-label="Nguồn nội dung">
           {[['topic','Theo chủ đề'],['text','Theo văn bản'],['combined','Kết hợp']].map(([key,label]) => <button key={key} className={form.source_mode === key ? 'wc-choice active' : 'wc-choice'} type="button" onClick={() => update('source_mode', key)}>{label}</button>)}
         </div>
-        {(form.source_mode === 'topic' || form.source_mode === 'combined') && <label className="wc-field">Chủ đề<input list="wc-topic-options" value={form.topic} onChange={(event) => update('topic', event.target.value)} maxLength={80} placeholder="Nhập hoặc chọn chủ đề…"/><datalist id="wc-topic-options">{WORD_CHAIN_TOPICS.map((topic) => <option key={topic} value={topic}>{topic[0].toLocaleUpperCase('vi-VN') + topic.slice(1)}</option>)}</datalist><small>Chủ đề tự nhập cần khớp một trong 8 bộ cụm từ seed hiện có.</small></label>}
-        {(form.source_mode === 'text' || form.source_mode === 'combined') && <label className="wc-field">Dán văn bản<textarea value={form.text} onChange={(event) => update('text', event.target.value)} maxLength={MAX_WORD_CHAIN_TEXT} rows={6} placeholder="Dán đoạn văn tiếng Việt vào đây…"/><small>{form.text.length.toLocaleString('vi-VN')} / {MAX_WORD_CHAIN_TEXT.toLocaleString('vi-VN')} ký tự · phân tích cụm từ bằng heuristic n-gram (tối đa 4 âm tiết), không phải bộ phân tích ngôn ngữ hoàn chỉnh.</small></label>}
-        {<fieldset className="wc-validation"><legend>Luật từ vựng</legend><label><input type="radio" name="validation" checked={form.validation_mode === 'strict'} onChange={() => update('validation_mode', 'strict')}/><span><strong>Nghiêm ngặt</strong><small>Chỉ dùng cụm hai tiếng xuất hiện liền nhau trong văn bản.</small></span></label><label><input type="radio" name="validation" checked={form.validation_mode === 'expanded'} onChange={() => update('validation_mode', 'expanded')}/><span><strong>Mở rộng</strong><small>Được ghép cụm mới nhưng chỉ dùng các tiếng có trong văn bản (hoặc bộ từ chủ đề).</small></span></label><label><input type="radio" name="validation" checked={form.validation_mode === 'free'} onChange={() => update('validation_mode', 'free')}/><span><strong>Tự do</strong><small>Không giới hạn bởi nguồn; nối đúng tiếng cuối và nhập từ/cụm từ có nghĩa.</small></span></label></fieldset>}
-        <div className="wc-source-summary"><BookOpen size={18}/><span>{sourceInfo ? `${sourceInfo.phrases.length.toLocaleString('vi-VN')} cụm từ trong nguồn trận` : 'Chọn nguồn hợp lệ để xem số cụm từ ước tính.'}</span></div>
-        {sourceInfo && form.source_mode !== 'topic' && sourceInfo.extractedCount < 2 && <p className="wc-source-warning" role="status">Văn bản quá ngắn hoặc chưa tạo đủ lựa chọn. Dán thêm nội dung trước khi bắt đầu.</p>}
-      </section>
+        {(form.source_mode === 'topic' || form.source_mode === 'combined') && <label className="wc-field">Chủ đề<input list="wc-topic-options" value={form.topic} onChange={(event) => update('topic', event.target.value)} maxLength={80} placeholder="Nhập chủ đề bất kỳ, ví dụ: trường học, biển, bóng đá…"/><datalist id="wc-topic-options">{WORD_CHAIN_TOPICS.map((topic) => <option key={topic} value={topic}>{topic[0].toLocaleUpperCase('vi-VN') + topic.slice(1)}</option>)}</datalist><small>Nhập tự do. AI sẽ phân tích chủ đề rồi tìm trong từ điển tiếng Việt các từ phù hợp (chỉ giữ từ có nghĩa).</small></label>}
+        {(form.source_mode === 'text' || form.source_mode === 'combined') && <label className="wc-field">Dán văn bản<textarea value={form.text} onChange={(event) => update('text', event.target.value)} maxLength={MAX_WORD_CHAIN_TEXT} rows={6} placeholder="Dán đoạn văn tiếng Việt vào đây…"/><small>{form.text.length.toLocaleString('vi-VN')} / {MAX_WORD_CHAIN_TEXT.toLocaleString('vi-VN')} ký tự · chỉ giữ cụm từ có nghĩa trong từ điển; hệ thống tự chọn một cặp từ có nghĩa làm từ khởi đầu.</small></label>}
+        {<fieldset className="wc-validation"><legend>Luật từ vựng</legend><label><input type="radio" name="validation" checked={form.validation_mode === 'strict'} onChange={() => update('validation_mode', 'strict')}/><span><strong>Nghiêm ngặt</strong><small>Chỉ dùng cụm hai tiếng có nghĩa xuất hiện liền nhau trong văn bản.</small></span></label><label><input type="radio" name="validation" checked={form.validation_mode === 'expanded'} onChange={() => update('validation_mode', 'expanded')}/><span><strong>Mở rộng</strong><small>Được ghép cụm mới có nghĩa nhưng chỉ dùng các tiếng có trong văn bản (hoặc bộ từ chủ đề).</small></span></label><label><input type="radio" name="validation" checked={form.validation_mode === 'free'} onChange={() => update('validation_mode', 'free')}/><span><strong>Tự do</strong><small>Dùng toàn bộ từ điển tiếng Việt; nối đúng tiếng cuối bằng một từ có nghĩa (từ vô nghĩa không được tính).</small></span></label></fieldset>}
+        <div className="wc-source-summary"><BookOpen size={18}/><span>{form.validation_mode === 'free' ? 'Tự do: đáp án là mọi từ có nghĩa trong từ điển tiếng Việt.' : sourceInfo ? 'Khi bắt đầu, hệ thống phân tích nguồn và chỉ giữ từ có nghĩa trong từ điển.' : 'Nhập chủ đề hoặc dán văn bản để tạo nguồn trận.'}</span></div>
+              </section>
       <section className="wc-setup-card"><div className="wc-section-title"><span className="wc-step">02</span><div><h2>Thiết lập trận</h2><p>Giữ nguyên tổng lượt đã chọn.</p></div></div>
         <label className="wc-field">Tên trận<input value={form.title} onChange={(event) => update('title', event.target.value)} maxLength={80}/></label>
         <fieldset className="wc-mode-choice"><legend>Chế độ chơi</legend><label className={form.play_mode === 'local' ? 'wc-mode-option active' : 'wc-mode-option'}><input type="radio" name="playmode" checked={form.play_mode === 'local'} onChange={() => update('play_mode','local')}/><Monitor size={20}/><span><strong>1 máy</strong><small>Một màn hình điều khiển tất cả đội, không cần đăng nhập từng đội.</small></span></label><label className={form.play_mode === 'online' ? 'wc-mode-option active' : 'wc-mode-option'}><input type="radio" name="playmode" checked={form.play_mode === 'online'} onChange={() => update('play_mode','online')}/><Users size={20}/><span><strong>Đấu người thật</strong><small>Tạo phòng bằng mã. Người chơi phòng online đăng nhập theo hệ thống hiện có.</small></span></label></fieldset>
@@ -90,7 +99,7 @@ export default function WordChainSetupPage() {
         <div className="wc-team-inputs">{form.teams.map((name,index)=><label className="wc-field" key={index}>Tên đội {index+1}<input value={name} maxLength={32} onChange={(event)=>setForm((current)=>({...current,teams:current.teams.map((item,i)=>i===index?event.target.value:item)}))}/></label>)}</div>
       </section>
       {error && <div className="wc-error" role="alert">{error}</div>}
-      <div className="wc-setup-actions"><Link to={ROUTES.play} className="game-button quiet"><ArrowLeft size={16}/> Quay lại</Link><button className="game-button primary" type="submit" disabled={busy || !sourceInfo || !quotas.length || (form.source_mode !== 'topic' && sourceInfo.extractedCount < 2)}>{busy ? 'Đang kết nối…' : form.play_mode === 'local' ? <>Bắt đầu trận <ArrowRight size={16}/></> : <>Tạo phòng online <ArrowRight size={16}/></>}</button></div>
+      <div className="wc-setup-actions"><Link to={ROUTES.play} className="game-button quiet"><ArrowLeft size={16}/> Quay lại</Link><button className="game-button primary" type="submit" disabled={busy || !sourceInfo || !quotas.length}>{busy ? (form.play_mode === 'local' ? 'Đang phân tích nguồn…' : 'Đang tạo phòng…') : form.play_mode === 'local' ? <>Bắt đầu trận <ArrowRight size={16}/></> : <>Tạo phòng online <ArrowRight size={16}/></>}</button></div>
     </form>
     <section className="wc-join-panel"><div><p className="game-overline">ĐÃ CÓ MÃ PHÒNG?</p><h2>Tham gia một trận Nối Từ</h2><p>Nhập mã sáu ký tự. Tài khoản người chơi dùng đăng nhập hiện có.</p></div><form onSubmit={joinOnline}><input aria-label="Mã phòng" placeholder="ABC123" maxLength={6} autoCapitalize="characters" value={roomCode} onChange={(event)=>setRoomCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6))}/><button className="game-button quiet" disabled={busy || roomCode.length!==6}>{busy?'Đang vào…':'Vào phòng'}</button></form></section>
   </main></div>

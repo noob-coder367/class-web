@@ -24,3 +24,7 @@ export async function skipWordChainTurn(code, idempotencyKey) {
   const { room } = await apiClient.post(`/word-chain/rooms/${encodeURIComponent(code)}/skip`, {}, { auth: true, retry: false, idempotencyKey })
   return room
 }
+export async function resolveWordChainSource(payload) {
+  // Chế độ 1 máy không cần đăng nhập: endpoint này công khai (backend giới hạn theo IP).
+  return apiClient.post('/word-chain/source', payload, { auth: false, retry: false })
+}

@@ -67,3 +67,11 @@ Dependency audit nên chạy riêng trong từng workspace:
 cd backend && npm audit --omit=dev
 cd frontend && npm audit --omit=dev
 ```
+
+## Nối Từ — từ có nghĩa và chủ đề tự do
+
+- `shared/vi-dictionary.txt` — từ điển tiếng Việt (~61.000 từ 2–4 tiếng, đã chuẩn hóa; nguồn: Viet74K của duyet/vietnamese-wordlist, hãy kiểm tra giấy phép trước khi phát hành công khai). Đáp án và từ khởi đầu **luôn** phải nằm trong từ điển, nên nhập "ksshdjs" sẽ bị từ chối ở mọi luật.
+- **Theo chủ đề**: nhập tự do; backend nhờ AI (Gemini/Groq đã cấu hình) gợi ý từ khóa và từ ghép liên quan, rồi chỉ giữ các cụm có trong từ điển. Nếu AI chưa cấu hình/lỗi, hệ thống tự lọc từ điển theo chính các tiếng của chủ đề.
+- **Theo văn bản**: chỉ giữ cặp từ liền kề có nghĩa; hệ thống tự chọn một cặp từ có nghĩa làm từ khởi đầu.
+- **Luật Tự do**: đáp án là mọi từ có nghĩa trong toàn bộ từ điển.
+- `POST /api/word-chain/source` (công khai, giới hạn theo IP) phục vụ chế độ 1 máy; phòng online dùng cùng logic ở backend. Không cần migration mới.

@@ -1,6 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { advanceLocalWordChain, allocateWordChainTurns, buildWordChainSource, normalizeWordChainPhrase, validateLocalWordChainAnswer } from '../src/lib/wordChain.js'
+import { readFileSync } from 'node:fs'
+import { advanceLocalWordChain, allocateWordChainTurns, normalizeWordChainPhrase, setWordChainDictionary, validateLocalWordChainAnswer } from '../src/lib/wordChain.js'
+
+// Dùng đúng file từ điển thật của dự án (trình duyệt tải bằng ?raw, test đọc trực tiếp).
+setWordChainDictionary(new Set(readFileSync(new URL('../../shared/vi-dictionary.txt', import.meta.url), 'utf8').split('\n').filter(Boolean)))
 
 const localRoom = (overrides={}) => ({ status:'playing', turns_used:0, total_turns:2, current_turn:0, allowed_phrases:['học sinh','sinh học','học tập'], history:[], teams:[{id:'a',name:'A',turn_quota:1,turns_used:0},{id:'b',name:'B',turn_quota:1,turns_used:0}], ...overrides })
 
@@ -22,9 +26,14 @@ test('local answer is verified, failed input does not consume a turn, accepted a
   assert.equal(second.turns_used,2)
 })
 
-test('strict pasted text reports its heuristic n-gram pool', () => {
-  const source=buildWordChainSource({sourceMode:'text',text:'học sinh học tập',validationMode:'strict'})
-  assert.ok(source.phrases.includes('sinh học'))
-  assert.ok(!source.phrases.includes('trường học'))
-  assert.throws(()=>buildWordChainSource({sourceMode:'text',text:''}))
+test('local answers must be real dictionary words in every mode, including free mode', () => {
+  const free = localRoom({ validation_mode: 'free', starting_phrase: 'học sinh', allowed_phrases: ['học sinh', 'sinh học'] })
+  assert.equal(validateLocalWordChainAnswer(free, 'sinh lý'), 'sinh lý')
+  assert.throws(() => validateLocalWordChainAnswer(free, 'sinh ksshdjs'), /không phải từ có nghĩa/)
+  assert.throws(() => validateLocalWordChainAnswer(localRoom({ validation_mode: 'free', starting_phrase: '', allowed_phrases: [] }), 'ksshdjs'), /không phải từ có nghĩa/)
+  assert.equal(free.turns_used, 0)
+})
+
+test('local validation fails closed when the dictionary has not loaded yet', () => {
+  assert.throws(() => validateLocalWordChainAnswer(localRoom(), 'học sinh', null), /từ điển/i)
 })

@@ -1,8 +1,9 @@
 import { createHash, randomInt, randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../../config/supabaseClient.js'
 import { HttpError } from '../../lib/httpError.js'
-import { makePhraseSet, validateAnswer, WordChainRuleError, allocateTurns } from './wordChain.engine.js'
-import { normalizePhrase } from './wordChainDictionary.js'
+import { allocateTurns, chooseStartingPhrase, makePhraseSet, validateAnswer, WordChainRuleError } from './wordChain.engine.js'
+import { isDictionaryPhrase, normalizePhrase } from './wordChainDictionary.js'
+import { analyzeTopicWithAI } from './wordChainTopicAI.js'
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const makeCode = () => Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('')
@@ -27,7 +28,7 @@ function mapDbError(error) {
 }
 async function db(query) { const result = await query; if (result.error) throw mapDbError(result.error); return result.data }
 function requestId(value) { const id = String(value || ''); return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id) ? id : null }
-function validateCreate(body = {}) {
+async function validateCreate(body = {}, deps = {}) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) body = {}
   const sourceMode = body.source_mode
   const validationMode = body.validation_mode || 'strict'
@@ -36,7 +37,7 @@ function validateCreate(body = {}) {
   let source
   let quotas
   try {
-    source = makePhraseSet({ sourceMode, topic: body.topic || '', text: body.text || '', validationMode })
+    source = await resolveSource({ sourceMode, topic: body.topic || '', text: body.text || '', validationMode }, deps)
     quotas = allocateTurns(count, total)
   } catch (error) {
     if (error instanceof RangeError) fail(error.message, 400, 'invalid_word_chain_setup')
@@ -52,8 +53,30 @@ function validateCreate(body = {}) {
   return { sourceMode, validationMode, source, quotas, teamNames, title, topic: String(body.topic || '').trim().slice(0, 80), total }
 }
 
-export async function createRoom(userId, body = {}, idempotency = null) {
-  const input = validateCreate(body)
+/** Phân tích nguồn: AI hiểu chủ đề (nếu dùng chủ đề), sau đó chỉ giữ cụm từ có nghĩa trong từ điển. */
+export async function resolveSource({ sourceMode, topic = '', text = '', validationMode = 'strict' }, deps = {}) {
+  const usesTopic = (sourceMode === 'topic' || sourceMode === 'combined') && normalizePhrase(topic)
+  const aiTopic = usesTopic ? await (deps.analyzeTopic || analyzeTopicWithAI)(topic) : null
+  const source = makePhraseSet({ sourceMode, topic, text, validationMode, aiTopic })
+  return { ...source, aiUsed: Boolean(aiTopic) }
+}
+
+/** Dùng cho chế độ 1 máy: trả kho cụm từ và từ khởi đầu có nghĩa. */
+export async function previewSource(body = {}, deps = {}) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) body = {}
+  const validationMode = body.validation_mode || 'strict'
+  try {
+    const source = await resolveSource({ sourceMode: body.source_mode, topic: body.topic || '', text: body.text || '', validationMode }, deps)
+    const startingPhrase = chooseStartingPhrase(source.phrases)
+    return { phrases: source.phrases, count: source.phrases.length, starting_phrase: startingPhrase, dictionary_version: source.version, ai_used: source.aiUsed, from_dictionary: source.fromDictionary, extracted_count: source.extractedCount }
+  } catch (error) {
+    if (error instanceof RangeError) fail(error.message, 400, 'invalid_word_chain_setup')
+    throw error
+  }
+}
+
+export async function createRoom(userId, body = {}, idempotency = null, deps = {}) {
+  const input = await validateCreate(body, deps)
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const code = makeCode()
     const { data, error } = await supabaseAdmin.rpc('create_word_chain_room_atomic', {
@@ -121,6 +144,8 @@ export async function submitAnswer(code, userId, body = {}, idempotency = null) 
   const phrase = normalizePhrase(body.answer)
   if (!phrase) fail('Nhập một từ hoặc cụm từ có chữ cái.', 400, 'empty_answer')
   if (phrase.length > 80) fail('Đáp án không được dài quá 80 ký tự.', 400, 'answer_too_long')
+  // Backend là cổng kiểm tra từ có nghĩa (kể cả luật Tự do): từ vô nghĩa không bao giờ chạm tới DB.
+  if (phrase.split(' ').length < 2 || !isDictionaryPhrase(phrase)) fail(`“${phrase}” không phải từ có nghĩa trong từ điển tiếng Việt (cần từ 2–4 tiếng).`, 400, 'not_in_dictionary')
   const { error } = await supabaseAdmin.rpc('apply_word_chain_turn_atomic', {
     p_room_id: room.id, p_user_id: userId, p_action: 'answer', p_phrase: phrase,
     p_payload_hash: payloadHash({ action: 'answer', phrase }),

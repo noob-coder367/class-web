@@ -7,3 +7,4 @@ export const join = wrap(async (req, res) => res.json({ room: await service.join
 export const start = wrap(async (req, res) => res.json({ room: await service.startRoom(req.params.code, req.user.id) }))
 export const answer = wrap(async (req, res) => res.json({ room: await service.submitAnswer(req.params.code, req.user.id, req.body, requestId(req)) }))
 export const skip = wrap(async (req, res) => res.json({ room: await service.skipTurn(req.params.code, req.user.id, requestId(req)) }))
+export const source = wrap(async (req, res) => res.json(await service.previewSource(req.body)))
