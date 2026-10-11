@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext.jsx'
 import { ToastProvider } from './context/ToastContext.jsx'
 import { ROUTES } from './lib/routes.js'
+import UtilityToolsPanel from './components/UtilityToolsPanel.jsx'
 import './App.css'
 import './account.css'
 import './admin-accounts.css'
@@ -50,7 +51,7 @@ function ProtectedRoute({ children }) {
 
 function AppRoutes() {
   const location = useLocation()
-  const { authReady, isLoggedIn, profile } = useAuth()
+  const { authReady, isLoggedIn, isAdmin, profile } = useAuth()
   if (authReady && isLoggedIn && profile?.needs_display_name && location.pathname !== ROUTES.profile) {
     return <Navigate to={ROUTES.profile} replace />
   }
@@ -75,6 +76,7 @@ function AppRoutes() {
       <Route path={`${ROUTES.quizParty}/:code`} element={<ProtectedRoute><QuizPartyRoomPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
       </Routes>
+      <UtilityToolsPanel isAdmin={isAdmin} />
     </Suspense>
   )
 }
