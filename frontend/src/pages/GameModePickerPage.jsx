@@ -5,7 +5,8 @@ import { GAME_MODES, roomPathForApiMode } from '../lib/gameModes.js'
 import { listGameModeImages } from '../services/gameModeImageService.js'
 import { joinRoom } from '../services/gameRoomService.js'
 import '../game.css'
-import { ArrowRight, ChevronRight, Lock, Play, Plus } from 'lucide-react'
+import { ArrowRight, ChevronRight, Lock, Play, Plus, Wrench } from 'lucide-react'
+import { ROUTES } from '../lib/routes.js'
 
 function JoinRoomModal({ onClose, description }) {
   const navigate = useNavigate()
@@ -132,6 +133,17 @@ export default function GameModePickerPage() {
         </header>
         <section className="mode-grid" aria-label="Danh sách game mode">
           {GAME_MODES.map((mode) => <ModeCard key={mode.id} mode={mode} content={images[mode.id]} onJoin={openJoin} />)}
+          <article className="mode-card mode-card-active bolt-mode-card">
+            <div className="mode-card-cover mode-card-cover-landscape">
+              <div className="bolt-mode-art"><div>🔩</div><span>✦</span><i>?</i></div>
+              <div className="mode-card-cover-overlay">
+                <div className="mode-card-topline"><span className="live-pill">MỚI · 2 ĐỘI</span><span className="mode-arrow"><ArrowRight size={22}/></span></div>
+                <div className="mode-card-cover-copy"><Wrench className="mode-card-cover-icon" size={31}/><h2>Đại chiến Bu Lông</h2><p>Giải đố sắp xếp bu lông nhiều màu, trả lời câu hỏi và thi đấu song song trên một màn hình.</p></div>
+              </div>
+            </div>
+            <div className="mode-preview bolt-mode-preview"><span>PUZZLE!</span><i/><i/><i/><b><Wrench size={25}/></b></div>
+            <div className="mode-actions"><Link className="game-button primary" to={ROUTES.boltSort}><Play className="ico" size={16}/> Chơi ngay</Link><span className="bolt-mode-caption">4 cấp độ · chơi toàn màn hình</span></div>
+          </article>
           <article className="mode-card mode-card-locked">
             <div className="mode-icon"><Lock size={38} aria-hidden="true" /></div>
             <h2>Game mode mới</h2>
