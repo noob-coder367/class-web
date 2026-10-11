@@ -43,3 +43,8 @@ test('Đường dẫn chi tiết và link tạo phòng chọn sẵn game', () =>
   assert.equal(gameCreateLink(gameCatalogById('quiz-party')), `${ROUTES.createRoom}?mode=quiz-party`)
   assert.equal(gameCreateLink(gameCatalogById('bolt-sort')), null)
 })
+
+test('Chỉ game có phòng mới hiển thị danh sách phòng đang mở', () => {
+  assert.deepEqual(GAME_CATALOG.filter((game) => game.openRooms).map((game) => game.id), ['treasure-race', 'quiz-party', 'word-chain'])
+  assert.ok(!gameCatalogById('bolt-sort').openRooms)
+})

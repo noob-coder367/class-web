@@ -1,30 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Play, Plus, X } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
 import JoinRoomModal from '../components/JoinRoomModal.jsx'
-import { useAuth } from '../context/AuthContext.jsx'
-import { GAME_CATALOG, gameCatalogById, gameCreateLink, gameDetailPath, roomPathForApiMode } from '../lib/gameModes.js'
+import OpenRoomsPanel from '../components/OpenRoomsPanel.jsx'
+import { GAME_CATALOG, gameCatalogById, gameCreateLink, gameDetailPath } from '../lib/gameModes.js'
 import { ROUTES } from '../lib/routes.js'
 import { listGameModeImages } from '../services/gameModeImageService.js'
-import { joinRoom, listOpenGameRooms } from '../services/gameRoomService.js'
-import { joinWordChainRoom, listOpenWordChainRooms } from '../services/wordChainService.js'
 import '../game.css'
 import '../game-catalog.css'
 
 export default function GameDetailPage() {
   const { gameId } = useParams()
   const game = gameCatalogById(gameId)
-  const navigate = useNavigate()
-  const location = useLocation()
-  const { isLoggedIn } = useAuth()
   const [images, setImages] = useState({})
   const [activeSlide, setActiveSlide] = useState(0)
   const [joinOpen, setJoinOpen] = useState(false)
-  const [openRooms, setOpenRooms] = useState([])
-  const [roomsLoading, setRoomsLoading] = useState(true)
-  const [roomsError, setRoomsError] = useState('')
-  const [joiningRoom, setJoiningRoom] = useState('')
 
   useEffect(() => {
     let active = true
@@ -33,26 +24,6 @@ export default function GameDetailPage() {
       .catch((error) => console.warn('[GameDetail] Could not load game content:', error?.message || error))
     return () => { active = false }
   }, [])
-
-  useEffect(() => {
-    let active = true
-    if (!game) return () => { active = false }
-    const loadRooms = async () => {
-      try {
-        const rooms = game.id === 'word-chain'
-          ? await listOpenWordChainRooms()
-          : game.apiMode ? await listOpenGameRooms(game.apiMode) : []
-        if (active) { setOpenRooms(rooms); setRoomsError('') }
-      } catch (error) {
-        if (active) setRoomsError(error?.message || 'Không thể tải danh sách phòng đang mở.')
-      } finally {
-        if (active) setRoomsLoading(false)
-      }
-    }
-    void loadRooms()
-    const timer = window.setInterval(loadRooms, 15000)
-    return () => { active = false; window.clearInterval(timer) }
-  }, [game])
 
   useEffect(() => { setActiveSlide(0) }, [gameId])
 
@@ -73,26 +44,6 @@ export default function GameDetailPage() {
   const current = slides[Math.min(activeSlide, Math.max(slides.length - 1, 0))]
   const others = GAME_CATALOG.filter((item) => item.id !== game.id)
   const goTo = (delta) => setActiveSlide((value) => (value + delta + slides.length) % slides.length)
-  const enterRoom = async (room) => {
-    if (!isLoggedIn) {
-      navigate(ROUTES.login, { state: { from: { pathname: location.pathname } } })
-      return
-    }
-    setJoiningRoom(room.code); setRoomsError('')
-    try {
-      if (game.id === 'word-chain') {
-        await joinWordChainRoom(room.code)
-        navigate(`${ROUTES.wordChainRoom}/${room.code}`)
-      } else {
-        const joined = await joinRoom(room.code)
-        navigate(`${roomPathForApiMode(joined.game_mode)}/${joined.code || room.code}`)
-      }
-    } catch (error) {
-      setRoomsError(error?.message || 'Không thể tham gia phòng này. Có thể phòng đã bắt đầu hoặc đã đầy.')
-    } finally {
-      setJoiningRoom('')
-    }
-  }
 
   return (
     <div className="game-shell gc-page">
@@ -162,17 +113,7 @@ export default function GameDetailPage() {
           </dl>
         </section>
 
-        <section className="gc-section gc-open-rooms" aria-labelledby="gc-open-rooms-title">
-          <div className="gc-open-rooms-heading"><div><h2 id="gc-open-rooms-title">Phòng đang mở</h2><p>Phòng đang chờ người chơi · danh sách tự cập nhật mỗi 15 giây</p></div><span className="gc-open-rooms-count">{openRooms.length} phòng</span></div>
-          {roomsError && <p className="gc-rooms-error" role="alert">{roomsError}</p>}
-          {roomsLoading ? <p className="gc-rooms-empty" role="status">Đang tìm phòng chờ…</p>
-            : game.kind === 'solo' && game.id !== 'word-chain' ? <p className="gc-rooms-empty">Trò chơi này chơi trực tiếp, không sử dụng phòng online.</p>
-              : openRooms.length === 0 ? <p className="gc-rooms-empty">Chưa có phòng nào đang mở. {createLink ? 'Bạn có thể tạo phòng mới.' : 'Bạn có thể mở chế độ chơi từ nút phía trên.'}</p>
-                : <div className="gc-open-room-list">{openRooms.map((room) => <article className="gc-open-room" key={room.code}>
-                  <div className="gc-open-room-info"><strong>{room.title || title}</strong><span>Mã {room.code} · {room.player_count || 0} người đã vào{room.total_turns ? ` · ${room.total_turns} lượt` : ''}</span></div>
-                  <button className="gc-room-join" type="button" onClick={() => void enterRoom(room)} disabled={Boolean(joiningRoom)}>{joiningRoom === room.code ? 'Đang vào…' : 'Vào phòng'}</button>
-                </article>)}</div>}
-        </section>
+        {game.openRooms && <OpenRoomsPanel key={game.id} game={game} title={title} />}
 
         <section className="gc-section">
           <h2>Trò chơi khác</h2>

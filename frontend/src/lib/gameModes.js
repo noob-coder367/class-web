@@ -57,7 +57,7 @@ export function roomPathForApiMode(apiMode) {
 
 function roomGame(id, extra) {
   const mode = gameModeById(id)
-  return Object.freeze({ ...mode, kind: 'room', kindLabel: 'Phòng online', ...extra, facts: Object.freeze(extra.facts) })
+  return Object.freeze({ ...mode, kind: 'room', kindLabel: 'Phòng online', openRooms: true, ...extra, facts: Object.freeze(extra.facts) })
 }
 
 /**
@@ -110,6 +110,7 @@ export const GAME_CATALOG = Object.freeze([
     icon: Link2,
     kind: 'solo',
     kindLabel: 'Một máy / phòng online',
+    openRooms: true,
     teamsLabel: '2–8 đội',
     joinPath: ROUTES.wordChain,
     joinLabel: 'Thiết lập & chơi',
