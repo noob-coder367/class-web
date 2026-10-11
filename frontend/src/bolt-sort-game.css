@@ -35,3 +35,21 @@
 .bolt-essay-answer input{min-width:0;flex:1;border:1px solid #ffffff22;border-radius:10px;background:#101b2b;color:#fff;padding:11px 12px;font:700 13px 'Nunito',sans-serif}
 .bolt-essay-answer button{border:0;border-radius:10px;background:#55e88a;color:#10251a;padding:10px 15px;font:900 12px 'Nunito',sans-serif;cursor:pointer}
 .bolt-essay-answer button:hover{filter:brightness(1.08)}
+
+
+/* Cảm giác cơ khí: đầu bu lông nhấc lên, xếp đúng thứ tự và đinh đích phản hồi khi sai */
+.bolt-board .rod-bolts{flex-direction:column-reverse;isolation:isolate}
+.bolt-rod{perspective:700px;transform-style:preserve-3d;touch-action:manipulation}
+.bolt-rod:active{filter:brightness(1.12)}
+.bolt-rod.rod-selected .rod-shaft{filter:drop-shadow(0 0 7px var(--team-color));opacity:1}
+.bolt-rod.rod-selected .rod-base{box-shadow:0 4px 0 #5d6a62,inset 0 2px #fff,0 0 16px color-mix(in srgb,var(--team-color) 35%,transparent)}
+.bolt-rod .bolt-selected{transform:translateY(-15px) rotate(-4deg) scale(1.04);z-index:8;filter:drop-shadow(0 0 10px var(--bolt-color)) drop-shadow(0 8px 4px #0008);transition:transform 240ms cubic-bezier(.2,1.6,.35,1),filter 180ms ease}
+.bolt-rod .bolt{transition:filter 180ms ease}
+.bolt-rod.rod-shaking{animation:bolt-rod-reject 420ms cubic-bezier(.36,.07,.19,.97) both;background:#ff4d5714;border-color:#ff667755}
+.bolt-rod.rod-shaking .rod-base{box-shadow:0 3px 0 #5d6a62,inset 0 2px #fff,0 0 16px #ff4d5788}
+.bolt-flight{transform-origin:50% 50%;will-change:transform,left,top;filter:drop-shadow(0 9px 12px #0009)}
+.bolt-flight-travelling{transform:translate(var(--flight-x),var(--flight-y)) rotate(1080deg) scale(.92);transition:transform 600ms cubic-bezier(.16,.82,.23,1.12)}
+.bolt-flight .bolt-top{box-shadow:inset 0 2px #ffffff65,inset 0 -2px #0002,0 0 8px color-mix(in srgb,var(--bolt-color) 45%,transparent)}
+.bolt-revealed .bolt-top:after{content:'';position:absolute;inset:1px;border-radius:5px;background:linear-gradient(130deg,#ffffff35,transparent 45%,#0001);pointer-events:none}
+@keyframes bolt-rod-reject{0%,100%{transform:translateX(0) rotateY(0);filter:none}15%{transform:translateX(-7px) rotateY(-7deg);filter:drop-shadow(0 0 7px #ff4d57)}30%{transform:translateX(7px) rotateY(7deg)}45%{transform:translateX(-5px) rotateY(-5deg)}60%{transform:translateX(5px) rotateY(5deg)}75%{transform:translateX(-2px) rotateY(-2deg)}}
+@media(prefers-reduced-motion:reduce){.bolt-rod.rod-shaking{animation:none}.bolt-rod .bolt-selected{transition:none}}
