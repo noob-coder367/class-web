@@ -35,6 +35,14 @@ export default function FileDropzone({ file, onFile, onReject, disabled = false 
     else onFile(candidate)
   }
 
+  // Clear the native input after capturing the File object. Android Chrome may
+  // otherwise keep the previous selection and skip change when the same file is picked again.
+  const handleInputChange = (event) => {
+    const candidate = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    accept(candidate)
+  }
+
   const clear = () => {
     onFile(null)
     ;[inputRef, cameraRef, albumRef].forEach((ref) => { if (ref.current) ref.current.value = '' })
@@ -76,14 +84,14 @@ export default function FileDropzone({ file, onFile, onReject, disabled = false 
         type="file"
         accept={ACCEPT}
         disabled={disabled}
-        onChange={(event) => accept(event.target.files?.[0])}
+        onChange={handleInputChange}
       />
     </label>
     <div className="qz-image-actions" aria-label="Chọn ảnh">
       <button type="button" className="qz-btn qz-btn-quiet" disabled={disabled} onClick={() => cameraRef.current?.click()}>📷 Chụp ảnh</button>
       <button type="button" className="qz-btn qz-btn-quiet" disabled={disabled} onClick={() => albumRef.current?.click()}>🖼 Chọn từ album</button>
-      <input id={cameraId} ref={cameraRef} className="qz-visually-hidden" type="file" accept="image/*" capture="environment" disabled={disabled} onChange={(event) => accept(event.target.files?.[0])} />
-      <input id={albumId} ref={albumRef} className="qz-visually-hidden" type="file" accept="image/*" disabled={disabled} onChange={(event) => accept(event.target.files?.[0])} />
+      <input id={cameraId} ref={cameraRef} className="qz-visually-hidden" type="file" accept="image/*" capture="environment" disabled={disabled} onChange={handleInputChange} />
+      <input id={albumId} ref={albumRef} className="qz-visually-hidden" type="file" accept="image/*" disabled={disabled} onChange={handleInputChange} />
     </div>
     </div>
   )
