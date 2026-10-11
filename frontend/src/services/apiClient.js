@@ -1,6 +1,9 @@
 import { supabase } from '../lib/supabaseClient.js'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api'
+const configuredApiBase = String(import.meta.env.VITE_API_BASE_URL || '').trim()
+const BASE_URL = (configuredApiBase || (import.meta.env.PROD
+  ? 'https://class-web-backend.onrender.com/api'
+  : 'http://localhost:4000/api')).replace(/\/+$/, '')
 
 const ACCESS_TOKEN_KEY = 'quizly:access_token'
 const FETCH_TIMEOUT_MS = 20_000

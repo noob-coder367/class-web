@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as pdfjsLib from 'pdfjs-dist'
-import { parseClassRosterNames } from '../lib/classRosterPdf.js'
+import { groupPdfTextItemsIntoRows, parseClassRosterNames } from '../lib/classRosterPdf.js'
 import { getUtilityRoster, saveUtilityRoster } from '../services/classRosterService.js'
 import './AdvancedHubPage.css'
 
@@ -12,22 +12,18 @@ async function readPdfNames(file) {
   const rows = []
   for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
     const content = await (await pdf.getPage(pageNo)).getTextContent()
-    const byY = new Map()
-    for (const item of content.items) {
-      const text = String(item.str || '').trim()
-      if (!text) continue
-      const y = Math.round(Number(item.transform?.[5] || 0) * 10) / 10
-      const row = byY.get(y) || []
-      row.push({ x: Number(item.transform?.[4] || 0), text })
-      byY.set(y, row)
-    }
-    ;[...byY.entries()].sort((a, b) => b[0] - a[0]).forEach(([, row]) => rows.push(row.sort((a, b) => a.x - b.x).map((item) => item.text).join(' ')))
+    rows.push(...groupPdfTextItemsIntoRows(content.items))
   }
   let names = parseClassRosterNames(rows)
   // Second pass: join adjacent extracted rows when the PDF splits each table row vertically.
   if (!names.length) {
     const compact = rows.map((row) => String(row || '').replace(/\s+/g, ' ').trim()).filter(Boolean)
-    names = parseClassRosterNames(compact.map((row, index) => index + 1 < compact.length ? row + ' ' + compact[index + 1] : row))
+    const windows = []
+    for (let index = 0; index < compact.length; index += 1) {
+      windows.push(compact.slice(index, index + 2).join(' '))
+      windows.push(compact.slice(index, index + 3).join(' '))
+    }
+    names = parseClassRosterNames(windows)
   }
   if (!names.length) throw new Error('PDF đã mở được nhưng không tìm thấy tên học sinh. Hãy kiểm tra PDF có lớp, STT và chữ có thể bôi đen/copy được (không phải ảnh scan).')
   if (names.length > 100) names = names.slice(0, 100)
@@ -67,7 +63,13 @@ export default function AdvancedHubPage({ view = 'roster' }) {
       const next = data?.roster || { names, fileName: file.name, updatedAt: new Date().toISOString() }
       setRoster(next); setStatus('ready'); setMessage('Đã lưu danh sách lớp thành công. Tiền lớp sẽ sử dụng dữ liệu này.')
     } catch (error) { setStatus('error'); setMessage(error.message || 'Không đọc hoặc lưu được PDF.') }
-    finally { setBusy(false); if (inputRef.current) inputRef.current.value = '' }
+    finally { setBusy(false) }
+  }
+  const handleFileChange = (event) => {
+    const file = event.currentTarget.files?.[0]
+    // Android có thể không phát lại change nếu chọn cùng một file lần nữa.
+    event.currentTarget.value = ''
+    void loadPdf(file)
   }
   const handleDragOver = (event) => {
     event.preventDefault()
@@ -118,7 +120,7 @@ export default function AdvancedHubPage({ view = 'roster' }) {
           <small className="roster-upload-hint">{dragging ? 'Thả PDF để bắt đầu tải lên.' : 'Kéo thả PDF vào thẻ này hoặc bấm nút bên phải · tối đa 30 MB.'}</small>
           {roster.fileName ? <div className="roster-file-meta"><span>PDF đã lưu</span><strong>{roster.fileName}</strong>{roster.updatedAt ? <small>{new Date(roster.updatedAt).toLocaleString('vi-VN')}</small> : null}</div> : null}
         </div>
-        <input ref={inputRef} type="file" accept="application/pdf,.pdf" hidden onChange={(event) => loadPdf(event.target.files?.[0])} />
+        <input ref={inputRef} type="file" accept="application/pdf,.pdf" hidden onChange={handleFileChange} />
         <button type="button" className="roster-upload-button" disabled={busy} onClick={() => inputRef.current?.click()}>{busy ? 'Đang xử lý…' : roster.names?.length ? 'Thay PDF' : 'Chọn PDF'}</button>
       </section>
       <div className={'roster-feedback roster-feedback--' + status}>{status === 'ready' ? '✓ ' : status === 'error' ? '⚠ ' : ''}{message}</div>
