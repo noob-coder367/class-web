@@ -13,10 +13,28 @@ export async function extractTextFromImage({ buffer, filename = 'image.jpg', con
   form.append('isOverlayRequired', 'false')
   form.append('OCREngine', '2')
   let response
-  try { response = await fetchImpl(ENDPOINT, { method: 'POST', headers: { apikey: apiKey }, body: form }) } catch { throw new HttpError('Không kết nối được dịch vụ OCR. Vui lòng thử lại.', 503, 'ocr_unavailable') }
-  if (!response.ok) throw new HttpError('Dịch vụ OCR tạm thời không khả dụng.', 503, 'ocr_unavailable')
+  try {
+    response = await fetchImpl(ENDPOINT, { method: 'POST', headers: { apikey: apiKey }, body: form })
+  } catch (error) {
+    // Never log the API key, uploaded image, or request headers.
+    console.error('[OCR] Request to OCR.space failed:', error?.name || 'NetworkError', error?.message || 'unknown network error')
+    throw new HttpError('Không kết nối được dịch vụ OCR. Vui lòng thử lại.', 503, 'ocr_unavailable')
+  }
+  if (!response.ok) {
+    let detail = ''
+    try { detail = (await response.text()).slice(0, 500) } catch { /* response body may be unreadable */ }
+    console.error('[OCR] OCR.space returned non-2xx response:', { status: response.status, detail })
+    throw new HttpError('Dịch vụ OCR tạm thời không khả dụng.', 503, 'ocr_unavailable')
+  }
   let payload
-  try { payload = await response.json() } catch { throw new HttpError('OCR trả về dữ liệu không hợp lệ.', 502, 'ocr_invalid_output') }
+  try { payload = await response.json() } catch (error) {
+    console.error('[OCR] OCR.space returned invalid JSON:', error?.message || 'unknown parse error')
+    throw new HttpError('OCR trả về dữ liệu không hợp lệ.', 502, 'ocr_invalid_output')
+  }
+  if (payload?.IsErroredOnProcessing) {
+    const detail = Array.isArray(payload?.ErrorMessage) ? payload.ErrorMessage.join('; ').slice(0, 500) : String(payload?.ErrorMessage || payload?.ErrorDetails || 'unknown OCR processing error').slice(0, 500)
+    console.error('[OCR] OCR.space reported a processing error:', detail)
+  }
   const text = (payload?.ParsedResults || []).map((item) => item?.ParsedText || '').join('\n').replace(/\u0000/g, '').trim()
   if (payload?.IsErroredOnProcessing || !text) throw new HttpError('Không đọc được nội dung trong ảnh. Hãy thử ảnh rõ hơn.', 422, 'ocr_empty')
   return { text, provider: 'ocr.space' }
