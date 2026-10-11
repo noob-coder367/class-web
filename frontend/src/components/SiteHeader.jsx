@@ -99,13 +99,14 @@ function AccountMenu() {
 }
 
 export default function SiteHeader() {
-  const { authReady, isLoggedIn } = useAuth()
+  const { authReady, isLoggedIn, isAdmin } = useAuth()
   return (
     <header className="site-nav">
       <div className="container nav-inner">
         <Brand />
         <nav className="nav-actions" aria-label="Điều hướng tài khoản">
           {!authReady ? null : isLoggedIn ? (
+            {isAdmin && <Link className="button button-quiet" to={ROUTES.classMoney}>Nâng cao</Link>}
             <AccountMenu />
           ) : (
             <>
