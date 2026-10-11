@@ -1,7 +1,7 @@
 import { createHash, randomInt, randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../../config/supabaseClient.js'
 import { HttpError } from '../../lib/httpError.js'
-import { allocateTurns, chooseStartingPhrase, makePhraseSet, validateAnswer, WordChainRuleError } from './wordChain.engine.js'
+import { allocateTurns, chooseStartingPhrase, findAnswer, makePhraseSet, TURN_TIME_LIMIT_SECONDS, validateAnswer, WordChainRuleError } from './wordChain.engine.js'
 import { isDictionaryPhrase, normalizePhrase } from './wordChainDictionary.js'
 import { analyzeTopicWithAI } from './wordChainTopicAI.js'
 
@@ -9,7 +9,10 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const makeCode = () => Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('')
 const fail = (message, status = 400, code = 'validation_error') => { throw new HttpError(message, status, code) }
 const payloadHash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
-const ROOM_COLUMNS = 'id, code, host_id, title, status, source_mode, topic, validation_mode, total_turns, current_team_id, starting_phrase, allowed_phrases, created_at'
+// turns_used + updated_at: DB cập nhật updated_at mỗi khi bắt đầu trận / kết thúc một lượt => dùng làm mốc bắt đầu của lượt hiện tại (đồng hồ 60 giây).
+const ROOM_COLUMNS = 'id, code, host_id, title, status, source_mode, topic, validation_mode, total_turns, turns_used, current_team_id, starting_phrase, allowed_phrases, created_at, updated_at'
+// Cho phép lệch đồng hồ giữa máy chủ ứng dụng và DB một chút khi kiểm tra "đã hết giờ".
+const REVEAL_CLOCK_TOLERANCE_MS = 5_000
 
 function mapDbError(error) {
   if (error?.code === '22023' && error?.message?.toLowerCase().includes('idempotency key payload changed')) {
@@ -61,14 +64,14 @@ export async function resolveSource({ sourceMode, topic = '', text = '', validat
   return { ...source, aiUsed: Boolean(aiTopic) }
 }
 
-/** Dùng cho chế độ 1 máy: trả kho cụm từ và từ khởi đầu có nghĩa. */
+/** Dùng cho chế độ 1 máy: trả kho cụm từ và từ khởi đầu có nghĩa (luôn còn ít nhất một đáp án để nối). */
 export async function previewSource(body = {}, deps = {}) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) body = {}
   const validationMode = body.validation_mode || 'strict'
   try {
     const source = await resolveSource({ sourceMode: body.source_mode, topic: body.topic || '', text: body.text || '', validationMode }, deps)
     const startingPhrase = chooseStartingPhrase(source.phrases)
-    return { phrases: source.phrases, count: source.phrases.length, starting_phrase: startingPhrase, dictionary_version: source.version, ai_used: source.aiUsed, from_dictionary: source.fromDictionary, extracted_count: source.extractedCount }
+    return { phrases: source.phrases, count: source.phrases.length, starting_phrase: startingPhrase, dictionary_version: source.version, ai_used: source.aiUsed, from_dictionary: source.fromDictionary, extracted_count: source.extractedCount, turn_time_limit: TURN_TIME_LIMIT_SECONDS }
   } catch (error) {
     if (error instanceof RangeError) fail(error.message, 400, 'invalid_word_chain_setup')
     throw error
@@ -122,6 +125,10 @@ export async function getRoomState(codeOrId, userId) {
     history: turns,
     is_host: room.host_id === userId,
     current_user_team_id: member.team_id,
+    // Đồng hồ lượt: mốc bắt đầu theo giờ máy chủ + giờ máy chủ hiện tại để client tự bù lệch đồng hồ.
+    turn_time_limit: TURN_TIME_LIMIT_SECONDS,
+    turn_started_at: room.status === 'playing' ? room.updated_at : null,
+    server_time: new Date().toISOString(),
   }
 }
 
@@ -180,6 +187,29 @@ export async function skipTurn(code, userId, idempotency = null) {
   })
   if (error) throw mapDbError(error)
   return getRoomState(room.id, userId)
+}
+
+/**
+ * Hết 60 giây của lượt hiện tại: trả một đáp án hợp lệ cho mọi người chơi trong phòng.
+ * Máy chủ tự kiểm tra đã đủ thời gian (dựa trên updated_at của phòng) để không ai xem đáp án sớm.
+ * Không ghi gì vào DB: đáp án chỉ để hiển thị, đội vẫn bấm "Bỏ lượt" để sang lượt kế tiếp.
+ */
+export async function revealAnswer(code, userId) {
+  const room = await findRoom(code)
+  const state = await getRoomState(room.id, userId) // kiểm tra người gọi có trong phòng
+  if (room.status !== 'playing') fail('Trận chưa bắt đầu hoặc đã kết thúc.', 409, 'room_not_playing')
+  const elapsedMs = Date.now() - Date.parse(room.updated_at)
+  if (!Number.isFinite(elapsedMs) || elapsedMs < TURN_TIME_LIMIT_SECONDS * 1000 - REVEAL_CLOCK_TOLERANCE_MS) {
+    fail(`Chưa hết ${TURN_TIME_LIMIT_SECONDS} giây của lượt này.`, 409, 'turn_not_expired')
+  }
+  const answers = state.history.filter((turn) => turn.action === 'answer').map((turn) => turn.phrase)
+  const answer = findAnswer({
+    lastPhrase: answers.at(-1) || room.starting_phrase || '',
+    usedPhrases: [room.starting_phrase, ...answers].filter(Boolean),
+    allowedPhrases: room.allowed_phrases,
+    validationMode: room.validation_mode,
+  })
+  return { answer, turn_number: (room.turns_used || 0) + 1 }
 }
 
 export async function joinByCode(code, userId) { return joinRoom(code, userId) }

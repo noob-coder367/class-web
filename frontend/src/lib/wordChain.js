@@ -3,6 +3,8 @@ import seed from '../../../shared/word-chain-seed.json' with { type: 'json' }
 export const WORD_CHAIN_TOPICS = Object.keys(seed.topics)
 export const MAX_WORD_CHAIN_TURNS = 200
 export const MAX_WORD_CHAIN_TEXT = 20_000
+/** Mỗi đội có 60 giây cho một lượt; hết giờ hệ thống hiện đáp án. */
+export const WORD_CHAIN_TURN_SECONDS = 60
 
 export function normalizeWordChainPhrase(value) {
   if (typeof value !== 'string') return ''
@@ -30,6 +32,7 @@ export function extractWordChainPhrases(text, validationMode = 'strict') {
   return result
 }
 
+/** Chọn từ khởi đầu: luôn có ít nhất một cụm khác để nối tiếp (đảm bảo có đáp án). */
 export function chooseLocalStartingPhrase(phrases = []) {
   const normalized = [...new Set(phrases.map(normalizeWordChainPhrase).filter(Boolean))]
   const candidates = normalized.filter((phrase) => {
@@ -70,6 +73,58 @@ export function validateLocalWordChainAnswer(room, answer, dictionary = activeDi
   return phrase
 }
 
+// Chỉ mục từ điển theo tiếng đầu, dựng một lần cho mỗi từ điển (dùng cho luật Tự do khi tìm đáp án).
+let firstWordIndex = null
+let firstWordIndexSource = null
+function dictionaryByFirstWord(dictionary) {
+  if (firstWordIndex && firstWordIndexSource === dictionary) return firstWordIndex
+  const index = new Map()
+  for (const phrase of dictionary) {
+    const space = phrase.indexOf(' ')
+    if (space < 1) continue
+    const first = phrase.slice(0, space)
+    const bucket = index.get(first)
+    if (bucket) bucket.push(phrase)
+    else index.set(first, [phrase])
+  }
+  firstWordIndex = index
+  firstWordIndexSource = dictionary
+  return index
+}
+
+/**
+ * Chế độ 1 máy — tìm một đáp án HỢP LỆ để nối tiếp cụm cuối cùng (dùng khi hết 60 giây).
+ * Cùng luật với validateLocalWordChainAnswer: có trong từ điển, chưa dùng, và (nếu không phải luật Tự do) nằm trong nguồn của trận.
+ * Ưu tiên cụm mà đội kế tiếp vẫn còn nước nối. Trả về null nếu không còn cụm nào nối được.
+ */
+export function findLocalWordChainAnswer(room, dictionary = activeDictionary, random = Math.random) {
+  if (!dictionary) throw new Error('Từ điển tiếng Việt đang tải. Hãy thử lại sau giây lát.')
+  const free = room.validation_mode === 'free'
+  const answers = (room.history || []).filter((turn) => turn.action === 'answer').map((turn) => turn.phrase)
+  const last = answers.at(-1) || room.starting_phrase || ''
+  const used = new Set([room.starting_phrase, ...answers].map(normalizeWordChainPhrase).filter(Boolean))
+  const allowed = free ? null : [...new Set((room.allowed_phrases || []).map(normalizeWordChainPhrase).filter(Boolean))]
+  const finalWordOf = (phrase) => normalizeWordChainPhrase(phrase).split(' ').filter(Boolean).at(-1) || ''
+  const continuations = (word, taken) => {
+    if (!word) return []
+    const pool = free ? (dictionaryByFirstWord(dictionary).get(word) || []) : allowed.filter((phrase) => phrase.split(' ')[0] === word)
+    return pool.filter((phrase) => phrase.length <= 80 && phrase.split(' ').length >= 2 && !taken.has(phrase) && dictionary.has(phrase))
+  }
+  const candidates = continuations(finalWordOf(last), used)
+  if (!candidates.length) return null
+  const shuffled = [...candidates]
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [shuffled[index], shuffled[swap]] = [shuffled[swap], shuffled[index]]
+  }
+  for (const phrase of shuffled.slice(0, 40)) {
+    const taken = new Set(used)
+    taken.add(phrase)
+    if (continuations(finalWordOf(phrase), taken).length) return phrase
+  }
+  return shuffled[0]
+}
+
 export function advanceLocalWordChain(room, action, answer = '', dictionary = activeDictionary) {
   if (room.status !== 'playing') throw new Error('Trận đã kết thúc.')
   const teamIndex = room.current_turn
@@ -86,7 +141,8 @@ export function advanceLocalWordChain(room, action, answer = '', dictionary = ac
       if (teams[candidate].turns_used < teams[candidate].turn_quota) { nextIndex = candidate; break }
     }
   }
-  return { ...room, teams, turns_used: turnsUsed, history: [...room.history, turn], current_turn: nextIndex < 0 ? null : nextIndex, status: nextIndex < 0 ? 'finished' : 'playing' }
+  // turn_started_at: mốc bắt đầu lượt mới => đồng hồ 60 giây của đội kế tiếp.
+  return { ...room, teams, turns_used: turnsUsed, history: [...room.history, turn], current_turn: nextIndex < 0 ? null : nextIndex, status: nextIndex < 0 ? 'finished' : 'playing', turn_started_at: nextIndex < 0 ? null : new Date().toISOString() }
 }
 
 /** Khôi phục trận 1 máy từ sessionStorage: không bao giờ ghi đè trạng thái đang chạy bằng bản lưu cũ hơn. */

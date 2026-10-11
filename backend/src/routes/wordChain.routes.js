@@ -15,4 +15,6 @@ router.post('/rooms/:code/join', controller.join)
 router.post('/rooms/:code/start', controller.start)
 router.post('/rooms/:code/answer', controller.answer)
 router.post('/rooms/:code/skip', controller.skip)
+// Hết 60 giây: lấy đáp án gợi ý của hệ thống (máy chủ tự kiểm tra đã hết giờ).
+router.post('/rooms/:code/reveal', controller.reveal)
 export default router

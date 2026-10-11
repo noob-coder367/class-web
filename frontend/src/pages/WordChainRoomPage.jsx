@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Expand, Link2, RotateCcw, SkipForward, Trophy } from 'lucide-react'
+import { ArrowLeft, Check, Clock, Expand, Lightbulb, Link2, RotateCcw, SkipForward, Trophy } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
 import { ROUTES } from '../lib/routes.js'
-import { advanceLocalWordChain, chooseLocalStartingPhrase, loadWordChainDictionary, normalizeWordChainPhrase, restoreLocalRoom } from '../lib/wordChain.js'
-import { getWordChainRoom, skipWordChainTurn, startWordChainRoom, submitWordChainAnswer } from '../services/wordChainService.js'
+import { advanceLocalWordChain, chooseLocalStartingPhrase, findLocalWordChainAnswer, loadWordChainDictionary, normalizeWordChainPhrase, restoreLocalRoom, WORD_CHAIN_TURN_SECONDS } from '../lib/wordChain.js'
+import { getWordChainRoom, revealWordChainAnswer, skipWordChainTurn, startWordChainRoom, submitWordChainAnswer } from '../services/wordChainService.js'
 import '../word-chain.css'
+import '../word-chain-timer.css'
 
 const LOCAL_KEY = 'noi-tu:local-room'
+const MAX_REVEAL_TRIES = 5
 const requestKey = () => crypto.randomUUID()
 
 export default function WordChainRoomPage() {
@@ -19,11 +21,14 @@ export default function WordChainRoomPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [fallbackFullscreen, setFallbackFullscreen] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+  const [reveal, setReveal] = useState(null)
   const inputRef = useRef(null)
   const submitRequest = useRef(null)
   const skipRequest = useRef(null)
   const pendingAction = useRef(null)
   const refreshSequence = useRef(0)
+  const revealRequest = useRef({ key: null, busy: false, tries: 0, lastTry: 0 })
   const local = !code
 
   const refresh = useCallback(async (force = false) => {
@@ -59,6 +64,12 @@ export default function WordChainRoomPage() {
   useEffect(() => { if (room?.local) sessionStorage.setItem(LOCAL_KEY, JSON.stringify(room)) }, [room])
   // Trận 1 máy kiểm tra từ có nghĩa ngay trên trình duyệt nên cần nạp từ điển (kể cả khi tải lại trang).
   useEffect(() => { if (room?.local) loadWordChainDictionary().catch(() => setError('Không tải được từ điển tiếng Việt. Hãy kiểm tra kết nối rồi tải lại trang.')) }, [room?.local])
+  // Trận 1 máy: trận mới/được khôi phục chưa có mốc bắt đầu lượt thì bắt đầu đếm 60 giây từ bây giờ.
+  useEffect(() => {
+    if (room?.local && room.status === 'playing' && !room.turn_started_at) {
+      setRoom((current) => (current && current.local && current.status === 'playing' && !current.turn_started_at ? { ...current, turn_started_at: new Date().toISOString() } : current))
+    }
+  }, [room?.local, room?.status, room?.turn_started_at])
   useEffect(() => {
     const onFullscreen = () => setFallbackFullscreen(false)
     const onKey = (event) => { if (event.key === 'Escape') setFallbackFullscreen(false) }
@@ -81,6 +92,57 @@ export default function WordChainRoomPage() {
   const used = room?.turns_used || 0
   const remaining = Math.max(0, (room?.total_turns || 0) - used)
 
+  // ── Đồng hồ 60 giây cho mỗi lượt ────────────────────────────────────────────────────────────
+  const roomStatus = room?.status
+  const turnStartedAt = room?.turn_started_at
+  const clientOffset = room?.client_offset_ms || 0
+  const turnLimitSeconds = room?.turn_time_limit || WORD_CHAIN_TURN_SECONDS
+  const turnLimitMs = turnLimitSeconds * 1000
+  const turnKey = `${code || 'local'}:${room?.turns_used || 0}`
+  // Online: mốc bắt đầu là giờ máy chủ (đã bù lệch đồng hồ); 1 máy: giờ trình duyệt (offset = 0).
+  const deadline = useMemo(() => {
+    if (roomStatus !== 'playing') return null
+    const started = Date.parse(turnStartedAt || '')
+    return Number.isFinite(started) ? started - clientOffset + turnLimitMs : null
+  }, [roomStatus, turnStartedAt, clientOffset, turnLimitMs])
+  const secondsLeft = deadline === null ? null : Math.min(turnLimitSeconds, Math.max(0, Math.ceil((deadline - now) / 1000)))
+  const timerPercent = deadline === null ? 100 : Math.max(0, Math.min(100, ((deadline - now) / turnLimitMs) * 100))
+  const expired = secondsLeft === 0
+  const turnReveal = reveal?.key === turnKey ? reveal : null
+
+  useEffect(() => {
+    if (deadline === null) return undefined
+    const timer = window.setInterval(() => setNow(Date.now()), 250)
+    return () => window.clearInterval(timer)
+  }, [deadline])
+
+  // Hết giờ: hệ thống tự hiện đáp án (1 máy: tính ngay trên trình duyệt; online: hỏi máy chủ, máy chủ tự kiểm tra đã đủ 60 giây).
+  useEffect(() => {
+    if (!room || !expired || room.status !== 'playing' || reveal?.key === turnKey) return
+    const state = revealRequest.current
+    if (state.key !== turnKey) { state.key = turnKey; state.busy = false; state.tries = 0; state.lastTry = 0 }
+    if (state.busy || state.tries >= MAX_REVEAL_TRIES || Date.now() - state.lastTry < 2000) return
+    state.busy = true; state.lastTry = Date.now(); state.tries += 1
+    const key = turnKey
+    const expectedTurn = (room.turns_used || 0) + 1
+    ;(async () => {
+      try {
+        let found
+        if (room.local) { await loadWordChainDictionary(); found = findLocalWordChainAnswer(room) }
+        else {
+          const result = await revealWordChainAnswer(code)
+          if (result.turn_number !== expectedTurn) return // lượt đã đổi trong lúc chờ
+          found = result.answer
+        }
+        setReveal({ key, answer: found || null })
+      } catch {
+        if (revealRequest.current.key === key && revealRequest.current.tries >= MAX_REVEAL_TRIES) setReveal({ key, answer: null, failed: true })
+      } finally {
+        if (revealRequest.current.key === key) revealRequest.current.busy = false
+      }
+    })()
+  }, [code, expired, now, reveal, room, turnKey])
+
   const run = async (operation) => {
     if (busy) return
     if (!local) refreshSequence.current += 1
@@ -92,7 +154,7 @@ export default function WordChainRoomPage() {
 
   const submit = async (event) => {
     event.preventDefault()
-    if (!answer.trim() || !myTurn || !room || finished || isLobby) return
+    if (!answer.trim() || !myTurn || !room || finished || isLobby || expired) return
     setBusy(true); setError(''); setNotice('')
     try {
       const key = submitRequest.current || requestKey()
@@ -142,8 +204,8 @@ export default function WordChainRoomPage() {
     if (!room?.local) return
     try {
       const starting_phrase = chooseLocalStartingPhrase(room.allowed_phrases)
-      setError(''); setNotice(''); setAnswer('')
-      setRoom({ ...room, status: 'playing', starting_phrase, turns_used: 0, current_turn: 0, history: [], teams: room.teams.map((team) => ({ ...team, turns_used: 0 })) })
+      setError(''); setNotice(''); setAnswer(''); setReveal(null)
+      setRoom({ ...room, status: 'playing', starting_phrase, turns_used: 0, current_turn: 0, history: [], turn_started_at: new Date().toISOString(), teams: room.teams.map((team) => ({ ...team, turns_used: 0 })) })
     } catch (cause) { setError(cause.message || 'Không tìm được từ khởi đầu hợp lệ.') }
   }
 
@@ -153,22 +215,24 @@ export default function WordChainRoomPage() {
     {!fallbackFullscreen && <SiteHeader/>}
     <main className={`container game-main wc-room ${fallbackFullscreen ? 'wc-room-fullscreen' : ''}`}>
       <header className="wc-room-header"><div className="wc-room-brand"><Link2 aria-hidden="true"/><div><span className="game-overline">NỐI TỪ · {local ? 'MỘT MÁY' : `PHÒNG ${room.code}`}</span><h1>{room.title}</h1></div></div><div className="wc-header-actions"><span className="wc-round-pill">{finished ? 'ĐÃ KẾT THÚC' : `${used + 1} / ${room.total_turns} LƯỢT`}</span><button className="wc-icon-button" type="button" aria-label="Bật hoặc tắt toàn màn hình" title="Toàn màn hình" onClick={toggleFullscreen}><Expand size={18}/></button><button className="wc-icon-button" type="button" onClick={exit} aria-label="Thoát trận" title="Thoát trận"><ArrowLeft size={18}/></button></div></header>
-      {isLobby ? <section className="wc-lobby"><div className="wc-lobby-main"><p className="game-overline">PHÒNG CHỜ</p><h2>Chuẩn bị nối chữ</h2><p>{room.source_mode === 'text' ? 'Nguồn: văn bản người tạo đã chọn' : `Chủ đề: ${room.topic || 'Kết hợp chủ đề và văn bản'}`} · {room.total_turns} lượt · {room.teams.length} đội</p>{room.code && <div className="wc-share-code"><small>MÃ PHÒNG</small><strong>{room.code}</strong><button type="button" onClick={() => navigator.clipboard?.writeText(room.code)}>Sao chép mã</button></div>}<div className="wc-team-strip">{teams.map((team,index)=><div className="wc-team-card" key={team.id}><span className={`wc-team-dot dot-${index%8}`}/><div><strong>{team.name}</strong><small>{team.players ?? 0} người · {team.turn_quota} lượt</small></div></div>)}</div>{room.is_host && <button className="game-button primary" type="button" onClick={start} disabled={busy || teams.filter((team)=>team.players>0).length<2}>{busy?'Đang bắt đầu…':'Bắt đầu trận'}</button>}{room.is_host && teams.filter((team)=>team.players>0).length<2 && <p className="wc-subtle">Cần người chơi ở ít nhất hai đội trước khi bắt đầu.</p>}</div></section>
+      {isLobby ? <section className="wc-lobby"><div className="wc-lobby-main"><p className="game-overline">PHÒNG CHỜ</p><h2>Chuẩn bị nối chữ</h2><p>{room.source_mode === 'text' ? 'Nguồn: văn bản người tạo đã chọn' : `Chủ đề: ${room.topic || 'Kết hợp chủ đề và văn bản'}`} · {room.total_turns} lượt · {room.teams.length} đội · {turnLimitSeconds} giây mỗi lượt</p>{room.code && <div className="wc-share-code"><small>MÃ PHÒNG</small><strong>{room.code}</strong><button type="button" onClick={() => navigator.clipboard?.writeText(room.code)}>Sao chép mã</button></div>}<div className="wc-team-strip">{teams.map((team,index)=><div className="wc-team-card" key={team.id}><span className={`wc-team-dot dot-${index%8}`}/><div><strong>{team.name}</strong><small>{team.players ?? 0} người · {team.turn_quota} lượt</small></div></div>)}</div>{room.is_host && <button className="game-button primary" type="button" onClick={start} disabled={busy || teams.filter((team)=>team.players>0).length<2}>{busy?'Đang bắt đầu…':'Bắt đầu trận'}</button>}{room.is_host && teams.filter((team)=>team.players>0).length<2 && <p className="wc-subtle">Cần người chơi ở ít nhất hai đội trước khi bắt đầu.</p>}</div></section>
       : <>
         <section className="wc-stage" aria-live="polite">
           {finished ? <div className="wc-finished"><span className="wc-trophy"><Trophy size={36}/></span><p className="game-overline">HẾT LƯỢT</p><h2>Trận đấu hoàn thành</h2><p>Đã dùng {used} / {room.total_turns} lượt · còn {remaining} lượt. Kết quả được tổng hợp từ trạng thái trận; không tự công bố đội thắng.</p><div className="wc-final-stats">{teamStats.map((team,index)=><div className="wc-final-stat" key={team.id}><span className={`wc-team-dot dot-${index%8}`}/><strong>{team.name}</strong><small>{team.answers} đáp án hợp lệ · {team.skips} bỏ lượt · còn {team.remaining}/{team.turn_quota}</small></div>)}</div>{room.local ? <button className="game-button primary" type="button" onClick={replayLocal}><RotateCcw size={16}/> Chơi lại</button> : <Link className="game-button primary" to={ROUTES.wordChain}><RotateCcw size={16}/> Thiết lập trận khác</Link>}</div> : <>
             <div className="wc-active-team" key={currentTeam?.id || 'sync'}><span className="wc-active-label">ĐANG ĐẾN LƯỢT</span><strong>{currentTeam?.name || 'Đang đồng bộ đội'}</strong><span>{currentTeam ? `${currentTeam.turns_used} / ${currentTeam.turn_quota} lượt đã dùng` : 'Đồng bộ trạng thái phòng…'}</span></div>
+            <div className={`wc-timer ${expired ? 'is-expired' : secondsLeft !== null && secondsLeft <= 10 ? 'is-warning' : ''}`} role="timer" aria-label={`Thời gian còn lại của lượt: ${secondsLeft ?? turnLimitSeconds} giây`}><Clock size={16} aria-hidden="true"/><strong>{expired ? 'Hết giờ' : `${secondsLeft ?? turnLimitSeconds} giây`}</strong><span className="wc-timer-track" aria-hidden="true"><span className="wc-timer-fill" style={{ width: `${timerPercent}%` }}/></span></div>
             <div className="wc-chain-board"><span className="wc-chain-label">{room.history?.some((turn) => turn.action === 'answer') ? 'CỤM TỪ CUỐI CÙNG' : 'TỪ KHỞI ĐẦU'}</span><strong>{lastAccepted || 'Mở đầu trận'}</strong><div className="wc-next-prompt">{lastWord ? <>Đội tiếp theo nối bằng <b>{lastWord}</b></> : 'Hệ thống chưa chọn được từ khởi đầu'}</div></div>
-            <form className="wc-answer-form" onSubmit={submit}><label htmlFor="wc-answer">Đáp án của {currentTeam?.name || 'đội đang chơi'}</label><div className="wc-input-row"><input id="wc-answer" ref={inputRef} value={answer} onChange={(event)=>setAnswer(event.target.value)} maxLength={80} placeholder={lastWord ? `Bắt đầu bằng “${lastWord}”…` : 'Nhập từ hoặc cụm từ…'} disabled={!myTurn || busy || finished} autoComplete="off"/><button className="game-button primary" type="submit" disabled={!myTurn || busy || !answer.trim()}>{busy?'Đang kiểm tra…':<><Check size={17}/> Hoàn thành</>}</button></div></form>
+            {expired && <div className="wc-reveal" role="status"><Lightbulb size={20} aria-hidden="true"/><div><small>HẾT {turnLimitSeconds} GIÂY · ĐÁP ÁN CỦA HỆ THỐNG</small>{!turnReveal ? <strong>Đang tìm đáp án…</strong> : turnReveal.answer ? <strong>{turnReveal.answer}</strong> : turnReveal.failed ? <strong>Chưa lấy được đáp án. Hãy thử đồng bộ lại.</strong> : <strong>Không còn cụm từ hợp lệ nào để nối</strong>}<span>{myTurn ? 'Hết thời gian trả lời. Bấm “Sang lượt tiếp theo” để tiếp tục.' : `${currentTeam?.name || 'Đội hiện tại'} sẽ chuyển sang lượt kế tiếp.`}</span></div></div>}
+            <form className="wc-answer-form" onSubmit={submit}><label htmlFor="wc-answer">Đáp án của {currentTeam?.name || 'đội đang chơi'}</label><div className="wc-input-row"><input id="wc-answer" ref={inputRef} value={answer} onChange={(event)=>setAnswer(event.target.value)} maxLength={80} placeholder={expired ? 'Đã hết thời gian trả lời' : lastWord ? `Bắt đầu bằng “${lastWord}”…` : 'Nhập từ hoặc cụm từ…'} disabled={!myTurn || busy || finished || expired} autoComplete="off"/><button className="game-button primary" type="submit" disabled={!myTurn || busy || expired || !answer.trim()}>{busy?'Đang kiểm tra…':<><Check size={17}/> Hoàn thành</>}</button></div></form>
             {!myTurn && <p className="wc-waiting-note">Đang chờ {currentTeam?.name || 'đội hiện tại'} gửi lượt.</p>}
-            <div className="wc-action-row"><button type="button" className="wc-skip-button" onClick={skip} disabled={!myTurn || busy || finished}><SkipForward size={16}/> Bỏ lượt <span>(−1 lượt)</span></button><span className="wc-remaining">Còn <strong>{remaining}</strong> lượt trong trận</span></div>
+            <div className="wc-action-row"><button type="button" className={`wc-skip-button ${expired ? 'is-highlight' : ''}`} onClick={skip} disabled={!myTurn || busy || finished}><SkipForward size={16}/> {expired ? 'Sang lượt tiếp theo' : 'Bỏ lượt'} <span>(−1 lượt)</span></button><span className="wc-remaining">Còn <strong>{remaining}</strong> lượt trong trận</span></div>
           </>}
           {error && <div className="wc-error" role="alert">{error}</div>}{notice && <div className="wc-success" role="status">{notice}</div>}
         </section>
         {!finished && <section className="wc-scoreboard" aria-label="Lượt còn lại của từng đội"><div className="wc-scoreboard-title"><h2>Đội chơi</h2><span>{teams.length} đội</span></div><div className="wc-team-strip">{teams.map((team,index)=><div key={team.id} className={`wc-team-card ${team.id===currentTeam?.id?'is-current':''}`}><span className={`wc-team-dot dot-${index%8}`}/><div><strong>{team.name}</strong><small>{team.turns_used} / {team.turn_quota} đã dùng · còn {Math.max(0,team.turn_quota-team.turns_used)}</small></div>{team.id===currentTeam?.id && <span className="wc-turn-mark">LƯỢT</span>}</div>)}</div></section>}
         {room.history?.length > 0 && <section className="wc-history"><div className="wc-scoreboard-title"><h2>Lịch sử nối từ</h2><span>{room.history.length} thao tác</span></div><ol>{[...room.history].reverse().map((turn)=><li key={turn.id}><span className="wc-history-number">{turn.turn_number}</span><strong>{teams.find((team)=>team.id===turn.team_id)?.name || 'Đội'}</strong>{turn.action==='skip'?<em>Đã bỏ lượt</em>:<span>{turn.phrase}</span>}</li>)}</ol></section>}
       </>}
-      <footer className="wc-room-footer"><span>{room.validation_mode==='strict'?'Nghiêm ngặt':room.validation_mode==='expanded'?'Mở rộng':'Tự do'} · Unicode tiếng Việt được chuẩn hóa · dấu câu/gạch nối là ranh giới âm tiết</span><button type="button" onClick={()=>navigate(ROUTES.wordChain)}>Thiết lập trận khác</button></footer>
+      <footer className="wc-room-footer"><span>{room.validation_mode==='strict'?'Nghiêm ngặt':room.validation_mode==='expanded'?'Mở rộng':'Tự do'} · {turnLimitSeconds} giây mỗi lượt · Unicode tiếng Việt được chuẩn hóa · dấu câu/gạch nối là ranh giới âm tiết</span><button type="button" onClick={()=>navigate(ROUTES.wordChain)}>Thiết lập trận khác</button></footer>
     </main>
   </div>
 }

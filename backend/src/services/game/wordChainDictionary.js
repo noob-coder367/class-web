@@ -31,11 +31,21 @@ for (const phrase of TWO_SYLLABLE) for (const syllable of phrase.split(' ')) {
   if (!BY_SYLLABLE.has(syllable)) BY_SYLLABLE.set(syllable, [])
   BY_SYLLABLE.get(syllable).push(phrase)
 }
+// Chỉ mục theo TIẾNG ĐẦU (mọi cụm 2–4 tiếng): dùng để tìm đáp án gợi ý khi hết giờ và để đảm bảo luôn có nước nối.
+const BY_FIRST_SYLLABLE = new Map()
+for (const phrase of DICTIONARY) {
+  const first = phrase.split(' ')[0]
+  if (!first) continue
+  if (!BY_FIRST_SYLLABLE.has(first)) BY_FIRST_SYLLABLE.set(first, [])
+  BY_FIRST_SYLLABLE.get(first).push(phrase)
+}
 
 export const DICTIONARY_SIZE = DICTIONARY.size
 export const isDictionaryPhrase = (value) => DICTIONARY.has(normalizePhrase(value))
 export const dictionaryTwoSyllablePhrases = () => TWO_SYLLABLE
 export const dictionaryPhrasesWithSyllable = (syllable) => BY_SYLLABLE.get(normalizePhrase(syllable)) || []
+/** Các cụm từ trong từ điển bắt đầu bằng đúng tiếng `syllable`. */
+export const dictionaryPhrasesStartingWith = (syllable) => BY_FIRST_SYLLABLE.get(normalizePhrase(syllable)) || []
 
 export function countSyllables(phrase) {
   const normalized = normalizePhrase(phrase)

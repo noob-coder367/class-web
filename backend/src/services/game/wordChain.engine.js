@@ -1,8 +1,10 @@
-import { buildPhraseSet, countSyllables, extractTextPhrases, isDictionaryPhrase, normalizePhrase, sampleDictionaryPhrases, TOPICS } from './wordChainDictionary.js'
+import { buildPhraseSet, countSyllables, dictionaryPhrasesStartingWith, extractTextPhrases, isDictionaryPhrase, normalizePhrase, sampleDictionaryPhrases, TOPICS } from './wordChainDictionary.js'
 
 export const MAX_TURNS = 200
 export const MAX_TEXT_LENGTH = 20_000
 export const MAX_TOPIC_LENGTH = 80
+/** Mỗi đội có 60 giây cho một lượt; hết giờ hệ thống hiện đáp án. */
+export const TURN_TIME_LIMIT_SECONDS = 60
 
 export class WordChainRuleError extends Error {
   constructor(message, code = 'invalid_word_chain_answer') {
@@ -51,11 +53,44 @@ export function makePhraseSet({ sourceMode, topic = '', text = '', validationMod
   return { ...built, phrases, fromDictionary, extractedCount: sourceMode === 'topic' ? phrases.length : extractTextPhrases(text, validationMode).size }
 }
 
+/** Chọn từ khởi đầu: luôn là từ có nghĩa VÀ chắc chắn còn ít nhất một cụm khác để nối tiếp (có đáp án). */
 export function chooseStartingPhrase(phrases = []) {
   const normalized = [...new Set(phrases.map(normalizePhrase).filter(Boolean))]
   const candidates = normalized.filter((phrase) => phrase.split(' ').length >= 2 && isDictionaryPhrase(phrase) && normalized.some((next) => next !== phrase && next.split(' ')[0] === phrase.split(' ').at(-1)))
   if (!candidates.length) throw new RangeError('Nguồn chưa có cụm từ khởi đầu và nước nối hợp lệ. Hãy thêm văn bản hoặc đổi nguồn.')
   return candidates[Math.floor(Math.random() * candidates.length)]
+}
+
+const finalWordOf = (phrase) => normalizePhrase(phrase).split(' ').filter(Boolean).at(-1) || ''
+
+/**
+ * Tìm một đáp án HỢP LỆ để nối tiếp `lastPhrase` (dùng khi hết 60 giây).
+ * - Luật Tự do: lấy từ toàn bộ từ điển; luật khác: chỉ lấy từ kho cụm từ của trận (đúng như DB sẽ chấp nhận).
+ * - Bỏ qua cụm đã dùng. Ưu tiên cụm mà đội kế tiếp vẫn còn nước nối; nếu không có thì trả cụm hợp lệ bất kỳ.
+ * - Trả về null khi không còn cụm nào nối được.
+ */
+export function findAnswer({ lastPhrase = '', usedPhrases = [], allowedPhrases = [], validationMode = 'strict', random = Math.random, lookahead = 40 } = {}) {
+  const free = validationMode === 'free'
+  const allowed = free ? null : [...new Set([...allowedPhrases].map(normalizePhrase).filter(Boolean))]
+  const used = new Set([...usedPhrases].map(normalizePhrase).filter(Boolean))
+  const continuations = (word, taken) => {
+    if (!word) return []
+    const pool = free ? dictionaryPhrasesStartingWith(word) : allowed.filter((phrase) => phrase.split(' ')[0] === word)
+    return pool.filter((phrase) => phrase.length <= 80 && phrase.split(' ').length >= 2 && !taken.has(phrase) && isDictionaryPhrase(phrase))
+  }
+  const candidates = continuations(finalWordOf(lastPhrase), used)
+  if (!candidates.length) return null
+  const shuffled = [...candidates]
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [shuffled[index], shuffled[swap]] = [shuffled[swap], shuffled[index]]
+  }
+  for (const phrase of shuffled.slice(0, lookahead)) {
+    const taken = new Set(used)
+    taken.add(phrase)
+    if (continuations(finalWordOf(phrase), taken).length) return phrase
+  }
+  return shuffled[0]
 }
 
 export function validateAnswer({ answer, lastPhrase = '', allowedPhrases, usedPhrases = [], validationMode = 'strict' }) {
