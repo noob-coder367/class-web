@@ -60,7 +60,7 @@ export default function BoltSortGamePage() {
   const [answered, setAnswered] = useState(false)
   const [questionResult, setQuestionResult] = useState(null)
   const [questionIndex, setQuestionIndex] = useState(0)
-  const [questions, setQuestions] = useState(DEFAULT_QUESTIONS)
+  const [questions, setQuestions] = useState([])
   const [history, setHistory] = useState([])
   const [scores, setScores] = useState([0, 0])
   const [finished, setFinished] = useState(false)
