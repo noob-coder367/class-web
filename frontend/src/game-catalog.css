@@ -80,21 +80,6 @@
 .gc-other-thumb { flex: 0 0 auto; display: grid; place-items: center; width: 56px; height: 56px; overflow: hidden; border-radius: 10px; background: linear-gradient(135deg, #2a1456, #6a2bd1); color: #fff; }
 .gc-other-thumb img { width: 100%; height: 100%; object-fit: cover; }
 
-.gc-open-rooms-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.gc-open-rooms-heading h2 { margin-bottom: 4px; }
-.gc-open-rooms-heading p { margin: 0; color: var(--gc-muted); font-size: 13px; }
-.gc-open-rooms-count { flex: 0 0 auto; padding: 6px 10px; border-radius: 999px; background: var(--gc-soft); color: var(--gc-accent-2); font-size: 12px; font-weight: 800; }
-.gc-open-room-list { display: grid; gap: 10px; }
-.gc-open-room { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; border: 1px solid var(--gc-line); border-radius: 14px; background: #fff; }
-.gc-open-room-info { display: grid; min-width: 0; gap: 4px; }
-.gc-open-room-info strong { overflow: hidden; color: var(--gc-ink); text-overflow: ellipsis; }
-.gc-open-room-info span { color: var(--gc-muted); font-size: 12px; }
-.gc-room-join { flex: 0 0 auto; border: 0; border-radius: 9px; padding: 10px 15px; background: var(--gc-accent); color: #fff; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
-.gc-room-join:hover { background: var(--gc-accent-2); }
-.gc-room-join:disabled { opacity: .6; cursor: wait; }
-.gc-rooms-empty, .gc-rooms-error { margin: 0; padding: 15px 16px; border: 1px solid var(--gc-line); border-radius: 12px; background: #fff; color: var(--gc-muted); }
-.gc-rooms-error { margin-bottom: 10px; border-color: #f1c5c8; color: #a52c38; }
-
 @media (max-width: 640px) {
   .gc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
   .gc-search { width: 100%; }
@@ -102,8 +87,6 @@
   .gc-detail-thumb { width: 130px; height: 130px; }
   .gc-play { min-width: 0; flex: 1 1 100%; }
   .gc-gallery-thumbs button { flex-basis: 96px; }
-  .gc-open-room { align-items: flex-start; flex-direction: column; }
-  .gc-room-join { width: 100%; }
 }
 
 /* ---------- Admin: ảnh giới thiệu ---------- */
@@ -114,3 +97,26 @@
 .gc-admin-gallery-list img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .gc-admin-gallery-list button { position: absolute; top: 6px; right: 6px; border: 0; border-radius: 8px; padding: 4px 9px; font: inherit; font-size: 12px; font-weight: 700; background: rgba(190, 20, 40, .92); color: #fff; cursor: pointer; }
 .gc-admin-gallery-empty { margin: 0; font-size: 13px; opacity: .7; }
+
+/* ---------- Phòng đang mở (trang chi tiết) ---------- */
+.gc-rooms-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.gc-rooms-head h2 { margin: 0; }
+.gc-refresh { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--gc-line); background: #fff; color: var(--gc-ink); border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.gc-refresh:hover:not(:disabled) { background: var(--gc-soft); }
+.gc-refresh:disabled { opacity: .6; cursor: default; }
+.gc-spin { animation: gc-spin .9s linear infinite; }
+@keyframes gc-spin { to { transform: rotate(360deg); } }
+.gc-rooms-note { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0; padding: 16px 18px; border: 1px dashed var(--gc-line); border-radius: 12px; background: #fff; color: var(--gc-muted); }
+.gc-rooms-error { margin: 0 0 10px; padding: 10px 14px; border-radius: 10px; background: #fdecee; color: #a01830; font-weight: 600; }
+.gc-room-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.gc-room { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; border: 1px solid var(--gc-line); border-radius: 12px; background: #fff; }
+.gc-room-main { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gc-room-main strong { color: var(--gc-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gc-room-meta { font-size: 13px; color: var(--gc-muted); }
+.gc-room-count { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--gc-ink); }
+.gc-room-code { padding: 4px 10px; border-radius: 8px; background: var(--gc-soft); color: var(--gc-accent-2); font-weight: 800; letter-spacing: .12em; }
+.gc-play.gc-small, .gc-secondary.gc-small { height: 40px; min-width: 0; padding: 0 18px; font-size: 14px; border-radius: 10px; }
+.gc-play:disabled { filter: grayscale(.6); opacity: .65; cursor: default; }
+@media (max-width: 640px) {
+  .gc-room .gc-play { flex: 1 1 100%; }
+}
