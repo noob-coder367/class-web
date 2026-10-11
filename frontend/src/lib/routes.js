@@ -4,6 +4,8 @@ export const ROUTES = Object.freeze({
   register: '/dang-ky',
   profile: '/thong-tin-ca-nhan',
   classMoney: '/tien-lop',
+  advanced: '/nang-cao',
+  classRoster: '/nang-cao/danh-sach-lop',
   adminAccounts: '/quan-tri/tai-khoan',
   createRoom: '/tao-phong',
   createQuiz: '/tao-quiz',
