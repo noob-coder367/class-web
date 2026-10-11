@@ -10,5 +10,6 @@ export const ROUTES = Object.freeze({
   play: '/choi',
   room: '/phong',
   quizParty: '/quiz-party',
+  boltSort: '/dai-chien-bu-long',
   pet: '/thu-cung',
 })
