@@ -14,9 +14,17 @@ const LEVELS = [
   { id: 4, name: 'Siêu cấp', color: '#8bbdff', capacity: 8, colors: 6, rods: 8, moves: 48, rounds: 12, icon: Flame, tip: 'Tối đa 8 bu lông mỗi đinh. Mỗi nước đi đều quan trọng.' },
 ]
 function Bolt({ bolt, selected }) {
-  return <div data-bolt-id={bolt.id} className={`bolt ${bolt.revealed ? 'bolt-revealed' : 'bolt-hidden'} ${selected ? 'bolt-selected' : ''}`} style={{ '--bolt-color': bolt.revealed ? bolt.color : '#d9e1d7' }}>
-    <span className="bolt-top">{bolt.revealed ? <i /> : '?'}</span>
-    <span className="bolt-body"><i /><i /><i /></span>
+  const color = bolt.revealed ? bolt.color : '#b8c2d0'
+  const gradientId = String(bolt.id).replace(/[^a-zA-Z0-9_-]/g, '')
+  return <div data-bolt-id={bolt.id} className={`bolt ${bolt.revealed ? 'bolt-revealed' : 'bolt-hidden'} ${selected ? 'bolt-selected' : ''}`} style={{ '--bolt-color': color }}>
+    <svg className="bolt-nut" viewBox="0 0 80 42" aria-hidden="true" focusable="false">
+      <defs><linearGradient id={`nut-${gradientId}`} x1="0" y1="0" x2="1" y2="1"><stop className="nut-highlight" offset="0%"/><stop className="nut-mid" offset="48%"/><stop className="nut-shadow" offset="100%"/></linearGradient></defs>
+      <path className="nut-side" d="M7 15 16 24h48l9-9-5 15-8 8H20l-8-8z"/>
+      <path className="nut-top" fill={`url(#nut-${gradientId})`} fillRule="evenodd" d="M7 15 16 5h48l9 10-9 10H16z M31 15c0-3 18-3 18 0s-18 3-18 0z"/>
+      <path className="nut-bevel" d="M7 15 16 5h48l9 10-9 10H16z"/>
+      <ellipse className="nut-hole-rim" cx="40" cy="15" rx="9" ry="2.8"/>
+      {!bolt.revealed && <text className="nut-mystery-mark" x="40" y="18" textAnchor="middle">?</text>}
+    </svg>
   </div>
 }
 function TeamBoard({ team, active, level, onRod, selected, shakingRod, moves, completed, onUndo, canUndo, onPass, timer, score, question, answered, answerQuestion, questionResult, questionIndex }) {
@@ -62,7 +70,6 @@ export default function BoltSortGamePage() {
   const [flyingBolt, setFlyingBolt] = useState(null)
   const [shakingRod, setShakingRod] = useState(null)
   const audioRef = useRef(null)
-  const flightTimerRef = useRef(null)
   const shakeTimerRef = useRef(null)
   const tickRef = useRef(null)
   const playSfx = (kind = 'move') => {
@@ -73,11 +80,11 @@ export default function BoltSortGamePage() {
       if (!audioRef.current) audioRef.current = new AudioContextClass()
       const ctx = audioRef.current
       if (ctx.state === 'suspended') ctx.resume()
-      const notes = kind === 'reveal' ? [740, 990, 1240] : kind === 'correct' ? [660, 880] : kind === 'wrong' ? [190, 145] : kind === 'complete' ? [523, 659, 784, 1046] : kind === 'undo' ? [430, 330] : kind === 'select' ? [480] : [360, 520]
+      const notes = kind === 'reveal' ? [740, 990, 1240] : kind === 'correct' ? [660, 880] : kind === 'wrong' ? [190, 145] : kind === 'timeout' ? [330, 247, 185] : kind === 'win' ? [523, 659, 784, 1046] : kind === 'complete' ? [523, 659, 784] : kind === 'level' ? [392, 523, 659] : kind === 'lift' ? [620, 930] : kind === 'turn' ? [520] : kind === 'undo' ? [430, 330] : kind === 'select' ? [480] : [360, 520]
       notes.forEach((frequency, index) => {
         const oscillator = ctx.createOscillator()
         const gain = ctx.createGain()
-        oscillator.type = kind === 'move' ? 'triangle' : 'sine'
+        oscillator.type = ['move', 'complete', 'win', 'level', 'lift'].includes(kind) ? 'triangle' : 'sine'
         oscillator.frequency.setValueAtTime(frequency, ctx.currentTime + index * 0.075)
         gain.gain.setValueAtTime(0.0001, ctx.currentTime + index * 0.075)
         gain.gain.exponentialRampToValueAtTime(kind === 'complete' ? 0.12 : 0.065, ctx.currentTime + index * 0.075 + 0.015)
@@ -88,7 +95,7 @@ export default function BoltSortGamePage() {
       })
     } catch { /* Âm thanh không khả dụng thì game vẫn chơi bình thường. */ }
   }
-  useEffect(() => () => { window.clearTimeout(flightTimerRef.current); window.clearTimeout(shakeTimerRef.current); if (audioRef.current) audioRef.current.close().catch(() => {}) }, [])
+  useEffect(() => () => { window.clearTimeout(shakeTimerRef.current); if (audioRef.current) audioRef.current.close().catch(() => {}) }, [])
   const activeTeam = teams[turn]
   useEffect(() => { let alive = true; listRoomQuizzes().then((items) => { if (!alive) return; setQuizzes(items); setSelectedQuizId(items[0]?.id || ''); setQuizLoading(false) }).catch((error) => { if (!alive) return; setQuizError(error.message || 'Không tải được kho câu hỏi. Hãy đăng nhập và thử lại.'); setQuizLoading(false) }); return () => { alive = false } }, [])
   const completedCounts = useMemo(() => teams.map((team) => team?.stacks?.filter((stack) => isComplete(stack, level.capacity)).length || 0), [teams, level])
@@ -100,10 +107,11 @@ export default function BoltSortGamePage() {
     }), 1000)
     return () => window.clearInterval(tickRef.current)
   }, [answered, finished, turn, questionIndex])
-  useEffect(() => { if (answered && timer === 0 && !finished) { const id = window.setTimeout(() => nextTurn(), 700); return () => window.clearTimeout(id) } }, [timer, answered, finished])
+  useEffect(() => { if (answered && timer === 0 && !finished) { playSfx('timeout'); const id = window.setTimeout(() => nextTurn(), 700); return () => window.clearTimeout(id) } }, [timer, answered, finished])
   const beginGame = async (chosenLevel) => {
     if (!selectedQuizId) { setQuizError('Hãy chọn một bộ câu hỏi trong kho trước khi chơi.'); setScreen('setup'); return }
     setQuizLoading(true); setQuizError('')
+    playSfx('level')
     let quizQuestions
     try {
       const quiz = await fetchQuiz(selectedQuizId)
@@ -122,7 +130,8 @@ export default function BoltSortGamePage() {
   }
   const nextTurn = () => {
     if (finished) return
-    if (questionIndex + 1 >= level.rounds) { setFinished(true); setScreen('result'); return }
+    if (questionIndex + 1 >= level.rounds) { playSfx(completedCounts[0] === completedCounts[1] ? 'complete' : 'win'); setFinished(true); setScreen('result'); return }
+    playSfx('turn')
     setHistory([]); setQuestionIndex((index) => index + 1); setTurn((value) => 1 - value); setMoves(0); setSelected(null); setTimer(60); setAnswered(false); setQuestionResult(null); setToast('')
   }
   const answerQuestion = (choice) => {
@@ -165,7 +174,7 @@ export default function BoltSortGamePage() {
         playSfx('reveal')
         return
       }
-      setSelected(index); playSfx('select'); return
+      setSelected(index); playSfx('lift'); return
     }
     if (selected === index) { setSelected(null); return }
     const from = activeTeam.stacks[selected], to = activeTeam.stacks[index], bolt = from[from.length - 1]
@@ -180,10 +189,11 @@ export default function BoltSortGamePage() {
       const targetRect = targetRod.getBoundingClientRect()
       const boltHeight = fromRect.height
       const destination = { left: targetRect.left + targetRect.width / 2 - fromRect.width / 2, top: targetRect.bottom - 20 - (to.length + 1) * boltHeight }
-      setFlyingBolt({ bolt: { ...bolt, revealed: true }, left: fromRect.left, top: fromRect.top, width: fromRect.width, height: fromRect.height, dx: destination.left - fromRect.left, dy: destination.top - fromRect.top, travel: false })
-      window.clearTimeout(flightTimerRef.current)
+      const dx = destination.left - fromRect.left
+      const dy = destination.top - fromRect.top
+      const arcHeight = Math.max(26, Math.min(78, Math.abs(dx) * 0.12 + 20))
+      setFlyingBolt({ bolt: { ...bolt, revealed: true }, left: fromRect.left, top: fromRect.top, width: fromRect.width, height: fromRect.height, dx, dy, midX: dx * 0.5, midY: dy * 0.5 - arcHeight, nearX: dx * 0.86, nearY: dy * 0.86 - arcHeight * 0.2, travel: false })
       window.requestAnimationFrame(() => setFlyingBolt((current) => current ? { ...current, travel: true } : current))
-      flightTimerRef.current = window.setTimeout(() => setFlyingBolt(null), 620)
     }
     playSfx('move')
     const nextStacks = activeTeam.stacks.map((stack, i) => i === selected ? stack.slice(0, -1) : i === index ? [...stack, { ...bolt, revealed: true }] : stack)
@@ -194,7 +204,7 @@ export default function BoltSortGamePage() {
     setHistory((old) => [...old, { turn, stacks: activeTeam.stacks, moves }])
     setTeams((old) => old.map((team, i) => i === turn ? { ...team, stacks: nextStacks } : team))
     setMoves((value) => value - 1); setSelected(null); setShakingRod(null); setToast(rodJustCompleted ? 'Tuyệt vời! Một đinh đã đủ màu và đủ số lượng!' : noLegalMoves ? 'Hết nước đi hợp lệ — mở đinh cứu hộ hoặc hoàn tác để thử cách khác.' : ''); if (rodJustCompleted) playSfx('complete')
-    if (boardSolved) { setFinished(true); setScreen('result') }
+    if (boardSolved) { playSfx('win'); setFinished(true); setScreen('result') }
   }
   const undo = () => {
     const last = history[history.length - 1]
@@ -208,7 +218,7 @@ export default function BoltSortGamePage() {
   const resultWinner = completedCounts[0] > completedCounts[1] ? teams[0]?.name : completedCounts[1] > completedCounts[0] ? teams[1]?.name : null
   const currentQuestion = questions[questionIndex % questions.length] || { content: 'Hãy chọn kho câu hỏi để bắt đầu', answer: '', options: [] }
   return <main className={`bolt-game-shell ${screen === 'game' || screen === 'result' ? 'bolt-game-fullscreen' : ''}`}>
-    <div className="bolt-ambient bolt-ambient-one"/><div className="bolt-ambient bolt-ambient-two"/>{flyingBolt && <div className={`bolt-flight ${flyingBolt.travel ? 'bolt-flight-travelling' : ''}`} style={{ left: flyingBolt.left, top: flyingBolt.top, width: flyingBolt.width, height: flyingBolt.height, '--flight-x': `${flyingBolt.dx}px`, '--flight-y': `${flyingBolt.dy}px` }}><Bolt bolt={flyingBolt.bolt} selected/></div>}
+    <div className="bolt-ambient bolt-ambient-one"/><div className="bolt-ambient bolt-ambient-two"/>{flyingBolt && <div className={`bolt-flight ${flyingBolt.travel ? 'bolt-flight-travelling' : ''}`} onAnimationEnd={(event) => { if (event.animationName === 'bolt-flight-arc') setFlyingBolt(null) }} style={{ left: flyingBolt.left, top: flyingBolt.top, width: flyingBolt.width, height: flyingBolt.height, '--flight-x': `${flyingBolt.dx}px`, '--flight-y': `${flyingBolt.dy}px`, '--flight-mid-x': `${flyingBolt.midX}px`, '--flight-mid-y': `${flyingBolt.midY}px`, '--flight-near-x': `${flyingBolt.nearX}px`, '--flight-near-y': `${flyingBolt.nearY}px` }}><Bolt bolt={flyingBolt.bolt} selected/></div>}
     <header className="bolt-topbar"><button className="bolt-back" onClick={() => screen === 'game' ? (window.confirm('Thoát ván chơi hiện tại?') && resetGame()) : navigate(ROUTES.play)}><ArrowLeft size={17}/> <span>{screen === 'game' ? 'Thoát ván' : 'Chọn trò chơi'}</span></button><div className="bolt-brand"><span className="brand-nut">✦</span><span>ĐẠI CHIẾN <b>BU LÔNG</b></span></div><div className="bolt-top-controls"><span className="bolt-top-level">{level.name.toUpperCase()}</span><button type="button" className="bolt-sound-toggle" onClick={() => setSoundOn((value) => !value)} aria-label={soundOn ? 'Tắt âm thanh' : 'Bật âm thanh'} title={soundOn ? 'Tắt âm thanh' : 'Bật âm thanh'}>{soundOn ? <Volume2 size={16}/> : <VolumeX size={16}/>}<span>{soundOn ? 'ÂM THANH' : 'ĐÃ TẮT'}</span></button></div></header>
     {screen === 'setup' && <section className="bolt-setup-wrap"><div className="bolt-hero"><span className="bolt-eyebrow"><Sparkles size={14}/> TRÒ CHƠI NHANH · 2 ĐỘI · 1 THIẾT BỊ</span><h1>Đại chiến<br/><em>Bu Lông!</em></h1><p>Trả lời thật nhanh. Di chuyển thật khéo. Gom đủ bu lông cùng màu để chinh phục chiến thắng.</p><div className="bolt-hero-art"><div className="hero-rod hero-rod-green"><i/><i/><i/></div><div className="hero-rod hero-rod-yellow"><i/><i/><i/></div><div className="hero-rod hero-rod-blue"><i/><i/><i/></div><span className="hero-spark">✦</span></div></div><div className="bolt-setup-card"><div className="setup-step"><span>01</span><div><small>BƯỚC ĐẦU TIÊN</small><h2>Chuẩn bị đội chơi</h2></div></div><label className="bolt-field-label">Tên hai đội</label><div className="bolt-team-inputs"><label><span>🟢 ĐỘI 1</span><input value={teamNames[0]} maxLength={22} onChange={(e) => setTeamNames((old) => [e.target.value, old[1]])}/></label><label><span>🔴 ĐỘI 2</span><input value={teamNames[1]} maxLength={22} onChange={(e) => setTeamNames((old) => [old[0], e.target.value])}/></label></div><label className="bolt-field-label" htmlFor="bolt-quiz-select">Kho câu hỏi lớp học</label><select id="bolt-quiz-select" className="bolt-quiz-select" value={selectedQuizId} onChange={(event) => setSelectedQuizId(event.target.value)} disabled={quizLoading || !quizzes.length}><option value="">{quizLoading ? 'Đang tải kho câu hỏi...' : quizzes.length ? 'Chọn bộ câu hỏi' : 'Chưa có bộ câu hỏi'}</option>{quizzes.map((quiz) => <option key={quiz.id} value={quiz.id}>{quiz.title}{quiz.question_count != null ? ` · ${quiz.question_count} câu` : ''}</option>)}</select><p className="bolt-field-help">Chọn bộ câu hỏi đã lưu như các game khác. Câu hỏi và đáp án sẽ được lấy trực tiếp từ kho câu hỏi của bạn.</p>{quizError && <p className="bolt-quiz-error" role="alert">{quizError}</p>}{!quizLoading && !quizzes.length && <p className="bolt-field-help">Bạn cần đăng nhập và tạo/lưu bộ câu hỏi trước khi chơi.</p>}<button className="bolt-primary-button" disabled={quizLoading || !selectedQuizId} onClick={() => setScreen('levels')}>Chọn cấp độ <ArrowRight size={18}/></button><div className="bolt-safe-note"><Volume2 size={14}/> Chơi luân phiên trên cùng một màn hình</div></div></section>}
     {screen === 'levels' && <section className="bolt-level-screen"><div className="bolt-screen-title"><span className="bolt-eyebrow">CHỌN THỬ THÁCH</span><h1>Chọn cấp độ của bạn</h1><p>Cấp càng cao, đinh càng dài và cần chiến thuật tốt hơn.</p></div><div className="bolt-level-grid">{LEVELS.map((item) => <button key={item.id} className={`bolt-level-card ${level.id === item.id ? 'level-picked' : ''}`} style={{ '--level-color': item.color }} onClick={() => setLevel(item)}><span className="level-face"><item.icon size={25} strokeWidth={2.5} aria-hidden="true" /></span><span className="level-number">CẤP ĐỘ 0{item.id}</span><h2>{item.name}</h2><div className="level-stack-preview">{Array.from({ length: Math.min(item.capacity, 5) }, (_, i) => <i key={i} style={{ background: PALETTE[(i + item.id) % PALETTE.length] }}/>)}</div><p>{item.tip}</p><div className="level-meta"><span>{item.capacity} bu lông/đinh</span><span>{item.moves} lượt tối đa</span></div><span className="level-radio">{level.id === item.id && <Check size={14}/>}</span></button>)}</div><div className="bolt-level-actions"><button className="bolt-secondary-button" onClick={() => setScreen('setup')}><ArrowLeft size={16}/> Quay lại</button><button className="bolt-primary-button" onClick={() => void beginGame(level)} disabled={quizLoading || !selectedQuizId}>Bắt đầu trận đấu <Sparkles size={17}/></button></div></section>}

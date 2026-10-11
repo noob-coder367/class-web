@@ -394,3 +394,170 @@
 @media (prefers-reduced-motion: reduce) {
   .bolt-game-fullscreen .bolt { animation: none; }
 }
+
+
+/* SVG nut hardware: faceted hex shoulders, a true center bore, and restrained studio reflections. */
+.bolt-game-shell {
+  background:
+    radial-gradient(ellipse at 50% -12%, #394754 0%, transparent 49%),
+    radial-gradient(ellipse at 50% 82%, #9aabb30a 0%, transparent 55%),
+    linear-gradient(165deg, #171c21 0%, #0d1116 58%, #090c10 100%);
+}
+.bolt-game-shell::before { display: none; }
+.bolt-ambient-one { background: #78d5a1; opacity: .07; }
+.bolt-ambient-two { background: #d2a874; opacity: .06; }
+.bolt-team {
+  background:
+    radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--team-color) 5%, transparent), transparent 52%),
+    linear-gradient(155deg, #1a2025f5 0%, #11171dfa 55%, #0d1217fa 100%);
+  border-color: #d6e0e71a;
+}
+.bolt-team-active {
+  border-color: color-mix(in srgb, var(--team-color) 58%, #c9d3dc);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--team-color) 12%, transparent), 0 10px 28px #0003;
+}
+.bolt-board {
+  background: radial-gradient(ellipse at 50% 92%, #dce8f00a, transparent 68%);
+  border-top: 1px solid #dce8f00b;
+  border-bottom: 1px solid #dce8f00b;
+}
+.rod-shaft {
+  width: 7px;
+  border: 1px solid #e5edf225;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 4px, #46536170 4px 5px),
+    linear-gradient(90deg, #596675 0%, #c4d0dc 24%, #f5f8fa 44%, #b7c3cf 68%, #626f7d 100%);
+  box-shadow: inset 0 0 2px #fff9, 0 0 7px #dceaff15;
+}
+.bolt {
+  width: min(100%, 66px);
+  height: clamp(20px, calc((100vh - 350px) / var(--capacity)), 38px);
+  min-height: 18px;
+  overflow: visible;
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 3px 2px #0007);
+}
+.bolt-nut { display: block; width: 100%; height: 100%; overflow: visible; }
+.nut-highlight { stop-color: color-mix(in srgb, var(--bolt-color) 60%, #fff); }
+.nut-mid { stop-color: var(--bolt-color); }
+.nut-shadow { stop-color: color-mix(in srgb, var(--bolt-color) 58%, #111820); }
+.nut-side {
+  fill: color-mix(in srgb, var(--bolt-color) 62%, #111820);
+  stroke: color-mix(in srgb, var(--bolt-color) 55%, #05080c);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+.nut-top { stroke: color-mix(in srgb, var(--bolt-color) 52%, #f6f8fa); stroke-width: 1.15; stroke-linejoin: bevel; }
+.nut-bevel { fill: none; stroke: #ffffff68; stroke-width: 1; stroke-linejoin: bevel; opacity: .9; }
+.nut-hole-rim { fill: none; stroke: #111820c9; stroke-width: 2.4; }
+.nut-mystery-mark {
+  fill: #344253;
+  font: 900 10px 'Nunito', sans-serif;
+  paint-order: stroke;
+  stroke: #ffffff80;
+  stroke-width: .55px;
+}
+.bolt-hidden .nut-highlight { stop-color: #e2e9ef; }
+.bolt-hidden .nut-mid { stop-color: #9eabba; }
+.bolt-hidden .nut-shadow { stop-color: #515e6b; }
+.bolt-hidden .nut-side { fill: #596775; stroke: #35414c; }
+.bolt-hidden .nut-top { stroke: #e1e8ee; }
+.bolt-hidden .nut-mystery-mark { fill: #344253; }
+.bolt-selected {
+  position: relative;
+  z-index: 8;
+  transform: translateY(-12px) rotate(-3deg) scale(1.08);
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--bolt-color) 42%, transparent)) drop-shadow(0 9px 5px #0009);
+}
+.bolt-rod .bolt-selected { transform: translateY(-13px) rotate(-3deg) scale(1.08); }
+.rod-base {
+  background: linear-gradient(180deg, #f8fbfd 0%, #c6d0d9 36%, #84909b 76%, #626e79 100%);
+  border-color: #ffffff68;
+  box-shadow: 0 4px 0 #3c4752, inset 0 2px #fff, 0 5px 10px #0004;
+}
+.rod-complete .rod-base {
+  background: linear-gradient(180deg, #f4f7ec 0%, #b4c59e 43%, #798c68 100%);
+  box-shadow: 0 4px 0 #46533d, inset 0 2px #fff, 0 5px 12px #0004;
+}
+.bolt-flight {
+  position: fixed;
+  z-index: 1000;
+  overflow: visible;
+  transform: translate3d(0, 0, 0) rotate(0) scale(.96);
+  transform-origin: 50% 50%;
+  will-change: transform, filter;
+  filter: drop-shadow(0 6px 8px #0008);
+}
+.bolt-flight::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 20%;
+  bottom: -3px;
+  width: 60%;
+  height: 6px;
+  border-radius: 50%;
+  background: #020407;
+  filter: blur(4px);
+  opacity: .52;
+  pointer-events: none;
+}
+.bolt-flight .bolt { width: 100%; height: 100%; min-height: 0; animation: none; }
+.bolt-flight-travelling { animation: bolt-flight-arc 560ms cubic-bezier(.2, .76, .25, 1) both; }
+.bolt-flight-travelling::before { animation: bolt-flight-shadow 560ms ease-out both; }
+@keyframes bolt-flight-arc {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(.96); filter: drop-shadow(0 4px 5px #0008); }
+  38% { transform: translate3d(var(--flight-mid-x), var(--flight-mid-y), 0) rotate(150deg) scale(1.12); filter: drop-shadow(0 17px 13px #0009); }
+  82% { transform: translate3d(var(--flight-near-x), var(--flight-near-y), 0) rotate(320deg) scale(1.02); filter: drop-shadow(0 8px 8px #0008); }
+  100% { transform: translate3d(var(--flight-x), var(--flight-y), 0) rotate(360deg) scale(.96); filter: drop-shadow(0 4px 5px #0008); }
+}
+@keyframes bolt-flight-shadow {
+  0%, 100% { opacity: .52; transform: scale(.86); }
+  38% { opacity: .2; transform: scale(1.3); }
+  82% { opacity: .34; transform: scale(1.08); }
+}
+@media (max-width: 600px) {
+  .bolt { width: min(100%, 52px); }
+  .bolt-flight { animation-duration: 500ms; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bolt-flight-travelling, .bolt-flight-travelling::before { animation-duration: 1ms; }
+  .bolt-selected, .bolt-rod .bolt-selected { transition: none; }
+}
+
+
+/* Fix mobile playfield scrolling: keep both teams reachable on short screens. */
+/* At tablet/mobile widths the two team boards stack vertically. Let the game
+   surface grow with its content instead of clipping the second board. */
+@media (max-width: 900px) {
+  .bolt-game-fullscreen {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .bolt-game-fullscreen .bolt-split-board {
+    flex: 0 0 auto;
+    min-height: auto;
+  }
+  .bolt-game-fullscreen .bolt-team {
+    min-height: 480px;
+  }
+}
+@media (max-width: 600px) {
+  .bolt-game-fullscreen {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-bottom: max(18px, env(safe-area-inset-bottom));
+  }
+  .bolt-game-fullscreen .bolt-split-board {
+    gap: 12px;
+  }
+  .bolt-game-fullscreen .bolt-team {
+    min-height: 480px;
+  }
+}
