@@ -31,7 +31,7 @@ export function makePhraseSet({ sourceMode, topic = '', text = '', validationMod
   const phrases = built.phrases.filter((phrase) => countSyllables(phrase) > 0)
   if (phrases.length > 10_000) throw new RangeError('Nguồn tạo quá nhiều cụm từ. Hãy rút ngắn văn bản dưới 20.000 ký tự.')
   if (phrases.length < 2) throw new RangeError('Nguồn nội dung quá ngắn hoặc chưa tạo đủ lựa chọn. Hãy thêm văn bản hoặc chọn chủ đề khác.')
-  return { ...built, phrases, extractedCount: sourceMode === 'topic' ? phrases.length : extractTextPhrases(text).size }
+  return { ...built, phrases, extractedCount: sourceMode === 'topic' ? phrases.length : extractTextPhrases(text, validationMode).size }
 }
 
 export function chooseStartingPhrase(phrases = []) {
