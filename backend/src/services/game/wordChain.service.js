@@ -134,7 +134,7 @@ export async function submitAnswer(code, userId, body = {}, idempotency = null) 
       const current = state.teams.find((team) => team.is_current)
       const last = state.history.filter((turn) => turn.action === 'answer').at(-1)?.phrase || room.starting_phrase || ''
       try {
-        validateAnswer({ answer: phrase, lastPhrase: last, allowedPhrases: new Set(room.allowed_phrases), usedPhrases: [room.starting_phrase, ...state.history.filter((turn) => turn.action === 'answer').map((turn) => turn.phrase)].filter(Boolean) })
+        validateAnswer({ answer: phrase, lastPhrase: last, allowedPhrases: new Set(room.allowed_phrases), validationMode: room.validation_mode, usedPhrases: [room.starting_phrase, ...state.history.filter((turn) => turn.action === 'answer').map((turn) => turn.phrase)].filter(Boolean) })
       } catch (ruleError) {
         if (ruleError instanceof WordChainRuleError) fail(ruleError.message, 400, ruleError.code)
       }
