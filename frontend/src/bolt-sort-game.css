@@ -524,3 +524,40 @@
   .bolt-flight-travelling, .bolt-flight-travelling::before { animation-duration: 1ms; }
   .bolt-selected, .bolt-rod .bolt-selected { transition: none; }
 }
+
+
+/* Fix mobile playfield scrolling: keep both teams reachable on short screens. */
+/* At tablet/mobile widths the two team boards stack vertically. Let the game
+   surface grow with its content instead of clipping the second board. */
+@media (max-width: 900px) {
+  .bolt-game-fullscreen {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .bolt-game-fullscreen .bolt-split-board {
+    flex: 0 0 auto;
+    min-height: auto;
+  }
+  .bolt-game-fullscreen .bolt-team {
+    min-height: 480px;
+  }
+}
+@media (max-width: 600px) {
+  .bolt-game-fullscreen {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-bottom: max(18px, env(safe-area-inset-bottom));
+  }
+  .bolt-game-fullscreen .bolt-split-board {
+    gap: 12px;
+  }
+  .bolt-game-fullscreen .bolt-team {
+    min-height: 480px;
+  }
+}
