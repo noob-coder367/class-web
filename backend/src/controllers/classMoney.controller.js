@@ -1,4 +1,5 @@
 import * as classMoneyService from '../services/classMoney.service.js'
+import * as classSpaceService from '../services/classSpace.service.js'
 
 function actorId(req) {
   return req.profile?.id || req.user?.id
