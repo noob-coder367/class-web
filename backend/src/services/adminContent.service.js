@@ -3,7 +3,7 @@ import { AppError } from './auth.service.js'
 import { GAME_MODE_IDS } from './game/gameModes.js'
 import { expireStaleRooms } from './game/roomLifecycle.service.js'
 const ROOM_COLUMNS = 'id, code, host_id, quiz_id, game_mode, status, settings, created_at, updated_at'
-const QUIZ_COLUMNS = 'id, title, description, owner_id, status, created_at, updated_at'
+const QUIZ_COLUMNS = 'id, title, description, owner_id, status, is_public, created_at, updated_at'
 const QUESTION_COLUMNS = 'id, quiz_id, order_index, type, content, options, correct_option, correct_boolean, reference_answer, explanation, created_at, updated_at'
 const STATUSES = new Set(['lobby', 'ordering', 'playing', 'finished', 'cancelled'])
 const fail = (message, status = 400) => { throw new AppError(message, status) }
@@ -57,6 +57,14 @@ export async function listQuizzes() {
   const owners = await profilesByIds([...new Set(rows.map((q) => q.owner_id).filter(Boolean))])
   const counts = (questions || []).reduce((map, q) => map.set(q.quiz_id, (map.get(q.quiz_id) || 0) + 1), new Map())
   return rows.map((quiz) => ({ ...quiz, owner: owners.get(quiz.owner_id) || { id: quiz.owner_id }, question_count: counts.get(quiz.id) || 0 }))
+}
+export async function updateQuizVisibility(id, input = {}) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id))) fail('Quiz không hợp lệ.')
+  if (typeof input.is_public !== 'boolean') fail('Trạng thái công khai không hợp lệ.')
+  const { data, error } = await supabaseAdmin.from('quizzes').update({ is_public: input.is_public }).eq('id', id).select(QUIZ_COLUMNS).maybeSingle()
+  if (error) throw new AppError('Không thể cập nhật trạng thái công khai của quiz.', 503)
+  if (!data) fail('Không tìm thấy quiz.', 404)
+  return data
 }
 export async function listQuestions(quizId) { return db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', quizId).order('order_index', { ascending: true }).limit(100), 'Không thể tải câu hỏi.') }
 function validateQuestion(input = {}) {

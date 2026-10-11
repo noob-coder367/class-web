@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { LIMITS } from '../../lib/questionModel.js'
 
-export default function QuizMetaForm({ title, description, errors, onChange }) {
+export default function QuizMetaForm({ title, description, isPublic, errors, onChange }) {
   const id = useId()
   return (
     <section className="qz-panel" aria-label="Thông tin phòng">
@@ -32,6 +32,13 @@ export default function QuizMetaForm({ title, description, errors, onChange }) {
           onChange={(event) => onChange('description', event.target.value)}
         />
         {errors?.description && <p className="qz-error" role="alert">{errors.description}</p>}
+      </div>
+      <div className="qz-field qz-public-field">
+        <label className="qz-public-label">
+          <input type="checkbox" checked={isPublic === true} onChange={(event) => onChange('isPublic', event.target.checked)} />
+          Công khai quiz để người khác có thể sử dụng
+        </label>
+        <p className="qz-muted">Quiz công khai sẽ xuất hiện trong danh sách chọn khi người khác tạo phòng. Nội dung chỉ sửa được bởi chủ quiz hoặc quản trị viên.</p>
       </div>
     </section>
   )

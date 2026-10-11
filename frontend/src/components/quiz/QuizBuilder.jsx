@@ -80,6 +80,7 @@ export default function QuizBuilder({ quizId, initialQuiz }) {
       <QuizMetaForm
         title={draft.title}
         description={draft.description}
+        isPublic={draft.isPublic}
         errors={showErrors ? errors : null}
         onChange={(field, value) => dispatch({ type: 'meta', field, value })}
       />

@@ -69,7 +69,7 @@ export const LIST_ACTIONS = new Set([
   'add', 'addMany', 'replaceAll', 'clear', 'update', 'changeType', 'remove', 'duplicate', 'move', 'setOption', 'addOption', 'removeOption',
 ])
 
-export const initialDraft = { title: '', description: '', questions: [], dirty: false }
+export const initialDraft = { title: '', description: '', isPublic: false, questions: [], dirty: false }
 
 /** Reducer cho cả phòng: metadata + danh sách câu hỏi. */
 export function quizDraftReducer(state, action) {
@@ -79,6 +79,7 @@ export function quizDraftReducer(state, action) {
     return {
       title: quiz.title || '',
       description: quiz.description || '',
+      isPublic: quiz.is_public === true,
       questions: (quiz.questions || []).map(questionFromApi),
       dirty: false,
     }

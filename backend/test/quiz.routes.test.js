@@ -5,35 +5,47 @@ import assert from 'node:assert/strict'
 process.env.GROQ_API_KEY = 'test-key-not-real'
 const { createApp } = await import('../src/app.js')
 const { supabaseAdmin } = await import('../src/config/supabaseClient.js')
+const { createRoom } = await import('../src/services/game/gameRoom.service.js')
 
 const jwt = (amr) => `h.${Buffer.from(JSON.stringify({ amr })).toString('base64url')}.s`
 const GOOGLE_A = { token: jwt([{ method: 'oauth' }]), user: { id: '11111111-1111-4111-8111-111111111111', identities: [{ provider: 'google' }] } }
 const GOOGLE_B = { token: jwt([{ method: 'oauth', timestamp: 2 }]), user: { id: '22222222-2222-4222-8222-222222222222', identities: [{ provider: 'google' }] } }
 const EMAIL = { token: jwt([{ method: 'password' }]), user: { id: '33333333-3333-4333-8333-333333333333', identities: [{ provider: 'email' }], user_metadata: { provider: 'google' } } }
-const accounts = new Map([GOOGLE_A, GOOGLE_B, EMAIL].map((account) => [account.token, account.user]))
+const ADMIN = { token: jwt([{ method: 'oauth', timestamp: 3 }]), user: { id: '44444444-4444-4444-8444-444444444444', identities: [{ provider: 'google' }] } }
+const accounts = new Map([GOOGLE_A, GOOGLE_B, EMAIL, ADMIN].map((account) => [account.token, account.user]))
 
 // ---- Mock Supabase (không gọi mạng) ----
-const db = { quizzes: new Map(), questions: new Map(), rpcCalls: 0 }
+const db = { quizzes: new Map(), questions: new Map(), rpcCalls: 0, roomRpcCalls: 0 }
 supabaseAdmin.auth.getUser = async (token) => (
   accounts.has(token) ? { data: { user: accounts.get(token) }, error: null } : { data: { user: null }, error: { message: 'invalid' } }
 )
 supabaseAdmin.rpc = async (name, args) => {
-  db.rpcCalls += 1
-  assert.equal(name, 'save_quiz_with_questions')
-  const existing = db.quizzes.get(args.p_quiz_id)
-  if (existing && existing.owner_id !== args.p_owner_id) return { data: null, error: { code: '42501' } }
-  db.quizzes.set(args.p_quiz_id, { id: args.p_quiz_id, owner_id: args.p_owner_id, title: args.p_title, description: args.p_description, status: 'draft' })
-  db.questions.set(args.p_quiz_id, args.p_questions.map((question, index) => ({ id: `q${index}`, order_index: index, ...question })))
-  return { data: args.p_quiz_id, error: null }
+  if (name === 'save_quiz_with_questions_v2') {
+    db.rpcCalls += 1
+    const existing = db.quizzes.get(args.p_quiz_id)
+    if (existing && existing.owner_id !== args.p_owner_id) return { data: null, error: { code: '42501' } }
+    db.quizzes.set(args.p_quiz_id, { id: args.p_quiz_id, owner_id: args.p_owner_id, title: args.p_title, description: args.p_description, is_public: args.p_is_public, status: 'draft' })
+    db.questions.set(args.p_quiz_id, args.p_questions.map((question, index) => ({ id: `q${index}`, order_index: index, ...question })))
+    return { data: args.p_quiz_id, error: null }
+  }
+  if (name === 'create_game_room_atomic' || name === 'create_game_room_atomic_v2') {
+    db.roomRpcCalls += 1
+    return { data: null, error: { code: 'TEST_STOP' } }
+  }
+  assert.fail(`Unexpected RPC: ${name}`)
 }
 supabaseAdmin.from = (table) => {
   const filters = {}
   let op = 'select'
+  let orExpression = null
+  let patch = {}
   const rows = () => {
-    if (table === 'profiles') return [{ id: filters.id, email: 'user@test.dev', role: 'user', full_name: 'Test' }]
+    if (table === 'profiles') return [{ id: filters.id, email: 'user@test.dev', role: filters.id === ADMIN.user.id ? 'admin' : 'user', full_name: 'Test' }]
     if (table === 'quizzes') {
-      const all = [...db.quizzes.values()].filter((row) => Object.entries(filters).every(([column, value]) => row[column] === value))
+      const userId = orExpression?.match(/owner_id\.eq\.([^,]+)/)?.[1]
+      const all = [...db.quizzes.values()].filter((row) => Object.entries(filters).every(([column, value]) => row[column] === value) && (!orExpression || row.owner_id === userId || row.is_public === true))
       if (op === 'delete') all.forEach((row) => db.quizzes.delete(row.id))
+      if (op === 'update') all.forEach((row) => Object.assign(row, patch))
       return all
     }
     if (table === 'questions') return db.questions.get(filters.quiz_id) || []
@@ -44,7 +56,9 @@ supabaseAdmin.from = (table) => {
     order: () => builder,
     limit: () => builder,
     delete: () => { op = 'delete'; return builder },
+    update: (value) => { op = 'update'; patch = value; return builder },
     eq: (column, value) => { filters[column] = value; return builder },
+    or: (value) => { orExpression = value; return builder },
     maybeSingle: async () => ({ data: rows()[0] || null, error: null }),
     then: (resolve, reject) => Promise.resolve({ data: rows(), error: null }).then(resolve, reject),
   }
@@ -80,6 +94,8 @@ async function call(path, { token, method = 'GET', json, raw, headers = {} } = {
 }
 
 const QUIZ_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+let publicQuizId = null
+let privateQuizId = null
 const validQuiz = () => ({
   title: 'Vật lý 10',
   description: '',
@@ -99,14 +115,14 @@ test('chưa đăng nhập hoặc token sai bị từ chối', async () => {
   assert.equal(db.rpcCalls, 0)
 })
 
-test('tài khoản email/password KHÔNG được tạo/sửa/xem phòng hay dùng AI (dù user_metadata ghi google)', async () => {
+test('tài khoản email/password chỉ được đọc danh mục an toàn, không được tạo/sửa quiz hay dùng AI', async () => {
   const access = await call('/api/quizzes/access', { token: EMAIL.token })
   assert.equal(access.status, 200)
   assert.equal(access.body.can_create_quiz, false)
   assert.equal(access.body.provider, 'email')
+  assert.equal((await call('/api/quizzes', { token: EMAIL.token })).status, 200)
 
   const attempts = [
-    ['GET', '/api/quizzes'],
     ['POST', '/api/quizzes', validQuiz()],
     ['PUT', `/api/quizzes/${QUIZ_ID}`, validQuiz()],
     ['DELETE', `/api/quizzes/${QUIZ_ID}`],
@@ -135,6 +151,50 @@ test('Google user được tạo phòng; owner lấy từ session, bỏ qua owne
   assert.notEqual(created.body.quiz.id, QUIZ_ID)
 })
 
+test('quiz public xuất hiện với người khác nhưng metadata đầy đủ vẫn chỉ chủ quiz được xem', async () => {
+  const publicResult = await call('/api/quizzes', { method: 'POST', token: GOOGLE_A.token, json: { ...validQuiz(), is_public: true } })
+  assert.equal(publicResult.status, 201)
+  assert.equal(publicResult.body.quiz.is_public, true)
+  publicQuizId = publicResult.body.quiz.id
+
+  const privateResult = await call('/api/quizzes', { method: 'POST', token: GOOGLE_A.token, json: { ...validQuiz(), title: 'Riêng tư' } })
+  assert.equal(privateResult.status, 201)
+  privateQuizId = privateResult.body.quiz.id
+
+  const listed = await call('/api/quizzes', { token: GOOGLE_B.token })
+  assert.ok(listed.body.quizzes.some((quiz) => quiz.id === publicQuizId && quiz.is_public))
+  assert.ok(!listed.body.quizzes.some((quiz) => quiz.id === privateQuizId))
+  const emailListed = await call('/api/quizzes', { token: EMAIL.token })
+  assert.ok(emailListed.body.quizzes.some((quiz) => quiz.id === publicQuizId))
+  assert.ok(!emailListed.body.quizzes.some((quiz) => quiz.id === privateQuizId))
+  assert.equal((await call(`/api/quizzes/${publicQuizId}`, { token: GOOGLE_B.token })).status, 404)
+  assert.equal((await call(`/api/quizzes/${publicQuizId}`, { method: 'PUT', token: GOOGLE_B.token, json: validQuiz() })).status, 403)
+  assert.equal((await call(`/api/quizzes/${publicQuizId}`, { method: 'DELETE', token: GOOGLE_B.token })).status, 404)
+})
+
+test('người khác tạo được phòng bằng quiz công khai nhưng không thể dùng quiz riêng', async () => {
+  const before = db.roomRpcCalls
+  await assert.rejects(
+    createRoom(EMAIL.user.id, { quiz_id: publicQuizId, game_mode: 'treasure-race' }),
+    (error) => error.code === 'db_unavailable',
+  )
+  assert.equal(db.roomRpcCalls, before + 1, 'public quiz passed preflight to the atomic room RPC')
+
+  await assert.rejects(
+    createRoom(EMAIL.user.id, { quiz_id: privateQuizId, game_mode: 'treasure-race' }),
+    (error) => error.code === 'quiz_forbidden',
+  )
+  assert.equal(db.roomRpcCalls, before + 1, 'private quiz is rejected before the room RPC')
+})
+
+test('chỉ admin được đổi public status của quiz bất kỳ', async () => {
+  const denied = await call(`/api/admin/quizzes/${publicQuizId}`, { method: 'PATCH', token: GOOGLE_B.token, json: { is_public: false } })
+  assert.equal(denied.status, 403)
+  const changed = await call(`/api/admin/quizzes/${publicQuizId}`, { method: 'PATCH', token: ADMIN.token, json: { is_public: false } })
+  assert.equal(changed.status, 200)
+  assert.equal(changed.body.quiz.is_public, false)
+})
+
 test('lưu 2 lần cùng id (double click) không tạo bản sao', async () => {
   const before = db.quizzes.size
   const [one, two] = await Promise.all([
@@ -154,6 +214,7 @@ test('dữ liệu sai không chạm DB: thiếu đáp án đúng, true/false thi
     mutate((q) => { delete q.questions[1].correct_boolean }),
     mutate((q) => { q.questions = [] }),
     mutate((q) => { q.title = '   ' }),
+    mutate((q) => { q.is_public = 'true' }),
   ]
   for (const json of bodies) {
     const result = await call(`/api/quizzes/${QUIZ_ID}`, { method: 'PUT', token: GOOGLE_A.token, json })

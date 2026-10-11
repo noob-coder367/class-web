@@ -9,9 +9,11 @@ router.use(requireAuth)
 // Cho mọi tài khoản đã đăng nhập: chỉ trả quyền (không có dữ liệu nhạy cảm).
 router.get('/access', quizController.access)
 
-// Mọi thao tác còn lại: chỉ phiên Google + chỉ dữ liệu của chính chủ (kiểm tra trong service).
-router.use(requireGoogle)
+// Danh mục chỉ chứa metadata quiz của chủ và quiz công khai; mọi tài khoản đăng nhập đều có thể xem.
 router.get('/', quizController.list)
+
+// Tạo/sửa/xóa và đọc toàn bộ câu hỏi: chỉ phiên Google + chỉ dữ liệu của chính chủ.
+router.use(requireGoogle)
 router.post('/', quizController.create)
 router.get('/:id', quizController.get)
 router.put('/:id', quizController.update)

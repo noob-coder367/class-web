@@ -26,8 +26,8 @@ function mapError(error) {
 }
 async function db(promise) { const result = await promise; if (result.error) throw mapError(result.error); return result.data }
 async function getOwnedQuiz(userId, quizId) {
-  const quiz = await db(supabaseAdmin.from('quizzes').select('id, title, owner_id').eq('id', quizId).eq('owner_id', userId).maybeSingle())
-  if (!quiz) fail('Bạn không có quyền sử dụng bộ quiz này.', 403, 'quiz_forbidden')
+  const quiz = await db(supabaseAdmin.from('quizzes').select('id, title, owner_id, is_public').eq('id', quizId).maybeSingle())
+  if (!quiz || (quiz.owner_id !== userId && quiz.is_public !== true)) fail('Bạn không có quyền sử dụng bộ quiz này.', 403, 'quiz_forbidden')
   const questions = await db(supabaseAdmin.from('questions').select(QUESTION_COLUMNS).eq('quiz_id', quizId).order('order_index', { ascending: true }))
   if (!questions?.length) fail('Quiz cần có ít nhất một câu hỏi để tạo phòng.')
   return { ...quiz, questions }

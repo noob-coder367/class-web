@@ -6,7 +6,7 @@ import { normalizeQuizPayload } from './questionSchema.js'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 export const isUuid = (value) => typeof value === 'string' && UUID_RE.test(value)
 
-const QUIZ_COLUMNS = 'id, title, description, status, created_at, updated_at'
+const QUIZ_COLUMNS = 'id, title, description, status, is_public, created_at, updated_at'
 const QUESTION_COLUMNS = 'id, order_index, type, content, options, correct_option, correct_boolean, reference_answer, explanation'
 
 function mapDbError(error) {
@@ -20,18 +20,20 @@ function mapDbError(error) {
 }
 
 /**
- * Lưu phòng + toàn bộ câu hỏi trong 1 transaction (hàm Postgres save_quiz_with_questions).
+ * Lưu quiz + toàn bộ câu hỏi trong 1 transaction (hàm Postgres save_quiz_with_questions_v2).
  * ownerId luôn lấy từ session đã xác minh, KHÔNG lấy từ body. Idempotent theo quizId
  * nên bấm lưu 2 lần không tạo bản sao.
  */
 export async function saveQuiz(ownerId, quizId, body) {
   if (!isUuid(quizId)) throw new HttpError('Mã phòng không hợp lệ.', 400, 'validation_error')
+  if (body?.is_public !== undefined && typeof body.is_public !== 'boolean') throw new HttpError('Trạng thái công khai không hợp lệ.', 400, 'validation_error')
   const payload = normalizeQuizPayload(body)
-  const { error } = await supabaseAdmin.rpc('save_quiz_with_questions', {
+  const { error } = await supabaseAdmin.rpc('save_quiz_with_questions_v2', {
     p_quiz_id: quizId,
     p_owner_id: ownerId,
     p_title: payload.title,
     p_description: payload.description,
+    p_is_public: body?.is_public === true,
     p_questions: payload.questions,
   })
   if (error) throw mapDbError(error)
@@ -64,7 +66,7 @@ export async function listQuizzes(ownerId) {
   const { data, error } = await supabaseAdmin
     .from('quizzes')
     .select(QUIZ_COLUMNS)
-    .eq('owner_id', ownerId)
+    .or(`owner_id.eq.${ownerId},is_public.eq.true`)
     .order('updated_at', { ascending: false })
     .limit(100)
   if (error) throw mapDbError(error)

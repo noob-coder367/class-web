@@ -91,6 +91,7 @@ export function toPayload(draft) {
   return {
     title: draft.title.trim(),
     description: draft.description.trim(),
+    is_public: draft.isPublic === true,
     questions: draft.questions.map(toPayloadQuestion),
   }
 }

@@ -3,6 +3,7 @@ export async function listRooms() { const data = await apiClient.get('/admin/gam
 export async function updateRoom(id, patch) { const data = await apiClient.patch(`/admin/game-rooms/${encodeURIComponent(id)}`, patch, { auth: true, retry: false }); return data.room }
 export async function deleteRoom(id) { return apiClient.delete(`/admin/game-rooms/${encodeURIComponent(id)}`, { auth: true, retry: false }) }
 export async function listQuizzes() { const data = await apiClient.get('/admin/quizzes', { auth: true }); return data.quizzes || [] }
+export async function updateQuizVisibility(id, isPublic) { const data = await apiClient.patch(`/admin/quizzes/${encodeURIComponent(id)}`, { is_public: isPublic }, { auth: true, retry: false }); return data.quiz }
 export async function listQuestions(quizId) { const data = await apiClient.get(`/admin/quizzes/${encodeURIComponent(quizId)}/questions`, { auth: true }); return data.questions || [] }
 export async function updateQuestion(id, patch) { const data = await apiClient.patch(`/admin/questions/${encodeURIComponent(id)}`, patch, { auth: true, retry: false }); return data.question }
 export async function deleteQuestion(id) { return apiClient.delete(`/admin/questions/${encodeURIComponent(id)}`, { auth: true, retry: false }) }

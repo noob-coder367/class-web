@@ -80,12 +80,16 @@ test('draft: sửa -> dirty, lưu -> sạch, load từ API, validate cả phòng
   assert.equal(hasErrors(errors), true)
   assert.equal(Object.keys(errors.questions).length, 1)
   assert.equal(toPayload(state).title, 'Vật lý')
+  assert.equal(toPayload(state).is_public, false)
+  state = quizDraftReducer(state, { type: 'meta', field: 'isPublic', value: true })
+  assert.equal(toPayload(state).is_public, true)
   state = quizDraftReducer(state, { type: 'saved' })
   assert.equal(state.dirty, false)
   const loaded = quizDraftReducer(initialDraft, {
     type: 'load',
-    quiz: { title: 'T', description: null, questions: [{ type: 'true_false', content: 'x', correct_boolean: true, options: null, explanation: null }] },
+    quiz: { title: 'T', description: null, is_public: true, questions: [{ type: 'true_false', content: 'x', correct_boolean: true, options: null, explanation: null }] },
   })
+  assert.equal(loaded.isPublic, true)
   assert.equal(loaded.questions[0].correct_boolean, true)
   assert.equal(loaded.questions[0].options.length, 4)
   assert.equal(hasErrors(validateDraft(loaded)), false)
