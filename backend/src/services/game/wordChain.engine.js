@@ -22,7 +22,7 @@ export function allocateTurns(teamCount, totalTurns) {
 
 export function makePhraseSet({ sourceMode, topic = '', text = '', validationMode = 'strict' }) {
   if (!['topic', 'text', 'combined'].includes(sourceMode)) throw new RangeError('Hãy chọn nguồn nội dung hợp lệ.')
-  if (!['strict', 'expanded'].includes(validationMode)) throw new RangeError('Cách kiểm tra nội dung không hợp lệ.')
+  if (!['strict', 'expanded', 'free'].includes(validationMode)) throw new RangeError('Cách kiểm tra nội dung không hợp lệ.')
   if (String(topic).length > MAX_TOPIC_LENGTH) throw new RangeError(`Chủ đề không được dài quá ${MAX_TOPIC_LENGTH} ký tự.`)
   if (String(text).length > MAX_TEXT_LENGTH) throw new RangeError(`Văn bản không được dài quá ${MAX_TEXT_LENGTH} ký tự.`)
   if (sourceMode !== 'text' && !normalizePhrase(topic)) throw new RangeError('Hãy nhập chủ đề để tạo nguồn từ.')
@@ -41,7 +41,7 @@ export function chooseStartingPhrase(phrases = []) {
   return candidates[Math.floor(Math.random() * candidates.length)]
 }
 
-export function validateAnswer({ answer, lastPhrase = '', allowedPhrases, usedPhrases = [] }) {
+export function validateAnswer({ answer, lastPhrase = '', allowedPhrases, usedPhrases = [], validationMode = 'strict' }) {
   const phrase = normalizePhrase(answer)
   if (!phrase) throw new WordChainRuleError('Hãy nhập một từ hoặc cụm từ có chữ cái.', 'empty_answer')
   if (phrase.length > 80) throw new WordChainRuleError('Đáp án không được dài quá 80 ký tự.', 'answer_too_long')
@@ -54,7 +54,7 @@ export function validateAnswer({ answer, lastPhrase = '', allowedPhrases, usedPh
   if (usedPhrases.some((used) => normalizePhrase(used) === phrase)) {
     throw new WordChainRuleError('Cụm từ này đã được dùng trong trận.', 'duplicate_answer')
   }
-  if (!allowedPhrases.has(phrase)) {
+  if (validationMode !== 'free' && !allowedPhrases.has(phrase)) {
     throw new WordChainRuleError('Cụm từ chưa nằm trong nguồn nội dung của trận.', 'phrase_not_in_source')
   }
   return { phrase, firstWord, finalWord }
