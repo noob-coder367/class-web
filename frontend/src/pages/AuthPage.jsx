@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import * as authService from '../services/authService.js'
@@ -21,6 +21,7 @@ function GhostIcon() {
 export default function AuthPage({ mode = 'login' }) {
   const isRegister = mode === 'register'
   const navigate = useNavigate()
+  const location = useLocation()
   const toast = useToast()
   const { reloadProfile } = useAuth()
   const [ghostMode, setGhostMode] = useState(false)
@@ -97,7 +98,7 @@ export default function AuthPage({ mode = 'login' }) {
         }
       } else {
         await authService.login({ displayName: form.displayName.trim(), password: form.password })
-        await reloadProfile(); toast.success('Đăng nhập thành công'); navigate(ROUTES.home, { replace: true })
+        await reloadProfile(); toast.success('Đăng nhập thành công'); navigate(location.state?.from || ROUTES.home, { replace: true })
       }
     } catch (cause) { toast.error(cause?.message || (isRegister ? 'Đăng ký không thành công.' : 'Email hoặc mật khẩu chưa chính xác.')) } finally { setBusy('') }
   }

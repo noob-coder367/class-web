@@ -4,6 +4,10 @@ export const listRoomQuizzes = async () => {
   const { quizzes } = await apiClient.get('/quizzes', { auth: true })
   return quizzes || []
 }
+export const listOpenGameRooms = async (gameMode) => {
+  const { rooms } = await apiClient.get(`/game-rooms/open?game_mode=${encodeURIComponent(gameMode)}`)
+  return rooms || []
+}
 export const createRoom = async (payload, idempotencyKey = null) => {
   const { room } = await apiClient.post('/game-rooms', payload, { auth: true, retry: false, idempotencyKey })
   return room

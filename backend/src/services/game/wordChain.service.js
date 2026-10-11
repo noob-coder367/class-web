@@ -108,6 +108,25 @@ async function findRoom(codeOrId) {
   return room
 }
 
+export async function listOpenRooms() {
+  const rooms = await db(supabaseAdmin.from('word_chain_rooms')
+    .select('id, code, title, total_turns, created_at')
+    .eq('status', 'lobby')
+    .order('created_at', { ascending: false })
+    .limit(50))
+  if (!rooms?.length) return []
+  const players = await db(supabaseAdmin.from('word_chain_players').select('room_id').in('room_id', rooms.map((room) => room.id)))
+  const playerCounts = new Map()
+  for (const player of players || []) playerCounts.set(player.room_id, (playerCounts.get(player.room_id) || 0) + 1)
+  return rooms.map((room) => ({
+    code: room.code,
+    title: room.title,
+    total_turns: room.total_turns,
+    player_count: playerCounts.get(room.id) || 0,
+    created_at: room.created_at,
+  }))
+}
+
 export async function getRoomState(codeOrId, userId) {
   const room = await findRoom(codeOrId)
   const [players, teams, turns] = await Promise.all([

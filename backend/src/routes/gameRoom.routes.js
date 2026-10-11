@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { requireAuth } from '../middlewares/auth.middleware.js'
 import * as controller from '../controllers/gameRoom.controller.js'
 const router = Router()
+router.get('/open', controller.open)
 router.use(requireAuth)
 router.post('/', controller.create)
 router.get('/:code', controller.get)

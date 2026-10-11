@@ -35,6 +35,29 @@ async function getOwnedQuiz(userId, quizId) {
 async function roomById(id) { return db(supabaseAdmin.from('game_rooms').select(ROOM_COLUMNS).eq('id', id).maybeSingle()) }
 async function findRoom(code) { return db(supabaseAdmin.from('game_rooms').select(ROOM_COLUMNS).eq('code', String(code).toUpperCase()).maybeSingle()) }
 
+export async function listOpenRooms(gameMode) {
+  const mode = getGameMode(gameMode)
+  if (!mode) fail('Game mode không hợp lệ.', 400, 'invalid_game_mode')
+  const rooms = await db(supabaseAdmin.from('game_rooms')
+    .select('id, code, game_mode, settings, created_at')
+    .eq('game_mode', mode.id)
+    .eq('status', 'lobby')
+    .order('created_at', { ascending: false })
+    .limit(50))
+  const openRooms = (rooms || []).filter((room) => room.settings?.single_device_mode !== true)
+  if (!openRooms.length) return []
+  const players = await db(supabaseAdmin.from('game_room_players').select('room_id').in('room_id', openRooms.map((room) => room.id)))
+  const playerCounts = new Map()
+  for (const player of players || []) playerCounts.set(player.room_id, (playerCounts.get(player.room_id) || 0) + 1)
+  return openRooms.map((room) => ({
+    code: room.code,
+    game_mode: room.game_mode,
+    title: String(room.settings?.title || mode.defaultTitle),
+    player_count: playerCounts.get(room.id) || 0,
+    created_at: room.created_at,
+  }))
+}
+
 function parseRequestId(value) {
   const raw = String(value || '').trim()
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw) ? raw : null

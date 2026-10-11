@@ -8,6 +8,11 @@ function withClock(room) {
   return { ...room, client_offset_ms: Number.isFinite(serverTime) ? serverTime - Date.now() : 0 }
 }
 
+export async function listOpenWordChainRooms() {
+  const { rooms } = await apiClient.get('/word-chain/rooms/open')
+  return rooms || []
+}
+
 export async function createWordChainRoom(payload, idempotencyKey = crypto.randomUUID()) {
   const { room } = await apiClient.post('/word-chain/rooms', payload, { auth: true, retry: false, idempotencyKey })
   return withClock(room)
