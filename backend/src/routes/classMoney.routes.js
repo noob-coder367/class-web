@@ -3,6 +3,8 @@ import * as controller from '../controllers/classMoney.controller.js'
 
 const router = Router()
 
+router.get('/utility-roster', controller.utilityRoster)
+router.put('/utility-roster', controller.saveUtilityRoster)
 router.get('/overview', controller.overview)
 router.get('/members', controller.members)
 router.get('/books', controller.books)
