@@ -13,3 +13,5 @@ export const diceComplete = wrap(async (req, res) => res.json({ room: await game
 export const move = wrap(async (req, res) => res.json({ room: await gameRoomService.moveRoom(req.params.code, req.user.id, req.body.direction, requestId(req)) }))
 export const moveBatch = wrap(async (req, res) => res.json({ room: await gameRoomService.moveRoomBatch(req.params.code, req.user.id, req.body.directions, requestId(req)) }))
 export const switchTurn = wrap(async (req, res) => res.json({ room: await gameRoomService.switchRoomTurn(req.params.code, req.user.id, req.body.team_id) }))
+export const updateVisibility = wrap(async (req, res) => res.json({ room: await gameRoomService.updateRoomVisibility(req.params.code, req.user.id, req.body?.is_public) }))
+export const leave = wrap(async (req, res) => res.json(await gameRoomService.leaveRoom(req.params.code, req.user.id, req.body?.close === true)))

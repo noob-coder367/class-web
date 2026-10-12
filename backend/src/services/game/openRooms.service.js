@@ -43,20 +43,25 @@ function sinceIso() {
 
 async function listGameRooms(gameKey, userId) {
   const rooms = await db(supabaseAdmin.from('game_rooms')
-    .select('id, code, host_id, settings, created_at')
-    .eq('status', 'lobby')
+    .select('id, code, host_id, settings, status, created_at')
+    .in('status', ['lobby', 'playing'])
     .eq('game_mode', GAME_ROOM_MODES[gameKey])
     .gte('created_at', sinceIso())
     .order('created_at', { ascending: false })
     .limit(50))
-  // Phòng 1 thiết bị chỉ host mới vào được nên không đưa vào danh sách "đang mở để vào".
-  const open = rooms.filter((room) => room.settings?.single_device_mode !== true).slice(0, OPEN_ROOM_LIMIT)
-  if (!open.length) return []
+  if (!rooms.length) return []
   const [players, names] = await Promise.all([
-    db(supabaseAdmin.from('game_room_players').select('room_id').in('room_id', open.map((room) => room.id))),
-    hostNames(open.map((room) => room.host_id)),
+    db(supabaseAdmin.from('game_room_players').select('room_id, user_id').in('room_id', rooms.map((room) => room.id))),
+    hostNames(rooms.map((room) => room.host_id)),
   ])
   const counts = countBy(players, 'room_id')
+  const hostPresent = new Set(players.filter((player) => rooms.some((room) => room.id === player.room_id && room.host_id === player.user_id)).map((player) => player.room_id))
+  const open = rooms.filter((room) => {
+    if (room.settings?.single_device_mode === true) return false
+    if (room.host_id === userId) return true
+    if (room.settings?.is_public === false) return false
+    return room.status === 'lobby' || !hostPresent.has(room.id)
+  }).slice(0, OPEN_ROOM_LIMIT)
   return open.map((room) => {
     const teamCount = Number(room.settings?.team_count) || 2
     const perTeam = Number(room.settings?.max_players_per_team) || 4
@@ -65,9 +70,14 @@ async function listGameRooms(gameKey, userId) {
     return {
       game_key: gameKey,
       code: room.code,
+      status: room.status,
+      is_public: room.settings?.is_public !== false,
+      is_owner: room.host_id === userId,
+      is_member: players.some((player) => player.room_id === room.id && player.user_id === userId),
+      host_present: hostPresent.has(room.id),
       title: room.settings?.title || 'Phòng chơi',
       host_name: names.get(room.host_id) || null,
-      is_host: room.host_id === userId,
+      is_host: room.host_id === userId && players.some((player) => player.room_id === room.id && player.user_id === userId),
       team_count: teamCount,
       player_count: playerCount,
       max_players: maxPlayers,

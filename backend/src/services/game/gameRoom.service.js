@@ -44,7 +44,7 @@ export async function listOpenRooms(gameMode) {
     .eq('status', 'lobby')
     .order('created_at', { ascending: false })
     .limit(50))
-  const openRooms = (rooms || []).filter((room) => room.settings?.single_device_mode !== true)
+  const openRooms = (rooms || []).filter((room) => room.settings?.single_device_mode !== true && room.settings?.is_public !== false)
   if (!openRooms.length) return []
   const players = await db(supabaseAdmin.from('game_room_players').select('room_id').in('room_id', openRooms.map((room) => room.id)))
   const playerCounts = new Map()
@@ -77,7 +77,7 @@ export async function createRoom(userId, body = {}, requestId = null) {
   const mode = getGameMode(body.game_mode || 'treasure-race')
   if (!mode) fail('Game mode không hợp lệ.')
   const gameMode = mode.id
-  const settings = { title: String(body.title || mode.defaultTitle).trim().slice(0, 80), game_mode: gameMode, team_count: teamCount, max_players_per_team: maxPlayers, board_length: boardLength, question_limit: questionLimit, timer_enabled: body.timer_enabled !== false, single_device_mode: body.single_device_mode === true, question_time_seconds: 30 }
+  const settings = { title: String(body.title || mode.defaultTitle).trim().slice(0, 80), game_mode: gameMode, team_count: teamCount, max_players_per_team: maxPlayers, board_length: boardLength, question_limit: questionLimit, timer_enabled: body.timer_enabled !== false, single_device_mode: body.single_device_mode === true, is_public: body.is_public !== false, question_time_seconds: 30 }
   const parsedRequestId = parseRequestId(requestId)
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const roomId = randomUUID()
@@ -121,7 +121,8 @@ async function getRoomForUser(code, userId, feedback = null, { allowPreview = tr
     db(supabaseAdmin.from('game_games').select(GAME_COLUMNS).eq('room_id', room.id).maybeSingle()),
   ])
   const isMember = players.some((player) => player.user_id === userId)
-  if (!isMember && (!allowPreview || room.status !== 'lobby')) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
+  const isOwner = room.host_id === userId
+  if (!isMember && !isOwner && (!allowPreview || room.status !== 'lobby')) fail('Bạn chưa tham gia phòng.', 403, 'not_in_room')
   const questionIndex = game ? Math.min(room.settings.question_limit - 1, game.question_index) : -1
   const shouldFetchQuestion = game?.status === 'playing' && game.question_index < game.total_questions
   const [teams, questions] = await Promise.all([
@@ -131,8 +132,8 @@ async function getRoomForUser(code, userId, feedback = null, { allowPreview = tr
   const question = toPublicQuestion(questions?.[0])
   const mode = getGameMode(room.game_mode)
   const ranked = game?.status !== 'finished' ? [] : mode?.ranking(teams, game) || []
-  if (!isMember) return { ...room, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams: teams.map(({ id, name, token }) => ({ id, name, token })), game: null, question: null, is_host: false, current_user_team_id: null, movement_feedback: null }
-  return { ...room, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams, game: game ? { ...game, maze: publicMazeState(game), ranking: ranked } : null, question, is_host: room.host_id === userId, current_user_team_id: players.find((p) => p.user_id === userId)?.team_id || null, movement_feedback: feedback }
+  if (!isMember && !isOwner) return { ...room, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams: teams.map(({ id, name, token }) => ({ id, name, token })), game: null, question: null, is_host: false, is_owner: false, current_user_team_id: null, movement_feedback: null }
+  return { ...room, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams, game: game ? { ...game, maze: publicMazeState(game), ranking: ranked } : null, question, is_host: room.host_id === userId && isMember, is_owner: isOwner, current_user_team_id: players.find((p) => p.user_id === userId)?.team_id || null, movement_feedback: feedback }
 }
 
 export async function getRoomState(code, userId) { return getRoomForUser(code, userId) }
@@ -469,5 +470,29 @@ export async function switchRoomTurn(code, userId, teamId) {
   if (!switched) return getRoomForUser(code, userId)
   return getRoomForUser(code, userId)
 }
-
+export async function updateRoomVisibility(code, userId, isPublic) {
+  const room = await findRoom(code)
+  if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
+  if (room.host_id !== userId) fail('Chỉ chủ phòng mới có thể đổi chế độ hiển thị.', 403, 'host_required')
+  if (typeof isPublic !== 'boolean') fail('Chế độ phòng không hợp lệ.', 400, 'invalid_visibility')
+  const settings = { ...room.settings, is_public: isPublic }
+  const { data, error } = await supabaseAdmin.from('game_rooms').update({ settings }).eq('id', room.id).in('status', ['lobby', 'playing']).select(ROOM_COLUMNS).maybeSingle()
+  if (error) throw mapError(error)
+  if (!data) fail('Phòng đã kết thúc hoặc không còn tồn tại.', 409, 'room_not_editable')
+  return getRoomForUser(data.code, userId)
+}
+export async function leaveRoom(code, userId, close = false) {
+  const room = await findRoom(code)
+  if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
+  if (room.host_id !== userId) fail('Chỉ chủ phòng mới có thể thực hiện thao tác này.', 403, 'host_required')
+  if (room.status === 'finished' || room.status === 'cancelled') return { closed: room.status === 'cancelled' }
+  if (close) {
+    const { data, error } = await supabaseAdmin.from('game_rooms').update({ status: 'cancelled' }).eq('id', room.id).in('status', ['lobby', 'ordering', 'playing']).select('id').maybeSingle()
+    if (error) throw mapError(error)
+    return { closed: Boolean(data) }
+  }
+  const { error } = await supabaseAdmin.from('game_room_players').delete().eq('room_id', room.id).eq('user_id', userId)
+  if (error) throw mapError(error)
+  return { closed: false, left: true, is_public: room.settings?.is_public !== false }
+}
 export { roomById }

@@ -15,4 +15,6 @@ router.post('/:code/dice-complete', controller.diceComplete)
 router.post('/:code/move', controller.move)
 router.post('/:code/move-batch', controller.moveBatch)
 router.post('/:code/switch-turn', controller.switchTurn)
+router.patch('/:code/visibility', controller.updateVisibility)
+router.post('/:code/leave', controller.leave)
 export default router

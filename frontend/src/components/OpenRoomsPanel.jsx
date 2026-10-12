@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Lock, LogIn, RefreshCw, Users } from 'lucide-react'
+import { Lock, LogIn, RefreshCw, Users, Globe2, Shield } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { ROUTES } from '../lib/routes.js'
 import { roomPathForApiMode } from '../lib/gameModes.js'
-import { joinRoom, listOpenRooms } from '../services/gameRoomService.js'
+import { joinRoom, listOpenRooms, updateRoomVisibility } from '../services/gameRoomService.js'
 import { joinWordChainRoom } from '../services/wordChainService.js'
 
 // Tự làm mới khi quay lại tab/cửa sổ, nhưng không dồn dập (cả lớp thường dùng chung 1 IP).
@@ -26,6 +26,7 @@ export default function OpenRoomsPanel({ game, title }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [joining, setJoining] = useState('')
+  const [visibilityBusy, setVisibilityBusy] = useState('')
   const lastLoad = useRef(0)
   const requestSeq = useRef(0)
 
@@ -70,13 +71,26 @@ export default function OpenRoomsPanel({ game, title }) {
         if (!room.is_host) await joinWordChainRoom(room.code)
         navigate(`${ROUTES.wordChainRoom}/${room.code}`)
       } else {
-        if (!room.is_host) await joinRoom(room.code)
+        if (!room.is_member && !(room.is_owner && room.status === 'playing')) await joinRoom(room.code)
         navigate(`${roomPathForApiMode(game.apiMode)}/${room.code}`)
       }
     } catch (joinError) {
       setError(joinError?.message || 'Không thể vào phòng. Phòng có thể đã bắt đầu hoặc đã đầy.')
       setJoining('')
       void load({ silent: true })
+    }
+  }
+
+  const toggleVisibility = async (room) => {
+    setVisibilityBusy(room.code)
+    setError('')
+    try {
+      await updateRoomVisibility(room.code, !room.is_public)
+      await load({ silent: true })
+    } catch (visibilityError) {
+      setError(visibilityError?.message || 'Không thể đổi chế độ phòng.')
+    } finally {
+      setVisibilityBusy('')
     }
   }
 
@@ -113,14 +127,15 @@ export default function OpenRoomsPanel({ game, title }) {
                   {room.host_name ? `Host: ${room.host_name}` : 'Đang chờ người chơi'} · {timeAgo(room.created_at)}
                 </span>
               </div>
+              <span className="gc-room-visibility" title={room.is_public ? 'Phòng công khai' : 'Phòng riêng tư'}>{room.is_public ? <Globe2 size={14} aria-hidden="true" /> : <Shield size={14} aria-hidden="true" />} {room.is_public ? 'Công khai' : 'Riêng tư'}</span>
               <span className="gc-room-count" title="Số người đã vào phòng">
                 <Users size={15} aria-hidden="true" /> {room.max_players ? `${room.player_count}/${room.max_players}` : room.player_count}
                 {room.team_count ? ` · ${room.team_count} đội` : ''}
               </span>
               <code className="gc-room-code">{room.code}</code>
-              <button className="gc-play gc-small" type="button" onClick={() => void enter(room)} disabled={Boolean(joining) || room.full}>
-                {room.full ? 'Đã đầy' : joining === room.code ? 'Đang vào…' : room.is_host ? 'Vào lại phòng' : 'Vào phòng'}
-              </button>
+              <div className="gc-room-actions"><button className="gc-play gc-small" type="button" onClick={() => void enter(room)} disabled={Boolean(joining) || (room.full && !room.is_owner)}>
+                {room.full && !room.is_owner ? 'Đã đầy' : joining === room.code ? 'Đang vào…' : room.is_owner && !room.is_member ? 'Mở phòng' : room.is_host ? 'Vào lại phòng' : 'Vào phòng'}
+              </button>{room.is_owner && <button className="gc-room-visibility-button" type="button" onClick={() => void toggleVisibility(room)} disabled={visibilityBusy === room.code}>{visibilityBusy === room.code ? 'Đang lưu…' : room.is_public ? 'Đặt riêng tư' : 'Đặt công khai'}</button>}</div>
             </li>
           ))}
         </ul>

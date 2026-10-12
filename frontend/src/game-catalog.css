@@ -114,9 +114,15 @@
 .gc-room-main strong { color: var(--gc-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gc-room-meta { font-size: 13px; color: var(--gc-muted); }
 .gc-room-count { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--gc-ink); }
+.gc-room-visibility { display: inline-flex; align-items: center; gap: 5px; color: var(--gc-muted); font-size: 11px; font-weight: 800; white-space: nowrap; }
+.gc-room-actions { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 112px; }
+.gc-room-visibility-button { padding: 5px 7px; border: 1px solid var(--gc-line); border-radius: 8px; color: var(--gc-muted); background: #fff; cursor: pointer; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.gc-room-visibility-button:hover:not(:disabled), .gc-room-visibility-button:focus-visible { border-color: #a99eff; color: var(--gc-accent-2); outline: none; }
+.gc-room-visibility-button:disabled { cursor: not-allowed; opacity: .6; }
 .gc-room-code { padding: 4px 10px; border-radius: 8px; background: var(--gc-soft); color: var(--gc-accent-2); font-weight: 800; letter-spacing: .12em; }
 .gc-play.gc-small, .gc-secondary.gc-small { height: 40px; min-width: 0; padding: 0 18px; font-size: 14px; border-radius: 10px; }
 .gc-play:disabled { filter: grayscale(.6); opacity: .65; cursor: default; }
 @media (max-width: 640px) {
   .gc-room .gc-play { flex: 1 1 100%; }
+  .gc-room-actions { width: 100%; }
 }
