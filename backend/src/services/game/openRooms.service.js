@@ -28,6 +28,27 @@ function countBy(rows, key) {
   return counts
 }
 
+// Hợp nhất hai truy vấn (sảnh công khai và phòng của host), giữ thứ tự ưu tiên nguồn đầu.
+export function mergeRoomCandidates(...sources) {
+  const byId = new Map()
+  for (const room of sources.flat()) if (room?.id) byId.set(room.id, room)
+  return [...byId.values()]
+}
+
+export function filterOpenRoomCandidates(rooms, userId, hostPresentIds = new Set()) {
+  return rooms.filter((room) => {
+    if (room.settings?.single_device_mode === true) return false
+    if (userId && room.host_id === userId) return true
+    if (room.settings?.is_public === false) return false
+    return room.status === 'lobby' || !hostPresentIds.has(room.id)
+  })
+}
+
+export function prioritizeOwnerRooms(rooms, userId, limit = OPEN_ROOM_LIMIT) {
+  const isOwner = (room) => Boolean(userId && room.host_id === userId)
+  return [...rooms.filter(isOwner), ...rooms.filter((room) => !isOwner(room))].slice(0, limit)
+}
+
 // Tên host chỉ để hiển thị; nếu không đọc được thì bỏ qua chứ không làm hỏng cả danh sách.
 async function hostNames(hostIds) {
   const ids = [...new Set(hostIds.filter(Boolean))]
@@ -42,13 +63,22 @@ function sinceIso() {
 }
 
 async function listGameRooms(gameKey, userId) {
-  const rooms = await db(supabaseAdmin.from('game_rooms')
+  const roomQuery = () => supabaseAdmin.from('game_rooms')
     .select('id, code, host_id, settings, status, created_at')
     .in('status', ['lobby', 'playing'])
     .eq('game_mode', GAME_ROOM_MODES[gameKey])
-    .gte('created_at', sinceIso())
     .order('created_at', { ascending: false })
-    .limit(50))
+    .limit(50)
+  const [publicRooms, ownerRooms] = await Promise.all([
+    // Lọc ở DB trước LIMIT: phòng riêng/1 máy không được chiếm chỗ của phòng công khai.
+    // JSONB containment chỉ loại boolean false/true chính xác; bản ghi cũ thiếu key vẫn công khai.
+    db(roomQuery().not('settings', 'cs', '{"is_public":false}').not('settings', 'cs', '{"single_device_mode":true}').gte('created_at', sinceIso())),
+    // Truy vấn riêng phòng của host, không giới hạn bởi cửa sổ 6 giờ hay LIMIT của sảnh công khai.
+    userId
+      ? db(roomQuery().eq('host_id', userId).not('settings', 'cs', '{"single_device_mode":true}'))
+      : Promise.resolve([]),
+  ])
+  const rooms = mergeRoomCandidates(ownerRooms, publicRooms)
   if (!rooms.length) return []
   const [players, names] = await Promise.all([
     db(supabaseAdmin.from('game_room_players').select('room_id, user_id').in('room_id', rooms.map((room) => room.id))),
@@ -56,12 +86,9 @@ async function listGameRooms(gameKey, userId) {
   ])
   const counts = countBy(players, 'room_id')
   const hostPresent = new Set(players.filter((player) => rooms.some((room) => room.id === player.room_id && room.host_id === player.user_id)).map((player) => player.room_id))
-  const open = rooms.filter((room) => {
-    if (room.settings?.single_device_mode === true) return false
-    if (room.host_id === userId) return true
-    if (room.settings?.is_public === false) return false
-    return room.status === 'lobby' || !hostPresent.has(room.id)
-  }).slice(0, OPEN_ROOM_LIMIT)
+  const visible = filterOpenRoomCandidates(rooms, userId, hostPresent)
+  // Pin phòng thuộc host lên đầu để không bị 20 phòng công khai của người khác che mất.
+  const open = prioritizeOwnerRooms(visible, userId)
   return open.map((room) => {
     const teamCount = Number(room.settings?.team_count) || 2
     const perTeam = Number(room.settings?.max_players_per_team) || 4
