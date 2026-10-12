@@ -104,3 +104,5 @@
     width: 100%;
   }
 }
+
+.answer-team-switch{margin-top:14px;padding-top:14px;border-top:1px solid #2b3853;text-align:center}.answer-team-switch strong{display:block;color:#f6d889;font-size:13px}.answer-team-switch>span{display:block;margin-top:4px;color:#8997b0;font-size:12px}.answer-team-switch>div{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:10px}.answer-team-switch .team-switch-button{display:inline-flex;align-items:center;gap:6px}.answer-team-switch .team-token{width:10px;height:10px;border-radius:50%}
