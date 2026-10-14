@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Check, Clock, Expand, Lightbulb, Link2, RotateCcw, SkipForward, Trophy } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
+import RoomExitControl from '../components/game/RoomExitControl.jsx'
 import { ROUTES } from '../lib/routes.js'
 import { advanceLocalWordChain, chooseLocalStartingPhrase, findLocalWordChainAnswer, loadWordChainDictionary, normalizeWordChainPhrase, restoreLocalRoom, WORD_CHAIN_TURN_SECONDS } from '../lib/wordChain.js'
-import { getWordChainRoom, revealWordChainAnswer, skipWordChainTurn, startWordChainRoom, submitWordChainAnswer } from '../services/wordChainService.js'
+import { closeWordChainRoom, getWordChainRoom, revealWordChainAnswer, skipWordChainTurn, startWordChainRoom, submitWordChainAnswer } from '../services/wordChainService.js'
 import '../word-chain.css'
 import '../word-chain-timer.css'
 
@@ -199,6 +200,19 @@ export default function WordChainRoomPage() {
     navigate(ROUTES.wordChain)
   }
 
+  const exitOnlineRoom = async (close) => {
+    setError('')
+    try {
+      if (close) await closeWordChainRoom(code)
+      setFallbackFullscreen(false)
+      navigate(close ? ROUTES.play : ROUTES.wordChain)
+      return true
+    } catch (cause) {
+      setError(cause.message || 'Không thể đóng phòng Nối Từ.')
+      return false
+    }
+  }
+
   const start = () => run(() => startWordChainRoom(code))
   const replayLocal = () => {
     if (!room?.local) return
@@ -211,10 +225,23 @@ export default function WordChainRoomPage() {
 
   if (!room) return <div className="game-shell word-chain-shell"><SiteHeader/><main className="container game-main"><div className="game-panel">{error || 'Đang tải trận Nối Từ…'} <button type="button" onClick={refresh}>Thử đồng bộ lại</button> <Link to={ROUTES.wordChain}>Quay lại thiết lập</Link></div></main></div>
 
+  if (room.status === 'cancelled') return (
+    <div className="game-shell word-chain-shell">
+      <SiteHeader />
+      <main className="container game-main wc-room">
+        <section className="wc-room-closed">
+          <h1>Phòng đã đóng</h1>
+          <p>Host đã đóng phòng này nên trận Nối Từ không thể tiếp tục.</p>
+          <Link className="game-button primary" to={ROUTES.wordChain}><ArrowLeft size={16}/> Thiết lập hoặc vào phòng khác</Link>
+        </section>
+      </main>
+    </div>
+  )
+
   return <div className={`game-shell word-chain-shell ${fallbackFullscreen ? 'wc-fallback-fullscreen' : ''}`}>
     {!fallbackFullscreen && <SiteHeader/>}
     <main className={`container game-main wc-room ${fallbackFullscreen ? 'wc-room-fullscreen' : ''}`}>
-      <header className="wc-room-header"><div className="wc-room-brand"><Link2 aria-hidden="true"/><div><span className="game-overline">NỐI TỪ · {local ? 'MỘT MÁY' : `PHÒNG ${room.code}`}</span><h1>{room.title}</h1></div></div><div className="wc-header-actions"><span className="wc-round-pill">{finished ? 'ĐÃ KẾT THÚC' : `${used + 1} / ${room.total_turns} LƯỢT`}</span><button className="wc-icon-button" type="button" aria-label="Bật hoặc tắt toàn màn hình" title="Toàn màn hình" onClick={toggleFullscreen}><Expand size={18}/></button><button className="wc-icon-button" type="button" onClick={exit} aria-label="Thoát trận" title="Thoát trận"><ArrowLeft size={18}/></button></div></header>
+      <header className="wc-room-header"><div className="wc-room-brand"><Link2 aria-hidden="true"/><div><span className="game-overline">NỐI TỪ · {local ? 'MỘT MÁY' : `PHÒNG ${room.code}`}</span><h1>{room.title}</h1></div></div><div className="wc-header-actions"><span className="wc-round-pill">{finished ? 'ĐÃ KẾT THÚC' : `${used + 1} / ${room.total_turns} LƯỢT`}</span><button className="wc-icon-button" type="button" aria-label="Bật hoặc tắt toàn màn hình" title="Toàn màn hình" onClick={toggleFullscreen}><Expand size={18}/></button>{!local && room.is_host && !finished ? <RoomExitControl onExit={exitOnlineRoom} error={error} className="wc-room-exit-trigger" detail="Nếu chọn không, phòng vẫn được giữ nguyên để bạn có thể quay lại bằng mã phòng." /> : <button className="wc-icon-button" type="button" onClick={exit} aria-label="Thoát trận" title="Thoát trận"><ArrowLeft size={18}/></button>}</div></header>
       {isLobby ? <section className="wc-lobby"><div className="wc-lobby-main"><p className="game-overline">PHÒNG CHỜ</p><h2>Chuẩn bị nối chữ</h2><p>{room.source_mode === 'text' ? 'Nguồn: văn bản người tạo đã chọn' : `Chủ đề: ${room.topic || 'Kết hợp chủ đề và văn bản'}`} · {room.total_turns} lượt · {room.teams.length} đội · {turnLimitSeconds} giây mỗi lượt</p>{room.code && <div className="wc-share-code"><small>MÃ PHÒNG</small><strong>{room.code}</strong><button type="button" onClick={() => navigator.clipboard?.writeText(room.code)}>Sao chép mã</button></div>}<div className="wc-team-strip">{teams.map((team,index)=><div className="wc-team-card" key={team.id}><span className={`wc-team-dot dot-${index%8}`}/><div><strong>{team.name}</strong><small>{team.players ?? 0} người · {team.turn_quota} lượt</small></div></div>)}</div>{room.is_host && <button className="game-button primary" type="button" onClick={start} disabled={busy || teams.filter((team)=>team.players>0).length<2}>{busy?'Đang bắt đầu…':'Bắt đầu trận'}</button>}{room.is_host && teams.filter((team)=>team.players>0).length<2 && <p className="wc-subtle">Cần người chơi ở ít nhất hai đội trước khi bắt đầu.</p>}</div></section>
       : <>
         <section className="wc-stage" aria-live="polite">

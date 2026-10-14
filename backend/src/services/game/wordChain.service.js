@@ -151,6 +151,25 @@ export async function getRoomState(codeOrId, userId) {
   }
 }
 
+export async function closeRoom(code, userId) {
+  const room = await findRoom(code)
+  if (room.host_id !== userId) fail('Chỉ chủ phòng mới có thể đóng phòng.', 403, 'host_required')
+  if (room.status === 'cancelled') return { closed: true }
+  if (room.status === 'finished') return { closed: false, finished: true }
+  const updated = await db(supabaseAdmin.from('word_chain_rooms')
+    .update({ status: 'cancelled' })
+    .eq('id', room.id)
+    .eq('host_id', userId)
+    .in('status', ['lobby', 'playing'])
+    .select('id')
+    .maybeSingle())
+  if (updated) return { closed: true }
+  const latest = await findRoom(room.id)
+  if (latest.status === 'cancelled') return { closed: true }
+  if (latest.status === 'finished') return { closed: false, finished: true }
+  fail('Trạng thái phòng vừa thay đổi. Hãy đồng bộ lại phòng.', 409, 'game_state_conflict')
+}
+
 export async function joinRoom(code, userId) {
   const room = await findRoom(code)
   const { error } = await supabaseAdmin.rpc('join_word_chain_room_atomic', { p_room_id: room.id, p_user_id: userId })

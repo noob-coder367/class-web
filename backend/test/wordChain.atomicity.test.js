@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
 const sql = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20261011100100_word_chain_game.sql'), 'utf8')
+const cancellationSql = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20261014000100_word_chain_room_cancellation.sql'), 'utf8')
 const actionFunction = sql.slice(sql.indexOf('create or replace function public.apply_word_chain_turn_atomic'), sql.indexOf('revoke all on function public.create_word_chain_room_atomic'))
 
 test('word-chain migration keeps direct client access closed and grants atomic RPC only to service_role', () => {
@@ -13,6 +14,12 @@ test('word-chain migration keeps direct client access closed and grants atomic R
   assert.match(sql, /grant execute on function public\.apply_word_chain_turn_atomic[\s\S]*to service_role/i)
   assert.match(sql, /unique index if not exists word_chain_turns_unique_phrase_idx/i)
   assert.match(sql, /payload_hash text not null check \(payload_hash ~ '\^\[0-9a-f\]\{64\}\$'\)/i)
+})
+
+test('host cancellation adds a closed status while retaining the room rows and history', () => {
+  assert.match(cancellationSql, /drop constraint if exists word_chain_rooms_status_check/i)
+  assert.match(cancellationSql, /check \(status in \('lobby', 'playing', 'finished', 'cancelled'\)\)/i)
+  assert.doesNotMatch(cancellationSql, /delete from public\.word_chain_(rooms|turns)/i)
 })
 
 test('atomic turn locks room and validates membership, active turn, source phrase, duplicate and quota', () => {

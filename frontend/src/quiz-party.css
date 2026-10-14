@@ -358,3 +358,5 @@
 .qp-audio-toggle[aria-pressed="true"]{border-color:#7ce9c47a;color:#9ff5d6;background:#5ce3b114}
 .qp-audio-toggle small{font-size:8px;font-weight:900;letter-spacing:.08em;white-space:nowrap}
 @media(max-width:760px){.qp-audio-toggle{width:36px;min-height:35px;padding:4px}.qp-audio-toggle small{display:none}}
+
+.qp-room-closed{max-width:620px;margin:12vh auto;padding:32px;text-align:center;border:1px solid #ffffff20;border-radius:24px;background:#080b1bcc;box-shadow:0 24px 70px #0005}.qp-room-closed h1{margin:0 0 10px;color:#fff;font-family:Manrope,sans-serif;font-size:clamp(28px,5vw,42px)}.qp-room-closed p{margin:0 auto 20px;color:#c2c5dc;line-height:1.6}.qp-room-closed .qp-secondary-button{min-height:44px;padding:0 16px}

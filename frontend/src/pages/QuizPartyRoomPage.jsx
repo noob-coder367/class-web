@@ -1,10 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, Clock3, Crown, PartyPopper, Play, RotateCw, ShieldCheck, Shirt, Sparkles, Trophy, X } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
+import RoomExitControl from '../components/game/RoomExitControl.jsx'
 import PetMascot, { PET_CATEGORIES } from '../components/pet/PetMascot.jsx'
-import { getRoom, joinRoom, startRoom, submitAnswer } from '../services/gameRoomService.js'
+import { getRoom, joinRoom, leaveRoom, startRoom, submitAnswer } from '../services/gameRoomService.js'
 import { ROUTES } from '../lib/routes.js'
+import { gameDetailPath } from '../lib/gameModes.js'
 import { QUIZ_PARTY_MINIGAMES } from '../lib/quizPartyMinigames.js'
 import { makeTeamDrafts, readTeamDrafts, updateTeamDraft, writeTeamDrafts } from '../lib/quizPartySession.js'
 import { getQuizPartyAnswerRequest } from '../lib/quizPartyRequests.js'
@@ -111,6 +113,7 @@ function QuizQuestion({ question, minigame, disabled, onAnswer, memoryVisible, t
 
 export default function QuizPartyRoomPage() {
   const { code } = useParams()
+  const navigate = useNavigate()
   const [room, setRoom] = useState(null)
   const [drafts, setDraftsState] = useState([])
   const [loading, setLoading] = useState(true)
@@ -319,6 +322,18 @@ export default function QuizPartyRoomPage() {
     catch (e) { setError(e.message || 'Không thể tham gia phòng.') }
   }
 
+  const exitRoom = async (close) => {
+    setError('')
+    try {
+      await leaveRoom(code, close)
+      navigate(close ? ROUTES.home : gameDetailPath('quiz-party'))
+      return true
+    } catch (e) {
+      setError(e.message || 'Không thể thoát khỏi phòng Quiz Party.')
+      return false
+    }
+  }
+
   if (loading) return <div className="game-shell quiz-party-shell"><SiteHeader /><main className="container game-main"><div className="qp-loading"><PartyPopper size={26} /> Đang chuẩn bị Quiz Party…</div></main></div>
   if (!room) return <div className="game-shell quiz-party-shell"><SiteHeader /><main className="container game-main"><p className="qp-error">{error || 'Không tìm thấy phòng.'}</p><Link className="qp-secondary-button" to={ROUTES.play}><ArrowLeft size={16} /> Quay lại chọn game</Link></main></div>
 
@@ -328,12 +343,25 @@ export default function QuizPartyRoomPage() {
   const winningTeam = room.teams.find((team) => team.id === room.game?.winner_team_id)
   const stageTheme = `quiz-party-shell theme-${activeMinigame.accent}`
 
+  if (room.status === 'cancelled') return (
+    <div className="quiz-party-shell">
+      <SiteHeader />
+      <main className="container game-main qp-main">
+        <section className="qp-room-closed">
+          <h1>Phòng đã đóng</h1>
+          <p>Host đã đóng phòng này nên trận Quiz Party không thể tiếp tục.</p>
+          <Link className="qp-secondary-button" to={ROUTES.play}><ArrowLeft size={16} /> Về chọn game</Link>
+        </section>
+      </main>
+    </div>
+  )
+
   return (
     <div className={stageTheme}>
       <SiteHeader />
       <main className="container game-main qp-main">
         <header className="qp-topbar">
-          <Link className="qp-back-link" to={ROUTES.play}><ArrowLeft size={16} /> Chọn game khác</Link>
+          {host && !isFinished ? <RoomExitControl onExit={exitRoom} error={error} className="quiz-party-exit-trigger" detail="Nếu chọn không, phòng công khai vẫn hiện để người khác vào chơi; phòng riêng tư chỉ còn ở trang chi tiết của bạn." /> : <Link className="qp-back-link" to={ROUTES.play}><ArrowLeft size={16} /> Chọn game khác</Link>}
           <div className="qp-code"><span>PASSCODE</span><strong>{room.code}</strong><button type="button" onClick={() => navigator.clipboard?.writeText(room.code)}>Sao chép</button></div>
           <span className="qp-mode-badge"><PartyPopper size={15} /> QUIZ PARTY</span>
         </header>

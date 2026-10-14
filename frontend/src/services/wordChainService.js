@@ -21,6 +21,9 @@ export async function getWordChainRoom(code) {
   const { room } = await apiClient.get(`/word-chain/rooms/${encodeURIComponent(code)}`, { auth: true })
   return withClock(room)
 }
+export async function closeWordChainRoom(code) {
+  return apiClient.post(`/word-chain/rooms/${encodeURIComponent(code)}/close`, {}, { auth: true, retry: false })
+}
 export async function joinWordChainRoom(code) {
   const { room } = await apiClient.post(`/word-chain/rooms/${encodeURIComponent(code)}/join`, {}, { auth: true, retry: false })
   return withClock(room)
