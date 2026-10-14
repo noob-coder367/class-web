@@ -4,9 +4,13 @@ import { requireAuth } from '../middlewares/auth.middleware.js'
 import { requireGoogle } from '../middlewares/googleOnly.middleware.js'
 
 const router = Router()
-
 router.get('/public', quizController.listPublic)
-
+router.get('/room-catalog', (req, res, next) => {
+  if (String(req.headers.authorization || '').startsWith('Bearer ')) {
+    return requireAuth(req, res, () => quizController.list(req, res, next))
+  }
+  return quizController.listPublic(req, res, next)
+})
 router.use(requireAuth)
 // Cho mọi tài khoản đã đăng nhập: chỉ trả quyền (không có dữ liệu nhạy cảm).
 router.get('/access', quizController.access)

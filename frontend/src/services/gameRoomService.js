@@ -1,7 +1,7 @@
 import { apiClient } from './apiClient.js'
 
 export const listRoomQuizzes = async () => {
-  const { quizzes } = await apiClient.get('/quizzes/public')
+  const { quizzes } = await apiClient.get('/quizzes/room-catalog', { auth: true })
   return quizzes || []
 }
 export const createRoom = async (payload, idempotencyKey = null) => {
