@@ -13,11 +13,12 @@ test('public open-room endpoint does not require auth and validates game mode', 
   assert.equal(body.code, 'invalid_game_mode')
 })
 
-test('leave/close game room requires an authenticated session', async () => {
+test('game room mutations reject missing guest identity', async () => {
   const response = await fetch(`${baseUrl}/api/game-rooms/ABC123/leave`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ close: true }),
   })
-  assert.equal(response.status, 401)
+  assert.equal(response.status, 400)
+  assert.equal((await response.json()).code, 'guest_identity_required')
 })

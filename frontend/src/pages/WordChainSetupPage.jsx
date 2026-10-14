@@ -64,7 +64,7 @@ export default function WordChainSetupPage() {
       const room = await createWordChainRoom({ title: form.title, source_mode: form.source_mode, topic: form.topic, text: form.text, validation_mode: form.validation_mode, team_count: Number(form.team_count), total_turns: Number(form.total_turns), teams: form.teams }, createKey.current)
       createKey.current = null
       navigate(`${ROUTES.wordChainRoom}/${room.code}`)
-    } catch (cause) { setError(cause.message || 'Không thể tạo phòng. Hãy kiểm tra đăng nhập và kết nối máy chủ.') }
+    } catch (cause) { setError(cause.message || 'Không thể tạo phòng. Hãy kiểm tra kết nối máy chủ.') }
     finally { setBusy(false) }
   }
 
@@ -74,7 +74,7 @@ export default function WordChainSetupPage() {
     if (!/^[A-Z0-9]{6}$/.test(code)) { setError('Mã phòng cần có đúng 6 ký tự chữ hoặc số.'); return }
     setBusy(true); setError('')
     try { await joinWordChainRoom(code); navigate(`${ROUTES.wordChainRoom}/${code}`) }
-    catch (cause) { setError(cause.message || 'Không thể vào phòng. Kiểm tra mã phòng và đăng nhập.') }
+    catch (cause) { setError(cause.message || 'Không thể vào phòng. Kiểm tra mã phòng và kết nối máy chủ.') }
     finally { setBusy(false) }
   }
 
@@ -93,7 +93,7 @@ export default function WordChainSetupPage() {
               </section>
       <section className="wc-setup-card"><div className="wc-section-title"><span className="wc-step">02</span><div><h2>Thiết lập trận</h2><p>Giữ nguyên tổng lượt đã chọn.</p></div></div>
         <label className="wc-field">Tên trận<input value={form.title} onChange={(event) => update('title', event.target.value)} maxLength={80}/></label>
-        <fieldset className="wc-mode-choice"><legend>Chế độ chơi</legend><label className={form.play_mode === 'local' ? 'wc-mode-option active' : 'wc-mode-option'}><input type="radio" name="playmode" checked={form.play_mode === 'local'} onChange={() => update('play_mode','local')}/><Monitor size={20}/><span><strong>1 máy</strong><small>Một màn hình điều khiển tất cả đội, không cần đăng nhập từng đội.</small></span></label><label className={form.play_mode === 'online' ? 'wc-mode-option active' : 'wc-mode-option'}><input type="radio" name="playmode" checked={form.play_mode === 'online'} onChange={() => update('play_mode','online')}/><Users size={20}/><span><strong>Đấu người thật</strong><small>Tạo phòng bằng mã. Người chơi phòng online đăng nhập theo hệ thống hiện có.</small></span></label></fieldset>
+        <fieldset className="wc-mode-choice"><legend>Chế độ chơi</legend><label className={form.play_mode === 'local' ? 'wc-mode-option active' : 'wc-mode-option'}><input type="radio" name="playmode" checked={form.play_mode === 'local'} onChange={() => update('play_mode','local')}/><Monitor size={20}/><span><strong>1 máy</strong><small>Một màn hình điều khiển tất cả đội, không cần đăng nhập từng đội.</small></span></label><label className={form.play_mode === 'online' ? 'wc-mode-option active' : 'wc-mode-option'}><input type="radio" name="playmode" checked={form.play_mode === 'online'} onChange={() => update('play_mode','online')}/><Users size={20}/><span><strong>Đấu người thật</strong><small>Tạo phòng và gửi liên kết cho mọi người vào chơi, không cần đăng nhập.</small></span></label></fieldset>
         <div className="wc-config-grid"><label className="wc-field">Số đội<select value={form.team_count} onChange={(event) => changeTeamCount(event.target.value)}>{Array.from({length:7},(_,i)=>i+2).map((n)=><option key={n} value={n}>{n} đội</option>)}</select></label><label className="wc-field">Tổng lượt nối từ<input type="number" min={form.team_count} max="200" value={form.total_turns} onChange={(event) => update('total_turns', event.target.value === '' ? '' : Number(event.target.value))}/></label></div>
         <p className="wc-turn-allocation"><CircleHelp size={17}/>{quotas.length ? `Phân bổ: ${quotas.map((n,i)=>`${form.teams[i] || `Đội ${i+1}`} ${n} lượt`).join(' · ')}. Đội đứng trước nhận lượt dư.` : `Tổng lượt phải từ ${form.team_count} đến 200.`}</p>
         <div className="wc-team-inputs">{form.teams.map((name,index)=><label className="wc-field" key={index}>Tên đội {index+1}<input value={name} maxLength={32} onChange={(event)=>setForm((current)=>({...current,teams:current.teams.map((item,i)=>i===index?event.target.value:item)}))}/></label>)}</div>
@@ -101,6 +101,6 @@ export default function WordChainSetupPage() {
       {error && <div className="wc-error" role="alert">{error}</div>}
       <div className="wc-setup-actions"><Link to={ROUTES.play} className="game-button quiet"><ArrowLeft size={16}/> Quay lại</Link><button className="game-button primary" type="submit" disabled={busy || !sourceInfo || !quotas.length}>{busy ? (form.play_mode === 'local' ? 'Đang phân tích nguồn…' : 'Đang tạo phòng…') : form.play_mode === 'local' ? <>Bắt đầu trận <ArrowRight size={16}/></> : <>Tạo phòng online <ArrowRight size={16}/></>}</button></div>
     </form>
-    <section className="wc-join-panel"><div><p className="game-overline">ĐÃ CÓ MÃ PHÒNG?</p><h2>Tham gia một trận Nối Từ</h2><p>Nhập mã sáu ký tự. Tài khoản người chơi dùng đăng nhập hiện có.</p></div><form onSubmit={joinOnline}><input aria-label="Mã phòng" placeholder="ABC123" maxLength={6} autoCapitalize="characters" value={roomCode} onChange={(event)=>setRoomCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6))}/><button className="game-button quiet" disabled={busy || roomCode.length!==6}>{busy?'Đang vào…':'Vào phòng'}</button></form></section>
+    <section className="wc-join-panel"><div><p className="game-overline">ĐÃ CÓ MÃ PHÒNG?</p><h2>Tham gia một trận Nối Từ</h2><p>Nhập mã hoặc mở liên kết phòng. Không cần đăng nhập.</p></div><form onSubmit={joinOnline}><input aria-label="Mã phòng" placeholder="ABC123" maxLength={6} autoCapitalize="characters" value={roomCode} onChange={(event)=>setRoomCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6))}/><button className="game-button quiet" disabled={busy || roomCode.length!==6}>{busy?'Đang vào…':'Vào phòng'}</button></form></section>
   </main></div>
 }

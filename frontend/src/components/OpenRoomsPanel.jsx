@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Lock, LogIn, RefreshCw, Users, Globe2, Shield } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { RefreshCw, Users, Globe2, Shield } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { ROUTES } from '../lib/routes.js'
 import { roomPathForApiMode } from '../lib/gameModes.js'
@@ -21,7 +21,7 @@ function timeAgo(iso) {
 /** Danh sách phòng đang mở (ở sảnh) của một game, kèm nút vào phòng. */
 export default function OpenRoomsPanel({ game, title }) {
   const navigate = useNavigate()
-  const { authReady, isLoggedIn } = useAuth()
+  const { authReady } = useAuth()
   const [rooms, setRooms] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -49,7 +49,7 @@ export default function OpenRoomsPanel({ game, title }) {
   useEffect(() => {
     setRooms(null)
     setError('')
-    if (!authReady || !isLoggedIn) return undefined
+    if (!authReady) return undefined
     void load()
     const refreshIfStale = () => {
       if (document.visibilityState === 'visible' && Date.now() - lastLoad.current > MIN_AUTO_REFRESH_MS) void load({ silent: true })
@@ -61,7 +61,7 @@ export default function OpenRoomsPanel({ game, title }) {
       document.removeEventListener('visibilitychange', refreshIfStale)
       window.removeEventListener('focus', refreshIfStale)
     }
-  }, [authReady, isLoggedIn, load])
+  }, [authReady, load])
 
   const enter = async (room) => {
     setJoining(room.code)
@@ -98,26 +98,20 @@ export default function OpenRoomsPanel({ game, title }) {
     <section className="gc-section gc-rooms" aria-label={`Phòng đang mở của ${title}`}>
       <div className="gc-rooms-head">
         <h2>Phòng đang mở</h2>
-        {isLoggedIn && (
-          <button className="gc-refresh" type="button" onClick={() => void load()} disabled={loading}>
-            <RefreshCw size={15} aria-hidden="true" className={loading ? 'gc-spin' : ''} /> Làm mới
-          </button>
-        )}
+        <button className="gc-refresh" type="button" onClick={() => void load()} disabled={loading}>
+          <RefreshCw size={15} aria-hidden="true" className={loading ? 'gc-spin' : ''} /> Làm mới
+        </button>
       </div>
 
-      {authReady && !isLoggedIn && (
-        <div className="gc-rooms-note"><Lock size={18} aria-hidden="true" /> <span>Đăng nhập để xem và vào các phòng đang mở.</span> <Link className="gc-secondary gc-small" to={ROUTES.login}><LogIn size={16} aria-hidden="true" /> Đăng nhập</Link></div>
-      )}
+      {error && <p className="gc-rooms-error" role="alert">{error}</p>}
 
-      {isLoggedIn && error && <p className="gc-rooms-error" role="alert">{error}</p>}
+      {rooms === null && !error && <p className="gc-rooms-note">Đang tải danh sách phòng…</p>}
 
-      {isLoggedIn && rooms === null && !error && <p className="gc-rooms-note">Đang tải danh sách phòng…</p>}
-
-      {isLoggedIn && rooms && !rooms.length && !error && (
+      {rooms && !rooms.length && !error && (
         <p className="gc-rooms-note">Chưa có phòng nào đang chờ người chơi. Hãy nhờ host tạo phòng, hoặc dùng nút tạo phòng ở phía trên.</p>
       )}
 
-      {isLoggedIn && rooms?.length > 0 && (
+      {rooms?.length > 0 && (
         <ul className="gc-room-list">
           {rooms.map((room) => (
             <li className="gc-room" key={room.code}>

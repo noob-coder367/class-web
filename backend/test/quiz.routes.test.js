@@ -170,6 +170,12 @@ test('quiz public xuất hiện với người khác nhưng metadata đầy đ�
   assert.equal((await call(`/api/quizzes/${publicQuizId}`, { token: GOOGLE_B.token })).status, 404)
   assert.equal((await call(`/api/quizzes/${publicQuizId}`, { method: 'PUT', token: GOOGLE_B.token, json: validQuiz() })).status, 403)
   assert.equal((await call(`/api/quizzes/${publicQuizId}`, { method: 'DELETE', token: GOOGLE_B.token })).status, 404)
+
+  const guestCatalog = await call('/api/quizzes/public')
+  assert.equal(guestCatalog.status, 200)
+  assert.ok(guestCatalog.body.quizzes.some((quiz) => quiz.id === publicQuizId))
+  assert.ok(!guestCatalog.body.quizzes.some((quiz) => quiz.id === privateQuizId))
+  assert.equal(Object.hasOwn(guestCatalog.body.quizzes.find((quiz) => quiz.id === publicQuizId), 'questions'), false)
 })
 
 test('người khác tạo được phòng bằng quiz công khai nhưng không thể dùng quiz riêng', async () => {

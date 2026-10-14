@@ -26,3 +26,12 @@ test('public quiz migration keeps quizzes private by default and gates room use 
   assert.match(sql, /q\.owner_id = p_host_id or q\.is_public = true/i)
   assert.match(sql, /grant execute on function public\.save_quiz_with_questions_v2[\s\S]*to service_role/i)
 })
+
+test('guest room migration removes auth.users foreign keys only from room identity tables', () => {
+  const sql = readFileSync(resolve(root, '20261015000100_guest_room_identities.sql'), 'utf8')
+  for (const table of ['game_rooms', 'game_room_players', 'game_action_claims', 'word_chain_rooms', 'word_chain_players', 'word_chain_turns', 'word_chain_action_claims']) {
+    assert.match(sql, new RegExp(`'public', '${table}'`))
+  }
+  assert.match(sql, /confrelid = 'auth\.users'::regclass/i)
+  assert.doesNotMatch(sql, /grant\s+all\s+on\s+table/i)
+})

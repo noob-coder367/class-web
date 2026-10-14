@@ -129,16 +129,17 @@ export async function listOpenRooms() {
 
 export async function getRoomState(codeOrId, userId) {
   const room = await findRoom(codeOrId)
+  const { host_id: _hostId, ...publicRoom } = room
   const [players, teams, turns] = await Promise.all([
     db(supabaseAdmin.from('word_chain_players').select('user_id, team_id, joined_at').eq('room_id', room.id).order('joined_at')),
     db(supabaseAdmin.from('word_chain_teams').select('id, name, turn_order, turn_quota, turns_used').eq('room_id', room.id).order('turn_order')),
-    db(supabaseAdmin.from('word_chain_turns').select('id, turn_number, team_id, player_id, action, phrase, created_at').eq('room_id', room.id).order('turn_number')),
+    db(supabaseAdmin.from('word_chain_turns').select('id, turn_number, team_id, action, phrase, created_at').eq('room_id', room.id).order('turn_number')),
   ])
   const member = players.find((player) => player.user_id === userId)
   if (!member) fail('Bạn chưa tham gia phòng này.', 403, 'not_in_room')
-  const { allowed_phrases: _privateSource, ...publicRoom } = room
+  const { allowed_phrases: _privateSource, ...safeRoom } = publicRoom
   return {
-    ...publicRoom,
+    ...safeRoom,
     teams: teams.map((team) => ({ ...team, is_current: team.id === room.current_team_id, players: players.filter((p) => p.team_id === team.id).length })),
     players: players.map(({ team_id, joined_at }) => ({ team_id, joined_at })),
     history: turns,

@@ -74,14 +74,14 @@ function AppRoutes() {
       <Route path={`${ROUTES.gameDetail}/:gameId`} element={<GameDetailPage />} />
       <Route path={ROUTES.wordChain} element={<WordChainSetupPage />} />
       <Route path={ROUTES.wordChainPlay} element={<WordChainRoomPage />} />
-      <Route path={`${ROUTES.wordChainRoom}/:code`} element={<ProtectedRoute><WordChainRoomPage /></ProtectedRoute>} />
+      <Route path={`${ROUTES.wordChainRoom}/:code`} element={<WordChainRoomPage />} />
       <Route path={ROUTES.pet} element={<PetPage />} />
       <Route path={ROUTES.boltSort} element={<BoltSortGamePage />} />
-      <Route path={ROUTES.createRoom} element={<ProtectedRoute><CreateRoomPage /></ProtectedRoute>} />
+      <Route path={ROUTES.createRoom} element={<CreateRoomPage />} />
       <Route path={ROUTES.createQuiz} element={<ProtectedRoute><CreateQuizPage /></ProtectedRoute>} />
       <Route path={`${ROUTES.createQuiz}/:quizId`} element={<ProtectedRoute><CreateQuizPage /></ProtectedRoute>} />
-      <Route path={`${ROUTES.room}/:code`} element={<ProtectedRoute><RoomPage /></ProtectedRoute>} />
-      <Route path={`${ROUTES.quizParty}/:code`} element={<ProtectedRoute><QuizPartyRoomPage /></ProtectedRoute>} />
+      <Route path={`${ROUTES.room}/:code`} element={<RoomPage />} />
+      <Route path={`${ROUTES.quizParty}/:code`} element={<QuizPartyRoomPage />} />
       <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
       </Routes>
       <UtilityToolsPanel isAdmin={isAdmin} />

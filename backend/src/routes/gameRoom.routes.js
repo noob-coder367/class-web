@@ -1,9 +1,9 @@
 import { Router } from 'express'
-import { requireAuth } from '../middlewares/auth.middleware.js'
+import { requireRoomIdentity } from '../middlewares/auth.middleware.js'
 import * as controller from '../controllers/gameRoom.controller.js'
 const router = Router()
 router.get('/open', controller.open)
-router.use(requireAuth)
+router.use(requireRoomIdentity)
 router.post('/', controller.create)
 // Phòng đang mở (sảnh) của một game. Đặt trước '/:code'.
 router.get('/open/:gameKey', controller.listOpen)

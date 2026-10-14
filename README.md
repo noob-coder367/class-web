@@ -16,6 +16,8 @@ Quizly là nền tảng quiz/game cho lớp học, gồm landing page, đăng k�
 - Đăng nhập bằng email/password; backend xác thực và trả session Supabase.
 - Frontend lưu/khôi phục session qua Supabase client; `GET /api/auth/me` yêu cầu bearer token và trả role đã xác thực.
 - Role admin được nhận diện từ profile; dashboard admin quản lý tài khoản, phòng, câu hỏi và nội dung game.
+- Tạo/tham gia/chơi phòng game và Nối Từ online không bắt buộc đăng nhập: backend nhận UUID guest ngẫu nhiên lưu trong trình duyệt; người tạo nên mở lại phòng trên cùng trình duyệt để giữ quyền host. Quiz dùng để tạo phòng không đăng nhập phải là quiz công khai.
+- Hồ sơ, quiz builder, AI/OCR, lớp học và trang quản trị vẫn yêu cầu session/role phù hợp. Room tables tiếp tục chỉ được backend service-role truy cập; cần áp dụng migration guest identity trước khi deploy backend/frontend.
 
 ## Game và tính nhất quán
 

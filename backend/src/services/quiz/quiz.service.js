@@ -73,6 +73,17 @@ export async function listQuizzes(ownerId) {
   return data || []
 }
 
+export async function listPublicQuizzes() {
+  const { data, error } = await supabaseAdmin
+    .from('quizzes')
+    .select(QUIZ_COLUMNS)
+    .eq('is_public', true)
+    .order('updated_at', { ascending: false })
+    .limit(100)
+  if (error) throw mapDbError(error)
+  return data || []
+}
+
 export async function deleteQuiz(ownerId, quizId) {
   if (!isUuid(quizId)) throw new HttpError('Không tìm thấy phòng.', 404, 'not_found')
   const { data, error } = await supabaseAdmin

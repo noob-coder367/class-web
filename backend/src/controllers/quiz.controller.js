@@ -24,6 +24,10 @@ export const list = wrap(async (req, res) => {
   res.json({ quizzes: await quizService.listQuizzes(req.user.id) })
 })
 
+export const listPublic = wrap(async (_req, res) => {
+  res.json({ quizzes: await quizService.listPublicQuizzes() })
+})
+
 export const get = wrap(async (req, res) => {
   res.json({ quiz: await quizService.getQuiz(req.user.id, req.params.id) })
 })

@@ -6,10 +6,20 @@ const BASE_URL = (configuredApiBase || (import.meta.env.PROD
   : 'http://localhost:4000/api')).replace(/\/+$/, '')
 
 const ACCESS_TOKEN_KEY = 'quizly:access_token'
+const GUEST_ID_KEY = 'quizly:guest_id'
 const FETCH_TIMEOUT_MS = 20_000
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504])
 let sessionSnapshot = null
 let sessionLookupPromise = null
+
+function getGuestId() {
+  let guestId = localStorage.getItem(GUEST_ID_KEY)
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(guestId || '')) {
+    guestId = crypto.randomUUID()
+    localStorage.setItem(GUEST_ID_KEY, guestId)
+  }
+  return guestId
+}
 
 export function saveAccessToken(token) {
   if (token) {
@@ -94,7 +104,7 @@ async function request(path, options = {}) {
     _attempt = 0,
   } = options
   const again = (patch) => request(path, { ...options, ...patch })
-  const headers = { 'Content-Type': contentType, ...extraHeaders }
+  const headers = { 'Content-Type': contentType, 'X-Guest-Id': getGuestId(), ...extraHeaders }
   if (idempotencyKey && method !== 'GET' && method !== 'HEAD') headers['Idempotency-Key'] = idempotencyKey
 
   if (auth) {

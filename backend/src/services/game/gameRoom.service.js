@@ -116,6 +116,7 @@ async function getRoomForUserById(roomId, userId, feedback = null) {
 async function getRoomForUser(code, userId, feedback = null, { allowPreview = true } = {}) {
   const room = await findRoom(code)
   if (!room) fail('Mã phòng không tồn tại.', 404, 'room_not_found')
+  const { host_id: _hostId, ...publicRoom } = room
   const [players, game] = await Promise.all([
     db(supabaseAdmin.from('game_room_players').select('id, user_id, team_id, joined_at').eq('room_id', room.id).order('joined_at', { ascending: true })),
     db(supabaseAdmin.from('game_games').select(GAME_COLUMNS).eq('room_id', room.id).maybeSingle()),
@@ -132,8 +133,8 @@ async function getRoomForUser(code, userId, feedback = null, { allowPreview = tr
   const question = toPublicQuestion(questions?.[0])
   const mode = getGameMode(room.game_mode)
   const ranked = game?.status !== 'finished' ? [] : mode?.ranking(teams, game) || []
-  if (!isMember && !isOwner) return { ...room, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams: teams.map(({ id, name, token }) => ({ id, name, token })), game: null, question: null, is_host: false, is_owner: false, current_user_team_id: null, movement_feedback: null }
-  return { ...room, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams, game: game ? { ...game, maze: publicMazeState(game), ranking: ranked } : null, question, is_host: room.host_id === userId && isMember, is_owner: isOwner, current_user_team_id: players.find((p) => p.user_id === userId)?.team_id || null, movement_feedback: feedback }
+  if (!isMember && !isOwner) return { ...publicRoom, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams: teams.map(({ id, name, token }) => ({ id, name, token })), game: null, question: null, is_host: false, is_owner: false, current_user_team_id: null, movement_feedback: null }
+  return { ...publicRoom, players: players.map(({ id, team_id, joined_at }) => ({ id, team_id, joined_at })), teams, game: game ? { ...game, maze: publicMazeState(game), ranking: ranked } : null, question, is_host: room.host_id === userId && isMember, is_owner: isOwner, current_user_team_id: players.find((p) => p.user_id === userId)?.team_id || null, movement_feedback: feedback }
 }
 
 export async function getRoomState(code, userId) { return getRoomForUser(code, userId) }
