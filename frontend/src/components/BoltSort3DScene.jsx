@@ -240,7 +240,9 @@ function Rod({ index, stack, x, capacity, selected, shaking, complete, interacti
     }
   })
   const topBoltId = stack[stack.length - 1]?.id
-  const movingBoltId = scene.moveAnimation?.teamId === scene.teamId && scene.moveAnimation.toRod === index ? scene.moveAnimation.bolt.id : null
+  const movingBoltIds = scene.moveAnimation?.teamId === scene.teamId && scene.moveAnimation.toRod === index
+    ? new Set(scene.moveAnimation.bolts.map(({ bolt }) => bolt.id))
+    : null
   return <group ref={group} position={[x, 0, 0]} dispose={null}>
     <mesh geometry={scene.socketGeometry} material={materials.socket} position={[0, 0.045, 0]} castShadow receiveShadow dispose={null}/>
     <mesh geometry={scene.washerGeometry} material={selected || complete ? materials.selected : materials.washer} position={[0, 0.087, 0]} castShadow receiveShadow dispose={null}/>
@@ -249,7 +251,7 @@ function Rod({ index, stack, x, capacity, selected, shaking, complete, interacti
     <mesh geometry={scene.threadGeometry} material={materials.thread} position={[0, 0.075, 0]} castShadow receiveShadow dispose={null}/>
     <mesh geometry={scene.hitGeometry} material={materials.hit} position={[0, rodHeight / 2 + 0.08, 0]} dispose={null} onClick={interactive ? (event) => { event.stopPropagation(); onClick(index) } : undefined}/>
     {stack.map((bolt, boltIndex) => {
-      if (bolt.id === movingBoltId) return null
+      if (movingBoltIds?.has(bolt.id)) return null
       const isTop = bolt.id === topBoltId
       return <Nut key={bolt.id} bolt={bolt} selected={selected && isTop} y={nutBase + boltIndex * NUT_PITCH} geometry={scene.nutGeometry} materials={materials} mysteryGeometry={scene.mysteryGeometry} mysteryDotGeometry={scene.mysteryDotGeometry} interactive={interactive && isTop} onClick={() => onClick(index)}/>
     })}
@@ -258,41 +260,50 @@ function Rod({ index, stack, x, capacity, selected, shaking, complete, interacti
   </group>
 }
 
-function MovingNut({ animation, scene, materials, onAnimationEnd }) {
-  const group = useRef(null)
+function MovingBoltGroup({ animation, scene, materials, onAnimationEnd }) {
+  const groups = useRef([])
   const startedAt = useRef(0)
   const ended = useRef(false)
   const fromX = (animation.fromRod - (scene.rodCount - 1) / 2) * ROD_GAP
   const toX = (animation.toRod - (scene.rodCount - 1) / 2) * ROD_GAP
-  const startY = 0.23 + (animation.fromLength - 1) * NUT_PITCH
-  const endY = 0.23 + animation.toLength * NUT_PITCH
   useLayoutEffect(() => {
     startedAt.current = performance.now()
     ended.current = false
   }, [animation.id])
   useFrame(() => {
-    if (!group.current || ended.current) return
+    if (ended.current) return
     const progress = Math.min(1, (performance.now() - startedAt.current) / MOVE_DURATION)
     const eased = 1 - (1 - progress) ** 3
-    group.current.position.set(
-      THREE.MathUtils.lerp(fromX, toX, eased),
-      THREE.MathUtils.lerp(startY, endY, eased) + Math.sin(Math.PI * eased) * 0.72,
-      Math.sin(Math.PI * eased) * 0.1,
-    )
-    group.current.rotation.set(0, eased * Math.PI * 2.2, eased * Math.PI * 0.22)
+    animation.bolts.forEach((movement, index) => {
+      const group = groups.current[index]
+      if (!group) return
+      const startY = 0.23 + movement.fromIndex * NUT_PITCH
+      const endY = 0.23 + movement.toIndex * NUT_PITCH
+      group.position.set(
+        THREE.MathUtils.lerp(fromX, toX, eased),
+        THREE.MathUtils.lerp(startY, endY, eased) + Math.sin(Math.PI * eased) * 0.72,
+        Math.sin(Math.PI * eased) * 0.1,
+      )
+      group.rotation.set(0, eased * Math.PI * 2.2, eased * Math.PI * 0.22)
+    })
     if (progress >= 1) {
       ended.current = true
       onAnimationEnd(animation.id)
     }
   })
-  const colorMaterial = animation.bolt.revealed ? (materials[animation.bolt.color] || materials.rod) : materials.hiddenNut
-  return <group ref={group} position={[fromX, startY, 0]} dispose={null}>
-    <mesh geometry={scene.nutGeometry} material={colorMaterial} castShadow receiveShadow dispose={null}/>
-    {!animation.bolt.revealed && <group>
-      <mesh geometry={scene.mysteryGeometry} material={materials.question} dispose={null}/>
-      <mesh geometry={scene.mysteryDotGeometry} material={materials.question} position={[0.12, 0.078, 0.083]} dispose={null}/>
-    </group>}
-  </group>
+  return <>
+    {animation.bolts.map((movement, index) => {
+      const colorMaterial = movement.bolt.revealed ? (materials[movement.bolt.color] || materials.rod) : materials.hiddenNut
+      const startY = 0.23 + movement.fromIndex * NUT_PITCH
+      return <group key={movement.bolt.id} ref={(group) => { groups.current[index] = group }} position={[fromX, startY, 0]} dispose={null}>
+        <mesh geometry={scene.nutGeometry} material={colorMaterial} castShadow receiveShadow dispose={null}/>
+        {!movement.bolt.revealed && <group>
+          <mesh geometry={scene.mysteryGeometry} material={materials.question} dispose={null}/>
+          <mesh geometry={scene.mysteryDotGeometry} material={materials.question} position={[0.12, 0.078, 0.083]} dispose={null}/>
+        </group>}
+      </group>
+    })}
+  </>
 }
 
 function SceneContents({ team, active, selected, shakingRod, level, moveAnimation, onRod, onMoveAnimationEnd }) {
@@ -315,7 +326,7 @@ function SceneContents({ team, active, selected, shakingRod, level, moveAnimatio
     <pointLight position={[-4, 2.8, 3]} intensity={12} distance={11} color={active ? team.color : '#a4b1bc'}/>
     <Board scene={scene} materials={scene.materials}/>
     {positions.map((x, index) => <Rod key={`${team.id}-${index}`} index={index} stack={team.stacks[index]} x={x} capacity={level.capacity} selected={active && selected === index} shaking={active && shakingRod === index} complete={completeStacks[index]} interactive={active} onClick={onRod} scene={teamScene} materials={scene.materials}/>) }
-    {moveAnimation?.teamId === team.id && <MovingNut animation={moveAnimation} scene={teamScene} materials={scene.materials} onAnimationEnd={onMoveAnimationEnd}/>}
+    {moveAnimation?.teamId === team.id && <MovingBoltGroup animation={moveAnimation} scene={teamScene} materials={scene.materials} onAnimationEnd={onMoveAnimationEnd}/>}
   </>
 }
 

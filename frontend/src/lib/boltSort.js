@@ -26,6 +26,50 @@ export function hasLegalMove(stacks, capacity) {
   })
 }
 
+export function planBoltMove(stacks, fromIndex, toIndex, capacity) {
+  if (!Array.isArray(stacks) || !Number.isInteger(fromIndex) || !Number.isInteger(toIndex)
+    || fromIndex < 0 || toIndex < 0 || fromIndex >= stacks.length || toIndex >= stacks.length
+    || fromIndex === toIndex || !Number.isInteger(capacity) || capacity < 1) {
+    return { ok: false, reason: 'invalid-move' }
+  }
+
+  const source = stacks[fromIndex]
+  const target = stacks[toIndex]
+  const topBolt = source[source.length - 1]
+  if (!topBolt) return { ok: false, reason: 'empty-source' }
+  if (!topBolt.revealed) return { ok: false, reason: 'hidden-top' }
+  if (target.length >= capacity) return { ok: false, reason: 'target-full' }
+  if (target.length && target[target.length - 1].color !== topBolt.color) {
+    return { ok: false, reason: 'color-mismatch' }
+  }
+
+  let matchingRun = 0
+  for (let index = source.length - 1; index >= 0; index -= 1) {
+    const bolt = source[index]
+    if (!bolt.revealed || bolt.color !== topBolt.color) break
+    matchingRun += 1
+  }
+
+  const movedCount = Math.min(matchingRun, capacity - target.length)
+  if (!movedCount) return { ok: false, reason: 'no-visible-run' }
+
+  const movedBolts = source.slice(-movedCount).map((bolt) => ({ ...bolt, revealed: true }))
+  const nextStacks = stacks.map((stack, index) => {
+    if (index === fromIndex) return source.slice(0, -movedCount)
+    if (index === toIndex) return [...target, ...movedBolts]
+    return stack
+  })
+
+  return {
+    ok: true,
+    stacks: nextStacks,
+    movedBolts,
+    movedCount,
+    fromLength: source.length,
+    toLength: target.length,
+  }
+}
+
 export function makeBoard(level) {
   const colors = PALETTE.slice(0, level.colors)
   let stacks

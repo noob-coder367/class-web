@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { hasLegalMove, isComplete, makeBoard, MYSTERY_BOLT_RATIO, PALETTE, shuffle } from '../src/lib/boltSort.js'
+import { hasLegalMove, isComplete, makeBoard, MYSTERY_BOLT_RATIO, PALETTE, planBoltMove, shuffle } from '../src/lib/boltSort.js'
 
 const LEVELS = [
   { capacity: 3, colors: 3, rods: 5 },
@@ -22,6 +22,56 @@ test('legal-move detection respects top colors, capacity, and completed rods', (
   assert.equal(hasLegalMove([[piece('blue'), piece('red')], [piece('blue')], []], 2), true)
   assert.equal(hasLegalMove([[piece('blue'), piece('red')], [piece('red'), piece('blue')], [piece('blue'), piece('red')]], 2), false)
   assert.equal(hasLegalMove([[piece('green'), piece('green')], []], 2), false)
+})
+
+test('one move transfers the full visible same-color run that fits, preserving bottom-to-top order', () => {
+  const piece = (id, color) => ({ id, color, revealed: true })
+  const source = [piece('a', 'blue'), piece('b', 'red'), piece('c', 'red'), piece('d', 'red')]
+  const target = [piece('e', 'red')]
+  const originalStacks = [source, target, []]
+
+  const plan = planBoltMove(originalStacks, 0, 1, 4)
+
+  assert.equal(plan.ok, true)
+  assert.equal(plan.movedCount, 3)
+  assert.deepEqual(plan.movedBolts.map((bolt) => bolt.id), ['b', 'c', 'd'])
+  assert.deepEqual(plan.stacks[0].map((bolt) => bolt.id), ['a'])
+  assert.deepEqual(plan.stacks[1].map((bolt) => bolt.id), ['e', 'b', 'c', 'd'])
+  assert.equal(plan.stacks[1].length, 4)
+  assert.deepEqual(originalStacks[0].map((bolt) => bolt.id), ['a', 'b', 'c', 'd'])
+})
+
+test('a same-color run larger than the open slots only moves the top bolts that fit', () => {
+  const piece = (id, color) => ({ id, color, revealed: true })
+  const stacks = [
+    [piece('base', 'blue'), piece('red-1', 'red'), piece('red-2', 'red'), piece('red-3', 'red')],
+    [piece('target-1', 'red'), piece('target-2', 'red')],
+  ]
+
+  const plan = planBoltMove(stacks, 0, 1, 3)
+
+  assert.equal(plan.ok, true)
+  assert.equal(plan.movedCount, 1)
+  assert.deepEqual(plan.stacks[0].map((bolt) => bolt.id), ['base', 'red-1', 'red-2'])
+  assert.deepEqual(plan.stacks[1].map((bolt) => bolt.id), ['target-1', 'target-2', 'red-3'])
+})
+
+test('a color mismatch or an unrevealed bolt stops the run; only available capacity moves', () => {
+  const piece = (id, color, revealed = true) => ({ id, color, revealed })
+  const stacks = [
+    [piece('base', 'blue'), piece('hidden', 'red', false), piece('top', 'red')],
+    [piece('target', 'red'), piece('target-top', 'red')],
+  ]
+
+  const plan = planBoltMove(stacks, 0, 1, 4)
+
+  assert.equal(plan.ok, true)
+  assert.equal(plan.movedCount, 1)
+  assert.deepEqual(plan.stacks[0].map((bolt) => bolt.id), ['base', 'hidden'])
+  assert.equal(plan.stacks[1].length, 3)
+  assert.equal(plan.stacks[1][2].id, 'top')
+  assert.equal(planBoltMove(stacks, 0, 1, 2).reason, 'target-full')
+  assert.equal(planBoltMove([[piece('source', 'red')], [piece('wrong', 'blue')]], 0, 1, 4).reason, 'color-mismatch')
 })
 
 test('every level gets a balanced board, spare empty rods, and only a small mystery share', () => {
