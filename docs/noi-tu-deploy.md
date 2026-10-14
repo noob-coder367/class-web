@@ -5,4 +5,4 @@
 3. Deploy frontend lên Vercel sau khi API backend có migration. Không thêm biến môi trường mới ngoài cấu hình `VITE_API_BASE_URL` hiện có (nếu dự án dùng URL backend khác mặc định).
 4. Smoke-test: mở `/choi`, chọn Nối Từ; thử local theo chủ đề và văn bản; tạo phòng online, cho tài khoản thứ hai vào bằng mã, bắt đầu trận, kiểm tra đáp án hợp lệ/sai/lặp, Bỏ lượt và refresh để kiểm tra đồng bộ. Với host, thử cả hai lựa chọn thoát phòng: giữ phòng và đóng phòng; xác nhận người chơi khác thấy trạng thái phòng đã đóng.
 
-Các migration chưa được áp dụng lên Supabase trong task này; không có tuyên bố deploy Render/Vercel hoặc production database thành công.
+Tình trạng release ngày 2026-10-14: migration `20261014000100_word_chain_room_cancellation.sql` đã được áp dụng lên Supabase project `Web-10A4-NHH` và constraint đã được xác minh. Commit `418a2af` đã lên production qua Vercel và Render. Chưa thực hiện smoke test tạo/đóng phòng có đăng nhập trực tiếp trên production.
