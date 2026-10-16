@@ -84,6 +84,27 @@ export async function listPublicQuizzes() {
   return data || []
 }
 
+/** Quiz đã được chủ đặt công khai mới có thể được tải vào game chạy trên trình duyệt. */
+export async function getPublicQuizForPlay(quizId) {
+  if (!isUuid(quizId)) throw new HttpError('Không tìm thấy phòng.', 404, 'not_found')
+  const { data: quiz, error } = await supabaseAdmin
+    .from('quizzes')
+    .select('id, title, is_public')
+    .eq('id', quizId)
+    .eq('is_public', true)
+    .maybeSingle()
+  if (error) throw mapDbError(error)
+  if (!quiz) throw new HttpError('Không tìm thấy quiz công khai.', 404, 'not_found')
+
+  const { data: questions, error: questionsError } = await supabaseAdmin
+    .from('questions')
+    .select(QUESTION_COLUMNS)
+    .eq('quiz_id', quizId)
+    .order('order_index', { ascending: true })
+  if (questionsError) throw mapDbError(questionsError)
+  return { id: quiz.id, title: quiz.title, is_public: quiz.is_public, questions: questions || [] }
+}
+
 export async function deleteQuiz(ownerId, quizId) {
   if (!isUuid(quizId)) throw new HttpError('Không tìm thấy phòng.', 404, 'not_found')
   const { data, error } = await supabaseAdmin

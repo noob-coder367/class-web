@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, Clock3, Cog, Flame, Gauge, HelpCircle, RotateCcw, Sparkles, Trophy, Undo2, Volume2, VolumeX, Wrench } from 'lucide-react'
 import { ROUTES } from '../lib/routes.js'
 import { listRoomQuizzes } from '../services/gameRoomService.js'
-import { fetchQuiz } from '../services/quizService.js'
+import { fetchPublicQuizForPlay, fetchQuiz } from '../services/quizService.js'
 import { hasLegalMove, isComplete, makeBoard, PALETTE, planBoltMove, shuffle } from '../lib/boltSort.js'
 import '../bolt-sort-game.css'
 
@@ -154,7 +154,8 @@ export default function BoltSortGamePage() {
     playSfx('level')
     let quizQuestions
     try {
-      const quiz = await fetchQuiz(selectedQuizId)
+      const selectedQuiz = quizzes.find((item) => item.id === selectedQuizId)
+      const quiz = selectedQuiz?.is_public ? await fetchPublicQuizForPlay(selectedQuizId) : await fetchQuiz(selectedQuizId)
       quizQuestions = (quiz.questions || []).map((item) => {
         if (item.type === 'true_false') return { content: item.content, type: 'multiple_choice', answer: item.correct_boolean ? 'Đúng' : 'Sai', options: ['Đúng', 'Sai'] }
         if (item.type === 'essay') return { content: item.content, type: 'essay', answer: String(item.reference_answer || '').trim(), options: [] }

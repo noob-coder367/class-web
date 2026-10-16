@@ -177,6 +177,13 @@ test('quiz public xuất hiện với người khác nhưng metadata đầy đ�
   assert.ok(!guestCatalog.body.quizzes.some((quiz) => quiz.id === privateQuizId))
   assert.equal(Object.hasOwn(guestCatalog.body.quizzes.find((quiz) => quiz.id === publicQuizId), 'questions'), false)
 
+  const guestPlayQuiz = await call(`/api/quizzes/public/${publicQuizId}/play`)
+  assert.equal(guestPlayQuiz.status, 200)
+  assert.equal(guestPlayQuiz.body.quiz.questions.length, 3)
+  assert.equal(guestPlayQuiz.body.quiz.questions[0].correct_option, 1)
+  assert.equal(Object.hasOwn(guestPlayQuiz.body.quiz, 'owner_id'), false)
+  assert.equal((await call(`/api/quizzes/public/${privateQuizId}/play`)).status, 404)
+
   const guestRoomCatalog = await call('/api/quizzes/room-catalog')
   assert.equal(guestRoomCatalog.status, 200)
   assert.ok(guestRoomCatalog.body.quizzes.some((quiz) => quiz.id === publicQuizId))

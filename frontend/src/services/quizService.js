@@ -8,6 +8,11 @@ export async function fetchQuiz(id) {
   return quiz
 }
 
+export async function fetchPublicQuizForPlay(id) {
+  const { quiz } = await apiClient.get(`/quizzes/public/${id}/play`)
+  return quiz
+}
+
 /** Lưu (upsert) cả phòng + câu hỏi. Idempotent theo id nên bấm lưu nhiều lần không tạo bản sao. */
 export async function saveQuiz(id, payload) {
   const { quiz } = await apiClient.put(`/quizzes/${id}`, payload, { auth: true, retry: false, timeoutMs: 30_000 })

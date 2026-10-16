@@ -5,6 +5,7 @@ import { requireGoogle } from '../middlewares/googleOnly.middleware.js'
 
 const router = Router()
 router.get('/public', quizController.listPublic)
+router.get('/public/:id/play', quizController.playPublic)
 router.get('/room-catalog', (req, res, next) => {
   if (String(req.headers.authorization || '').startsWith('Bearer ')) {
     return requireAuth(req, res, () => quizController.list(req, res, next))
