@@ -2,6 +2,7 @@ import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, us
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { PALETTE } from '../lib/boltSort.js'
+import { BOLT_MOVE_DURATION_MS, getBoltFlightPose } from '../lib/boltSortAnimation.js'
 import './bolt-sort-3d.css'
 
 const ROD_GAP = 0.7
@@ -9,7 +10,6 @@ const NUT_PITCH = 0.16
 const NUT_HEIGHT = 0.14
 const NUT_RADIUS = 0.228
 const NUT_HOLE_RADIUS = 0.073
-const MOVE_DURATION = 560
 
 function supportsWebGL() {
   if (typeof document === 'undefined') return false
@@ -135,6 +135,7 @@ function createResources(width, depth, rodHeight) {
   return {
     width,
     depth,
+    rodHeight,
     boardGeometry: roundedPlateGeometry(width, depth, 0.2, 0.045),
     topGeometry: roundedPlateGeometry(width - 0.2, depth - 0.2, 0.028, 0.012),
     frontRailGeometry: new THREE.BoxGeometry(width - 0.36, 0.07, 0.055),
@@ -272,19 +273,22 @@ function MovingBoltGroup({ animation, scene, materials, onAnimationEnd }) {
   }, [animation.id])
   useFrame(() => {
     if (ended.current) return
-    const progress = Math.min(1, (performance.now() - startedAt.current) / MOVE_DURATION)
-    const eased = 1 - (1 - progress) ** 3
+    const progress = Math.min(1, (performance.now() - startedAt.current) / BOLT_MOVE_DURATION_MS)
     animation.bolts.forEach((movement, index) => {
       const group = groups.current[index]
       if (!group) return
       const startY = 0.23 + movement.fromIndex * NUT_PITCH
       const endY = 0.23 + movement.toIndex * NUT_PITCH
-      group.position.set(
-        THREE.MathUtils.lerp(fromX, toX, eased),
-        THREE.MathUtils.lerp(startY, endY, eased) + Math.sin(Math.PI * eased) * 0.72,
-        Math.sin(Math.PI * eased) * 0.1,
-      )
-      group.rotation.set(0, eased * Math.PI * 2.2, eased * Math.PI * 0.22)
+      const pose = getBoltFlightPose({
+        progress,
+        fromX,
+        toX,
+        startY,
+        endY,
+        clearanceY: scene.rodHeight + 0.22 + index * NUT_PITCH,
+      })
+      group.position.set(pose.x, pose.y, pose.z)
+      group.rotation.set(0, pose.rotationY, 0)
     })
     if (progress >= 1) {
       ended.current = true
