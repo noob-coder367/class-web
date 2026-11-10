@@ -19,8 +19,16 @@ export const listOpenRooms = async (gameKey) => {
   return rooms || []
 }
 export const getRoom = async (code) => {
-  const { room } = await apiClient.get(`/game-rooms/${code}`)
-  return room
+  try {
+    const { room } = await apiClient.get(`/game-rooms/${code}`)
+    return room
+  } catch (error) {
+    // Mở link phòng bằng trình duyệt mới phải vào thẳng sảnh, không bắt đăng nhập
+    // hay bắt người chơi nhập lại mã. Guest ID đã được apiClient giữ ổn định trong localStorage.
+    if (error?.code !== 'not_in_room') throw error
+    const { room } = await apiClient.post(`/game-rooms/${code}/join`, {}, { retry: false })
+    return room
+  }
 }
 export const joinRoom = async (code, payload = {}) => {
   const { room } = await apiClient.post(`/game-rooms/${code}/join`, payload, { retry: false })

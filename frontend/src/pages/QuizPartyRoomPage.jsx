@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, Clock3, Crown, PartyPopper, Play, RotateCw, ShieldCheck, Shirt, Sparkles, Trophy, X } from 'lucide-react'
 import SiteHeader from '../components/SiteHeader.jsx'
 import RoomExitControl from '../components/game/RoomExitControl.jsx'
+import RoomShareButton from '../components/game/RoomShareButton.jsx'
 import PetMascot, { PET_CATEGORIES } from '../components/pet/PetMascot.jsx'
 import { getRoom, joinRoom, leaveRoom, startRoom, submitAnswer } from '../services/gameRoomService.js'
 import { ROUTES } from '../lib/routes.js'
@@ -362,7 +363,7 @@ export default function QuizPartyRoomPage() {
       <main className="container game-main qp-main">
         <header className="qp-topbar">
           {host && !isFinished ? <RoomExitControl onExit={exitRoom} error={error} className="quiz-party-exit-trigger" detail="Nếu chọn không, phòng công khai vẫn hiện để người khác vào chơi; phòng riêng tư chỉ còn ở trang chi tiết của bạn." /> : <Link className="qp-back-link" to={ROUTES.play}><ArrowLeft size={16} /> Chọn game khác</Link>}
-          <div className="qp-code"><span>PASSCODE</span><strong>{room.code}</strong><button type="button" onClick={() => navigator.clipboard?.writeText(room.code)}>Sao chép</button></div>
+          <div className="qp-code"><span>PASSCODE</span><strong>{room.code}</strong><RoomShareButton /></div>
           <span className="qp-mode-badge"><PartyPopper size={15} /> QUIZ PARTY</span>
         </header>
 
